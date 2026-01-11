@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>The "I Just Want the Frames" Tool</title>
+    <style>
+        body { background: #222; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        #drop-zone { border: 2px dashed #666; padding: 40px; margin: 20px auto; width: 60%; border-radius: 10px; cursor: pointer; }
+        #drop-zone.hover { border-color: #0f0; background: #2a2a2a; }
+        canvas { border: 2px solid #0f0; margin-top: 20px; max-width: 90%; background: transparent; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #0f0; border: none; font-weight: bold; margin: 10px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <h2>Step 1: Drag your Video Here</h2>
+    <div id="drop-zone">Drop MP4 File Here</div>
+    <input type="file" id="file-input" class="hidden" accept="video/*">
+
+    <div id="controls" class="hidden">
+        <h3>Step 2: Generate Sheet</h3>
+        <label>Total Frames to Extract: <input type="number" id="frameCount" value="8" style="width:50px"></label>
+        <button onclick="extractFrames()">Make Sprite Sheet</button>
+        <br>
+        <small>Right-click the image below to save as "spritesheet.png"</small>
+    </div>
+
+    <div id="output"></div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const controls = document.getElementById('controls');
+        let video = document.createElement('video');
+        
+        // Handle Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('hover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        function handleFile(file) {
+            if (!file.type.startsWith('video/')) return alert('Video files only!');
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            video.muted = true;
+            video.onloadeddata = () => {
+                controls.classList.remove('hidden');
+                dropZone.innerHTML = `Loaded: ${file.name} (${Math.floor(video.duration)}s)`;
+            };
+        }
+
+        async function extractFrames() {
+            const count = parseInt(document.getElementById('frameCount').value);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size (Horizontal Strip)
+            // Assuming video is 1080p, we scale down for sprites
+            const spriteH = 64; 
+            const scale = spriteH / video.videoHeight;
+            const spriteW = video.videoWidth * scale;
+            
+            canvas.height = spriteH;
+            canvas.width = spriteW * count;
+            
+            const interval = video.duration / (count + 1); // Skip end/start slightly
+
+            for (let i = 0; i < count; i++) {
+                video.currentTime = interval * (i + 0.5); // Sample middle of segments
+                await new Promise(r => video.onseeked = r);
+                
+                // Draw frame to canvas
+                ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, i * spriteW, 0, spriteW, spriteH);
+            }
+
+            // Display result
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+            output.appendChild(canvas);
+        }
+    </script>
+</body>
+</html>

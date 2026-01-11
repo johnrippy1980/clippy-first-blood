@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+    <url>
+        <loc>https://clippy-first-blood.vercel.app/</loc>
+        <lastmod>2026-01-11</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>1.0</priority>
+        <image:image>
+            <image:loc>https://clippy-first-blood.vercel.app/images/og-image.png</image:loc>
+            <image:title>Clippy: First Blood - SNES Style Run and Gun Game</image:title>
+            <image:caption>Play Clippy: First Blood, a retro SNES-style browser game featuring the iconic Microsoft Office assistant as an action hero</image:caption>
+        </image:image>
+    </url>
+</urlset>

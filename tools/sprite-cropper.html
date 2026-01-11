@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clippy Sprite Cropper - Extract sprites from screenshots</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { color: #4a9; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 20px; }
+
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .panel {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        #sourceCanvas {
+            border: 2px solid #666;
+            cursor: crosshair;
+            max-width: 100%;
+            background: #111;
+        }
+
+        #previewCanvas {
+            border: 2px solid #4a9;
+            background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 16px 16px;
+            image-rendering: pixelated;
+        }
+
+        .output-box {
+            background: #111;
+            border: 1px solid #555;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            color: #0f0;
+        }
+
+        button {
+            background: #4a9;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 5px;
+            border-radius: 4px;
+        }
+        button:hover { background: #5ba; }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        input[type="file"] { margin: 10px 0; }
+        input[type="number"] {
+            width: 60px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 5px;
+        }
+
+        label { display: block; margin: 10px 0 5px; color: #aaa; }
+
+        .frame-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .frame-item {
+            background: #333;
+            padding: 5px;
+            border: 1px solid #555;
+            text-align: center;
+        }
+        .frame-item canvas {
+            display: block;
+            margin: 0 auto 5px;
+            background: repeating-conic-gradient(#222 0% 25%, #111 0% 50%) 50% / 8px 8px;
+        }
+        .frame-item button { padding: 2px 8px; font-size: 11px; }
+
+        .info { color: #888; font-size: 12px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Clippy Sprite Cropper</h1>
+    <p class="subtitle">Extract sprite frames from your screenshots - No photo editor needed!</p>
+
+    <div class="container">
+        <div class="panel">
+            <h3>1. Load Your Screenshot</h3>
+            <input type="file" id="fileInput" accept="image/*">
+            <canvas id="sourceCanvas" width="800" height="600"></canvas>
+            <div class="info">Click and drag to select a sprite region</div>
+        </div>
+
+        <div class="panel">
+            <h3>2. Configure Frame Size</h3>
+            <label>Target Width: <input type="number" id="targetWidth" value="48" min="8" max="128"> px</label>
+            <label>Target Height: <input type="number" id="targetHeight" value="48" min="8" max="128"> px</label>
+
+            <h3>Preview (at game size)</h3>
+            <canvas id="previewCanvas" width="96" height="96"></canvas>
+
+            <div id="coords" class="output-box">Select a region...</div>
+
+            <h3>3. Save Frame</h3>
+            <label>Frame Name: <input type="text" id="frameName" value="idle_01" style="width:150px;background:#333;border:1px solid #555;color:#fff;padding:5px;"></label>
+            <button id="addFrame" disabled>Add to Spritesheet</button>
+            <button id="downloadFrame" disabled>Download Single Frame</button>
+        </div>
+
+        <div class="panel" style="width:100%;">
+            <h3>4. Collected Frames</h3>
+            <div id="frameList" class="frame-list"></div>
+            <br>
+            <button id="downloadSheet" disabled>Download Sprite Sheet PNG</button>
+            <button id="downloadJSON" disabled>Download JSON Metadata</button>
+            <button id="clearAll">Clear All Frames</button>
+        </div>
+    </div>
+
+<script>
+const sourceCanvas = document.getElementById('sourceCanvas');
+const sourceCtx = sourceCanvas.getContext('2d');
+const previewCanvas = document.getElementById('previewCanvas');
+const previewCtx = previewCanvas.getContext('2d');
+
+let sourceImage = null;
+let selection = { x: 0, y: 0, w: 0, h: 0 };
+let isDragging = false;
+let startDrag = { x: 0, y: 0 };
+let frames = []; // { name, imageData, x, y, w, h }
+
+// Disable image smoothing for pixel-perfect preview
+previewCtx.imageSmoothingEnabled = false;
+
+// File Loading
+document.getElementById('fileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        sourceImage = new Image();
+        sourceImage.onload = () => {
+            sourceCanvas.width = Math.min(sourceImage.width, 1200);
+            sourceCanvas.height = Math.min(sourceImage.height, 800);
+            sourceCtx.drawImage(sourceImage, 0, 0, sourceCanvas.width, sourceCanvas.height);
+        };
+        sourceImage.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+// Selection
+sourceCanvas.addEventListener('mousedown', (e) => {
+    if (!sourceImage) return;
+    const rect = sourceCanvas.getBoundingClientRect();
+    startDrag = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+    isDragging = true;
+});
+
+sourceCanvas.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const rect = sourceCanvas.getBoundingClientRect();
+    const currX = e.clientX - rect.left;
+    const currY = e.clientY - rect.top;
+
+    selection = {
+        x: Math.min(startDrag.x, currX),
+        y: Math.min(startDrag.y, currY),
+        w: Math.abs(currX - startDrag.x),
+        h: Math.abs(currY - startDrag.y)
+    };
+
+    redrawSource();
+    updatePreview();
+});
+
+sourceCanvas.addEventListener('mouseup', () => {
+    isDragging = false;
+    if (selection.w > 5 && selection.h > 5) {
+        document.getElementById('addFrame').disabled = false;
+        document.getElementById('downloadFrame').disabled = false;
+    }
+});
+
+function redrawSource() {
+    if (!sourceImage) return;
+    sourceCtx.drawImage(sourceImage, 0, 0, sourceCanvas.width, sourceCanvas.height);
+
+    // Draw selection box
+    if (selection.w > 0) {
+        sourceCtx.strokeStyle = '#0f0';
+        sourceCtx.lineWidth = 2;
+        sourceCtx.setLineDash([5, 5]);
+        sourceCtx.strokeRect(selection.x, selection.y, selection.w, selection.h);
+        sourceCtx.setLineDash([]);
+
+        // Corner handles
+        const corners = [
+            [selection.x, selection.y],
+            [selection.x + selection.w, selection.y],
+            [selection.x, selection.y + selection.h],
+            [selection.x + selection.w, selection.y + selection.h]
+        ];
+        sourceCtx.fillStyle = '#0f0';
+        corners.forEach(([cx, cy]) => {
+            sourceCtx.fillRect(cx - 4, cy - 4, 8, 8);
+        });
+    }
+}
+
+function updatePreview() {
+    if (!sourceImage || selection.w < 1) return;
+
+    const tw = parseInt(document.getElementById('targetWidth').value);
+    const th = parseInt(document.getElementById('targetHeight').value);
+
+    previewCanvas.width = tw * 2;
+    previewCanvas.height = th * 2;
+    previewCtx.imageSmoothingEnabled = false;
+
+    // Scale factor from display to actual image
+    const scaleX = sourceImage.width / sourceCanvas.width;
+    const scaleY = sourceImage.height / sourceCanvas.height;
+
+    const actualX = Math.floor(selection.x * scaleX);
+    const actualY = Math.floor(selection.y * scaleY);
+    const actualW = Math.floor(selection.w * scaleX);
+    const actualH = Math.floor(selection.h * scaleY);
+
+    // Draw at 2x for visibility
+    previewCtx.drawImage(
+        sourceImage,
+        actualX, actualY, actualW, actualH,
+        0, 0, tw * 2, th * 2
+    );
+
+    document.getElementById('coords').textContent =
+        `Source: x=${actualX}, y=${actualY}, w=${actualW}, h=${actualH}\n` +
+        `Target: ${tw}x${th} pixels\n\n` +
+        `Scale: ${(actualW/tw).toFixed(2)}x horizontal, ${(actualH/th).toFixed(2)}x vertical`;
+}
+
+document.getElementById('targetWidth').addEventListener('change', updatePreview);
+document.getElementById('targetHeight').addEventListener('change', updatePreview);
+
+// Add frame to collection
+document.getElementById('addFrame').addEventListener('click', () => {
+    const tw = parseInt(document.getElementById('targetWidth').value);
+    const th = parseInt(document.getElementById('targetHeight').value);
+    const name = document.getElementById('frameName').value || `frame_${frames.length}`;
+
+    const scaleX = sourceImage.width / sourceCanvas.width;
+    const scaleY = sourceImage.height / sourceCanvas.height;
+
+    // Create temp canvas at target size
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = tw;
+    tempCanvas.height = th;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.imageSmoothingEnabled = false;
+
+    tempCtx.drawImage(
+        sourceImage,
+        selection.x * scaleX, selection.y * scaleY,
+        selection.w * scaleX, selection.h * scaleY,
+        0, 0, tw, th
+    );
+
+    frames.push({
+        name: name,
+        canvas: tempCanvas,
+        w: tw,
+        h: th
+    });
+
+    updateFrameList();
+
+    // Auto-increment frame name
+    const match = name.match(/^(.+?)(\d+)$/);
+    if (match) {
+        document.getElementById('frameName').value = match[1] + String(parseInt(match[2]) + 1).padStart(2, '0');
+    }
+});
+
+function updateFrameList() {
+    const container = document.getElementById('frameList');
+    container.innerHTML = '';
+
+    frames.forEach((frame, i) => {
+        const div = document.createElement('div');
+        div.className = 'frame-item';
+
+        const displayCanvas = document.createElement('canvas');
+        displayCanvas.width = frame.w * 2;
+        displayCanvas.height = frame.h * 2;
+        const dCtx = displayCanvas.getContext('2d');
+        dCtx.imageSmoothingEnabled = false;
+        dCtx.drawImage(frame.canvas, 0, 0, frame.w * 2, frame.h * 2);
+
+        const label = document.createElement('div');
+        label.textContent = frame.name;
+        label.style.fontSize = '10px';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'X';
+        removeBtn.onclick = () => {
+            frames.splice(i, 1);
+            updateFrameList();
+        };
+
+        div.appendChild(displayCanvas);
+        div.appendChild(label);
+        div.appendChild(removeBtn);
+        container.appendChild(div);
+    });
+
+    document.getElementById('downloadSheet').disabled = frames.length === 0;
+    document.getElementById('downloadJSON').disabled = frames.length === 0;
+}
+
+// Download single frame
+document.getElementById('downloadFrame').addEventListener('click', () => {
+    const tw = parseInt(document.getElementById('targetWidth').value);
+    const th = parseInt(document.getElementById('targetHeight').value);
+    const name = document.getElementById('frameName').value || 'sprite';
+
+    const scaleX = sourceImage.width / sourceCanvas.width;
+    const scaleY = sourceImage.height / sourceCanvas.height;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = tw;
+    tempCanvas.height = th;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.imageSmoothingEnabled = false;
+
+    tempCtx.drawImage(
+        sourceImage,
+        selection.x * scaleX, selection.y * scaleY,
+        selection.w * scaleX, selection.h * scaleY,
+        0, 0, tw, th
+    );
+
+    const link = document.createElement('a');
+    link.download = `${name}.png`;
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+});
+
+// Download sprite sheet
+document.getElementById('downloadSheet').addEventListener('click', () => {
+    if (frames.length === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(frames.length));
+    const rows = Math.ceil(frames.length / cols);
+    const fw = frames[0].w;
+    const fh = frames[0].h;
+
+    const sheetCanvas = document.createElement('canvas');
+    sheetCanvas.width = cols * fw;
+    sheetCanvas.height = rows * fh;
+    const sheetCtx = sheetCanvas.getContext('2d');
+    sheetCtx.imageSmoothingEnabled = false;
+
+    frames.forEach((frame, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        sheetCtx.drawImage(frame.canvas, col * fw, row * fh);
+    });
+
+    const link = document.createElement('a');
+    link.download = 'clippy_spritesheet.png';
+    link.href = sheetCanvas.toDataURL('image/png');
+    link.click();
+});
+
+// Download JSON metadata
+document.getElementById('downloadJSON').addEventListener('click', () => {
+    if (frames.length === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(frames.length));
+    const fw = frames[0].w;
+    const fh = frames[0].h;
+
+    const meta = {
+        image: 'clippy_spritesheet.png',
+        frameWidth: fw,
+        frameHeight: fh,
+        frames: {}
+    };
+
+    frames.forEach((frame, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        meta.frames[frame.name] = {
+            x: col * fw,
+            y: row * fh,
+            w: frame.w,
+            h: frame.h
+        };
+    });
+
+    const blob = new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.download = 'clippy_spritesheet.json';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+});
+
+// Clear all
+document.getElementById('clearAll').addEventListener('click', () => {
+    if (confirm('Clear all collected frames?')) {
+        frames = [];
+        updateFrameList();
+    }
+});
+</script>
+</body>
+</html>

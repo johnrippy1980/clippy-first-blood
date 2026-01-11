@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clippy Sprite Viewer</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #ff6b6b;
+            text-shadow: 2px 2px #000;
+        }
+        .sprite-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .sprite-item {
+            background: #000;
+            border: 2px solid #444;
+            padding: 10px;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .sprite-item:hover {
+            border-color: #ff6b6b;
+        }
+        .sprite-item img {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            display: block;
+            margin: 0 auto 8px;
+        }
+        .sprite-name {
+            font-size: 10px;
+            color: #888;
+            word-break: break-all;
+            max-width: 120px;
+        }
+        .test-area {
+            background: #222;
+            border: 2px solid #444;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        #testCanvas {
+            background: #111;
+            border: 1px solid #666;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        button {
+            background: #ff6b6b;
+            border: none;
+            color: #000;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: inherit;
+            margin: 5px;
+        }
+        button:hover {
+            background: #ff8888;
+        }
+    </style>
+</head>
+<body>
+    <h1>CLIPPY: FIRST BLOOD - Sprite Viewer</h1>
+
+    <div class="test-area">
+        <h2>Animation Test</h2>
+        <canvas id="testCanvas" width="400" height="200"></canvas>
+        <div class="controls">
+            <button onclick="testRun()">Test Run Cycle</button>
+            <button onclick="testCrouch()">Test Crouch</button>
+            <button onclick="testProne()">Test Prone</button>
+            <button onclick="testDeath()">Test Death</button>
+            <button onclick="stopAnimation()">Stop</button>
+        </div>
+    </div>
+
+    <h2>Player Sprites (images/sprites/clippy/)</h2>
+    <div class="sprite-grid" id="playerSprites"></div>
+
+    <h2>Enemy Sprites (images/sprites/enemies/)</h2>
+    <div class="sprite-grid" id="enemySprites"></div>
+
+    <h2>Effect Sprites (images/sprites/effects/)</h2>
+    <div class="sprite-grid" id="effectSprites"></div>
+
+    <script>
+        // Sprite lists - clean individually cropped sprites
+        const playerSprites = [
+            'stand',
+            'run_01', 'run_02', 'run_03',
+            'run_shoot_01', 'run_shoot_02',
+            'crouch_shoot',
+            'prone', 'prone_shoot', 'prone_shoot_heavy',
+            'jump',
+            'death_hit', 'death_explode', 'death_burning'
+        ];
+
+        const enemySprites = [
+            // Add enemy sprites here when you have them
+        ];
+
+        const effectSprites = [
+            // Effects are built into the sprites (muzzle flashes, explosions)
+        ];
+
+        // Load and display sprites
+        function loadSprites() {
+            const playerGrid = document.getElementById('playerSprites');
+            const enemyGrid = document.getElementById('enemySprites');
+
+            playerSprites.forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'sprite-item';
+                div.innerHTML = `
+                    <img src="images/sprites/clippy/${name}.png"
+                         onerror="this.style.display='none'"
+                         style="max-width: 120px; max-height: 120px;">
+                    <div class="sprite-name">${name}</div>
+                `;
+                playerGrid.appendChild(div);
+            });
+
+            enemySprites.forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'sprite-item';
+                div.innerHTML = `
+                    <img src="images/sprites/enemies/${name}.png"
+                         onerror="this.style.display='none'"
+                         style="max-width: 150px; max-height: 150px;">
+                    <div class="sprite-name">${name}</div>
+                `;
+                enemyGrid.appendChild(div);
+            });
+
+            const effectGrid = document.getElementById('effectSprites');
+            effectSprites.forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'sprite-item';
+                div.innerHTML = `
+                    <img src="images/sprites/effects/${name}.png"
+                         onerror="this.style.display='none'"
+                         style="max-width: 100px; max-height: 100px;">
+                    <div class="sprite-name">${name}</div>
+                `;
+                effectGrid.appendChild(div);
+            });
+        }
+
+        // Animation test
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        let animationId = null;
+        let currentFrame = 0;
+        let sprites = [];
+        let lastTime = 0;
+        const FPS = 8;
+
+        function loadAnimSprites(names, folder = 'clippy') {
+            return names.map(name => {
+                const img = new Image();
+                img.src = `images/sprites/${folder}/${name}.png`;
+                return img;
+            });
+        }
+
+        function animate(timestamp) {
+            if (timestamp - lastTime > 1000 / FPS) {
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (sprites[currentFrame] && sprites[currentFrame].complete) {
+                    // Draw centered and scaled 2x
+                    const img = sprites[currentFrame];
+                    const scale = 2;
+                    const x = (canvas.width - img.width * scale) / 2;
+                    const y = (canvas.height - img.height * scale) / 2;
+                    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                }
+
+                currentFrame = (currentFrame + 1) % sprites.length;
+                lastTime = timestamp;
+            }
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function testRun() {
+            stopAnimation();
+            sprites = loadAnimSprites(['run_01', 'run_02', 'run_03', 'run_shoot_01', 'run_shoot_02']);
+            currentFrame = 0;
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function testCrouch() {
+            stopAnimation();
+            sprites = loadAnimSprites(['stand', 'crouch_shoot']);
+            currentFrame = 0;
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function testProne() {
+            stopAnimation();
+            sprites = loadAnimSprites(['prone', 'prone_shoot', 'prone_shoot_heavy']);
+            currentFrame = 0;
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function testDeath() {
+            stopAnimation();
+            sprites = loadAnimSprites(['death_hit', 'death_explode', 'death_burning']);
+            currentFrame = 0;
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function stopAnimation() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#666';
+            ctx.font = '14px monospace';
+            ctx.fillText('Click a button to test animation', 100, 100);
+        }
+
+        // Initialize
+        loadSprites();
+        stopAnimation();
+    </script>
+</body>
+</html>

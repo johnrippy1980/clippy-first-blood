@@ -1,0 +1,18 @@
+# DS_Store
+.DS_Store
+
+# Large source images (not needed for deployment)
+*.MP4
+ChatGPT*.png
+Image_*.png
+697a44b8*.png
+clippy*.png
+
+# Backup sprites (not needed for deployment)
+images/sprites/clippy/backup/
+
+# Leonardo prompts (internal docs)
+LEONARDO_PROMPTS.md
+
+# Node
+node_modules/
