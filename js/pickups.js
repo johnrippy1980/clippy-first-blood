@@ -58,6 +58,10 @@ class PickupManager {
                 p.taken = true;
                 if (p.secret && typeof game !== 'undefined' && game.runSecretsFound !== undefined) {
                     game.runSecretsFound++;
+                    if (typeof achievements !== 'undefined') achievements.onSecretFound();
+                }
+                if (p.type !== '1UP' && typeof achievements !== 'undefined') {
+                    achievements.onWeaponUsed(p.type);
                 }
                 if (p.type === '1UP') {
                     if (typeof game !== 'undefined') game.lives++;

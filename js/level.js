@@ -655,6 +655,55 @@ class Level {
         ];
     }
 
+    // ---- Stage 7: THE USURPER - hidden boss fight against Clippy 2.0 ----
+    loadStage7() {
+        this.theme = 'founder';
+        this.width = 50;
+        this.height = 14;
+        this.bossArenaX = 12 * GAME.TILE_SIZE;
+        this.endX = 49 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+        this.checkpoints = [{ x: 50, y: 160 }];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++)
+                for (let x = x1; x <= x2; x++)
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width)
+                        this.tiles[y][x] = t;
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+        // Floating arena platforms - chrome floats for the chrome boss
+        fill(6,  10, 8,  10, TILE.PLATFORM);
+        fill(14, 8,  16, 8,  TILE.PLATFORM);
+        fill(22, 6,  26, 6,  TILE.PLATFORM);
+        fill(32, 8,  34, 8,  TILE.PLATFORM);
+        fill(40, 10, 42, 10, TILE.PLATFORM);
+        cover(20);
+        cover(36);
+
+        // Reward pickups - everything you can carry
+        this.pickups.push({ x: 10 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER',          taken: false });
+        this.pickups.push({ x: 24 * GAME.TILE_SIZE, y: 4  * GAME.TILE_SIZE, type: 'STAPLE_REMOVER', taken: false });
+        this.pickups.push({ x: 44 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'FLAME',          taken: false });
+
+        this.spawnPoints = [
+            { x: 28 * 16, y: 4 * 16, type: 'CLIPPY_2' }
+        ];
+    }
+
     // ---- Boss Rush: three arenas in a row, fight all three bosses ----
     loadBossRush() {
         this.theme = 'serverroom';

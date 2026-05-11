@@ -281,6 +281,17 @@ const ENEMY_TYPE = {
         behavior: 'bill_gates_boss',
         projectile: 'dollar',
         score: 25000
+    },
+    CLIPPY_2: {
+        name: 'Clippy 2.0',
+        width: 36,
+        height: 56,
+        health: 120,
+        damage: 30,
+        speed: 1.2,
+        behavior: 'clippy2_boss',
+        projectile: 'corporate',
+        score: 50000
     }
 };
 

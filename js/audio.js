@@ -448,6 +448,7 @@ class Audio {
 
     // ---------- SFX ----------
 
+    // Default machine-gun shoot - descending square pop
     sfxShoot() {
         if (!this.sfxEnabled || !this.ctx) return;
         const t = this.ctx.currentTime;
@@ -461,6 +462,88 @@ class Audio {
         osc.connect(gain).connect(this.sfxGain);
         osc.start(t);
         osc.stop(t + 0.12);
+    }
+
+    // Spread - layered two-tone chirp
+    sfxShootSpread() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        for (let i = 0; i < 2; i++) {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(700 + i * 220, t);
+            osc.frequency.exponentialRampToValueAtTime(150 + i * 80, t + 0.1);
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            osc.connect(gain).connect(this.sfxGain);
+            osc.start(t);
+            osc.stop(t + 0.14);
+        }
+    }
+
+    // Laser - high zap with quick descent
+    sfxShootLaser() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(1400, t);
+        osc.frequency.exponentialRampToValueAtTime(400, t + 0.12);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.22, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        osc.connect(gain).connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.16);
+    }
+
+    // Flame - filtered noise with low-frequency thump
+    sfxShootFlame() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const buf = this.getNoiseBuffer();
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 700;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.35, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        src.connect(filter).connect(gain).connect(this.sfxGain);
+        src.start(t);
+        src.stop(t + 0.13);
+    }
+
+    // Staple remover - heavy mortar thump
+    sfxShootHeavy() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(160, t);
+        osc.frequency.exponentialRampToValueAtTime(50, t + 0.16);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.45, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.connect(gain).connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.22);
+        // A brief noise pop on top
+        const buf = this.getNoiseBuffer();
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1100;
+        filter.Q.value = 1.4;
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(0.22, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        src.connect(filter).connect(ng).connect(this.sfxGain);
+        src.start(t);
+        src.stop(t + 0.1);
     }
 
     sfxJump() {

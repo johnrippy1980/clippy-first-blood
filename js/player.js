@@ -214,10 +214,16 @@ class Player {
             }
         }
 
-        // Variable jump height (release early = shorter jump)
-        if (!input.jump && this.vy < 0) {
-            this.vy *= 0.5;
+        // Variable jump height: when the player releases jump while still
+        // ascending we cap upward velocity once. Held = full jump, tap =
+        // short hop. The per-frame multiplier the old code used compounded
+        // and made tap-jumps feel inconsistent.
+        if (!input.jump && this.vy < -2 && !this.jumpCut) {
+            this.vy = -2;
+            this.jumpCut = true;
         }
+        // Reset jump-cut latch the moment we touch the ground again
+        if (this.onGround) this.jumpCut = false;
 
         // Wall sliding
         if (!this.onGround && (this.touchingWallLeft || this.touchingWallRight)) {
@@ -389,7 +395,14 @@ class Player {
         if (typeof particles !== 'undefined') {
             particles.muzzleFlash(muzzleX, muzzleY, angle, this.weapon.color);
         }
-        if (typeof audio !== 'undefined') audio.sfxShoot();
+        if (typeof audio !== 'undefined') {
+            // Per-weapon SFX timbre
+            if      (this.weapon === WEAPON.SPREAD)         audio.sfxShootSpread();
+            else if (this.weapon === WEAPON.LASER)          audio.sfxShootLaser();
+            else if (this.weapon === WEAPON.FLAME)          audio.sfxShootFlame();
+            else if (this.weapon === WEAPON.STAPLE_REMOVER) audio.sfxShootHeavy();
+            else                                            audio.sfxShoot();
+        }
 
         // Weapon-specific bullet properties
         const w = this.weapon;

@@ -130,7 +130,8 @@ class Game {
             { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' },
             { number: 4, name: 'THE BOARDROOM',         loader: 'loadStage4', theme: 'boardroom' },
             { number: 5, name: 'THE KEYNOTE',          loader: 'loadStage5', theme: 'keynote'   },
-            { number: 6, name: 'THE FOUNDER',          loader: 'loadStage6', theme: 'founder'   }
+            { number: 6, name: 'THE FOUNDER',          loader: 'loadStage6', theme: 'founder'   },
+            { number: 7, name: 'THE USURPER',          loader: 'loadStage7', theme: 'founder',  hidden: true }
         ];
         this.bossRushStage = { number: 'X', name: 'BOSS RUSH', loader: 'loadBossRush', theme: 'serverroom' };
         this.bossRushMode = false;
@@ -167,13 +168,15 @@ class Game {
         this.continues = 3;
         this.continueScreenTimer = 0;
 
-        // Camera (with screen shake)
+        // Camera (with screen shake). Smoothing tuned for SNES-feel - 0.2 is
+        // tight enough that the player never loses sight of themselves and
+        // loose enough to be cinematic rather than rigid.
         this.camera = {
             x: 0,
             y: 0,
             targetX: 0,
             targetY: 0,
-            smoothing: 0.1,
+            smoothing: 0.2,
             shakeAmount: 0,
             shakeTimer: 0,
             shakeOffsetX: 0,
@@ -205,7 +208,9 @@ class Game {
         this.accumulator = 0;
         this.timestep = 1000 / GAME.FPS;
 
-        requestAnimationFrame((time) => this.gameLoop(time));
+        // Bind once instead of allocating a closure every frame
+        this._loopBound = (t) => this.gameLoop(t);
+        requestAnimationFrame(this._loopBound);
     }
 
     loadStageByIndex(idx) {
@@ -274,6 +279,7 @@ class Game {
             this.player.weapon = WEAPON.LASER;
             this.player.health = this.player.maxHealth || PLAYER.MAX_HEALTH;
         }
+        if (typeof achievements !== 'undefined') achievements.onKonami();
         if (typeof audio !== 'undefined') {
             audio.sfxPickup();
             audio.sfxPickup();
@@ -462,12 +468,20 @@ class Game {
     gameLoop(currentTime) {
         if (!this.running) return;
 
-        const deltaTime = currentTime - this.lastTime;
+        // Clamp deltaTime to avoid the spiral-of-death when the tab is
+        // backgrounded for a long time. Without this, the accumulator
+        // explodes and the while-loop below freezes the page on return.
+        const raw = currentTime - this.lastTime;
+        const deltaTime = Math.min(raw, this.timestep * 5);   // up to 5 ticks of catchup
         this.lastTime = currentTime;
         this.accumulator += deltaTime;
 
+        // Maximum physics ticks per render frame - belt-and-suspenders
+        let ticksThisFrame = 0;
+
         // Fixed timestep updates
-        while (this.accumulator >= this.timestep) {
+        while (this.accumulator >= this.timestep && ticksThisFrame < 6) {
+            ticksThisFrame++;
             if (this.screen === 'title') {
                 this.updateTitle();
             } else if (this.screen === 'story') {
@@ -490,6 +504,11 @@ class Game {
                 this.update();
             }
             this.accumulator -= this.timestep;
+        }
+        // If we still have residual accumulator after the tick cap, drop it.
+        // Better one paused frame than a multi-second hitch.
+        if (this.accumulator > this.timestep * 6) {
+            this.accumulator = 0;
         }
 
         // Render
@@ -515,7 +534,7 @@ class Game {
             this.render();
         }
 
-        requestAnimationFrame((time) => this.gameLoop(time));
+        requestAnimationFrame(this._loopBound);
     }
 
     updateStageClear() {
@@ -589,11 +608,24 @@ class Game {
     }
 
     // Stage-select tiles: indices 0..stages.length-1 are stages,
-    // then BOSS_RUSH and BACK.
+    // then BOSS_RUSH and BACK. Hidden stages are filtered unless unlocked.
     getStageSelectTiles() {
-        const tiles = this.stages.map((s, i) => ({
-            kind: 'stage', index: i, name: s.name, number: s.number, theme: s.theme
-        }));
+        const hiddenUnlocked = this.bossRushUnlocked;
+        const tiles = [];
+        for (let i = 0; i < this.stages.length; i++) {
+            const s = this.stages[i];
+            if (s.hidden && !hiddenUnlocked) continue;
+            // Hidden stages reveal as "??" until played at least once
+            const seen = !s.hidden || (typeof localStorage !== 'undefined' &&
+                localStorage.getItem(`clippy_first_blood_ghost_${i}`));
+            tiles.push({
+                kind: 'stage', index: i,
+                name: seen ? s.name : '??',
+                number: seen ? s.number : '?',
+                theme: s.theme,
+                hidden: !!s.hidden
+            });
+        }
         tiles.push({ kind: 'bossRush', name: 'BOSS RUSH', theme: 'serverroom' });
         tiles.push({ kind: 'back',     name: 'BACK',      theme: 'jungle' });
         return tiles;
@@ -822,6 +854,12 @@ class Game {
         this.completeRunTime = runTime;
         this.markGameComplete(runTime);
         this.checkHighScore();
+        if (typeof achievements !== 'undefined') {
+            achievements.onGameCleared(
+                this.difficultyKeys[this.difficultyIndex],
+                this.runDeaths
+            );
+        }
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
@@ -917,6 +955,14 @@ class Game {
     updateLeaderboard() {
         this.leaderboardTimer = (this.leaderboardTimer || 0) + 1;
         input.update();
+        if (this.leaderboardTab === undefined) this.leaderboardTab = this.difficultyIndex;
+        // LEFT/RIGHT cycles the difficulty tab
+        if (input.keysJustPressed['ArrowLeft']) {
+            this.leaderboardTab = (this.leaderboardTab + 2) % 3;
+        }
+        if (input.keysJustPressed['ArrowRight']) {
+            this.leaderboardTab = (this.leaderboardTab + 1) % 3;
+        }
         // Shoot/jump returns to title
         if (this.leaderboardTimer > 30 && (input.shoot || input.jumpPressed)) {
             this.screen = 'title';
@@ -941,15 +987,42 @@ class Game {
             ctx.fillRect(x, y, 1, 1);
         }
 
-        drawPixelTextOutlined(ctx, 'LEADERBOARD', GAME.WIDTH / 2, 14, '#ffe070', '#a82020', 2, 'center', 1);
+        drawPixelTextOutlined(ctx, 'LEADERBOARD', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
 
-        const entries = this.loadLeaderboard();
+        // Difficulty tabs (EASY / NORMAL / HARD)
+        if (this.leaderboardTab === undefined) this.leaderboardTab = this.difficultyIndex;
+        const tabNames = ['EASY', 'NORMAL', 'HARD'];
+        const tabColors = ['#50ff70', '#ffe070', '#ff5050'];
+        for (let i = 0; i < tabNames.length; i++) {
+            const tx = 40 + i * 72;
+            const ty = 30;
+            const sel = i === this.leaderboardTab;
+            ctx.fillStyle = sel ? tabColors[i] : '#1a1140';
+            ctx.fillRect(tx, ty, 64, 11);
+            ctx.fillStyle = sel ? '#1a0e1e' : '#3a2855';
+            ctx.fillRect(tx, ty, 64, 1);
+            drawPixelText(ctx, tabNames[i], tx + 32, ty + 2,
+                sel ? '#1a0e1e' : '#a890c0', 1, 'center', 1);
+        }
+        // LEFT/RIGHT arrow hints around the tab strip
+        const blink2 = (this.leaderboardTimer & 16) < 8;
+        if (blink2) {
+            ctx.fillStyle = '#a890c0';
+            ctx.fillRect(28, 34, 3, 1);
+            ctx.fillRect(29, 35, 2, 1);
+            ctx.fillRect(30, 36, 1, 1);
+            ctx.fillRect(GAME.WIDTH - 28, 34, 3, 1);
+            ctx.fillRect(GAME.WIDTH - 29, 35, 2, 1);
+            ctx.fillRect(GAME.WIDTH - 30, 36, 1, 1);
+        }
+
+        const entries = this.loadLeaderboard(this.difficultyKeys[this.leaderboardTab]);
         if (entries.length === 0) {
             drawPixelText(ctx, 'NO ENTRIES YET', GAME.WIDTH / 2, GAME.HEIGHT / 2, '#a890c0', 1, 'center', 1);
         } else {
             for (let i = 0; i < entries.length; i++) {
                 const e = entries[i];
-                const y = 50 + i * 14;
+                const y = 56 + i * 14;
                 const rankColor = i === 0 ? '#ffe070' : (i < 3 ? '#ffa030' : '#a890c0');
                 drawPixelText(ctx, String(i + 1).padStart(2, '0'),
                     20, y, rankColor, 1, 'left', 1);
@@ -2171,6 +2244,9 @@ class Game {
                 this.recordingFrames = null;
                 this.ghostFrames = null;
             }
+            // Snapshot run-deaths so stage-clear can tell if the player
+            // died this stage (for the NO_DEATH_STAGE achievement).
+            this._stageStartDeaths = this.runDeaths;
             if (typeof audio !== 'undefined') {
                 // Stop any previous theme so the new one snaps in cleanly
                 audio.stopMusic();
@@ -2268,26 +2344,40 @@ class Game {
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
-    // Best-score lookups for the leaderboard - here so renderTitle can show top
-    loadLeaderboard() {
+    // ---- Leaderboard (split by difficulty) ----
+    leaderboardKey(diffKey) {
+        // Backwards-compat with the original single-list key.
+        if (diffKey === 'NORMAL') {
+            return 'clippy_first_blood_leaderboard';
+        }
+        return 'clippy_first_blood_leaderboard_' + diffKey.toLowerCase();
+    }
+
+    loadLeaderboard(diffKey) {
+        diffKey = diffKey || this.difficultyKeys[this.difficultyIndex];
         try {
-            const raw = localStorage.getItem('clippy_first_blood_leaderboard');
+            const raw = localStorage.getItem(this.leaderboardKey(diffKey));
             return raw ? JSON.parse(raw) : [];
         } catch (e) { return []; }
     }
 
-    saveLeaderboard(entries) {
+    saveLeaderboard(entries, diffKey) {
+        diffKey = diffKey || this.difficultyKeys[this.difficultyIndex];
         try {
-            localStorage.setItem('clippy_first_blood_leaderboard', JSON.stringify(entries));
+            localStorage.setItem(this.leaderboardKey(diffKey), JSON.stringify(entries));
         } catch (e) {}
     }
 
     addToLeaderboard(name, score, runTime) {
-        const entries = this.loadLeaderboard();
-        entries.push({ name, score, time: runTime, date: Date.now() });
+        const diffKey = this.difficultyKeys[this.difficultyIndex];
+        const entries = this.loadLeaderboard(diffKey);
+        entries.push({
+            name, score, time: runTime, date: Date.now(),
+            difficulty: diffKey
+        });
         entries.sort((a, b) => b.score - a.score);
         const trimmed = entries.slice(0, 10);
-        this.saveLeaderboard(trimmed);
+        this.saveLeaderboard(trimmed, diffKey);
         return trimmed;
     }
 
@@ -2377,6 +2467,7 @@ class Game {
         // Update background and effects
         this.background.update();
         if (typeof particles !== 'undefined') particles.update();
+        if (typeof achievements !== 'undefined') achievements.update();
         this.updateShake();
 
         // Boss warning + intro pan trigger
@@ -2493,20 +2584,48 @@ class Game {
         this.stageClearBonusShown = 0;
         this.stageClearScore = this.score;
         // Boss rush has just one "stage" so it's always final there.
-        this.stageClearIsFinal = this.bossRushMode || (this.stageIndex >= this.stages.length - 1);
+        // Stage is final if it is the boss-rush, or if every later stage is hidden.
+        let isFinal = this.bossRushMode || (this.stageIndex >= this.stages.length - 1);
+        if (!isFinal) {
+            isFinal = true;
+            for (let i = this.stageIndex + 1; i < this.stages.length; i++) {
+                if (!this.stages[i].hidden) { isFinal = false; break; }
+            }
+        }
+        this.stageClearIsFinal = isFinal;
         // Persist the replay ghost if this run beats the saved best time
         if (this.recordingFrames && !this.bossRushMode) {
             this.saveGhostForStage(this.stageIndex, this.recordingFrames, this.stageClearTime);
         }
         this.recordingFrames = null;
         this.ghostFrames = null;
+        // Achievements
+        if (typeof achievements !== 'undefined') {
+            if (this.bossRushMode) {
+                achievements.onBossRushCleared();
+            } else {
+                achievements.onStageCleared(this.stageNumber, this.stageClearTime);
+                // Counts deaths *this stage* via stageStartTime baseline - close
+                // enough heuristic: if total runDeaths didn't change during the
+                // stage, grant the no-death-stage flag. We approximate by
+                // saving runDeaths at stage start and comparing here.
+                if (this._stageStartDeaths === this.runDeaths) {
+                    achievements.onStageClearedNoDeath();
+                }
+            }
+        }
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
     advanceStage() {
-        const nextIdx = this.stageIndex + 1;
+        // Find the next non-hidden stage. Hidden stages (like Stage 7
+        // THE USURPER) only get reached via the stage-select hub.
+        let nextIdx = this.stageIndex + 1;
+        while (nextIdx < this.stages.length && this.stages[nextIdx].hidden) {
+            nextIdx++;
+        }
         if (nextIdx >= this.stages.length) {
-            // Loop back to title after finishing all stages
+            // Loop back to title after finishing all canonical stages
             this.screen = 'title';
             this.titleTimer = 0;
             this.checkHighScore();
@@ -2584,6 +2703,11 @@ class Game {
         // Touch controls overlay - only on touch devices
         if (typeof input !== 'undefined' && input.touchEnabled) {
             this.drawTouchControls(this.ctx);
+        }
+
+        // Achievement banner
+        if (typeof achievements !== 'undefined') {
+            achievements.drawBanner(this.ctx);
         }
 
         // Draw boss intro letterbox + name banner

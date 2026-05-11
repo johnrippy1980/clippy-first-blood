@@ -84,6 +84,9 @@ class Enemy {
             case 'bill_gates_boss':
                 this.updateBillGatesBoss(level, player);
                 break;
+            case 'clippy2_boss':
+                this.updateClippy2Boss(level, player);
+                break;
         }
 
         // Update projectiles
@@ -342,6 +345,120 @@ class Enemy {
             }
         } else {
             this.sniperTelegraph = undefined;
+        }
+    }
+
+    // ---------- CLIPPY 2.0 (Stage 7 hidden boss - corporate replacement) ----------
+    // The soulless chrome replacement Microsoft tried to ship in Clippy's
+    // place. Floats with thruster jets, fires corporate projectiles.
+    updateClippy2Boss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 65 : 95;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 5 : 4);
+
+        // Floats - no gravity, hovers around the arena
+        if (this.hoverY === undefined) this.hoverY = this.y;
+        this.y = this.hoverY + Math.sin(this.behaviorTimer * 0.05) * 12;
+        // Slowly tracks the player horizontally
+        const dx = player.x - this.x;
+        const dir = Math.sign(dx);
+        this.facingRight = dir > 0;
+        this.x += dir * this.speed * 0.6;
+
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 16) this.attackTelegraph = pattern;
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+
+        switch (pattern) {
+            case 0: {
+                // CORPORATE MEMO - 7 paperclip projectiles in a fan
+                for (let i = -3; i <= 3; i++) {
+                    const a = (dir > 0 ? 0 : Math.PI) + i * 0.15;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 20,
+                        vx: Math.cos(a) * 3.4,
+                        vy: Math.sin(a) * 3.4,
+                        damage: this.damage * 0.55,
+                        life: 110,
+                        type: 'corporate'
+                    });
+                }
+                break;
+            }
+            case 1: {
+                // UPGRADE SCAN - horizontal beam sweep across the arena
+                for (let i = 0; i < 6; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 12 + i * 6,
+                        vx: dir * 4.5,
+                        vy: 0,
+                        damage: this.damage * 0.7,
+                        life: 80,
+                        type: 'scanner',
+                        delay: i * 4
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxShoot();
+                break;
+            }
+            case 2: {
+                // SHAREHOLDER VALUE - falling stock-certificate projectiles
+                for (let i = 0; i < 6; i++) {
+                    this.bullets.push({
+                        x: 30 + i * 32 + (Math.random() - 0.5) * 8,
+                        y: -10,
+                        vx: 0,
+                        vy: 2.5,
+                        damage: this.damage * 0.7,
+                        life: 140,
+                        type: 'dollar',
+                        delay: i * 8
+                    });
+                }
+                break;
+            }
+            case 3: {
+                // SYNERGY DASH - charges at the player with a hitbox shockwave
+                this.yellText = 'SYNERGY!';
+                this.yellTimer = 50;
+                const speed = 5;
+                this.bullets.push({
+                    x: this.x + this.width / 2,
+                    y: this.y + this.height / 2,
+                    vx: dir * speed,
+                    vy: 0,
+                    damage: this.damage,
+                    life: 70,
+                    type: 'shockwave',
+                    large: true
+                });
+                if (typeof game !== 'undefined' && game.shake) game.shake(3, 6);
+                break;
+            }
+            case 4: {
+                // Phase 2: VERSION UPGRADE - radial burst of 12 projectiles
+                this.yellText = 'NEW VERSION';
+                this.yellTimer = 60;
+                for (let i = 0; i < 12; i++) {
+                    const a = (i / 12) * Math.PI * 2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 3.2,
+                        vy: Math.sin(a) * 3.2,
+                        damage: this.damage * 0.8,
+                        life: 100,
+                        type: 'corporate'
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                break;
+            }
         }
     }
 
@@ -1025,10 +1142,33 @@ class Enemy {
             vy: (dy / dist) * speed,
             damage: this.damage,
             life: 120,
-            type: projectileType || this.type.projectile
+            type: projectileType || this.type.projectile,
+            // Per-enemy tint - lets the renderer mark which enemy fired
+            tint: this.getProjectileTint()
         };
 
         this.bullets.push(bullet);
+    }
+
+    // Each enemy type has a signature projectile tint - applied as a
+    // subtle outer-ring color in the bullet renderers.
+    getProjectileTint() {
+        switch (this.behavior) {
+            case 'hop':              return '#ff5050';   // stapler red
+            case 'fly_sine':         return '#ffd460';   // folder yellow
+            case 'bounce':           return '#a87040';   // ball brown
+            case 'stationary':       return '#e0d098';   // tape cream
+            case 'hover_sniper':     return '#ffff60';   // highlighter
+            case 'charge':           return '#c0a0d0';   // swivel chair
+            case 'miniboss':         return '#a8a8c0';   // file cabinet
+            case 'photocopier_boss': return '#5aa8e0';   // copier
+            case 'shredder_boss':    return '#fff8d0';   // shredder
+            case 'ctrl_alt_del_boss':return '#80a8ff';   // ctrl-alt-del
+            case 'ballmer_boss':     return '#ff5050';   // ballmer
+            case 'bill_gates_boss':  return '#50ff70';   // bill gates
+            case 'clippy2_boss':     return '#ff60ff';   // clippy 2.0 magenta
+            default:                 return '#ffffff';
+        }
     }
 
     updateBullets(level) {
@@ -1080,7 +1220,8 @@ class Enemy {
                this.behavior === 'shredder_boss' ||
                this.behavior === 'ctrl_alt_del_boss' ||
                this.behavior === 'ballmer_boss' ||
-               this.behavior === 'bill_gates_boss';
+               this.behavior === 'bill_gates_boss' ||
+               this.behavior === 'clippy2_boss';
     }
 
     takeDamage(amount) {
@@ -1176,6 +1317,7 @@ class Enemy {
             if (this.score > 0) game.score += this.score;
             if (game.runEnemiesDefeated !== undefined) game.runEnemiesDefeated++;
         }
+        if (typeof achievements !== 'undefined') achievements.onEnemyKilled();
         // Random 1UP drop - bosses always drop, otherwise small chance
         const dropChance = this.isBoss() ? 1.0 : 0.04;
         if (Math.random() < dropChance && typeof pickupManager !== 'undefined' && pickupManager.spawnDrop) {
@@ -1216,16 +1358,30 @@ class Enemy {
             case 'ctrl_alt_del_boss': this.drawCtrlAltDelSNES(ctx, screenX, screenY, flash); break;
             case 'ballmer_boss':     this.drawBallmerSNES(ctx, screenX, screenY, flash); break;
             case 'bill_gates_boss':  this.drawBillGatesSNES(ctx, screenX, screenY, flash); break;
+            case 'clippy2_boss':     this.drawClippy2SNES(ctx, screenX, screenY, flash); break;
             default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
 
         // Enemy bullets - distinct visuals per projectile type
+        const tint = this.getProjectileTint();
         this.bullets.forEach(bullet => {
             if (bullet.delay && bullet.delay > 0) return;       // not yet active
             const bx = Math.floor(bullet.x - camera.x);
             const by = Math.floor(bullet.y - camera.y);
             const col = this.getBulletColor(bullet.type);
+            // Per-enemy tint rim. Skip for projectiles whose color already
+            // is the tint, and for large special projectiles that paint
+            // their own outline.
+            if (bullet.type !== 'blade' && bullet.type !== 'bsod' &&
+                bullet.type !== 'lawsuit' && bullet.type !== 'cmd' &&
+                bullet.type !== 'update' && bullet.type !== 'beam') {
+                ctx.fillStyle = tint;
+                ctx.fillRect(bx - 3, by - 3, 6, 1);
+                ctx.fillRect(bx - 3, by + 2, 6, 1);
+                ctx.fillRect(bx - 3, by - 2, 1, 4);
+                ctx.fillRect(bx + 2, by - 2, 1, 4);
+            }
 
             if (bullet.type === 'dollar') {
                 // Falling dollar bill - green rectangle with $ symbol
@@ -1815,7 +1971,100 @@ class Enemy {
             case 'lawsuit': return '#fff8d0';
             case 'cmd': return '#50ff70';
             case 'update': return '#5aa8e0';
+            case 'corporate': return '#c8c8d8';
             default: return '#f00';
+        }
+    }
+
+    // CLIPPY 2.0 - hidden Stage 7 boss. Chrome corporate replacement.
+    drawClippy2SNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) x += (Math.floor(this.behaviorTimer / 2) % 2) * 2 - 1;
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', bodyshad:'#fff',
+            eye:'#000', lens:'#000', thrust:'#000', glow:'#000'
+        } : {
+            outline:'#0a0612',
+            body:'#a8a8c0',
+            bodylit:'#f0f0ff',
+            bodyshad:'#5a5a72',
+            eye: phase2 ? '#ff3030' : '#ff60ff',
+            lens:'#1a1a2a',
+            thrust:'#ff60ff',
+            glow:'#ff60ff'
+        };
+        // Thruster jets at the bottom (always firing)
+        const tFlick = (this.behaviorTimer & 4) < 2;
+        ctx.fillStyle = C.thrust;
+        ctx.fillRect(x + 6,  y + H - 4, 4, tFlick ? 8 : 6);
+        ctx.fillRect(x + W - 10, y + H - 4, 4, tFlick ? 8 : 6);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 7,  y + H - 3, 2, tFlick ? 6 : 4);
+        ctx.fillRect(x + W - 9, y + H - 3, 2, tFlick ? 6 : 4);
+
+        // Sharp angular paperclip body
+        // Outer loop
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 6,  y + 4,  W - 12, 3);
+        ctx.fillRect(x + 6,  y + 4,  3,      H - 12);
+        ctx.fillRect(x + W - 9, y + 4, 3,    H - 10);
+        ctx.fillRect(x + 6,  y + H - 8, W - 14, 3);
+        // Chrome fill
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x + 9,  y + 7,  W - 18, 1);
+        ctx.fillRect(x + 9,  y + 7,  1,      H - 18);
+        ctx.fillRect(x + W - 10, y + 7, 1,   H - 16);
+        // Inner loop
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 11, y + 10, W - 22, 3);
+        ctx.fillRect(x + 11, y + 10, 3,      H - 22);
+        ctx.fillRect(x + W - 14, y + 10, 3,  H - 22);
+        // Chrome highlight on the left edge
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(x + 6,  y + 5,  3, H - 18);
+        ctx.fillRect(x + 8,  y + 5,  W - 18, 1);
+
+        // Visor with two glowing eyes
+        const visorY = y + 22;
+        ctx.fillStyle = C.lens;
+        ctx.fillRect(x + 9, visorY, W - 18, 8);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 9, visorY, W - 18, 1);
+        ctx.fillRect(x + 9, visorY + 7, W - 18, 1);
+        // Glowing eyes
+        const eyeBlink = (this.behaviorTimer & 24) < 6;
+        if (!eyeBlink) {
+            ctx.fillStyle = C.eye;
+            ctx.fillRect(x + 12, visorY + 2, 4, 4);
+            ctx.fillRect(x + W - 16, visorY + 2, 4, 4);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + 13, visorY + 3, 1, 1);
+            ctx.fillRect(x + W - 15, visorY + 3, 1, 1);
+        }
+
+        // Antennae / corporate ID badge
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + W / 2 - 1, y + 1, 2, 4);
+        ctx.fillStyle = C.glow;
+        ctx.fillRect(x + W / 2 - 1, y, 2, 1);
+
+        // Yell-text overlay
+        if (this.yellTimer && this.yellTimer > 0) {
+            drawPixelTextOutlined(ctx, this.yellText || 'CORPORATE',
+                x + W / 2, y - 14, '#ff60ff', '#1a0000', 1, 'center', 1);
+            this.yellTimer--;
+        }
+
+        // Phase 2 rim
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.2) > 0;
+            ctx.fillStyle = pulse ? '#ff60ff' : '#a02080';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
         }
     }
 
