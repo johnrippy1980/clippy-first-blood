@@ -290,6 +290,11 @@ class Enemy {
             }
             if (this.score > 0) game.score += this.score;
         }
+        // Random 1UP drop - bosses always drop, otherwise small chance
+        const dropChance = this.behavior === 'miniboss' ? 1.0 : 0.04;
+        if (Math.random() < dropChance && typeof pickupManager !== 'undefined' && pickupManager.spawnDrop) {
+            pickupManager.spawnDrop(this.x + this.width / 2, this.y + this.height / 2, '1UP');
+        }
     }
 
     draw(ctx, camera) {
@@ -828,6 +833,7 @@ class EnemyManager {
                     bullet.y > enemy.y && bullet.y < enemy.y + enemy.height) {
                     enemy.takeDamage(bullet.damage);
                     if (!bullet.piercing) {
+                        if (player.detonateBullet) player.detonateBullet(bullet);
                         player.bullets.splice(i, 1);
                     }
                 }

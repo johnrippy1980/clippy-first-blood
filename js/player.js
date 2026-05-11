@@ -55,7 +55,7 @@ class Player {
     }
 
     update(level) {
-        input.update();
+        // input.update() is now called once per frame by Game.update()
 
         // Handle invincibility frames
         if (this.invincibilityTimer > 0) {
@@ -386,16 +386,49 @@ class Player {
         }
         if (typeof audio !== 'undefined') audio.sfxShoot();
 
-        this.bullets.push({
+        // Weapon-specific bullet properties
+        const w = this.weapon;
+        const bullet = {
             x: muzzleX,
             y: muzzleY,
-            vx: Math.cos(angle) * this.weapon.bulletSpeed,
-            vy: Math.sin(angle) * this.weapon.bulletSpeed,
-            damage: this.weapon.damage,
-            color: this.weapon.color,
-            piercing: this.weapon.piercing || false,
-            life: 60
-        });
+            vx: Math.cos(angle) * w.bulletSpeed,
+            vy: Math.sin(angle) * w.bulletSpeed,
+            damage: w.damage,
+            color: w.color,
+            piercing: w.piercing || false,
+            life: 60,
+            // Visual + behavioral tags
+            kind: 'bullet',
+            explosive: w.explosive || false
+        };
+
+        // Flame: short-range jet, random spread, fast-decaying particles trail
+        if (w === WEAPON.FLAME) {
+            const jitter = (Math.random() - 0.5) * 0.25;
+            bullet.vx = Math.cos(angle + jitter) * w.bulletSpeed;
+            bullet.vy = Math.sin(angle + jitter) * w.bulletSpeed;
+            bullet.life = 14;          // Very short range
+            bullet.kind = 'flame';
+            bullet.size = 3 + Math.random() * 2;
+        }
+        // Laser: piercing thin beam-like
+        else if (w === WEAPON.LASER) {
+            bullet.kind = 'laser';
+            bullet.life = 90;          // Long range
+        }
+        // Staple remover: heavy explosive shell
+        else if (w === WEAPON.STAPLE_REMOVER) {
+            bullet.kind = 'shell';
+            bullet.life = 70;
+            bullet.gravity = 0.08;     // Slight arc
+        }
+        // Spread: shorter range, slight variance
+        else if (w === WEAPON.SPREAD) {
+            bullet.kind = 'spread';
+            bullet.life = 45;
+        }
+
+        this.bullets.push(bullet);
     }
 
     getAimAngles() {
@@ -413,13 +446,56 @@ class Player {
         return { angle: angles[this.aimDirection] };
     }
 
+    detonateBullet(bullet) {
+        if (typeof particles === 'undefined') return;
+        if (bullet.explosive) {
+            particles.explosion(bullet.x, bullet.y);
+            if (typeof audio !== 'undefined') audio.sfxExplosion();
+            if (typeof game !== 'undefined' && game.shake) game.shake(3, 6);
+            // Area-of-effect damage: enemies within 28px get hit
+            if (typeof game !== 'undefined' && game.enemies) {
+                for (const e of game.enemies.enemies) {
+                    if (!e.active) continue;
+                    const dx = (e.x + e.width / 2) - bullet.x;
+                    const dy = (e.y + e.height / 2) - bullet.y;
+                    if (dx * dx + dy * dy < 28 * 28) {
+                        e.takeDamage(bullet.damage);
+                    }
+                }
+            }
+        } else {
+            particles.bulletImpact(bullet.x, bullet.y, bullet.color);
+        }
+    }
+
     updateBullets(level) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
 
             bullet.x += bullet.vx;
             bullet.y += bullet.vy;
+            if (bullet.gravity) bullet.vy += bullet.gravity;
             bullet.life--;
+
+            // Trail particles for flame
+            if (bullet.kind === 'flame' && typeof particles !== 'undefined' && Math.random() < 0.6) {
+                particles.spawn({
+                    x: bullet.x, y: bullet.y,
+                    vx: bullet.vx * 0.2 + (Math.random() - 0.5) * 0.4,
+                    vy: bullet.vy * 0.2 + (Math.random() - 0.5) * 0.4 - 0.2,
+                    life: 6 + Math.floor(Math.random() * 4),
+                    size: 1 + Math.floor(Math.random() * 2),
+                    colors: ['#ffffff', '#ffe070', '#ff8030', '#a82020', '#3a0808']
+                });
+            }
+            // Sparkle trail for laser
+            if (bullet.kind === 'laser' && typeof particles !== 'undefined' && Math.random() < 0.5) {
+                particles.spawn({
+                    x: bullet.x - bullet.vx * 0.5, y: bullet.y - bullet.vy * 0.5,
+                    vx: 0, vy: 0, life: 5, size: 1,
+                    colors: ['#ffffff', '#ff60ff', '#a040c0']
+                });
+            }
 
             // Remove if off screen or expired
             if (bullet.life <= 0 ||
@@ -431,9 +507,7 @@ class Player {
 
             // Check tile collision
             if (!bullet.piercing && level.isSolid(bullet.x, bullet.y)) {
-                if (typeof particles !== 'undefined') {
-                    particles.bulletImpact(bullet.x, bullet.y, bullet.color);
-                }
+                this.detonateBullet(bullet);
                 this.bullets.splice(i, 1);
             }
         }
@@ -599,23 +673,86 @@ class Player {
             this.deathPhase || 0
         );
 
-        // Bullets with glow trail
+        // Bullets - each weapon has a distinct look
         this.bullets.forEach(bullet => {
             const bx = Math.floor(bullet.x - camera.x);
             const by = Math.floor(bullet.y - camera.y);
-            // Faint trail behind
-            ctx.fillStyle = bullet.color;
-            ctx.globalAlpha = 0.35;
-            const tx = Math.sign(bullet.vx) * 4;
-            const ty = Math.sign(bullet.vy) * 2;
-            ctx.fillRect(bx - 2 - tx, by - 1 - ty, 4, 2);
-            ctx.globalAlpha = 1;
-            // Bullet core
-            ctx.fillStyle = bullet.color;
-            ctx.fillRect(bx - 2, by - 1, 4, 2);
-            // Hot center
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(bx - 1, by, 2, 1);
+            switch (bullet.kind) {
+                case 'flame': {
+                    // Big flickering puff with white-hot center
+                    const r = Math.floor(bullet.size || 3);
+                    ctx.fillStyle = '#a82020';
+                    ctx.fillRect(bx - r - 1, by - r, r * 2 + 2, r * 2);
+                    ctx.fillStyle = '#ff8030';
+                    ctx.fillRect(bx - r, by - r + 1, r * 2, r * 2 - 2);
+                    ctx.fillStyle = '#ffe070';
+                    ctx.fillRect(bx - r + 1, by - r + 2, r * 2 - 2, r * 2 - 4);
+                    ctx.fillStyle = '#fff5c0';
+                    ctx.fillRect(bx - 1, by, 2, 1);
+                    break;
+                }
+                case 'laser': {
+                    // Long thin beam-like projectile
+                    const len = 8;
+                    const dx = Math.sign(bullet.vx);
+                    const dy = Math.sign(bullet.vy);
+                    if (Math.abs(bullet.vx) > Math.abs(bullet.vy)) {
+                        ctx.fillStyle = '#ff60ff';
+                        ctx.fillRect(bx - len * dx, by - 1, len * dx > 0 ? len : -len, 2);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(bx - 2 * dx, by, 4, 1);
+                        ctx.fillStyle = '#ffa0ff';
+                        ctx.fillRect(bx - (len - 1) * dx, by, len * dx > 0 ? len - 1 : -(len - 1), 1);
+                    } else {
+                        ctx.fillStyle = '#ff60ff';
+                        ctx.fillRect(bx - 1, by - len * dy, 2, len * dy > 0 ? len : -len);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(bx, by - 2 * dy, 1, 4);
+                    }
+                    break;
+                }
+                case 'shell': {
+                    // Heavy explosive shell - round with rivet
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(bx - 3, by - 2, 6, 4);
+                    ctx.fillStyle = '#a08068';
+                    ctx.fillRect(bx - 3, by - 2, 6, 1);
+                    ctx.fillStyle = '#605040';
+                    ctx.fillRect(bx - 2, by - 1, 4, 2);
+                    ctx.fillStyle = '#ffe070';
+                    ctx.fillRect(bx - 1, by, 1, 1);
+                    // Spark behind
+                    ctx.fillStyle = '#ff8030';
+                    const tx = Math.sign(bullet.vx) * 4;
+                    ctx.fillRect(bx - 3 - tx, by, 2, 1);
+                    break;
+                }
+                case 'spread': {
+                    // Slightly shorter, brighter
+                    ctx.fillStyle = bullet.color;
+                    ctx.globalAlpha = 0.35;
+                    ctx.fillRect(bx - 3, by - 1, 3, 2);
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = bullet.color;
+                    ctx.fillRect(bx - 2, by - 1, 3, 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(bx - 1, by, 1, 1);
+                    break;
+                }
+                default: {
+                    // Machine gun bullet (with trail)
+                    ctx.fillStyle = bullet.color;
+                    ctx.globalAlpha = 0.35;
+                    const tx = Math.sign(bullet.vx) * 4;
+                    const ty = Math.sign(bullet.vy) * 2;
+                    ctx.fillRect(bx - 2 - tx, by - 1 - ty, 4, 2);
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = bullet.color;
+                    ctx.fillRect(bx - 2, by - 1, 4, 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(bx - 1, by, 2, 1);
+                }
+            }
         });
     }
 }

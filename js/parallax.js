@@ -8,6 +8,7 @@ class ParallaxBackground {
     constructor() {
         this.time = 0;
         this.horizonY = 192;        // Aligns with the top of the ground tiles (row 12 * 16px)
+        this.theme = 'jungle';
         this.sunX = 188;            // Sun position in screen space
         this.sunY = 110;
         this.sunR = 22;
@@ -17,9 +18,15 @@ class ParallaxBackground {
         this.farJungle    = this.buildTreeLine(28, 14, 9);
         this.nearJungle   = this.buildTreeLine(44, 20, 13);
         this.embers = this.buildEmbers(36);
+        // Break-room state
+        this.cubicles = this.buildCubicles();
+        this.posters = this.buildPosters();
+        this.flickerSeeds = Array.from({length: 6}, (_, i) => i * 17 + 3);
     }
 
-    init() { /* compatibility shim */ }
+    init(theme) { if (theme) this.theme = theme; }
+
+    setTheme(theme) { this.theme = theme || 'jungle'; }
 
     update() { this.time += 1; }
 
@@ -67,8 +74,37 @@ class ParallaxBackground {
         return arr;
     }
 
+    buildCubicles() {
+        const arr = [];
+        const w = GAME.WIDTH * 4;
+        let x = 0;
+        let seed = 7;
+        while (x < w) {
+            seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+            const cw = 28 + (seed % 16);          // cubicle bay width
+            const ch = 44 + ((seed >> 4) % 16);   // height of the cubicle wall
+            arr.push({ x, w: cw, h: ch });
+            x += cw + 6;
+        }
+        return arr;
+    }
+
+    buildPosters() {
+        const arr = [];
+        const w = GAME.WIDTH * 3;
+        let x = 60;
+        let i = 0;
+        while (x < w) {
+            arr.push({ x, w: 20 + (i % 3) * 6, type: i % 3 });
+            x += 80 + (i % 4) * 24;
+            i++;
+        }
+        return arr;
+    }
+
     // ----- public draw -----
     draw(ctx, camera) {
+        if (this.theme === 'breakroom') return this.drawBreakRoom(ctx, camera);
         this.drawSky(ctx);
         this.drawSun(ctx);
         this.drawClouds(ctx, camera);
@@ -79,6 +115,187 @@ class ParallaxBackground {
         this.drawTreeLine(ctx, this.farJungle, camera.x * 0.4, '#1a3a22', '#264a2a', false);
         this.drawEmbers(ctx);
         this.drawTreeLine(ctx, this.nearJungle, camera.x * 0.65, '#0d1f12', '#1a3322', true);
+    }
+
+    // ============================================
+    // STAGE 2 - BREAK ROOM RUMBLE
+    // Office interior: dropped ceiling with fluorescent tubes, beige
+    // wall with motivational posters, distant cubicle skyline, then
+    // closer cubicle row in the foreground.
+    // ============================================
+    drawBreakRoom(ctx, camera) {
+        this.drawBreakRoomCeiling(ctx);
+        this.drawBreakRoomWall(ctx);
+        this.drawBreakRoomPosters(ctx, camera);
+        this.drawBreakRoomDistantCubicles(ctx, camera);
+        this.drawBreakRoomCubicleRow(ctx, camera);
+    }
+
+    drawBreakRoomCeiling(ctx) {
+        // Dropped ceiling tiles (the kind everyone hates)
+        ctx.fillStyle = '#d8d4c4';        // off-white tile face
+        ctx.fillRect(0, 0, GAME.WIDTH, 28);
+        // Tile grout lines - horizontal
+        ctx.fillStyle = '#807868';
+        ctx.fillRect(0, 14, GAME.WIDTH, 1);
+        ctx.fillRect(0, 28, GAME.WIDTH, 1);
+        // Tile grout lines - vertical (every 32 px)
+        for (let x = 0; x < GAME.WIDTH; x += 32) {
+            ctx.fillRect(x, 0, 1, 28);
+        }
+        // Stippled tile texture
+        ctx.fillStyle = '#b8b0a0';
+        for (let y = 2; y < 14; y += 3) {
+            for (let x = 2; x < GAME.WIDTH; x += 5) {
+                if (((x + y) & 3) === 0) ctx.fillRect(x, y, 1, 1);
+            }
+        }
+        // Fluorescent light fixtures
+        const lights = [{x: 24, y: 16}, {x: 88, y: 16}, {x: 152, y: 16}, {x: 216, y: 16}];
+        for (const L of lights) {
+            // Frame
+            ctx.fillStyle = '#404048';
+            ctx.fillRect(L.x - 1, L.y - 1, 26, 8);
+            // Tube (flickers occasionally)
+            const flicker = (Math.floor(this.time * 0.3 + L.x * 0.1) & 31) === 0;
+            ctx.fillStyle = flicker ? '#80a8c0' : '#fff8d0';
+            ctx.fillRect(L.x, L.y, 24, 6);
+            // Tube highlight
+            ctx.fillStyle = flicker ? '#608090' : '#ffffff';
+            ctx.fillRect(L.x + 1, L.y + 1, 22, 1);
+            // Faint glow
+            ctx.fillStyle = flicker ? 'rgba(80,120,160,0.15)' : 'rgba(255,240,180,0.25)';
+            ctx.fillRect(L.x - 6, L.y + 8, 36, 4);
+        }
+    }
+
+    drawBreakRoomWall(ctx) {
+        // Wall gradient from cream at top to slightly darker at bottom
+        const bands = [
+            { y: 28,  c: '#e8c890' },
+            { y: 60,  c: '#dab880' },
+            { y: 110, c: '#caa870' },
+            { y: 160, c: '#a88858' },
+            { y: 184, c: '#806840' }
+        ];
+        for (let i = 0; i < bands.length; i++) {
+            const top = bands[i].y;
+            const bot = i < bands.length - 1 ? bands[i + 1].y : 192;
+            ctx.fillStyle = bands[i].c;
+            ctx.fillRect(0, top, GAME.WIDTH, bot - top);
+            // Dither
+            if (i < bands.length - 1) {
+                ctx.fillStyle = bands[i + 1].c;
+                for (let x = (i & 1); x < GAME.WIDTH; x += 2) {
+                    ctx.fillRect(x, bot - 1, 1, 1);
+                }
+            }
+        }
+        // Wainscoting line (chair rail at mid wall)
+        ctx.fillStyle = '#604830';
+        ctx.fillRect(0, 138, GAME.WIDTH, 2);
+        ctx.fillStyle = '#806848';
+        ctx.fillRect(0, 137, GAME.WIDTH, 1);
+        // Wallpaper vertical stripes
+        ctx.fillStyle = 'rgba(120, 88, 56, 0.18)';
+        for (let x = 4; x < GAME.WIDTH; x += 12) {
+            ctx.fillRect(x, 28, 1, 110);
+        }
+    }
+
+    drawBreakRoomPosters(ctx, camera) {
+        const off = (camera.x * 0.15) | 0;
+        for (const p of this.posters) {
+            const sx = p.x - off;
+            const wrapped = ((sx % (GAME.WIDTH * 3)) + GAME.WIDTH * 3) % (GAME.WIDTH * 3);
+            const screenX = wrapped > GAME.WIDTH * 1.5 ? wrapped - GAME.WIDTH * 3 : wrapped;
+            if (screenX < -p.w || screenX > GAME.WIDTH) continue;
+
+            const y = 50;
+            const h = 20;
+            // Frame
+            ctx.fillStyle = '#3a2410';
+            ctx.fillRect(screenX, y, p.w, h);
+            // Paper
+            const colors = [
+                { bg: '#ffe0a0', accent: '#a82020' },     // Inspirational red
+                { bg: '#c0e0ff', accent: '#1a508a' },     // Calming blue
+                { bg: '#ffb0e0', accent: '#a02060' }      // Cat poster
+            ];
+            const c = colors[p.type];
+            ctx.fillStyle = c.bg;
+            ctx.fillRect(screenX + 1, y + 1, p.w - 2, h - 2);
+            // Decorative content
+            ctx.fillStyle = c.accent;
+            // Title bar
+            ctx.fillRect(screenX + 3, y + 3, p.w - 6, 2);
+            // Body lines
+            ctx.fillRect(screenX + 3, y + 8, p.w - 8, 1);
+            ctx.fillRect(screenX + 3, y + 11, p.w - 10, 1);
+            ctx.fillRect(screenX + 3, y + 14, p.w - 6, 1);
+            // Cat poster gets a face
+            if (p.type === 2) {
+                ctx.fillStyle = '#3a1a28';
+                ctx.fillRect(screenX + p.w - 8, y + 9, 1, 1);
+                ctx.fillRect(screenX + p.w - 5, y + 9, 1, 1);
+            }
+        }
+    }
+
+    drawBreakRoomDistantCubicles(ctx, camera) {
+        // Single horizontal silhouette of cubicle tops in mid distance
+        const baseY = 138;
+        const off = (camera.x * 0.35) | 0;
+        ctx.fillStyle = '#5a4838';
+        ctx.fillRect(0, baseY, GAME.WIDTH, 6);
+        // Cubicle wall tops
+        for (let x = 0; x < GAME.WIDTH; x += 28) {
+            const sx = ((x + off) % 28) + x - (off % 28);
+            ctx.fillRect(sx, baseY - 12, 24, 12);
+            // Top trim - lighter
+            ctx.fillStyle = '#7a6048';
+            ctx.fillRect(sx, baseY - 12, 24, 2);
+            ctx.fillStyle = '#5a4838';
+        }
+    }
+
+    drawBreakRoomCubicleRow(ctx, camera) {
+        // Closer cubicle row - taller, with more detail, paired with files
+        const baseY = 168;
+        const off = (camera.x * 0.55) | 0;
+        for (const c of this.cubicles) {
+            const sx = c.x - off;
+            const wrapped = ((sx % (GAME.WIDTH * 4)) + GAME.WIDTH * 4) % (GAME.WIDTH * 4);
+            const screenX = wrapped > GAME.WIDTH * 2 ? wrapped - GAME.WIDTH * 4 : wrapped;
+            if (screenX < -c.w - 4 || screenX > GAME.WIDTH + 4) continue;
+
+            // Wall panel
+            ctx.fillStyle = '#4a3828';
+            ctx.fillRect(screenX, baseY - c.h, c.w, c.h);
+            // Fabric texture (vertical stripes)
+            ctx.fillStyle = '#5a4838';
+            for (let dx = 1; dx < c.w; dx += 3) {
+                ctx.fillRect(screenX + dx, baseY - c.h + 2, 1, c.h - 2);
+            }
+            // Highlight rim along the top edge
+            ctx.fillStyle = '#a88858';
+            ctx.fillRect(screenX, baseY - c.h, c.w, 2);
+            ctx.fillStyle = '#caa870';
+            ctx.fillRect(screenX, baseY - c.h, c.w, 1);
+            // Dark shadow rim along bottom
+            ctx.fillStyle = '#2a1810';
+            ctx.fillRect(screenX, baseY - 2, c.w, 2);
+            // Stack of file binders on top (occasional)
+            if ((c.x & 31) < 16) {
+                const bx = screenX + c.w / 2 - 6;
+                ctx.fillStyle = '#a82020'; ctx.fillRect(bx,     baseY - c.h - 4, 4, 4);
+                ctx.fillStyle = '#1a508a'; ctx.fillRect(bx + 4, baseY - c.h - 4, 4, 4);
+                ctx.fillStyle = '#208a30'; ctx.fillRect(bx + 8, baseY - c.h - 4, 4, 4);
+                // Binder highlights
+                ctx.fillStyle = '#ff8080';
+                ctx.fillRect(bx, baseY - c.h - 4, 1, 4);
+            }
+        }
     }
 
     // ----- sky: vertical pixel-banded gradient (no smooth gradient!) -----

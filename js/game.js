@@ -16,8 +16,13 @@ class Game {
         this.screen = 'title';        // 'title' | 'stageIntro' | 'playing' | 'gameover'
         this.titleTimer = 0;
         this.stageIntroTimer = 0;
-        this.stageName = 'OFFICE JUNGLE';
-        this.stageNumber = 1;
+        this.stages = [
+            { number: 1, name: 'OFFICE JUNGLE',   loader: 'loadStage1', theme: 'jungle'    },
+            { number: 2, name: 'BREAK ROOM RUMBLE', loader: 'loadStage2', theme: 'breakroom' }
+        ];
+        this.stageIndex = 0;
+        this.stageName = this.stages[0].name;
+        this.stageNumber = this.stages[0].number;
 
         // Boss warning state
         this.bossWarning = 0;         // Frames remaining of the WARNING banner
@@ -66,20 +71,10 @@ class Game {
     init() {
         // Create game objects
         this.level = new Level();
-        this.level.loadStage1();
+        this.background = new ParallaxBackground();
+        this.loadStageByIndex(0);
 
         this.player = new Player(50, 160);
-
-        this.enemies = new EnemyManager();
-        this.level.spawnPoints.forEach(spawn => {
-            this.enemies.spawn(spawn.x, spawn.y, spawn.type);
-        });
-
-        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
-
-        this.background = new ParallaxBackground();
-        this.background.init();
-
         this.loadHighScore();
 
         // Start game loop
@@ -89,6 +84,34 @@ class Game {
         this.timestep = 1000 / GAME.FPS;
 
         requestAnimationFrame((time) => this.gameLoop(time));
+    }
+
+    loadStageByIndex(idx) {
+        const stage = this.stages[idx];
+        this.stageIndex = idx;
+        this.stageNumber = stage.number;
+        this.stageName = stage.name;
+
+        this.level[stage.loader]();
+        this.background.setTheme(stage.theme);
+        this.background.init(stage.theme);
+
+        this.enemies = new EnemyManager();
+        this.level.spawnPoints.forEach(spawn => {
+            this.enemies.spawn(spawn.x, spawn.y, spawn.type);
+        });
+
+        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
+
+        // Reset per-stage state
+        this.bossWarning = 0;
+        this.bossWarningShown = false;
+        this.pickupFlashTimer = 0;
+        this.camera.x = 0;
+        this.camera.y = 0;
+        this.camera.shakeAmount = 0;
+        this.camera.shakeTimer = 0;
+        if (typeof particles !== 'undefined') particles.clear();
     }
 
     flashPickup(name) {
@@ -205,9 +228,13 @@ class Game {
             if (typeof audio !== 'undefined') audio.sfxExplosion();
         }
 
-        // Restart on shoot/jump after the bonus tally finishes
+        // After the bonus tally finishes, shoot/jump advances to next stage
         if (this.stageClearTimer > 200 && (input.shoot || input.jumpPressed)) {
-            this.restart();
+            if (this.stageClearIsFinal) {
+                this.restart();
+            } else {
+                this.advanceStage();
+            }
         }
     }
 
@@ -271,7 +298,8 @@ class Game {
         // Continue prompt
         if (this.stageClearTimer > 200) {
             const blink = Math.floor(this.stageClearTimer / 20) % 2 === 0;
-            if (blink) drawPixelText(ctx, 'SHOOT TO REPLAY',
+            const prompt = this.stageClearIsFinal ? 'SHOOT TO REPLAY' : 'SHOOT FOR NEXT STAGE';
+            if (blink) drawPixelText(ctx, prompt,
                 GAME.WIDTH / 2, 205, '#ffffff', 1, 'center', 1);
         }
     }
@@ -408,6 +436,17 @@ class Game {
     }
 
     update() {
+        // Single input.update() per frame, here at the top
+        input.update();
+
+        // Pause toggle
+        if (input.pausePressed) {
+            this.paused = !this.paused;
+            if (typeof audio !== 'undefined') audio.toggleMute();
+            return;
+        }
+        if (this.paused) return;
+
         // Update player
         this.player.update(this.level);
 
@@ -485,14 +524,33 @@ class Game {
     beginStageClear() {
         this.screen = 'stageClear';
         this.stageClearTimer = 0;
-        // Total time bonus: more time left = better. Time = frames played.
         this.stageClearTime = (Date.now() - this.stageStartTime) / 1000;
-        // 30000 points if cleared in under 30s, scaling down to 0 at 5 minutes
         const ts = Math.max(0, 300 - this.stageClearTime);
         this.stageClearBonusTotal = Math.floor(ts * 100);
         this.stageClearBonusShown = 0;
         this.stageClearScore = this.score;
+        this.stageClearIsFinal = this.stageIndex >= this.stages.length - 1;
         if (typeof audio !== 'undefined') audio.stopMusic();
+    }
+
+    advanceStage() {
+        const nextIdx = this.stageIndex + 1;
+        if (nextIdx >= this.stages.length) {
+            // Loop back to title after finishing all stages
+            this.screen = 'title';
+            this.titleTimer = 0;
+            this.checkHighScore();
+            this.score = 0;
+            this.lives = 3;
+            this.stageIndex = 0;
+            this.loadStageByIndex(0);
+            this.player = new Player(50, 160);
+            return;
+        }
+        this.loadStageByIndex(nextIdx);
+        this.player = new Player(50, 160);
+        this.screen = 'stageIntro';
+        this.stageIntroTimer = 0;
     }
 
     render() {
@@ -542,11 +600,14 @@ class Game {
             this.drawPickupFlash();
         }
 
-        // Draw game over / pause screens
+        // Draw pause overlay last so it sits on top of everything
+        if (this.paused && !this.gameOver) {
+            this.drawPaused();
+        }
+
+        // Draw game over screen
         if (this.gameOver) {
             this.drawGameOver();
-        } else if (this.paused) {
-            this.drawPaused();
         }
     }
 
@@ -753,16 +814,22 @@ class Game {
     }
 
     drawPaused() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
-
-        this.ctx.fillStyle = '#ff0';
-        this.ctx.font = '16px monospace';
-        this.ctx.fillText('LEVEL COMPLETE!', GAME.WIDTH / 2 - 70, GAME.HEIGHT / 2 - 20);
-
-        this.ctx.fillStyle = '#fff';
-        this.ctx.font = '8px monospace';
-        this.ctx.fillText(`SCORE: ${this.score}`, GAME.WIDTH / 2 - 30, GAME.HEIGHT / 2 + 10);
+        const ctx = this.ctx;
+        // Dimmer overlay - more like a true SNES pause
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Center panel
+        const py = GAME.HEIGHT / 2 - 24;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(64, py - 4, GAME.WIDTH - 128, 50);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(66, py - 2, GAME.WIDTH - 132, 46);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(66, py - 2, GAME.WIDTH - 132, 2);
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(66, py + 42, GAME.WIDTH - 132, 2);
+        drawPixelTextOutlined(ctx, 'PAUSED', GAME.WIDTH / 2, py + 6, '#ffe070', '#a82020', 2, 'center', 1);
+        drawPixelText(ctx, 'P TO RESUME   M MUTE', GAME.WIDTH / 2, py + 28, '#c0a0d0', 1, 'center', 1);
     }
 
     restart() {
@@ -772,25 +839,8 @@ class Game {
         this.paused = false;
         this.screen = 'stageIntro';
         this.stageIntroTimer = 0;
-        this.bossWarning = 0;
-        this.bossWarningShown = false;
-        this.pickupFlashTimer = 0;
-
-        this.level.loadStage1();
+        this.loadStageByIndex(0);
         this.player = new Player(50, 160);
-
-        this.enemies = new EnemyManager();
-        this.level.spawnPoints.forEach(spawn => {
-            this.enemies.spawn(spawn.x, spawn.y, spawn.type);
-        });
-
-        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
-
-        this.camera.x = 0;
-        this.camera.y = 0;
-        this.camera.shakeAmount = 0;
-        this.camera.shakeTimer = 0;
-        if (typeof particles !== 'undefined') particles.clear();
     }
 }
 

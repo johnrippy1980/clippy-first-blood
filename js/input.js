@@ -17,8 +17,9 @@ class InputHandler {
         this.gameKeys = [
             'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
             'KeyW', 'KeyA', 'KeyS', 'KeyD',
-            'Space', 'KeyZ', 'KeyX', 'KeyC',
-            'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight'
+            'Space', 'KeyZ', 'KeyX', 'KeyC', 'KeyP',
+            'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight',
+            'Escape'
         ];
     }
 
@@ -100,6 +101,10 @@ class InputHandler {
 
     get downPressed() {
         return this.keysJustPressed['ArrowDown'] || this.keysJustPressed['KeyS'];
+    }
+
+    get pausePressed() {
+        return this.keysJustPressed['KeyP'] || this.keysJustPressed['Escape'];
     }
 
     // Get aim direction based on input (8-way)

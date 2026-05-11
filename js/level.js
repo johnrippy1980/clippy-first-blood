@@ -10,6 +10,7 @@ class Level {
         this.coverSpots = [];
         this.ladders = [];
         this.spawnPoints = [];
+        this.theme = 'jungle';        // 'jungle' | 'breakroom'
     }
 
     // Hand-designed Stage 1: OFFICE JUNGLE
@@ -18,6 +19,7 @@ class Level {
     loadTestLevel() { this.loadStage1(); }
 
     loadStage1() {
+        this.theme = 'jungle';
         this.width = 100;
         this.height = 14;
         this.bossArenaX = 80 * GAME.TILE_SIZE;
@@ -156,6 +158,125 @@ class Level {
         ];
     }
 
+    // ---- Stage 2: BREAK ROOM RUMBLE ----
+    loadStage2() {
+        this.theme = 'breakroom';
+        this.width = 100;
+        this.height = 14;
+        this.bossArenaX = 82 * GAME.TILE_SIZE;
+        this.endX = 99 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++) {
+                for (let x = x1; x <= x2; x++) {
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width) {
+                        this.tiles[y][x] = t;
+                    }
+                }
+            }
+        };
+        const ladder = (x, y1, y2) => {
+            for (let y = y1; y <= y2; y++) {
+                this.tiles[y][x] = TILE.LADDER;
+                this.ladders.push({ x: x * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
+            }
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Linoleum floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+
+        // ===== Section 1: ENTRY HALLWAY (0-30) =====
+        // Conference table stepping platforms
+        fill(6, 10, 9, 10, TILE.PLATFORM);
+        fill(13, 8, 17, 8, TILE.PLATFORM);
+
+        // Filing cabinet stack (climbable as ladder)
+        ladder(20, 7, 11);
+        fill(18, 7, 23, 7, TILE.SOLID);
+        cover(22);
+
+        // Coffee spill in the floor (counts as water hazard)
+        fill(25, 12, 28, 13, TILE.EMPTY);
+        fill(25, 13, 28, 13, TILE.WATER);
+        fill(26, 10, 27, 10, TILE.PLATFORM);
+
+        // ===== Section 2: BULLPEN (30-75) =====
+        // Cubicle row (climb up the wall like a vine)
+        ladder(33, 3, 11);
+
+        // Suspended ceiling platform with FLAME pickup
+        fill(37, 7, 42, 7, TILE.PLATFORM);
+        this.pickups.push({ x: 40 * GAME.TILE_SIZE, y: 5 * GAME.TILE_SIZE + 8, type: 'STAPLE_REMOVER', taken: false });
+
+        // Stacks of office boxes - destructible
+        fill(46, 9, 47, 11, TILE.DESTRUCTIBLE);
+
+        // Wide coffee puddle pit
+        fill(50, 12, 54, 13, TILE.EMPTY);
+        fill(50, 13, 54, 13, TILE.WATER);
+        fill(51, 10, 51, 10, TILE.PLATFORM);
+        fill(53, 9,  53, 9,  TILE.PLATFORM);
+
+        // Mezzanine (executive lounge)
+        fill(56, 8, 63, 11, TILE.SOLID);
+        cover(60);
+        ladder(55, 8, 11);
+
+        // Reception desk wall-jump chasm
+        fill(67, 4, 67, 11, TILE.SOLID);
+        fill(71, 4, 71, 11, TILE.SOLID);
+        this.pickups.push({ x: 69 * GAME.TILE_SIZE, y: 2 * GAME.TILE_SIZE + 8, type: 'FLAME', taken: false });
+        fill(68, 3, 70, 3, TILE.SOLID);
+
+        // Vending machine perch for the tape dispenser
+        fill(74, 9, 77, 9, TILE.SOLID);
+
+        // ===== Section 3: COPIER ARENA (82-100) =====
+        fill(82, 9, 82, 11, TILE.SOLID);
+        fill(95, 3, 95, 11, TILE.SOLID);
+        fill(86, 9, 86, 11, TILE.SOLID);
+        fill(92, 9, 92, 11, TILE.SOLID);
+        cover(85);
+        this.pickups.push({ x: 83 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER', taken: false });
+        fill(96, 9, 99, 11, TILE.EMPTY);
+
+        // Enemy spawn points - more density than Stage 1
+        this.spawnPoints = [
+            // Section 1
+            { x: 10 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 16 * 16, y: 7  * 16, type: 'FILE_FOLDER' },
+            { x: 22 * 16, y: 6  * 16, type: 'STAPLER' },
+            { x: 30 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            // Section 2
+            { x: 34 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            { x: 38 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            { x: 44 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            { x: 45 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 48 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 58 * 16, y: 7  * 16, type: 'STAPLER' },
+            { x: 60 * 16, y: 7  * 16, type: 'STAPLER' },
+            { x: 67 * 16, y: 11 * 16, type: 'TAPE_DISPENSER' },
+            { x: 75 * 16, y: 8  * 16, type: 'TAPE_DISPENSER' },
+            { x: 79 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            // Section 3 - boss arena
+            { x: 80 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            { x: 90 * 16, y: 8  * 16, type: 'FILE_CABINET' }
+        ];
+    }
+
     getTile(x, y) {
         const tileX = Math.floor(x / GAME.TILE_SIZE);
         const tileY = Math.floor(y / GAME.TILE_SIZE);
@@ -272,11 +393,74 @@ class Level {
         const rightEdge = tileX === this.width - 1 || !this.isSolid((tileX + 1) * GAME.TILE_SIZE, tileY * GAME.TILE_SIZE);
         const isSurface = above === TILE.EMPTY || above === TILE.PLATFORM;
 
+        if (this.theme === 'breakroom') {
+            if (isSurface) {
+                this.drawLinoleumTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            } else {
+                this.drawCarpetTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            }
+            return;
+        }
         if (isSurface) {
             this.drawGrassTopTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
         } else {
             this.drawDirtTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
         }
+    }
+
+    // Linoleum floor tile (theme: breakroom). White/gray tiles with grout lines.
+    drawLinoleumTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        // Alternate light/dark squares like a checkerboard
+        const alt = ((tileX + tileY) & 1) === 0;
+        const TILE_LIT  = alt ? '#e8e0d0' : '#d0c8b8';
+        const TILE_MID  = alt ? '#c8c0b0' : '#b0a898';
+        const TILE_DARK = '#807868';
+        const TILE_SHAD = '#403828';
+
+        // Body
+        ctx.fillStyle = TILE_MID;
+        ctx.fillRect(x, y, 16, 16);
+        // Highlight band along the top
+        ctx.fillStyle = TILE_LIT;
+        ctx.fillRect(x, y, 16, 2);
+        // Subtle pock-mark texture
+        for (let py = 3; py < 14; py++) {
+            for (let px = 0; px < 16; px++) {
+                let n = (tileX * 91 + tileY * 53 + px * 13 + py * 7) & 0xff;
+                if (n < 12) { ctx.fillStyle = TILE_LIT; ctx.fillRect(x + px, y + py, 1, 1); }
+                else if (n > 240) { ctx.fillStyle = TILE_SHAD; ctx.fillRect(x + px, y + py, 1, 1); }
+            }
+        }
+        // Grout lines along the tile edges
+        ctx.fillStyle = TILE_DARK;
+        ctx.fillRect(x, y + 15, 16, 1);
+        ctx.fillRect(x + 15, y, 1, 16);
+        // Surface bevel
+        ctx.fillStyle = TILE_LIT;
+        ctx.fillRect(x, y, 1, 15);
+    }
+
+    // Beneath-floor carpet tile (theme: breakroom).
+    drawCarpetTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        const BG  = '#3a2a18';
+        const MID = '#5a4030';
+        const LIT = '#7a5840';
+        const DARK = '#1a0e08';
+
+        ctx.fillStyle = BG;
+        ctx.fillRect(x, y, 16, 16);
+        // Berber carpet looped texture
+        for (let py = 0; py < 16; py++) {
+            for (let px = 0; px < 16; px++) {
+                let n = (tileX * 71 + tileY * 41 + px * 17 + py * 23) & 0xff;
+                if (n < 40) { ctx.fillStyle = DARK; ctx.fillRect(x + px, y + py, 1, 1); }
+                else if (n < 90) { ctx.fillStyle = MID; ctx.fillRect(x + px, y + py, 1, 1); }
+                else if (n > 220) { ctx.fillStyle = LIT; ctx.fillRect(x + px, y + py, 1, 1); }
+            }
+        }
+        // Edge lines
+        if (leftEdge)  { ctx.fillStyle = DARK; ctx.fillRect(x,     y, 1, 16); }
+        if (rightEdge) { ctx.fillStyle = DARK; ctx.fillRect(x + 15, y, 1, 16); }
     }
 
     // SNES-style grass surface tile: jagged blade tops, deep soil with pebbles
@@ -376,6 +560,7 @@ class Level {
 
     // SNES-style wooden platform: bright top, grain, drop shadow
     drawPlatformTile(ctx, x, y) {
+        if (this.theme === 'breakroom') return this.drawShelfPlatformTile(ctx, x, y);
         const TOP_LIT = '#d09050';
         const TOP     = '#a87040';
         const MID_LIT = '#8a5830';
@@ -410,6 +595,44 @@ class Level {
         ctx.fillStyle = TOP_LIT;
         ctx.fillRect(x + 1, y, 1, 1);
         ctx.fillRect(x + 14, y, 1, 1);
+    }
+
+    // File-shelf platform for the break room theme
+    drawShelfPlatformTile(ctx, x, y) {
+        const TOP_LIT = '#a890c8';
+        const TOP     = '#6a5090';
+        const SHELF   = '#3a2855';
+        const TRIM    = '#1a1140';
+        const PAPER   = '#d8c890';
+
+        // Shelf body
+        ctx.fillStyle = SHELF;
+        ctx.fillRect(x, y, 16, 6);
+        // Top trim (bright)
+        ctx.fillStyle = TOP_LIT;
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = TOP;
+        ctx.fillRect(x, y + 1, 16, 1);
+        // Stacked binders / papers along the top
+        ctx.fillStyle = '#a82020';
+        ctx.fillRect(x + 1, y + 2, 3, 3);
+        ctx.fillStyle = '#1a508a';
+        ctx.fillRect(x + 5, y + 2, 3, 3);
+        ctx.fillStyle = '#208a30';
+        ctx.fillRect(x + 9, y + 2, 3, 3);
+        ctx.fillStyle = PAPER;
+        ctx.fillRect(x + 13, y + 2, 2, 3);
+        // Binder highlights
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(x + 1, y + 2, 1, 1);
+        ctx.fillRect(x + 5, y + 2, 1, 1);
+        ctx.fillRect(x + 9, y + 2, 1, 1);
+        // Bottom trim
+        ctx.fillStyle = TRIM;
+        ctx.fillRect(x, y + 5, 16, 1);
+        // Drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(x, y + 6, 16, 2);
     }
 
     drawLadderTile(ctx, x, y) {
