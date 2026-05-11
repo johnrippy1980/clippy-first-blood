@@ -79,6 +79,8 @@ class Game {
 
         this.score = 0;
         this.lives = 3;
+        this.continues = 3;
+        this.continueScreenTimer = 0;
 
         // Camera (with screen shake)
         this.camera = {
@@ -208,6 +210,16 @@ class Game {
         }
         // Show notification
         if (this.flashPickup) this.flashPickup('CONTRA CODE - +9 LIVES');
+    }
+
+    getCurrentCheckpoint() {
+        const cps = this.level && this.level.checkpoints;
+        if (!cps || cps.length === 0) return { x: 50, y: 160 };
+        let best = cps[0];
+        for (const cp of cps) {
+            if (this.player && this.player.x >= cp.x) best = cp;
+        }
+        return best;
     }
 
     flashPickup(name) {
@@ -872,13 +884,18 @@ class Game {
             this.screen = 'playing';
             this.stageStartTime = Date.now();
             // Mark the whole-run start at Stage 1 only
-            if (this.stageIndex === 0) {
+            if (this.stageIndex === 0 && !this.bossRushMode) {
                 this.runStartTime = Date.now();
                 this.runDeaths = 0;
                 this.runEnemiesDefeated = 0;
                 this.runSecretsFound = 0;
             }
-            if (typeof audio !== 'undefined') audio.startMusic();
+            if (typeof audio !== 'undefined') {
+                // Stop any previous theme so the new one snaps in cleanly
+                audio.stopMusic();
+                const theme = this.level.theme || 'jungle';
+                audio.startMusic(theme);
+            }
         }
     }
 
@@ -1102,8 +1119,9 @@ class Game {
                 if (typeof audio !== 'undefined') audio.stopMusic();
                 this.checkHighScore();
             } else {
-                // Respawn
-                this.player = new Player(50, 160);
+                // Respawn at the latest passed checkpoint
+                const cp = this.getCurrentCheckpoint();
+                this.player = new Player(cp.x, cp.y);
             }
         }
 
@@ -1419,16 +1437,42 @@ class Game {
     drawGameOver() {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
-        drawPixelTextOutlined(this.ctx, 'GAME OVER', GAME.WIDTH / 2, GAME.HEIGHT / 2 - 22, '#ff5050', '#1a0000', 3, 'center', 1);
-        drawPixelText(this.ctx, `FINAL SCORE  ${String(this.score).padStart(6, '0')}`, GAME.WIDTH / 2, GAME.HEIGHT / 2 + 14, '#ffe070', 1, 'center', 1);
-        const blink = Math.floor(Date.now() / 400) % 2 === 0;
-        if (blink) {
-            drawPixelText(this.ctx, 'PRESS SHOOT TO RESTART', GAME.WIDTH / 2, GAME.HEIGHT / 2 + 32, '#ffffff', 1, 'center', 1);
-        }
+        drawPixelTextOutlined(this.ctx, 'GAME OVER', GAME.WIDTH / 2, GAME.HEIGHT / 2 - 38, '#ff5050', '#1a0000', 3, 'center', 1);
+        drawPixelText(this.ctx, `FINAL SCORE  ${String(this.score).padStart(6, '0')}`, GAME.WIDTH / 2, GAME.HEIGHT / 2 - 2, '#ffe070', 1, 'center', 1);
 
-        // Restart on shoot
-        if (input.shoot || input.jumpPressed) {
-            this.restart();
+        // Continue option - keep score, restart current stage with full lives.
+        // Available only outside boss rush and only if continues remain.
+        const canContinue = !this.bossRushMode && this.continues > 0;
+        const blink = Math.floor(Date.now() / 400) % 2 === 0;
+        if (canContinue) {
+            drawPixelText(this.ctx, `CONTINUES LEFT  ${this.continues}`, GAME.WIDTH / 2, GAME.HEIGHT / 2 + 14, '#7af0ff', 1, 'center', 1);
+            if (blink) {
+                drawPixelText(this.ctx, 'SHOOT TO CONTINUE',  GAME.WIDTH / 2, GAME.HEIGHT / 2 + 30, '#50ff70', 1, 'center', 1);
+                drawPixelText(this.ctx, 'JUMP TO QUIT',       GAME.WIDTH / 2, GAME.HEIGHT / 2 + 42, '#ff8030', 1, 'center', 1);
+            }
+            if (input.shoot) {
+                this.continues--;
+                this.lives = 3;
+                this.player = new Player(50, 160);
+                this.gameOver = false;
+                this.screen = 'stageIntro';
+                this.stageIntroTimer = 0;
+                this.loadStageByIndex(this.stageIndex);
+                if (typeof particles !== 'undefined') particles.clear();
+            } else if (input.jumpPressed) {
+                // Quit -> back to title with stats wiped
+                this.checkHighScore();
+                this.restart();
+                this.screen = 'title';
+                this.titleTimer = 0;
+            }
+        } else {
+            if (blink) {
+                drawPixelText(this.ctx, 'SHOOT TO RESTART', GAME.WIDTH / 2, GAME.HEIGHT / 2 + 30, '#ffffff', 1, 'center', 1);
+            }
+            if (input.shoot || input.jumpPressed) {
+                this.restart();
+            }
         }
     }
 
@@ -1454,6 +1498,7 @@ class Game {
     restart() {
         this.score = 0;
         this.lives = 3;
+        this.continues = 3;
         this.gameOver = false;
         this.paused = false;
         this.screen = 'stageIntro';

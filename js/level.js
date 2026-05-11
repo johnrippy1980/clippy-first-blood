@@ -27,6 +27,13 @@ class Level {
         this.coverSpots = [];
         this.ladders = [];
         this.pickups = [];
+        // Checkpoint x-coords (player respawns at the highest passed value)
+        this.checkpoints = [
+            { x: 50,             y: 160 },
+            { x: 30 * 16,        y: 160 },
+            { x: 56 * 16,        y: 7 * 16 },   // top of high plateau
+            { x: 78 * 16,        y: 160 }       // just before boss arena
+        ];
 
         // Empty grid
         this.tiles = [];
@@ -186,6 +193,12 @@ class Level {
         this.coverSpots = [];
         this.ladders = [];
         this.pickups = [];
+        this.checkpoints = [
+            { x: 50,             y: 160 },
+            { x: 30 * 16,        y: 160 },
+            { x: 57 * 16,        y: 7 * 16 },
+            { x: 80 * 16,        y: 160 }
+        ];
 
         this.tiles = [];
         for (let y = 0; y < this.height; y++) {
@@ -306,6 +319,12 @@ class Level {
         this.coverSpots = [];
         this.ladders = [];
         this.pickups = [];
+        this.checkpoints = [
+            { x: 50,             y: 160 },
+            { x: 28 * 16,        y: 4 * 16 },
+            { x: 60 * 16,        y: 7 * 16 },
+            { x: 84 * 16,        y: 160 }
+        ];
 
         this.tiles = [];
         for (let y = 0; y < this.height; y++) {

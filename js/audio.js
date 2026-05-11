@@ -25,11 +25,11 @@ class Audio {
         this.scheduleAhead = 0.25;
         this.timerId = null;
 
-        // Chiptune track for Stage 1 (jungle theme, A minor)
-        // Each row: [step, channel, midiNote, durationSteps]
+        // Chiptune tracks. Each pattern is 32 16th-notes long (2 bars).
         // Channels: 0=lead square, 1=harmony square, 2=triangle bass, 3=noise drum
-        // Pattern is 32 16th-notes long (2 bars), loops indefinitely
-        this.pattern = this.buildPattern();
+        this.patterns = {};         // populated lazily by buildPattern()
+        this.pattern = null;
+        this.currentTheme = 'jungle';
     }
 
     init() {
@@ -70,6 +70,16 @@ class Audio {
 
     // ---------- Music ----------
 
+    getPattern(theme) {
+        if (this.patterns[theme]) return this.patterns[theme];
+        let pat;
+        if (theme === 'breakroom') pat = this.buildBreakRoomPattern();
+        else if (theme === 'serverroom') pat = this.buildServerRoomPattern();
+        else pat = this.buildPattern();
+        this.patterns[theme] = pat;
+        return pat;
+    }
+
     buildPattern() {
         // Helper: convert a melody string like 'A4 . C5 .' into events
         // Notation: NOTE+OCTAVE or '.' for rest. Each token = one 16th-note step.
@@ -103,12 +113,85 @@ class Audio {
         events.push(...compile(0, lead));
         events.push(...compile(1, harmony));
         events.push(...compile(2, bass));
-        // Drums use a separate compile
         const drumTokens = drum.trim().split(/\s+/);
         drumTokens.forEach((tok, i) => {
             if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
         });
-        return { events, length: 32 };
+        return { events, length: 32, bpm: 132, name: 'jungle' };
+    }
+
+    // Stage 2: BREAK ROOM - slower lounge melancholy in D minor.
+    buildBreakRoomPattern() {
+        const compile = (channel, line) => {
+            const tokens = line.trim().split(/\s+/);
+            const events = [];
+            let lastNote = null;
+            let runStart = -1;
+            for (let i = 0; i <= tokens.length; i++) {
+                const tok = tokens[i];
+                if (lastNote && (i === tokens.length || tok !== '_')) {
+                    events.push({ step: runStart, channel, midi: lastNote, dur: i - runStart });
+                    lastNote = null;
+                }
+                if (i === tokens.length) break;
+                if (tok === '.' || tok === '_') continue;
+                lastNote = this.noteToMidi(tok);
+                runStart = i;
+            }
+            return events;
+        };
+        // D minor, fluorescent-light melancholy, swung half-time feel
+        const lead    = 'D4 _ _  F4  A4 _ _  G4  F4 _ E4 _ D4 _ _  _   D4 _ _  F4  A4 _ G4 _ F4 _ E4 _ D4 _ _  _ ';
+        const harmony = 'A3 _ _  _   A3 _ _  _   A3 _ _  _  A3 _ _  _   A3 _ _  _   A3 _ _  _  D4 _ _  _  C4 _ _  _ ';
+        const bass    = 'D2 _ _  _   D2 _ _  _   D2 _ _  _  D2 _ _  _   Bb2 _ _ _   Bb2 _ _ _  A2 _ _  _  A2 _ _  _ ';
+        const drum    = 'K . . . S . . . K . . . S . . . K . H . S . H . K . . . S . H K';
+
+        const events = [];
+        events.push(...compile(0, lead));
+        events.push(...compile(1, harmony));
+        events.push(...compile(2, bass));
+        const drumTokens = drum.trim().split(/\s+/);
+        drumTokens.forEach((tok, i) => {
+            if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
+        });
+        return { events, length: 32, bpm: 102, name: 'breakroom' };
+    }
+
+    // Stage 3: SERVER ROOM - faster, driving, industrial in E phrygian.
+    buildServerRoomPattern() {
+        const compile = (channel, line) => {
+            const tokens = line.trim().split(/\s+/);
+            const events = [];
+            let lastNote = null;
+            let runStart = -1;
+            for (let i = 0; i <= tokens.length; i++) {
+                const tok = tokens[i];
+                if (lastNote && (i === tokens.length || tok !== '_')) {
+                    events.push({ step: runStart, channel, midi: lastNote, dur: i - runStart });
+                    lastNote = null;
+                }
+                if (i === tokens.length) break;
+                if (tok === '.' || tok === '_') continue;
+                lastNote = this.noteToMidi(tok);
+                runStart = i;
+            }
+            return events;
+        };
+        // E phrygian-ish riff, busy 16ths, with palm-mute bass thumps
+        const lead    = 'E4 G4 B4 G4 E4 G4 B4 E5 F4 G4 B4 G4 E4 G4 B4 G4 E4 G4 B4 G4 E4 G4 D5 E5 G4 B4 E5 G5 E5 B4 G4 E4';
+        const harmony = 'E3 _ _  _ G3 _ _  _ B3 _ _  _ E4 _ _  _ E3 _ _  _ G3 _ _  _ B3 _ _  _ D4 _ _  _ ';
+        const bass    = 'E2 _ E2 _ E2 _ E2 _ E2 _ E2 _ E2 _ E2 _ E2 _ E2 _ G2 _ G2 _ B2 _ B2 _ E3 _ D3 _ ';
+        const drum    = 'K H S H K H S H K H S H K H S H K H S H K H S H K H S H K K S K';
+
+        const events = [];
+        events.push(...compile(0, lead));
+        events.push(...compile(1, harmony));
+        events.push(...compile(2, bass));
+        const drumTokens = drum.trim().split(/\s+/);
+        drumTokens.forEach((tok, i) => {
+            if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
+        });
+        return { events, length: 32, bpm: 156, name: 'serverroom' };
     }
 
     noteToMidi(note) {
@@ -125,8 +208,20 @@ class Audio {
         return 440 * Math.pow(2, (midi - 69) / 12);
     }
 
-    startMusic() {
-        if (!this.ctx || this.musicPlaying || !this.musicEnabled) return;
+    startMusic(theme) {
+        if (!this.ctx) return;
+        // If a different theme is requested while playing, swap patterns.
+        if (theme && theme !== this.currentTheme) {
+            this.currentTheme = theme;
+            this.pattern = this.getPattern(theme);
+            this.bpm = this.pattern.bpm || 132;
+        }
+        if (!this.pattern) {
+            this.currentTheme = theme || this.currentTheme;
+            this.pattern = this.getPattern(this.currentTheme);
+            this.bpm = this.pattern.bpm || 132;
+        }
+        if (this.musicPlaying || !this.musicEnabled) return;
         this.musicPlaying = true;
         this.nextNoteTime = this.ctx.currentTime + 0.05;
         this.currentStep = 0;
