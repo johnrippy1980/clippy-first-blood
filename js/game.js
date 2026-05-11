@@ -219,6 +219,17 @@ class Game {
             shakeOffsetY: 0
         };
 
+        // Screen-shake intensity multiplier (0..1). Loaded from localStorage
+        // so the preference survives reloads.
+        this.shakeIntensity = 1.0;
+        try {
+            const raw = localStorage.getItem('clippy_first_blood_shake');
+            if (raw != null) {
+                const v = parseFloat(raw);
+                if (Number.isFinite(v)) this.shakeIntensity = Math.max(0, Math.min(1, v));
+            }
+        } catch (e) {}
+
         // Game objects
         this.player = null;
         this.level = null;
@@ -580,11 +591,19 @@ class Game {
     }
 
     shake(amount, duration) {
+        // Scale by the user's intensity setting (0 disables shake entirely)
+        const scaled = amount * this.shakeIntensity;
         // Take the larger of the new shake and any in-progress shake
-        if (amount > this.camera.shakeAmount) {
-            this.camera.shakeAmount = amount;
+        if (scaled > this.camera.shakeAmount) {
+            this.camera.shakeAmount = scaled;
             this.camera.shakeTimer = duration;
         }
+    }
+
+    setShakeIntensity(v) {
+        this.shakeIntensity = Math.max(0, Math.min(1, v));
+        try { localStorage.setItem('clippy_first_blood_shake', String(this.shakeIntensity)); }
+        catch (e) {}
     }
 
     drawBossIntro() {
@@ -3837,23 +3856,27 @@ class Game {
                 this.capturePhoto();
                 this.photoFlash = 12;
             }
-            // Pause menu rows: 0 = music, 1 = sfx, 2 = quit to title
-            const rows = 3;
+            // Pause menu rows: 0 = music, 1 = sfx, 2 = screen shake, 3 = quit to title
+            const rows = 4;
             if (input.keysJustPressed['ArrowUp'])   this.pauseMenuCursor = (this.pauseMenuCursor + rows - 1) % rows;
             if (input.keysJustPressed['ArrowDown']) this.pauseMenuCursor = (this.pauseMenuCursor + 1) % rows;
-            if (typeof audio !== 'undefined') {
-                const step = 0.04;
-                if (input.left) {
+            const step = 0.04;
+            if (input.left) {
+                if (typeof audio !== 'undefined') {
                     if (this.pauseMenuCursor === 0) audio.setMusicVolume(audio.musicVolume - step);
                     if (this.pauseMenuCursor === 1) audio.setSfxVolume(audio.sfxVolume - step);
                 }
-                if (input.right) {
+                if (this.pauseMenuCursor === 2) this.setShakeIntensity(this.shakeIntensity - step);
+            }
+            if (input.right) {
+                if (typeof audio !== 'undefined') {
                     if (this.pauseMenuCursor === 0) audio.setMusicVolume(audio.musicVolume + step);
                     if (this.pauseMenuCursor === 1) audio.setSfxVolume(audio.sfxVolume + step);
                 }
+                if (this.pauseMenuCursor === 2) this.setShakeIntensity(this.shakeIntensity + step);
             }
             // SHOOT on the QUIT row returns to title (after a confirm step)
-            if (this.pauseMenuCursor === 2 && (input.shoot || input.jumpPressed)) {
+            if (this.pauseMenuCursor === 3 && (input.shoot || input.jumpPressed)) {
                 if (this.quitConfirm) {
                     // Confirmed - quit to title
                     this.paused = false;
@@ -4618,12 +4641,13 @@ class Game {
 
         drawPixelTextOutlined(ctx, 'PAUSED', GAME.WIDTH / 2, py + 6, '#ffe070', '#a82020', 2, 'center', 1);
 
-        // ---- Volume sliders ----
+        // ---- Volume + shake sliders ----
         const mixer = (typeof audio !== 'undefined') ? audio : null;
         const sliderX = px + 18, sliderW = pw - 60, sliderH = 6;
         const labels = [
             { name: 'MUSIC', val: mixer ? mixer.musicVolume : 0.7 },
-            { name: 'SFX',   val: mixer ? mixer.sfxVolume   : 0.85 }
+            { name: 'SFX',   val: mixer ? mixer.sfxVolume   : 0.85 },
+            { name: 'SHAKE', val: this.shakeIntensity }
         ];
         for (let i = 0; i < labels.length; i++) {
             const sy = py + 30 + i * 18;
@@ -4658,9 +4682,9 @@ class Game {
                 sliderX + sliderW + 18, sy - 4, '#a890c0', 1, 'right', 1);
         }
 
-        // ---- Quit to Title row (row index 2) ----
-        const qRowY = py + 30 + 2 * 18;
-        const qSelected = this.pauseMenuCursor === 2;
+        // ---- Quit to Title row (row index 3, after MUSIC/SFX/SHAKE) ----
+        const qRowY = py + 30 + 3 * 18;
+        const qSelected = this.pauseMenuCursor === 3;
         ctx.fillStyle = '#000';
         ctx.fillRect(sliderX - 4, qRowY - 4, sliderW + 16, 14);
         ctx.fillStyle = qSelected ? '#a82020' : '#1a1140';
