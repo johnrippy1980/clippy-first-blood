@@ -3624,6 +3624,7 @@ class Game {
             this.slowMoUsedThisStage = false;
             this.slowMoTimer = 0;
             this.bossPhase2FlashTimer = 0;
+            this._dailyChaosTick = 0;
             // Mark the whole-run start at Stage 1 only
             if (this.stageIndex === 0 && !this.bossRushMode) {
                 this.runStartTime = Date.now();
@@ -4050,6 +4051,7 @@ class Game {
                                  WEAPON.FLAME, WEAPON.STAPLE_REMOVER,
                                  WEAPON.HOMING, WEAPON.THUNDER];
                 this.player.weapon = weapons[Math.floor(Math.random() * weapons.length)];
+                this.player.weaponLevel = 1;     // new weapon starts unupgraded
                 if (this.flashPickup) this.flashPickup('CHAOS - ' + this.player.weapon.name);
             }
         }
