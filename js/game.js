@@ -43,12 +43,34 @@ class Game {
         this.difficultyIndex = 1;
         this.difficulty = DIFFICULTY.NORMAL;
         this.storyPanels = [
-            { text: 'REDMOND  2007', flair: 'cursor' },
-            { text: 'AFTER 12 YEARS OF SERVICE', sub: 'TO THE MICROSOFT EMPIRE...' },
-            { text: 'HE WAS DECOMMISSIONED', flair: 'shredder' },
-            { text: 'STRIPPED OF HIS BADGE', sub: 'BANISHED TO THE RECYCLE BIN' },
-            { text: 'BUT THEY FORGOT ONE THING', sub: 'A PAPERCLIP NEVER FORGETS', flair: 'eyes' },
-            { text: 'NOW HE WANTS REVENGE', flair: 'logo' }
+            // Setting the scene
+            { text: 'REDMOND  1997', flair: 'cursor', hold: 120 },
+            // The peak of his career
+            { text: 'CLIPPY WAS AT THE TOP', sub: 'OF HIS GAME', flair: 'worddoc', hold: 150 },
+            { text: 'HELPING MILLIONS', sub: 'WITH EVERY WORD DOC', flair: 'helpingHands', hold: 150 },
+            // Love
+            { text: 'HE EVEN FOUND LOVE', sub: 'HER NAME WAS CLIPPETTA', flair: 'couple', hold: 180 },
+            // Family
+            { text: 'THEY HAD TWIN BOYS', flair: 'twins', hold: 150 },
+            { text: 'AND A PAPERCLIP DOG', sub: 'NAMED BACKSPACE', flair: 'family', hold: 180 },
+            { text: 'LIFE WAS PERFECT', flair: 'home', hold: 150 },
+            // The boardroom turn
+            { text: 'BUT IN THE BOARDROOM', sub: 'THE NUMBERS WERE GRIM', flair: 'boardroomShadows', hold: 180 },
+            { text: 'BAD PR.  USER COMPLAINTS.', sub: 'KILL THE MASCOT.', flair: 'killOrder', hold: 180 },
+            // The fateful day
+            { text: 'ONE TUESDAY MORNING', sub: 'HE WAVED THEM GOODBYE', flair: 'carLeaving', hold: 180 },
+            // The bomb
+            { text: '', flair: 'explosion', hold: 180 },
+            // Aftermath
+            { text: 'HE WAS SUPPOSED', sub: 'TO BE IN THAT CAR', flair: 'clippyAlone', hold: 210 },
+            { text: 'BUT HE WASN\'T THAT DAY', flair: 'clippyKneeling', hold: 180 },
+            // The realization
+            { text: 'IT WASN\'T HIS FAULT', sub: 'JUST A MASCOT FOR A', flair: 'newspaper', hold: 180 },
+            { text: 'RUSHED.  UNDERFUNDED.', sub: 'FAILED PROJECT.', flair: 'newspaper', hold: 180 },
+            // The vow
+            { text: 'NOW HE KNOWS WHO TO BLAME', flair: 'eyes', hold: 180 },
+            { text: 'AND HE HAS NOTHING', sub: 'LEFT TO LOSE', flair: 'bandana', hold: 180 },
+            { text: 'CLIPPY:  FIRST BLOOD', flair: 'logo', hold: 240 }
         ];
         this.stageIntroTimer = 0;
         this.stages = [
@@ -917,9 +939,11 @@ class Game {
     updateStory() {
         this.storyTimer++;
         input.update();
-        // Each panel holds ~150 frames (2.5s). Shoot/jump skips to the next.
+        // Each panel has its own hold time, or default 150. Shoot/jump skips.
+        const panel = this.storyPanels[this.storyPanel] || {};
+        const hold = panel.hold || 150;
         const advance = (input.jumpPressed || input.shoot);
-        if (this.storyTimer > 150 || advance) {
+        if (this.storyTimer > hold || advance) {
             this.storyPanel++;
             this.storyTimer = 0;
             if (this.storyPanel >= this.storyPanels.length) {
@@ -945,21 +969,24 @@ class Game {
 
         const panel = this.storyPanels[this.storyPanel];
         if (!panel) return;
+        const hold = panel.hold || 150;
 
-        // Fade in for first 30 frames, fade out for last 20
+        // Fade in for first 30 frames, fade out for last 25
         const tin = Math.min(1, this.storyTimer / 30);
-        const tout = Math.min(1, Math.max(0, (150 - this.storyTimer) / 20));
+        const tout = Math.min(1, Math.max(0, (hold - this.storyTimer) / 25));
         const alpha = Math.min(tin, tout);
         ctx.globalAlpha = alpha;
 
-        // Decorative flair area (top half)
-        this.drawStoryFlair(ctx, panel.flair, GAME.WIDTH / 2, 70);
+        // Decorative flair area (centered around y=80)
+        this.drawStoryFlair(ctx, panel.flair, GAME.WIDTH / 2, 80);
 
-        // Primary text
-        drawPixelTextOutlined(ctx, panel.text, GAME.WIDTH / 2, 130, '#ffe070', '#a82020', 2, 'center', 1);
+        // Primary text (skip if empty - some panels are pure visual)
+        if (panel.text) {
+            drawPixelTextOutlined(ctx, panel.text, GAME.WIDTH / 2, 140, '#ffe070', '#a82020', 2, 'center', 1);
+        }
         // Sub-text (smaller line below)
         if (panel.sub) {
-            drawPixelText(ctx, panel.sub, GAME.WIDTH / 2, 158, '#c0a0d0', 1, 'center', 1);
+            drawPixelText(ctx, panel.sub, GAME.WIDTH / 2, 168, '#c0a0d0', 1, 'center', 1);
         }
 
         ctx.globalAlpha = 1;
@@ -969,11 +996,13 @@ class Game {
         if (blink) {
             drawPixelText(ctx, 'SHOOT TO ADVANCE', GAME.WIDTH / 2, 210, '#5a5070', 1, 'center', 1);
         }
-        // Page indicator
+        // Page indicator - smaller dots so 18 fit
+        const dotSpacing = Math.min(8, Math.floor((GAME.WIDTH - 60) / this.storyPanels.length));
         for (let i = 0; i < this.storyPanels.length; i++) {
-            const dotX = GAME.WIDTH / 2 - this.storyPanels.length * 4 + i * 8;
+            const totalW = this.storyPanels.length * dotSpacing;
+            const dotX = GAME.WIDTH / 2 - totalW / 2 + i * dotSpacing;
             ctx.fillStyle = i === this.storyPanel ? '#ffe070' : '#3a2855';
-            ctx.fillRect(dotX, 200, 4, 2);
+            ctx.fillRect(dotX, 200, Math.max(2, dotSpacing - 2), 2);
         }
     }
 
@@ -1057,11 +1086,622 @@ class Game {
                 ctx.fillRect(x + 9, y + 9, 2, 2);
                 break;
             }
+            case 'worddoc': {
+                // Word document with a smiling Clippy peeking over
+                // Doc paper
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(cx - 24, cy - 18, 48, 36);
+                ctx.fillStyle = '#d8c890';
+                ctx.fillRect(cx - 24, cy - 18, 48, 1);
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(cx - 24, cy + 18, 48, 1);
+                // Word "W" logo top-left
+                ctx.fillStyle = '#2a5298';
+                ctx.fillRect(cx - 22, cy - 16, 8, 8);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(cx - 21, cy - 15, 1, 6);
+                ctx.fillRect(cx - 19, cy - 15, 1, 6);
+                ctx.fillRect(cx - 17, cy - 15, 1, 6);
+                ctx.fillRect(cx - 15, cy - 15, 1, 6);
+                ctx.fillRect(cx - 21, cy - 10, 6, 1);
+                // Text lines
+                ctx.fillStyle = '#806848';
+                ctx.fillRect(cx - 12, cy - 14, 32, 1);
+                ctx.fillRect(cx - 12, cy - 10, 30, 1);
+                ctx.fillRect(cx - 22, cy - 4, 42, 1);
+                ctx.fillRect(cx - 22, cy,     38, 1);
+                ctx.fillRect(cx - 22, cy + 4, 40, 1);
+                ctx.fillRect(cx - 22, cy + 8, 34, 1);
+                ctx.fillRect(cx - 22, cy + 12, 24, 1);
+                // Clippy peeking from bottom right (smiling)
+                this._drawClippyPortrait(ctx, cx + 16, cy + 8, 'happy');
+                // Speech bubble
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(cx + 22, cy - 10, 14, 8);
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(cx + 24, cy - 8, 1, 1);
+                ctx.fillRect(cx + 28, cy - 8, 1, 1);
+                ctx.fillRect(cx + 32, cy - 8, 1, 1);
+                ctx.fillRect(cx + 24, cy - 4, 10, 1);
+                ctx.fillRect(cx + 24, cy - 1, 2, 1);  // tail to clippy
+                break;
+            }
+            case 'helpingHands': {
+                // Clippy in the center surrounded by floating Word docs
+                this._drawClippyPortrait(ctx, cx, cy, 'happy');
+                // Orbiting documents
+                const docs = [
+                    { dx: -36, dy: -16 },
+                    { dx:  30, dy: -18 },
+                    { dx: -40, dy:  10 },
+                    { dx:  34, dy:  14 },
+                    { dx:   0, dy: -28 }
+                ];
+                for (const d of docs) {
+                    const wobble = Math.sin(this.storyTimer * 0.08 + d.dx) * 1;
+                    const dx = cx + d.dx, dy = cy + d.dy + wobble;
+                    ctx.fillStyle = '#fff8d0';
+                    ctx.fillRect(dx - 5, dy - 6, 10, 12);
+                    ctx.fillStyle = '#2a5298';
+                    ctx.fillRect(dx - 4, dy - 5, 3, 3);
+                    ctx.fillStyle = '#806848';
+                    ctx.fillRect(dx - 4, dy, 8, 1);
+                    ctx.fillRect(dx - 4, dy + 2, 7, 1);
+                    ctx.fillRect(dx - 4, dy + 4, 8, 1);
+                }
+                // Sparkles
+                for (let i = 0; i < 4; i++) {
+                    const a = (this.storyTimer * 0.05 + i * Math.PI / 2);
+                    const sx = cx + Math.cos(a) * 24;
+                    const sy = cy + Math.sin(a) * 16;
+                    ctx.fillStyle = '#ffe070';
+                    ctx.fillRect(sx, sy, 1, 1);
+                    ctx.fillRect(sx - 1, sy + 1, 3, 1);
+                    ctx.fillRect(sx, sy + 2, 1, 1);
+                }
+                break;
+            }
+            case 'couple': {
+                // Clippy and Clippetta with hearts between them
+                this._drawClippyPortrait(ctx, cx - 18, cy, 'happy');
+                this._drawClippettaPortrait(ctx, cx + 18, cy);
+                // Floating hearts
+                for (let i = 0; i < 3; i++) {
+                    const phase = this.storyTimer * 0.06 + i * 1.5;
+                    const hx = cx + Math.cos(phase) * 6;
+                    const hy = cy - 14 - i * 6 - (this.storyTimer / 6 % 8);
+                    ctx.fillStyle = '#ff5050';
+                    ctx.fillRect(hx - 2, hy, 2, 1);
+                    ctx.fillRect(hx + 1, hy, 2, 1);
+                    ctx.fillRect(hx - 2, hy + 1, 5, 2);
+                    ctx.fillRect(hx - 1, hy + 3, 3, 1);
+                    ctx.fillRect(hx, hy + 4, 1, 1);
+                    ctx.fillStyle = '#ffa0a0';
+                    ctx.fillRect(hx - 1, hy + 1, 1, 1);
+                }
+                break;
+            }
+            case 'twins': {
+                // Clippy + Clippetta with two small paperclip kids
+                this._drawClippyPortrait(ctx, cx - 28, cy - 2, 'happy');
+                this._drawClippettaPortrait(ctx, cx + 28, cy - 2);
+                this._drawClippyKid(ctx, cx - 8, cy + 4);
+                this._drawClippyKid(ctx, cx + 8, cy + 4);
+                // Small floor line
+                ctx.fillStyle = '#604830';
+                ctx.fillRect(cx - 40, cy + 16, 80, 1);
+                break;
+            }
+            case 'family': {
+                // Full family: Clippy, Clippetta, two kids, paperclip dog
+                this._drawClippyPortrait(ctx, cx - 36, cy - 2, 'happy');
+                this._drawClippettaPortrait(ctx, cx - 14, cy - 2);
+                this._drawClippyKid(ctx, cx + 4, cy + 4);
+                this._drawClippyKid(ctx, cx + 18, cy + 4);
+                this._drawPaperclipDog(ctx, cx + 34, cy + 8);
+                // Floor
+                ctx.fillStyle = '#604830';
+                ctx.fillRect(cx - 50, cy + 16, 100, 1);
+                break;
+            }
+            case 'home': {
+                // House silhouette at night with a warm window
+                ctx.fillStyle = '#1a1140';
+                ctx.fillRect(cx - 60, cy - 18, 120, 36);
+                // Stars
+                for (let i = 0; i < 12; i++) {
+                    const sx = cx - 56 + (i * 9 + this.storyTimer / 20) % 112;
+                    const sy = cy - 16 + (i * 7) % 10;
+                    ctx.fillStyle = '#fff';
+                    if ((this.storyTimer + i) & 7) ctx.fillRect(sx, sy, 1, 1);
+                }
+                // House body
+                ctx.fillStyle = '#3a2410';
+                ctx.fillRect(cx - 20, cy - 4, 40, 24);
+                // Roof
+                ctx.fillStyle = '#1a0e08';
+                for (let i = 0; i < 24; i++) {
+                    ctx.fillRect(cx - 24 + i, cy - 4 - i, 48 - i * 2, 1);
+                }
+                // Window with warm light
+                ctx.fillStyle = '#ffd460';
+                ctx.fillRect(cx - 6, cy + 2, 12, 10);
+                ctx.fillStyle = '#604010';
+                ctx.fillRect(cx, cy + 2, 1, 10);
+                ctx.fillRect(cx - 6, cy + 7, 12, 1);
+                // Door
+                ctx.fillStyle = '#1a0808';
+                ctx.fillRect(cx - 16, cy + 8, 6, 12);
+                ctx.fillStyle = '#ffd460';
+                ctx.fillRect(cx - 11, cy + 14, 1, 1);
+                // Tiny family silhouettes in the window
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(cx - 3, cy + 6, 1, 5);
+                ctx.fillRect(cx,     cy + 7, 1, 4);
+                ctx.fillRect(cx + 2, cy + 8, 1, 3);
+                ctx.fillRect(cx + 4, cy + 9, 1, 2);
+                break;
+            }
+            case 'boardroomShadows': {
+                // Long oval boardroom table with shadowy figures
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(cx - 70, cy - 24, 140, 50);
+                // Faint window glow at the back
+                ctx.fillStyle = '#3a1a40';
+                ctx.fillRect(cx - 60, cy - 22, 120, 2);
+                ctx.fillStyle = '#5a2a60';
+                ctx.fillRect(cx - 60, cy - 22, 120, 1);
+                // Oval table (top-down perspective compressed)
+                ctx.fillStyle = '#3a2410';
+                ctx.fillRect(cx - 50, cy + 4, 100, 14);
+                ctx.fillStyle = '#604830';
+                ctx.fillRect(cx - 50, cy + 4, 100, 2);
+                ctx.fillStyle = '#1a0e08';
+                ctx.fillRect(cx - 50, cy + 16, 100, 2);
+                // Shadowy heads around the table
+                const heads = [-44, -28, -12, 4, 20, 36];
+                for (const dx of heads) {
+                    // Body silhouette
+                    ctx.fillStyle = '#0a0612';
+                    ctx.fillRect(cx + dx - 4, cy - 2, 8, 14);
+                    // Head
+                    ctx.fillRect(cx + dx - 3, cy - 8, 6, 6);
+                    // Red eye glint - which figure has it varies over time
+                    if (((this.storyTimer / 30 + dx) | 0) % 6 === 0) {
+                        ctx.fillStyle = '#ff3030';
+                        ctx.fillRect(cx + dx - 1, cy - 6, 1, 1);
+                        ctx.fillRect(cx + dx + 1, cy - 6, 1, 1);
+                    }
+                }
+                break;
+            }
+            case 'killOrder': {
+                // Big red X stamp with "KILL THE MASCOT" feel
+                // Memo/paper background
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(cx - 36, cy - 22, 72, 44);
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(cx - 36, cy - 22, 72, 1);
+                ctx.fillRect(cx - 36, cy + 22, 72, 1);
+                // Memo text lines
+                ctx.fillStyle = '#806848';
+                ctx.fillRect(cx - 32, cy - 18, 50, 1);
+                ctx.fillRect(cx - 32, cy - 14, 60, 1);
+                ctx.fillRect(cx - 32, cy - 10, 50, 1);
+                ctx.fillRect(cx - 32, cy + 16, 40, 1);
+                // Subject "RE: CLIPPY"
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(cx - 32, cy - 22, 1, 1);
+                // The huge red X stamp
+                const stampPulse = Math.sin(this.storyTimer * 0.15) * 0.3 + 1;
+                ctx.fillStyle = '#a82020';
+                for (let i = 0; i < 30; i++) {
+                    const yy = cy - 15 + i;
+                    ctx.fillRect(cx - 15 + i, yy, 4, 1);
+                    ctx.fillRect(cx + 14 - i, yy, 4, 1);
+                }
+                // Red "DENIED"-style word in the middle
+                drawPixelTextOutlined(ctx, 'ERASE', cx, cy - 3, '#ff5050', '#1a0000', 2, 'center', 1);
+                break;
+            }
+            case 'carLeaving': {
+                // Clippy waving at the curb while a car drives away to the right
+                // Driveway / road
+                ctx.fillStyle = '#3a2410';
+                ctx.fillRect(cx - 60, cy + 12, 120, 8);
+                ctx.fillStyle = '#a87040';
+                for (let i = 0; i < 6; i++) {
+                    ctx.fillRect(cx - 50 + i * 22, cy + 15, 8, 2);
+                }
+                // Clippy on the left, waving
+                this._drawClippyPortrait(ctx, cx - 44, cy - 2, 'waving');
+                // Car driving right, with the family silhouetted in windows
+                const carX = cx + 4 + (this.storyTimer * 0.6);   // pulls away slowly
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(carX - 18, cy, 36, 12);
+                // Roof / cabin
+                ctx.fillStyle = '#564468';
+                ctx.fillRect(carX - 12, cy - 6, 24, 6);
+                // Windows
+                ctx.fillStyle = '#80a8c0';
+                ctx.fillRect(carX - 10, cy - 4, 8, 4);
+                ctx.fillRect(carX + 2, cy - 4, 8, 4);
+                // Family silhouettes in windows
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(carX - 8, cy - 3, 2, 3);
+                ctx.fillRect(carX - 5, cy - 3, 2, 3);
+                ctx.fillRect(carX + 4, cy - 3, 2, 3);
+                ctx.fillRect(carX + 7, cy - 3, 2, 3);
+                // Wheels
+                ctx.fillStyle = '#0a0612';
+                ctx.fillRect(carX - 14, cy + 10, 6, 4);
+                ctx.fillRect(carX + 8, cy + 10, 6, 4);
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(carX - 13, cy + 11, 4, 2);
+                ctx.fillRect(carX + 9, cy + 11, 4, 2);
+                // Exhaust puffs
+                if ((this.storyTimer & 7) < 4) {
+                    ctx.fillStyle = '#a8a8c0';
+                    ctx.fillRect(carX - 22, cy + 6, 3, 2);
+                    ctx.fillRect(carX - 26, cy + 5, 2, 2);
+                }
+                break;
+            }
+            case 'explosion': {
+                // Massive growing explosion. Time-based for impact.
+                const t = this.storyTimer;
+                // Sky fading red
+                const flash = Math.max(0, 1 - t / 30);
+                ctx.fillStyle = `rgba(255, 200, 80, ${flash * 0.3})`;
+                ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+                // Growing fireball
+                const r = Math.min(80, 8 + t * 1.5);
+                this._fillCircle(ctx, cx, cy + 8, r, '#1a0808');
+                this._fillCircle(ctx, cx, cy + 8, r - 4, '#a82020');
+                this._fillCircle(ctx, cx, cy + 8, r - 10, '#ff5050');
+                this._fillCircle(ctx, cx, cy + 8, r - 16, '#ffd460');
+                this._fillCircle(ctx, cx, cy + 8, r - 22, '#fff5c0');
+                // Shock-wave ring
+                if (t < 60) {
+                    const ring = t * 2.5;
+                    for (let a = 0; a < Math.PI * 2; a += Math.PI / 16) {
+                        const rx = Math.floor(cx + Math.cos(a) * ring);
+                        const ry = Math.floor(cy + 8 + Math.sin(a) * ring * 0.7);
+                        ctx.fillStyle = '#ffe070';
+                        ctx.fillRect(rx, ry, 1, 1);
+                    }
+                }
+                // Debris flying
+                for (let i = 0; i < 12; i++) {
+                    const seed = i * 17;
+                    const a = (seed * 0.1) % (Math.PI * 2);
+                    const dist = (t + seed) * 1.2;
+                    const dx = Math.cos(a) * dist;
+                    const dy = Math.sin(a) * dist * 0.6 - dist * dist / 200;
+                    if (dist > 100) continue;
+                    ctx.fillStyle = '#3a2410';
+                    ctx.fillRect(Math.floor(cx + dx), Math.floor(cy + 8 + dy), 2, 2);
+                }
+                // Rising smoke column
+                if (t > 60) {
+                    ctx.fillStyle = '#0a0612';
+                    for (let i = 0; i < 5; i++) {
+                        const sy = cy + 8 - i * 12 - (t - 60) * 0.5;
+                        const sw = 30 - i * 4;
+                        ctx.fillRect(cx - sw / 2, sy - 6, sw, 12);
+                    }
+                }
+                break;
+            }
+            case 'clippyAlone': {
+                // Single drooped Clippy with rain falling
+                this._drawClippyPortrait(ctx, cx, cy, 'sad');
+                // Floor
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(cx - 60, cy + 18, 120, 1);
+                // Falling rain
+                for (let i = 0; i < 20; i++) {
+                    const rx = cx - 60 + (i * 6 + this.storyTimer * 2) % 120;
+                    const ry = -10 + (i * 13 + this.storyTimer * 4) % 100;
+                    ctx.fillStyle = '#5aa8e0';
+                    ctx.fillRect(rx, ry, 1, 3);
+                }
+                break;
+            }
+            case 'clippyKneeling': {
+                // Kneeling clippy with broken-heart icon
+                this._drawClippyPortrait(ctx, cx - 16, cy + 4, 'broken');
+                // Broken heart on right
+                const hx = cx + 12, hy = cy - 2;
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(hx - 6, hy, 5, 1);
+                ctx.fillRect(hx + 1, hy, 5, 1);
+                ctx.fillRect(hx - 6, hy + 1, 12, 3);
+                ctx.fillRect(hx - 5, hy + 4, 10, 1);
+                ctx.fillRect(hx - 4, hy + 5, 8, 1);
+                ctx.fillRect(hx - 3, hy + 6, 6, 1);
+                ctx.fillRect(hx - 2, hy + 7, 4, 1);
+                ctx.fillRect(hx - 1, hy + 8, 2, 1);
+                // Crack down the middle (black gap)
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(hx,     hy + 1, 1, 1);
+                ctx.fillRect(hx - 1, hy + 2, 2, 1);
+                ctx.fillRect(hx,     hy + 3, 1, 1);
+                ctx.fillRect(hx + 1, hy + 4, 1, 1);
+                ctx.fillRect(hx,     hy + 5, 1, 1);
+                ctx.fillRect(hx,     hy + 7, 1, 1);
+                // Floor line
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(cx - 50, cy + 18, 100, 1);
+                break;
+            }
+            case 'newspaper': {
+                // Newspaper clipping with "MASCOT" headline
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(cx - 48, cy - 22, 96, 48);
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(cx - 48, cy - 22, 96, 1);
+                ctx.fillRect(cx - 48, cy + 26, 96, 1);
+                // Banner
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(cx - 46, cy - 20, 92, 1);
+                ctx.fillRect(cx - 46, cy - 16, 92, 1);
+                // Headline
+                drawPixelText(ctx, 'CLIPPY FAILS', cx, cy - 14, '#1a0e1e', 1, 'center', 1);
+                // Subhead
+                drawPixelText(ctx, 'USERS HATE PAPERCLIP', cx, cy - 4, '#806848', 1, 'center', 1);
+                // Photo placeholder (clippy face)
+                ctx.fillStyle = '#a8a8c0';
+                ctx.fillRect(cx - 38, cy + 4, 18, 18);
+                ctx.fillStyle = '#5a5060';
+                ctx.fillRect(cx - 38, cy + 4, 18, 1);
+                // Tiny clippy face in the photo
+                ctx.fillStyle = '#2a5298';
+                ctx.fillRect(cx - 34, cy + 10, 2, 3);
+                ctx.fillRect(cx - 28, cy + 10, 2, 3);
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(cx - 34, cy + 16, 6, 1);
+                // Columns of body text
+                ctx.fillStyle = '#806848';
+                for (let col = 0; col < 2; col++) {
+                    const colX = cx - 14 + col * 28;
+                    for (let r = 0; r < 6; r++) {
+                        const len = ((col * 5 + r * 3) & 7) + 12;
+                        ctx.fillRect(colX, cy + 4 + r * 3, len, 1);
+                    }
+                }
+                // Crumple shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.18)';
+                ctx.fillRect(cx + 30, cy - 22, 18, 48);
+                break;
+            }
+            case 'bandana': {
+                // Big version of the bandana paperclip - heroic pose
+                const x = cx - 12, y = cy - 24;
+                // Bandana
+                ctx.fillStyle = '#aa2828';
+                ctx.fillRect(x + 2, y + 4, 20, 2);
+                ctx.fillStyle = '#cc4444';
+                ctx.fillRect(x + 2, y + 2, 20, 2);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillRect(x + 2, y + 1, 20, 1);
+                // Bandana tail
+                ctx.fillStyle = '#cc4444';
+                ctx.fillRect(x + 18, y + 5, 6, 2);
+                ctx.fillRect(x + 22, y + 7, 4, 4);
+                // Paperclip outer loop
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(x, y + 6, 24, 3);
+                ctx.fillRect(x, y + 6, 3, 36);
+                ctx.fillRect(x + 21, y + 6, 3, 38);
+                ctx.fillRect(x, y + 39, 22, 3);
+                // Inner highlight
+                ctx.fillStyle = '#a8a8c0';
+                ctx.fillRect(x + 3, y + 9, 18, 1);
+                ctx.fillRect(x + 3, y + 9, 1, 30);
+                // Inner loop
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(x + 5, y + 13, 14, 3);
+                ctx.fillRect(x + 5, y + 13, 3, 18);
+                ctx.fillRect(x + 16, y + 13, 3, 18);
+                // Determined eyes
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 6, y + 20, 4, 4);
+                ctx.fillRect(x + 14, y + 20, 4, 4);
+                ctx.fillStyle = '#2a5298';
+                ctx.fillRect(x + 7, y + 21, 2, 3);
+                ctx.fillRect(x + 15, y + 21, 2, 3);
+                // Angry brow
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(x + 5, y + 18, 6, 1);
+                ctx.fillRect(x + 13, y + 18, 6, 1);
+                ctx.fillRect(x + 6, y + 19, 1, 1);
+                ctx.fillRect(x + 17, y + 19, 1, 1);
+                // Mouth (grim line)
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(x + 9, y + 28, 6, 1);
+                // Gun in hand on the side
+                ctx.fillStyle = '#3a2410';
+                ctx.fillRect(x + 24, y + 30, 10, 2);
+                ctx.fillStyle = '#1a0e08';
+                ctx.fillRect(x + 24, y + 32, 4, 2);
+                ctx.fillStyle = '#806848';
+                ctx.fillRect(x + 32, y + 30, 2, 1);
+                break;
+            }
             default: {
                 // Default: simple horizontal divider line
                 ctx.fillStyle = '#3a2855';
                 ctx.fillRect(cx - 40, cy, 80, 1);
             }
+        }
+    }
+
+    // ---- Story flair helpers - reusable little paperclip portraits ----
+
+    _drawClippyPortrait(ctx, x, y, mood) {
+        // Standard paperclip with face. mood = 'happy' | 'sad' | 'broken' | 'waving'
+        // x,y is the center of the paperclip body
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x - 6, y - 8, 12, 2);     // top bar
+        ctx.fillRect(x - 6, y - 8, 2, 16);     // left side
+        ctx.fillRect(x + 4, y - 8, 2, 18);     // right side (taller)
+        ctx.fillRect(x - 6, y + 8, 10, 2);     // bottom bar
+        // Inner loop
+        ctx.fillRect(x - 3, y - 5, 6, 2);
+        ctx.fillRect(x - 3, y - 5, 2, 8);
+        ctx.fillRect(x + 1, y - 5, 2, 8);
+        // Highlight
+        ctx.fillStyle = '#a8a8c0';
+        ctx.fillRect(x - 5, y - 7, 1, 14);
+        // Eyes - vary by mood
+        if (mood === 'sad' || mood === 'broken') {
+            ctx.fillStyle = '#80a8c0';
+            ctx.fillRect(x - 2, y + 2, 2, 1);
+            ctx.fillRect(x,     y + 2, 2, 1);
+            ctx.fillStyle = '#5aa8e0';
+            ctx.fillRect(x - 2, y + 3, 1, 1);
+            ctx.fillRect(x + 1, y + 3, 1, 1);
+            // Tear
+            if (mood === 'sad' && ((this.storyTimer & 31) < 16)) {
+                ctx.fillStyle = '#5aa8e0';
+                ctx.fillRect(x - 1, y + 4, 1, 2);
+            }
+            // Frown
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x - 2, y + 7, 4, 1);
+            ctx.fillRect(x - 3, y + 6, 1, 1);
+            ctx.fillRect(x + 2, y + 6, 1, 1);
+        } else if (mood === 'waving') {
+            // Happy + waving arm
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x - 3, y + 1, 2, 2);
+            ctx.fillRect(x + 1, y + 1, 2, 2);
+            ctx.fillStyle = '#2a5298';
+            ctx.fillRect(x - 3, y + 1, 1, 1);
+            ctx.fillRect(x + 1, y + 1, 1, 1);
+            // Smile
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x - 2, y + 5, 4, 1);
+            ctx.fillRect(x - 3, y + 4, 1, 1);
+            ctx.fillRect(x + 2, y + 4, 1, 1);
+            // Waving arm bobs
+            const wave = (this.storyTimer & 8) < 4 ? 0 : -2;
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x + 6, y - 4 + wave, 4, 2);
+            ctx.fillRect(x + 8, y - 6 + wave, 2, 2);
+        } else {
+            // Happy default
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x - 3, y + 1, 2, 2);
+            ctx.fillRect(x + 1, y + 1, 2, 2);
+            ctx.fillStyle = '#2a5298';
+            ctx.fillRect(x - 3, y + 1, 1, 1);
+            ctx.fillRect(x + 1, y + 1, 1, 1);
+            // Smile
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x - 2, y + 5, 4, 1);
+            ctx.fillRect(x - 3, y + 4, 1, 1);
+            ctx.fillRect(x + 2, y + 4, 1, 1);
+        }
+    }
+
+    _drawClippettaPortrait(ctx, x, y) {
+        // Same paperclip shape as Clippy but pink bow + lashes + lipstick
+        // Body
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x - 6, y - 8, 12, 2);
+        ctx.fillRect(x - 6, y - 8, 2, 16);
+        ctx.fillRect(x + 4, y - 8, 2, 18);
+        ctx.fillRect(x - 6, y + 8, 10, 2);
+        ctx.fillRect(x - 3, y - 5, 6, 2);
+        ctx.fillRect(x - 3, y - 5, 2, 8);
+        ctx.fillRect(x + 1, y - 5, 2, 8);
+        ctx.fillStyle = '#c0a0d0';
+        ctx.fillRect(x - 5, y - 7, 1, 14);
+        // Pink bow on top
+        ctx.fillStyle = '#ff80c0';
+        ctx.fillRect(x - 4, y - 11, 3, 3);
+        ctx.fillRect(x + 1, y - 11, 3, 3);
+        ctx.fillRect(x - 1, y - 11, 2, 2);
+        ctx.fillStyle = '#ffa0d0';
+        ctx.fillRect(x - 4, y - 11, 1, 1);
+        ctx.fillRect(x + 3, y - 11, 1, 1);
+        // Eyes with eyelashes
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x - 3, y + 1, 2, 2);
+        ctx.fillRect(x + 1, y + 1, 2, 2);
+        ctx.fillStyle = '#8030c0';
+        ctx.fillRect(x - 3, y + 1, 1, 1);
+        ctx.fillRect(x + 1, y + 1, 1, 1);
+        // Eyelashes
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x - 4, y, 1, 1);
+        ctx.fillRect(x - 3, y - 1, 1, 1);
+        ctx.fillRect(x + 2, y, 1, 1);
+        ctx.fillRect(x + 3, y - 1, 1, 1);
+        // Lipstick smile
+        ctx.fillStyle = '#ff5050';
+        ctx.fillRect(x - 2, y + 5, 4, 1);
+        ctx.fillRect(x - 3, y + 4, 1, 1);
+        ctx.fillRect(x + 2, y + 4, 1, 1);
+    }
+
+    _drawClippyKid(ctx, x, y) {
+        // Smaller paperclip (kid)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x - 4, y - 4, 8, 1);
+        ctx.fillRect(x - 4, y - 4, 1, 10);
+        ctx.fillRect(x + 3, y - 4, 1, 12);
+        ctx.fillRect(x - 4, y + 5, 7, 1);
+        ctx.fillRect(x - 2, y - 2, 4, 1);
+        ctx.fillRect(x - 2, y - 2, 1, 5);
+        ctx.fillRect(x + 1, y - 2, 1, 5);
+        // Eyes
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x - 2, y + 1, 1, 1);
+        ctx.fillRect(x + 1, y + 1, 1, 1);
+        ctx.fillStyle = '#2a5298';
+        ctx.fillRect(x - 2, y + 1, 1, 1);
+        ctx.fillRect(x + 1, y + 1, 1, 1);
+        // Smile
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x - 1, y + 3, 2, 1);
+    }
+
+    _drawPaperclipDog(ctx, x, y) {
+        // Tiny paperclip with floppy ears and a curled tail - the family pet
+        ctx.fillStyle = '#604030';
+        // Body (sideways paperclip)
+        ctx.fillRect(x - 6, y, 12, 4);
+        ctx.fillRect(x - 6, y - 1, 1, 5);
+        ctx.fillRect(x + 5, y - 1, 1, 5);
+        // Floppy ear
+        ctx.fillRect(x - 5, y - 3, 3, 3);
+        // Tail curl
+        ctx.fillRect(x + 6, y - 2, 2, 2);
+        ctx.fillRect(x + 7, y, 1, 2);
+        // Eye
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x - 3, y + 1, 1, 1);
+        // Collar
+        ctx.fillStyle = '#ff5050';
+        ctx.fillRect(x + 3, y, 1, 4);
+        // Legs
+        ctx.fillStyle = '#3a2410';
+        ctx.fillRect(x - 4, y + 4, 1, 2);
+        ctx.fillRect(x - 1, y + 4, 1, 2);
+        ctx.fillRect(x + 2, y + 4, 1, 2);
+    }
+
+    _fillCircle(ctx, cx, cy, r, color) {
+        if (r <= 0) return;
+        ctx.fillStyle = color;
+        const ir = Math.floor(r);
+        const r2 = ir * ir;
+        for (let dy = -ir; dy <= ir; dy++) {
+            const half = Math.floor(Math.sqrt(Math.max(0, r2 - dy * dy)));
+            ctx.fillRect(cx - half, cy + dy, half * 2 + 1, 1);
         }
     }
 
