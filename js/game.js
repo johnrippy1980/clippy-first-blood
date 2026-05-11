@@ -4904,6 +4904,10 @@ window.addEventListener('load', async () => {
 
     game = new Game();
     game.init();
+    // Expose for DevTools debugging (top-level `let`/`const` don't attach
+    // to window, which makes console inspection impossible otherwise).
+    window.game = game;
+    if (typeof input !== 'undefined') window.input = input;
 
     // If we were opened with a shared score in the URL hash, import it
     // and flash a notification so the receiving player knows.
