@@ -18,7 +18,7 @@ const loadInto = {};
 // Stub Web Audio so audio.js can load without erroring (it inits lazily anyway)
 global.AudioContext = class { constructor(){ this.state='suspended'; this.currentTime=0; this.sampleRate=44100; } resume(){} createGain(){ return { gain:{ value:0, setValueAtTime(){}, linearRampToValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){return this;} }; } createOscillator(){ return { type:'', frequency:{ value:0, setValueAtTime(){}, linearRampToValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){return this;}, start(){}, stop(){} }; } createBuffer(){ return { getChannelData(){return new Float32Array(1);} }; } createBufferSource(){ return { connect(){return this;}, start(){}, stop(){} }; } createBiquadFilter(){ return { type:'', Q:{value:0}, frequency:{ value:0, setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){return this;} }; } };
 global.setTimeout = setTimeout;
-const files = ['js/constants.js','js/pixelfont.js','js/audio.js','js/sprites.js','js/input.js','js/effects.js','js/player.js','js/enemies.js','js/level.js','js/parallax.js'];
+const files = ['js/constants.js','js/pixelfont.js','js/audio.js','js/sprites.js','js/input.js','js/effects.js','js/player.js','js/enemies.js','js/pickups.js','js/level.js','js/parallax.js'];
 const combined = files.map(p => fs.readFileSync(path.join(__dirname, '..', p), 'utf-8')).join('\n');
 // Strip `const`/`class` declarations to `var`/global so they reach the global object.
 // Easier: wrap with a `with(globalThis){}`-equivalent by assigning module locals to globalThis after eval.
@@ -52,6 +52,8 @@ ${combined}
 ;global.CLIPPY_SPRITES = CLIPPY_SPRITES;
 ;global.CLIPPY_PALETTE = CLIPPY_PALETTE;
 ;global.particles = particles;
+;global.pickupManager = pickupManager;
+;global.PickupManager = PickupManager;
 ;global.drawPixelText = drawPixelText;
 ;global.drawPixelTextOutlined = drawPixelTextOutlined;
 ;global.PIXEL_FONT = PIXEL_FONT;
@@ -63,10 +65,11 @@ ctx.imageSmoothingEnabled = false;
 
 // Build a fake game state
 const level = new Level();
-level.loadTestLevel();
+level.loadStage1();
 const player = new Player(80, 160);
 const enemies = new EnemyManager();
 level.spawnPoints.forEach(s => enemies.spawn(s.x, s.y, s.type));
+pickupManager.loadFromLevel(level);
 const bg = new ParallaxBackground();
 bg.init();
 
@@ -138,6 +141,7 @@ if (mode === 'title') {
 } else {
 bg.draw(ctx, camera);
 level.draw(ctx, camera);
+pickupManager.draw(ctx, camera);
 enemies.draw(ctx, camera);
 // Player draw needs spriteAtlas to have frames - it'll fall back to procedural
 player.draw(ctx, camera);

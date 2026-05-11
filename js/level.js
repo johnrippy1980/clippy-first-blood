@@ -12,89 +12,147 @@ class Level {
         this.spawnPoints = [];
     }
 
-    // Load a test level
-    loadTestLevel() {
-        // 64 tiles wide x 14 tiles tall (1024 x 224 pixels)
-        this.width = 64;
-        this.height = 14;
+    // Hand-designed Stage 1: OFFICE JUNGLE
+    // 100 tiles wide x 14 tall = 1600 x 224 px
+    // Three sections: approach (0-30), combat (30-75), boss arena (75-100)
+    loadTestLevel() { this.loadStage1(); }
 
-        // Create empty level
+    loadStage1() {
+        this.width = 100;
+        this.height = 14;
+        this.bossArenaX = 80 * GAME.TILE_SIZE;
+        this.endX = 99 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+
+        // Empty grid
         this.tiles = [];
         for (let y = 0; y < this.height; y++) {
-            this.tiles[y] = [];
-            for (let x = 0; x < this.width; x++) {
-                this.tiles[y][x] = TILE.EMPTY;
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++) {
+                for (let x = x1; x <= x2; x++) {
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width) {
+                        this.tiles[y][x] = t;
+                    }
+                }
             }
-        }
+        };
+        const ladder = (x, y1, y2) => {
+            for (let y = y1; y <= y2; y++) {
+                this.tiles[y][x] = TILE.LADDER;
+                this.ladders.push({ x: x * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
+            }
+        };
+        const vine = (x, y1, y2) => {
+            for (let y = y1; y <= y2; y++) {
+                this.tiles[y][x] = TILE.VINE;
+                this.ladders.push({ x: x * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
+            }
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
 
-        // Ground layer (bottom 2 rows)
-        for (let x = 0; x < this.width; x++) {
-            this.tiles[12][x] = TILE.SOLID;
-            this.tiles[13][x] = TILE.SOLID;
-        }
+        // ---- Ground (rows 12-13 by default, with gaps where noted) ----
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
 
-        // Add some platforms
-        // Platform 1
-        for (let x = 8; x < 14; x++) {
-            this.tiles[9][x] = TILE.PLATFORM;
-        }
+        // ===== SECTION 1: APPROACH (tiles 0-30) =====
+        // Gentle intro - one platform, one ladder, one enemy
 
-        // Platform 2
-        for (let x = 18; x < 24; x++) {
-            this.tiles[7][x] = TILE.PLATFORM;
-        }
+        // Stepping platforms in the air
+        fill(7, 10, 9, 10, TILE.PLATFORM);
+        fill(13, 8, 16, 8, TILE.PLATFORM);
 
-        // Platform 3 (higher)
-        for (let x = 28; x < 32; x++) {
-            this.tiles[5][x] = TILE.SOLID;
-        }
+        // Ladder leading down to a low ledge / cover
+        ladder(20, 7, 11);
+        // Elevated ledge spanning 18-23
+        fill(18, 7, 23, 7, TILE.SOLID);
+        cover(22);  // safe spot mid-approach
 
-        // Ladder
-        for (let y = 6; y < 12; y++) {
-            this.tiles[y][35] = TILE.LADDER;
-            this.ladders.push({ x: 35 * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
-        }
+        // First water pit (tile 26-27)
+        fill(25, 12, 28, 13, TILE.EMPTY);
+        fill(25, 13, 28, 13, TILE.WATER);
+        // Small floating platform spanning the pit
+        fill(26, 10, 27, 10, TILE.PLATFORM);
 
-        // Vine
-        for (let y = 4; y < 12; y++) {
-            this.tiles[y][45] = TILE.VINE;
-            this.ladders.push({ x: 45 * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
-        }
+        // ===== SECTION 2: COMBAT (tiles 30-75) =====
+        // Heavier enemies, vertical movement, destructibles, pickups
 
-        // Cover spots (doorways/caves)
-        this.tiles[10][20] = TILE.COVER_SPOT;
-        this.tiles[11][20] = TILE.COVER_SPOT;
-        this.coverSpots.push({ x: 20 * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        // Vine descent area
+        vine(34, 3, 11);
 
-        this.tiles[10][40] = TILE.COVER_SPOT;
-        this.tiles[11][40] = TILE.COVER_SPOT;
-        this.coverSpots.push({ x: 40 * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        // Mid-air platform with a flame thrower pickup
+        fill(38, 7, 42, 7, TILE.PLATFORM);
+        this.pickups.push({ x: 40 * GAME.TILE_SIZE, y: 5 * GAME.TILE_SIZE + 8, type: 'FLAME', taken: false });
 
-        // Wall for wall-jumping practice
-        for (let y = 6; y < 12; y++) {
-            this.tiles[y][55] = TILE.SOLID;
-            this.tiles[y][58] = TILE.SOLID;
-        }
+        // Destructible block stack (shoot to clear)
+        fill(46, 9, 47, 11, TILE.DESTRUCTIBLE);
 
-        // Some destructible blocks
-        this.tiles[10][50] = TILE.DESTRUCTIBLE;
-        this.tiles[10][51] = TILE.DESTRUCTIBLE;
+        // Big pit with water (tiles 50-53)
+        fill(50, 12, 53, 13, TILE.EMPTY);
+        fill(50, 13, 53, 13, TILE.WATER);
+        // Two platform stones across
+        fill(51, 10, 51, 10, TILE.PLATFORM);
+        fill(53, 9,  53, 9,  TILE.PLATFORM);
 
-        // Water at bottom of a pit
-        this.tiles[12][25] = TILE.EMPTY;
-        this.tiles[13][25] = TILE.WATER;
-        this.tiles[12][26] = TILE.EMPTY;
-        this.tiles[13][26] = TILE.WATER;
+        // High plateau (tiles 56-62)
+        fill(55, 8, 62, 11, TILE.SOLID);
+        cover(60);  // doorway carved into the plateau side
+        ladder(54, 8, 11);  // ladder up the front
 
-        // Enemy spawn points
+        // Wall jump corridor (between two vertical walls)
+        fill(66, 4, 66, 11, TILE.SOLID);
+        fill(70, 4, 70, 11, TILE.SOLID);
+        // Spread-shot pickup at the top
+        this.pickups.push({ x: 68 * GAME.TILE_SIZE, y: 2 * GAME.TILE_SIZE + 8, type: 'SPREAD', taken: false });
+        // Platform at the top of the chasm to land on
+        fill(67, 3, 69, 3, TILE.SOLID);
+
+        // Tape dispenser turret perch
+        fill(73, 9, 76, 9, TILE.SOLID);
+
+        // ===== SECTION 3: BOSS ARENA (tiles 80-100) =====
+        // Walled arena with the file cabinet, then the exit goal
+
+        // Arena entrance gate (low wall the player drops over)
+        fill(80, 9, 80, 11, TILE.SOLID);
+
+        // Arena floor pre-cleared (no pits)
+        // Arena back wall (right side, with a doorway)
+        fill(95, 3, 95, 11, TILE.SOLID);
+        // Pillars on either side of the cabinet for cover
+        fill(85, 9, 85, 11, TILE.SOLID);
+        fill(91, 9, 91, 11, TILE.SOLID);
+        cover(84);  // safe doorway in left pillar
+
+        // Laser pickup right before the boss (reward for getting here)
+        this.pickups.push({ x: 81 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER', taken: false });
+
+        // Stage end marker (just past the back wall)
+        fill(96, 9, 99, 11, TILE.EMPTY);
+
+        // ---- Enemy spawn points ----
         this.spawnPoints = [
-            { x: 150, y: 160, type: 'STAPLER' },
-            { x: 300, y: 160, type: 'STAPLER' },
-            { x: 400, y: 80, type: 'FILE_FOLDER' },
-            { x: 500, y: 100, type: 'FILE_FOLDER' },
-            { x: 600, y: 160, type: 'RUBBER_BAND_BALL' },
-            { x: 700, y: 160, type: 'TAPE_DISPENSER' },
-            { x: 900, y: 120, type: 'FILE_CABINET' }
+            // Section 1: approach
+            { x: 11 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 22 * 16, y: 6  * 16, type: 'STAPLER' },        // on the ledge
+            // Section 2: combat
+            { x: 32 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            { x: 44 * 16, y: 5  * 16, type: 'FILE_FOLDER' },
+            { x: 45 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 49 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            { x: 58 * 16, y: 7  * 16, type: 'STAPLER' },        // on plateau
+            { x: 67 * 16, y: 11 * 16, type: 'STAPLER' },        // bottom of wall-jump
+            { x: 74 * 16, y: 8  * 16, type: 'TAPE_DISPENSER' }, // on turret perch
+            { x: 78 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            // Section 3: boss
+            { x: 90 * 16, y: 8  * 16, type: 'FILE_CABINET' }
         ];
     }
 

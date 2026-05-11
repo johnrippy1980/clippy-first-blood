@@ -210,13 +210,20 @@ class Enemy {
     }
 
     die() {
+        if (!this.active) return;
         this.active = false;
         if (typeof particles !== 'undefined') {
             particles.explosion(this.x + this.width / 2, this.y + this.height / 2);
+            if (this.score > 0) {
+                particles.scorePopup(this.x + this.width / 2, this.y, this.score);
+            }
         }
         if (typeof audio !== 'undefined') audio.sfxExplosion();
-        if (typeof game !== 'undefined' && game.shake) {
-            game.shake(this.behavior === 'miniboss' ? 8 : 3, this.behavior === 'miniboss' ? 18 : 6);
+        if (typeof game !== 'undefined') {
+            if (game.shake) {
+                game.shake(this.behavior === 'miniboss' ? 8 : 3, this.behavior === 'miniboss' ? 18 : 6);
+            }
+            if (this.score > 0) game.score += this.score;
         }
     }
 

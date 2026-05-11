@@ -19,6 +19,13 @@ class Game {
         this.stageName = 'OFFICE JUNGLE';
         this.stageNumber = 1;
 
+        // Boss warning state
+        this.bossWarning = 0;         // Frames remaining of the WARNING banner
+        this.bossWarningShown = false;
+        // Pickup acquisition notification
+        this.pickupFlash = '';
+        this.pickupFlashTimer = 0;
+
         this.score = 0;
         this.lives = 3;
 
@@ -48,16 +55,16 @@ class Game {
     init() {
         // Create game objects
         this.level = new Level();
-        this.level.loadTestLevel();
+        this.level.loadStage1();
 
         this.player = new Player(50, 160);
 
         this.enemies = new EnemyManager();
-
-        // Spawn enemies from level spawn points
         this.level.spawnPoints.forEach(spawn => {
             this.enemies.spawn(spawn.x, spawn.y, spawn.type);
         });
+
+        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
 
         this.background = new ParallaxBackground();
         this.background.init();
@@ -69,6 +76,11 @@ class Game {
         this.timestep = 1000 / GAME.FPS;
 
         requestAnimationFrame((time) => this.gameLoop(time));
+    }
+
+    flashPickup(name) {
+        this.pickupFlash = 'GOT ' + name.toUpperCase() + '!';
+        this.pickupFlashTimer = 90;
     }
 
     shake(amount, duration) {
@@ -254,24 +266,31 @@ class Game {
         // Update enemies
         this.enemies.update(this.level, this.player);
 
+        // Update pickups
+        if (typeof pickupManager !== 'undefined') pickupManager.update(this.player);
+
         // Update background and effects
         this.background.update();
         if (typeof particles !== 'undefined') particles.update();
         this.updateShake();
+
+        // Boss warning trigger
+        if (!this.bossWarningShown && this.level.bossArenaX &&
+            this.player.x > this.level.bossArenaX - 80) {
+            this.bossWarning = 120;     // 2 seconds
+            this.bossWarningShown = true;
+            if (typeof game !== 'undefined' && game.shake) game.shake(3, 30);
+        }
+        if (this.bossWarning > 0) this.bossWarning--;
+
+        // Pickup flash timer
+        if (this.pickupFlashTimer > 0) this.pickupFlashTimer--;
 
         // Update camera to follow player
         this.updateCamera();
 
         // Check win/lose conditions
         this.checkGameState();
-
-        // Calculate score from dead enemies
-        this.enemies.enemies.forEach(enemy => {
-            if (!enemy.active && enemy.score > 0) {
-                this.score += enemy.score;
-                enemy.score = 0; // Only count once
-            }
-        });
     }
 
     updateCamera() {
@@ -308,11 +327,10 @@ class Game {
         }
 
         // Win condition (reach end of level)
-        if (this.player.x > this.level.width * GAME.TILE_SIZE - 100) {
-            // Level complete!
+        const endX = this.level.endX || (this.level.width * GAME.TILE_SIZE - 100);
+        if (this.player.x > endX) {
             this.paused = true;
             if (typeof audio !== 'undefined') audio.stopMusic();
-            // Could load next level here
         }
     }
 
@@ -336,6 +354,9 @@ class Game {
         // Draw level
         this.level.draw(this.ctx, shakeCam);
 
+        // Draw pickups (between level and enemies)
+        if (typeof pickupManager !== 'undefined') pickupManager.draw(this.ctx, shakeCam);
+
         // Draw enemies
         this.enemies.draw(this.ctx, shakeCam);
 
@@ -349,6 +370,16 @@ class Game {
 
         // Draw HUD (unaffected by shake)
         this.drawHUD();
+
+        // Draw boss warning banner
+        if (this.bossWarning > 0) {
+            this.drawBossWarning();
+        }
+
+        // Draw pickup acquired flash
+        if (this.pickupFlashTimer > 0) {
+            this.drawPickupFlash();
+        }
 
         // Draw game over / pause screens
         if (this.gameOver) {
@@ -499,6 +530,51 @@ class Game {
         ctx.globalAlpha = 1;
     }
 
+    drawBossWarning() {
+        const ctx = this.ctx;
+        const t = this.bossWarning;
+        // Strobe between bar visible and not
+        const strobe = Math.floor(t / 6) % 2 === 0;
+        const cy = GAME.HEIGHT / 2 - 12;
+        // Diagonal stripe band
+        ctx.fillStyle = strobe ? '#a82020' : '#1a0000';
+        ctx.fillRect(0, cy - 12, GAME.WIDTH, 36);
+        // Hazard stripes
+        ctx.fillStyle = strobe ? '#ffe070' : '#603020';
+        for (let x = -36; x < GAME.WIDTH; x += 16) {
+            const off = (t * 1.5) % 16;
+            ctx.beginPath();
+            ctx.moveTo(x + off, cy - 12);
+            ctx.lineTo(x + off + 8, cy - 12);
+            ctx.lineTo(x + off + 16, cy + 24);
+            ctx.lineTo(x + off + 8, cy + 24);
+            ctx.closePath();
+            ctx.fill();
+        }
+        // Black inner band
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, cy - 4, GAME.WIDTH, 20);
+        // Warning text
+        const blink = Math.floor(t / 8) % 2 === 0;
+        drawPixelTextOutlined(ctx, 'WARNING!', GAME.WIDTH / 2, cy + 2,
+            blink ? '#ff5050' : '#ffe070', '#1a0000', 2, 'center', 1);
+    }
+
+    drawPickupFlash() {
+        const ctx = this.ctx;
+        const t = this.pickupFlashTimer;
+        const fade = t < 20 ? t / 20 : 1;
+        ctx.globalAlpha = fade;
+        const y = GAME.HEIGHT / 2 + 40;
+        // Black backdrop strip
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, y - 6, GAME.WIDTH, 14);
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(0, y - 5, GAME.WIDTH, 12);
+        drawPixelTextOutlined(ctx, this.pickupFlash, GAME.WIDTH / 2, y - 2, '#ffe070', '#a82020', 1, 'center', 1);
+        ctx.globalAlpha = 1;
+    }
+
     drawGameOver() {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
@@ -535,14 +611,19 @@ class Game {
         this.paused = false;
         this.screen = 'stageIntro';
         this.stageIntroTimer = 0;
+        this.bossWarning = 0;
+        this.bossWarningShown = false;
+        this.pickupFlashTimer = 0;
 
-        this.level.loadTestLevel();
+        this.level.loadStage1();
         this.player = new Player(50, 160);
 
         this.enemies = new EnemyManager();
         this.level.spawnPoints.forEach(spawn => {
             this.enemies.spawn(spawn.x, spawn.y, spawn.type);
         });
+
+        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
 
         this.camera.x = 0;
         this.camera.y = 0;

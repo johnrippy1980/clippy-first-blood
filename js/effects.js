@@ -14,7 +14,8 @@ class Particle {
         this.maxLife = opts.life;
         this.colors = opts.colors;  // Array - older colors come first
         this.size = opts.size || 1;
-        this.shape = opts.shape || 'square';  // 'square' | 'streak' | 'flash'
+        this.shape = opts.shape || 'square';  // 'square' | 'streak' | 'flash' | 'text'
+        this.text = opts.text || null;
     }
 
     update() {
@@ -31,6 +32,12 @@ class Particle {
         ctx.fillStyle = this.colors[idx];
         const sx = Math.floor(this.x - camera.x);
         const sy = Math.floor(this.y - camera.y);
+        if (this.shape === 'text') {
+            if (typeof drawPixelTextOutlined === 'function') {
+                drawPixelTextOutlined(ctx, this.text, sx, sy, this.colors[idx], '#000', this.size, 'center', 1);
+            }
+            return;
+        }
         if (this.shape === 'flash') {
             const r = Math.max(1, Math.floor(this.size * (1 - t * 0.5)));
             // Plus-shaped flash
@@ -172,6 +179,15 @@ class Particles {
                 });
             }
         }
+    }
+
+    scorePopup(x, y, score) {
+        this.spawn({
+            x, y, vx: 0, vy: -0.8, life: 36, size: 1,
+            shape: 'text',
+            text: '+' + score,
+            colors: ['#ffe070', '#ffe070', '#ffa030', '#a87020']
+        });
     }
 
     jumpPuff(x, y) {
