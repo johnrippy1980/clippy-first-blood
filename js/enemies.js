@@ -1450,6 +1450,28 @@ class Enemy {
                 game.combo++;
                 game.comboTimer = game.COMBO_WINDOW;
                 if (game.combo > game.comboBest) game.comboBest = game.combo;
+                // Sparkle burst on high-combo kills - more sparkles as the
+                // streak grows, capped so we don't spam particles.
+                if (game.combo >= 5 && typeof particles !== 'undefined') {
+                    const sparks = Math.min(8, 2 + Math.floor(game.combo / 5));
+                    const tier = game.combo >= 20 ? '#ff60ff'
+                               : game.combo >= 10 ? '#ffe070'
+                                                  : '#7af0ff';
+                    for (let s = 0; s < sparks; s++) {
+                        const a = Math.random() * Math.PI * 2;
+                        const sp = 1.2 + Math.random() * 1.4;
+                        particles.spawn({
+                            x: this.x + this.width / 2,
+                            y: this.y + this.height / 2,
+                            vx: Math.cos(a) * sp,
+                            vy: Math.sin(a) * sp - 0.4,
+                            gravity: 0.05,
+                            life: 18 + Math.floor(Math.random() * 6),
+                            size: 1,
+                            colors: ['#ffffff', tier, '#564468']
+                        });
+                    }
+                }
                 // Combo milestone payouts: a popup + bonus score the first
                 // time the chain crosses each tier. Player-facing only;
                 // doesn't affect comboBest persistence.
