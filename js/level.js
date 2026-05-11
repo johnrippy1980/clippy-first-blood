@@ -604,6 +604,57 @@ class Level {
         ];
     }
 
+    // ---- Stage 6: THE FOUNDER - True final boss BILL GATES ----
+    loadStage6() {
+        this.theme = 'founder';
+        this.width = 50;
+        this.height = 14;
+        this.bossArenaX = 12 * GAME.TILE_SIZE;
+        this.endX = 49 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+        this.checkpoints = [{ x: 50, y: 160 }];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++)
+                for (let x = x1; x <= x2; x++)
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width)
+                        this.tiles[y][x] = t;
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+
+        // Floating data slabs across the arena
+        fill(6,  10, 8,  10, TILE.PLATFORM);
+        fill(14, 9,  16, 9,  TILE.PLATFORM);
+        fill(22, 7,  26, 7,  TILE.PLATFORM);    // higher one for vertical mixup
+        fill(32, 9,  34, 9,  TILE.PLATFORM);
+        fill(40, 10, 42, 10, TILE.PLATFORM);
+        // Mid-arena cover
+        cover(20);
+        cover(36);
+
+        // Reward pickups
+        this.pickups.push({ x: 10 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER',          taken: false });
+        this.pickups.push({ x: 24 * GAME.TILE_SIZE, y: 5  * GAME.TILE_SIZE, type: 'STAPLE_REMOVER', taken: false });
+        this.pickups.push({ x: 44 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'FLAME',          taken: false });
+
+        this.spawnPoints = [
+            { x: 28 * 16, y: 8 * 16, type: 'BILL_GATES' }
+        ];
+    }
+
     // ---- Boss Rush: three arenas in a row, fight all three bosses ----
     loadBossRush() {
         this.theme = 'serverroom';
@@ -800,6 +851,14 @@ class Level {
                 this.drawStageFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             } else {
                 this.drawStageUnderTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            }
+            return;
+        }
+        if (this.theme === 'founder') {
+            if (isSurface) {
+                this.drawNeonFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            } else {
+                this.drawVoidTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             }
             return;
         }
@@ -1056,6 +1115,52 @@ class Level {
         if (rightEdge) { ctx.fillStyle = GOLD; ctx.fillRect(x + 15, y, 1, 16); }
     }
 
+    // Neon-grid surface tile (Stage 6 founder lair) - dark with green grid
+    drawNeonFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        // Body
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(x, y, 16, 16);
+        // Glowing green grid lines
+        ctx.fillStyle = '#208a30';
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = '#50ff70';
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = '#0a3a14';
+        ctx.fillRect(x, y + 15, 16, 1);
+        // Vertical seam every other tile, alternating bright
+        ctx.fillStyle = '#1a4a18';
+        ctx.fillRect(x + 15, y, 1, 16);
+        if ((tileX & 1) === 0) {
+            ctx.fillStyle = '#50ff70';
+            ctx.fillRect(x + 15, y, 1, 2);
+        }
+        // Subtle dust speck noise
+        for (let py = 2; py < 15; py++) {
+            for (let px = 0; px < 16; px++) {
+                const n = (tileX * 31 + tileY * 17 + px * 5 + py * 11) & 0xff;
+                if (n < 8) { ctx.fillStyle = '#1a4a18'; ctx.fillRect(x + px, y + py, 1, 1); }
+            }
+        }
+    }
+
+    // Void tile - pure black with faint circuit traces (Stage 6 below floor)
+    drawVoidTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x, y, 16, 16);
+        // Sparse circuit lines
+        ctx.fillStyle = '#0a3a14';
+        const seed = (tileX * 71 + tileY * 41) & 0xff;
+        if (seed < 90) {
+            ctx.fillRect(x + 1, y + 5, 6, 1);
+            ctx.fillRect(x + 6, y + 5, 1, 5);
+            ctx.fillStyle = '#50ff70';
+            ctx.fillRect(x + 7, y + 9, 1, 1);
+        } else if (seed < 160) {
+            ctx.fillRect(x + 10, y + 2, 1, 8);
+            ctx.fillRect(x + 10, y + 9, 5, 1);
+        }
+    }
+
     // Stage floor tile (Stage 5 keynote): glossy wood planks under spotlight
     drawStageFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
         const DARK   = '#1a0808';
@@ -1149,6 +1254,7 @@ class Level {
         if (this.theme === 'serverroom') return this.drawServerShelfTile(ctx, x, y);
         if (this.theme === 'boardroom') return this.drawMarblePlatformTile(ctx, x, y);
         if (this.theme === 'keynote') return this.drawStagePlatformTile(ctx, x, y);
+        if (this.theme === 'founder') return this.drawNeonPlatformTile(ctx, x, y);
         const TOP_LIT = '#d09050';
         const TOP     = '#a87040';
         const MID_LIT = '#8a5830';
@@ -1183,6 +1289,31 @@ class Level {
         ctx.fillStyle = TOP_LIT;
         ctx.fillRect(x + 1, y, 1, 1);
         ctx.fillRect(x + 14, y, 1, 1);
+    }
+
+    // Floating neon-edge data slab (Stage 6 founder lair)
+    drawNeonPlatformTile(ctx, x, y) {
+        // Dark slab body
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(x, y, 16, 6);
+        // Neon green top edge
+        ctx.fillStyle = '#50ff70';
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = '#208a30';
+        ctx.fillRect(x, y + 1, 16, 1);
+        // Inner glow
+        ctx.fillStyle = '#1a3a18';
+        ctx.fillRect(x + 1, y + 2, 14, 2);
+        // Bottom edge dim
+        ctx.fillStyle = '#0a3a14';
+        ctx.fillRect(x, y + 5, 16, 1);
+        // Side neon studs
+        ctx.fillStyle = '#50ff70';
+        ctx.fillRect(x, y + 3, 1, 1);
+        ctx.fillRect(x + 15, y + 3, 1, 1);
+        // Subtle drop shadow
+        ctx.fillStyle = 'rgba(80,255,112,0.15)';
+        ctx.fillRect(x, y + 6, 16, 2);
     }
 
     // Speaker monitor / equipment crate platform (Stage 5 keynote)

@@ -76,6 +76,7 @@ class Audio {
         if (theme === 'breakroom') pat = this.buildBreakRoomPattern();
         else if (theme === 'serverroom') pat = this.buildServerRoomPattern();
         else if (theme === 'keynote') pat = this.buildKeynotePattern();
+        else if (theme === 'founder') pat = this.buildFounderPattern();
         else if (theme === 'boardroom') pat = this.buildPattern();   // reuse the jungle theme - stately
         else pat = this.buildPattern();
         this.patterns[theme] = pat;
@@ -157,6 +158,43 @@ class Audio {
             if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
         });
         return { events, length: 32, bpm: 102, name: 'breakroom' };
+    }
+
+    // Stage 6: THE FOUNDER - dark sinister theme in F minor, 90 BPM.
+    // Slow stalking rhythm, descending lead, gives the calm-evil feel.
+    buildFounderPattern() {
+        const compile = (channel, line) => {
+            const tokens = line.trim().split(/\s+/);
+            const events = [];
+            let lastNote = null;
+            let runStart = -1;
+            for (let i = 0; i <= tokens.length; i++) {
+                const tok = tokens[i];
+                if (lastNote && (i === tokens.length || tok !== '_')) {
+                    events.push({ step: runStart, channel, midi: lastNote, dur: i - runStart });
+                    lastNote = null;
+                }
+                if (i === tokens.length) break;
+                if (tok === '.' || tok === '_') continue;
+                lastNote = this.noteToMidi(tok);
+                runStart = i;
+            }
+            return events;
+        };
+        const lead    = 'F4 _ _ _ Eb4 _ _ _ Db4 _ _ _ C4 _ _ _  F4 _ Eb4 _ Db4 _ C4 _ Bb3 _ _ _ _ _ _ _ ';
+        const harmony = 'Ab3 _ _ _ _ _ _ _ Gb3 _ _ _ _ _ _ _ Ab3 _ _ _ _ _ _ _ G3 _ _ _ _ _ _ _ ';
+        const bass    = 'F1 _ _ _ F1 _ _ _ Eb1 _ _ _ Eb1 _ _ _  Db1 _ _ _ Db1 _ _ _ C1 _ _ _ C1 _ _ _ ';
+        const drum    = 'K . . . S . . . K . . . S . . . K . H . S . H . K . . . S K S K';
+
+        const events = [];
+        events.push(...compile(0, lead));
+        events.push(...compile(1, harmony));
+        events.push(...compile(2, bass));
+        const drumTokens = drum.trim().split(/\s+/);
+        drumTokens.forEach((tok, i) => {
+            if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
+        });
+        return { events, length: 32, bpm: 90, name: 'founder' };
     }
 
     // Stage 5: KEYNOTE - bombastic boss-fight march in A minor, 168 BPM.

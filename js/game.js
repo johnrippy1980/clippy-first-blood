@@ -73,12 +73,53 @@ class Game {
             { text: 'CLIPPY:  FIRST BLOOD', flair: 'logo', hold: 240 }
         ];
         this.stageIntroTimer = 0;
+        // Between-stage cutscenes. Indexed by the stage you just finished (0-based).
+        // Plays before the next stage's intro. Each entry is an array of panels
+        // identical in shape to storyPanels.
+        this.cutscenes = [
+            // After Stage 1 (Office Jungle) -> Stage 2
+            [
+                { text: 'THE OFFICE WILDLIFE FELL', sub: 'EASILY', flair: 'explosion', hold: 180 },
+                { text: 'BUT THE BOARD WAS WATCHING', flair: 'boardroomShadows', hold: 180 },
+                { text: 'SEND IN THE REAL HARDWARE', flair: 'killOrder', hold: 180 }
+            ],
+            // After Stage 2 (Break Room) -> Stage 3
+            [
+                { text: 'CLIPPY TORE THROUGH', sub: 'THE BREAK ROOM', flair: 'explosion', hold: 180 },
+                { text: 'HE IS MOVING UP', sub: 'THE COMPANY', flair: 'silhouette', hold: 180 },
+                { text: 'COOL HIM DOWN', sub: 'IN THE DATA CENTER', flair: 'eyes', hold: 180 }
+            ],
+            // After Stage 3 (Server Farm) -> Stage 4
+            [
+                { text: 'DATA SCRUBBED CLEAN', flair: 'explosion', hold: 180 },
+                { text: 'HE IS TOO CLOSE NOW', flair: 'silhouette', hold: 180 },
+                { text: 'BRING HIM', sub: 'TO THE BOARDROOM', flair: 'boardroomShadows', hold: 180 }
+            ],
+            // After Stage 4 (Boardroom) -> Stage 5
+            [
+                { text: 'CTRL-ALT-DEL FAILED', flair: 'explosion', hold: 180 },
+                { text: 'ONE LAST OPTION', flair: 'boardroomShadows', hold: 180 },
+                { text: 'GET BALLMER ON STAGE', flair: 'phoneRing', hold: 210 }
+            ],
+            // After Stage 5 (Keynote) -> Stage 6
+            [
+                { text: 'BALLMER IS DOWN', flair: 'explosion', hold: 180 },
+                { text: 'BUT SOMEONE ELSE', sub: 'WAS WATCHING', flair: 'glasses', hold: 210 },
+                { text: 'I HAVE BEEN WATCHING', sub: 'ALL ALONG', flair: 'glasses', hold: 210 },
+                { text: 'MEET THE FOUNDER', flair: 'glasses', hold: 240 }
+            ]
+        ];
+        // Active cutscene runtime state
+        this.cutsceneActive = null;        // array of panels currently playing
+        this.cutsceneIndex = 0;
+        this.cutsceneTimer = 0;
         this.stages = [
             { number: 1, name: 'OFFICE JUNGLE',        loader: 'loadStage1', theme: 'jungle'    },
             { number: 2, name: 'BREAK ROOM RUMBLE',    loader: 'loadStage2', theme: 'breakroom' },
             { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' },
             { number: 4, name: 'THE BOARDROOM',         loader: 'loadStage4', theme: 'boardroom' },
-            { number: 5, name: 'THE KEYNOTE',          loader: 'loadStage5', theme: 'keynote'   }
+            { number: 5, name: 'THE KEYNOTE',          loader: 'loadStage5', theme: 'keynote'   },
+            { number: 6, name: 'THE FOUNDER',          loader: 'loadStage6', theme: 'founder'   }
         ];
         this.bossRushStage = { number: 'X', name: 'BOSS RUSH', loader: 'loadBossRush', theme: 'serverroom' };
         this.bossRushMode = false;
@@ -386,6 +427,8 @@ class Game {
                 this.updateStageClear();
             } else if (this.screen === 'gameComplete') {
                 this.updateGameComplete();
+            } else if (this.screen === 'cutscene') {
+                this.updateCutscene();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -407,6 +450,8 @@ class Game {
             this.renderStageClear();
         } else if (this.screen === 'gameComplete') {
             this.renderGameComplete();
+        } else if (this.screen === 'cutscene') {
+            this.renderCutscene();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -453,8 +498,15 @@ class Game {
             if (typeof audio !== 'undefined') audio.sfxExplosion();
         }
 
-        // After the bonus tally finishes, shoot/jump advances to next stage
+        // After the bonus tally finishes, shoot/jump advances
         if (this.stageClearTimer > 200 && (input.shoot || input.jumpPressed)) {
+            // Check for between-stage cutscene (non-final stages only).
+            const justCleared = this.stageIndex;
+            const cutsceneForHere = !this.stageClearIsFinal && !this.bossRushMode && this.cutscenes[justCleared];
+            if (cutsceneForHere) {
+                this.beginCutscene(cutsceneForHere);
+                return;
+            }
             if (this.stageClearIsFinal) {
                 if (this.bossRushMode) {
                     // Save the best boss rush time
@@ -478,6 +530,82 @@ class Game {
             } else {
                 this.advanceStage();
             }
+        }
+    }
+
+    beginCutscene(panels) {
+        this.screen = 'cutscene';
+        this.cutsceneActive = panels;
+        this.cutsceneIndex = 0;
+        this.cutsceneTimer = 0;
+        if (typeof audio !== 'undefined') audio.stopMusic();
+    }
+
+    updateCutscene() {
+        this.cutsceneTimer++;
+        input.update();
+        const panel = this.cutsceneActive && this.cutsceneActive[this.cutsceneIndex];
+        if (!panel) {
+            // Finished - advance to the next stage
+            this.cutsceneActive = null;
+            this.advanceStage();
+            return;
+        }
+        const hold = panel.hold || 150;
+        if (this.cutsceneTimer > hold || input.shoot || input.jumpPressed) {
+            this.cutsceneIndex++;
+            this.cutsceneTimer = 0;
+            if (this.cutsceneIndex >= this.cutsceneActive.length) {
+                this.cutsceneActive = null;
+                this.advanceStage();
+            }
+        }
+    }
+
+    renderCutscene() {
+        const ctx = this.ctx;
+        // Reuse the same look as the story intro.
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Static noise sparkle
+        ctx.fillStyle = '#1a1140';
+        for (let i = 0; i < 24; i++) {
+            const x = (i * 23 + this.cutsceneTimer * 3) % GAME.WIDTH;
+            const y = (i * 41 + this.cutsceneTimer * 7) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+        const panel = this.cutsceneActive && this.cutsceneActive[this.cutsceneIndex];
+        if (!panel) return;
+        const hold = panel.hold || 150;
+        const tin = Math.min(1, this.cutsceneTimer / 30);
+        const tout = Math.min(1, Math.max(0, (hold - this.cutsceneTimer) / 25));
+        ctx.globalAlpha = Math.min(tin, tout);
+
+        // Use the storyTimer field for shared flair animations - swap in our timer
+        const origStoryTimer = this.storyTimer;
+        this.storyTimer = this.cutsceneTimer;
+        this.drawStoryFlair(ctx, panel.flair, GAME.WIDTH / 2, 80);
+        this.storyTimer = origStoryTimer;
+
+        if (panel.text) {
+            drawPixelTextOutlined(ctx, panel.text, GAME.WIDTH / 2, 140, '#ffe070', '#a82020', 2, 'center', 1);
+        }
+        if (panel.sub) {
+            drawPixelText(ctx, panel.sub, GAME.WIDTH / 2, 168, '#c0a0d0', 1, 'center', 1);
+        }
+        ctx.globalAlpha = 1;
+
+        // Skip hint
+        const blink = Math.floor(this.cutsceneTimer / 30) % 2 === 0;
+        if (blink) drawPixelText(ctx, 'SHOOT TO ADVANCE', GAME.WIDTH / 2, 210, '#5a5070', 1, 'center', 1);
+
+        // Page indicator for the cutscene
+        const dotSpacing = Math.min(10, Math.floor((GAME.WIDTH - 40) / this.cutsceneActive.length));
+        for (let i = 0; i < this.cutsceneActive.length; i++) {
+            const totalW = this.cutsceneActive.length * dotSpacing;
+            const dotX = GAME.WIDTH / 2 - totalW / 2 + i * dotSpacing;
+            ctx.fillStyle = i === this.cutsceneIndex ? '#ffe070' : '#3a2855';
+            ctx.fillRect(dotX, 200, Math.max(2, dotSpacing - 2), 2);
         }
     }
 
@@ -1528,6 +1656,109 @@ class Game {
                 ctx.fillRect(x + 24, y + 32, 4, 2);
                 ctx.fillStyle = '#806848';
                 ctx.fillRect(x + 32, y + 30, 2, 1);
+                break;
+            }
+            case 'glasses': {
+                // Bill Gates glasses gleam in the dark - perfect foreshadow
+                // Dark backdrop
+                ctx.fillStyle = '#0a0612';
+                ctx.fillRect(cx - 80, cy - 26, 160, 50);
+                // Faint hair silhouette around the glasses
+                ctx.fillStyle = '#1a0e08';
+                ctx.fillRect(cx - 24, cy - 18, 48, 8);
+                ctx.fillRect(cx - 26, cy - 14, 4, 14);
+                ctx.fillRect(cx + 22, cy - 14, 4, 14);
+                // Two giant rectangular glasses frames
+                ctx.fillStyle = '#1a1a22';
+                ctx.fillRect(cx - 22, cy - 6, 16, 12);
+                ctx.fillRect(cx + 6, cy - 6, 16, 12);
+                // Bridge
+                ctx.fillRect(cx - 6, cy - 2, 12, 2);
+                // Reflective lens
+                ctx.fillStyle = '#1a508a';
+                ctx.fillRect(cx - 20, cy - 4, 12, 8);
+                ctx.fillRect(cx + 8, cy - 4, 12, 8);
+                // Gleam line - rotates across the lens over time
+                const phase = (this.storyTimer * 0.05) % 1;
+                ctx.fillStyle = '#fff';
+                const gx1 = cx - 20 + phase * 12;
+                const gx2 = cx + 8 + phase * 12;
+                ctx.fillRect(Math.floor(gx1), cy - 4, 2, 8);
+                ctx.fillRect(Math.floor(gx2), cy - 4, 2, 8);
+                // Smug smirk underneath
+                ctx.fillStyle = '#3a1a18';
+                for (let i = 0; i < 7; i++) {
+                    ctx.fillRect(cx - 3 + i, cy + 12 - Math.floor(i * 0.4), 1, 1);
+                }
+                break;
+            }
+            case 'phoneRing': {
+                // A red corporate telephone with rings emanating outward
+                ctx.fillStyle = '#0a0612';
+                ctx.fillRect(cx - 70, cy - 20, 140, 40);
+                // Phone base
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(cx - 14, cy + 2, 28, 12);
+                ctx.fillStyle = '#cc4444';
+                ctx.fillRect(cx - 14, cy + 2, 28, 1);
+                ctx.fillStyle = '#601010';
+                ctx.fillRect(cx - 14, cy + 13, 28, 1);
+                // Phone dial
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(cx - 10, cy + 5, 20, 7);
+                ctx.fillStyle = '#fff';
+                for (let r = 0; r < 2; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        ctx.fillRect(cx - 8 + c * 5, cy + 6 + r * 3, 2, 2);
+                    }
+                }
+                // Handset on top
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(cx - 14, cy - 4, 28, 4);
+                ctx.fillStyle = '#cc4444';
+                ctx.fillRect(cx - 14, cy - 4, 28, 1);
+                // Earpieces
+                ctx.fillStyle = '#601010';
+                ctx.fillRect(cx - 14, cy - 6, 6, 6);
+                ctx.fillRect(cx + 8, cy - 6, 6, 6);
+                // Rings ringing - animated
+                const ringPhase = Math.floor(this.storyTimer / 6) % 4;
+                ctx.fillStyle = '#ffe070';
+                for (let r = 1; r <= 3; r++) {
+                    if (ringPhase === r % 4) {
+                        const rr = r * 8;
+                        // Top-left and top-right curves
+                        for (let a = -1; a <= 1; a += 0.2) {
+                            const rx = Math.floor(cx - 18 + Math.cos(a) * rr);
+                            const ry = Math.floor(cy - 8 + Math.sin(a) * rr - rr * 0.3);
+                            ctx.fillRect(rx, ry, 1, 1);
+                            ctx.fillRect(cx + (cx - 18 - rx), ry, 1, 1);
+                        }
+                    }
+                }
+                // "RING" text
+                drawPixelTextOutlined(ctx, 'RING', cx, cy - 18, '#ffe070', '#a82020', 1, 'center', 1);
+                break;
+            }
+            case 'silhouette': {
+                // A lone silhouette approaching - used for "he's getting too close"
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(cx - 80, cy - 16, 160, 32);
+                // Floor line
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(cx - 80, cy + 16, 160, 1);
+                // Silhouette - Clippy approaching
+                this._drawClippyPortrait(ctx, cx, cy + 4, 'happy');
+                // Long shadow behind
+                ctx.fillStyle = '#0a0612';
+                ctx.fillRect(cx - 8, cy + 17, 16, 4);
+                // Vignette gradient via dither
+                ctx.fillStyle = '#000';
+                for (let y = -16; y <= 16; y += 4) {
+                    for (let x = -80; x <= 80; x += 4) {
+                        if (Math.abs(x) > 50) ctx.fillRect(cx + x, cy + y, 1, 1);
+                    }
+                }
                 break;
             }
             default: {

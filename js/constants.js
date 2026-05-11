@@ -270,6 +270,17 @@ const ENEMY_TYPE = {
         behavior: 'ballmer_boss',
         projectile: 'coffee',
         score: 9999
+    },
+    BILL_GATES: {
+        name: 'The Founder',
+        width: 32,
+        height: 52,
+        health: 100,
+        damage: 28,
+        speed: 0.4,
+        behavior: 'bill_gates_boss',
+        projectile: 'dollar',
+        score: 25000
     }
 };
 

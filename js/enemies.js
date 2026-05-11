@@ -81,6 +81,9 @@ class Enemy {
             case 'ballmer_boss':
                 this.updateBallmerBoss(level, player);
                 break;
+            case 'bill_gates_boss':
+                this.updateBillGatesBoss(level, player);
+                break;
         }
 
         // Update projectiles
@@ -339,6 +342,165 @@ class Enemy {
             }
         } else {
             this.sniperTelegraph = undefined;
+        }
+    }
+
+    // ---------- BILL GATES (Stage 6 - true final boss) ----------
+    // The calculating founder. Where Ballmer is frenzy, Gates is methodical.
+    // He stands almost still, glasses gleam during telegraphs, and his
+    // attacks weaponize Microsoft products.
+    //   0  MONEY RAIN     - three vertical columns of falling dollar bills
+    //   1  BSOD WINDOWS   - three blue-screen rectangles spawn as hazards
+    //   2  ANTITRUST FAN  - 7 lawsuit papers spread in a fan
+    //   3  CMD COMMAND    - 4 horizontal text bullets across the arena
+    //   4  PAPERCLIP SUM  - phase 2: 5 angry paperclip homing-ish bullets
+    //   5  WINDOWS UPDATE - phase 2 finisher: top-down progress-bar rain
+    updateBillGatesBoss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 90 : 120;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 6 : 4);
+
+        // Glasses gleam during telegraph (visual handled in draw)
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 24) this.attackTelegraph = pattern;
+
+        // Gravity / ground collision
+        this.vy += GAME.GRAVITY;
+        if (level.isSolid(this.x + this.width / 2, this.y + this.height)) {
+            this.y = Math.floor((this.y + this.height) / GAME.TILE_SIZE) * GAME.TILE_SIZE - this.height;
+            this.vy = 0;
+            this.onGround = true;
+        } else {
+            this.onGround = false;
+        }
+        // Slow drift to face the player; otherwise mostly stationary
+        if (this.onGround && this.behaviorTimer % 80 === 0) {
+            this.vx = (player.x > this.x ? 1 : -1) * this.speed;
+            this.facingRight = player.x > this.x;
+        } else {
+            this.vx *= 0.85;
+        }
+        this.x += this.vx;
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+        const dir = player.x > this.x ? 1 : -1;
+        this.facingRight = dir > 0;
+
+        switch (pattern) {
+            case 0: {
+                // MONEY RAIN - three vertical streams of dollar bills
+                this.yellText = 'CHA-CHING';
+                this.yellTimer = 50;
+                for (let col = 0; col < 3; col++) {
+                    const baseX = 40 + col * 90;
+                    for (let i = 0; i < 4; i++) {
+                        this.bullets.push({
+                            x: baseX + (Math.random() - 0.5) * 12,
+                            y: -8 - i * 12,
+                            vx: 0,
+                            vy: 2.2 + (i % 2) * 0.4,
+                            damage: this.damage * 0.5,
+                            life: 200,
+                            type: 'dollar',
+                            delay: i * 12
+                        });
+                    }
+                }
+                break;
+            }
+            case 1: {
+                // BSOD - three blue boxes appear at random heights
+                for (let i = 0; i < 3; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: dir * (1.2 + i * 0.6),
+                        vy: -2 + i * 1.2,
+                        gravity: 0.05,
+                        damage: this.damage,
+                        life: 150,
+                        type: 'bsod',
+                        delay: i * 14
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                break;
+            }
+            case 2: {
+                // ANTITRUST FAN - 7 lawsuit papers radiating out
+                this.yellText = 'ANTITRUST';
+                this.yellTimer = 50;
+                for (let i = -3; i <= 3; i++) {
+                    const angle = (dir > 0 ? 0 : Math.PI) + i * 0.18;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 16,
+                        vx: Math.cos(angle) * 3.2,
+                        vy: Math.sin(angle) * 3.2,
+                        damage: this.damage * 0.7,
+                        life: 100,
+                        type: 'lawsuit'
+                    });
+                }
+                break;
+            }
+            case 3: {
+                // CMD COMMAND - 4 horizontal text bullets at different heights
+                for (let i = 0; i < 4; i++) {
+                    this.bullets.push({
+                        x: this.x + (dir > 0 ? this.width : 0),
+                        y: this.y + 8 + i * 10,
+                        vx: dir * 4,
+                        vy: 0,
+                        damage: this.damage * 0.8,
+                        life: 80,
+                        type: 'cmd',
+                        delay: i * 8
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxShoot();
+                break;
+            }
+            case 4: {
+                // ANGRY PAPERCLIP SUMMON - 5 paperclips that drift toward player
+                this.yellText = 'IT LOOKS LIKE YOU\'RE DYING';
+                this.yellTimer = 60;
+                for (let i = 0; i < 5; i++) {
+                    const a = -Math.PI / 2 + (i - 2) * 0.35;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y - 4,
+                        vx: Math.cos(a) * 2.2,
+                        vy: Math.sin(a) * 2.2,
+                        gravity: 0.08,
+                        damage: this.damage * 0.7,
+                        life: 130,
+                        type: 'paperclip'
+                    });
+                }
+                break;
+            }
+            case 5: {
+                // WINDOWS UPDATE - 6 progress-bar bars fall from the top across the arena
+                this.yellText = 'INSTALLING UPDATES';
+                this.yellTimer = 70;
+                for (let i = 0; i < 6; i++) {
+                    this.bullets.push({
+                        x: 30 + i * 36 + (Math.random() - 0.5) * 6,
+                        y: -10,
+                        vx: 0,
+                        vy: 2.5,
+                        damage: this.damage * 0.9,
+                        life: 140,
+                        type: 'update',
+                        delay: i * 10
+                    });
+                }
+                if (typeof game !== 'undefined' && game.shake) game.shake(4, 10);
+                break;
+            }
         }
     }
 
@@ -917,7 +1079,8 @@ class Enemy {
                this.behavior === 'photocopier_boss' ||
                this.behavior === 'shredder_boss' ||
                this.behavior === 'ctrl_alt_del_boss' ||
-               this.behavior === 'ballmer_boss';
+               this.behavior === 'ballmer_boss' ||
+               this.behavior === 'bill_gates_boss';
     }
 
     takeDamage(amount) {
@@ -1052,6 +1215,7 @@ class Enemy {
             case 'shredder_boss':    this.drawShredderSNES(ctx, screenX, screenY, flash); break;
             case 'ctrl_alt_del_boss': this.drawCtrlAltDelSNES(ctx, screenX, screenY, flash); break;
             case 'ballmer_boss':     this.drawBallmerSNES(ctx, screenX, screenY, flash); break;
+            case 'bill_gates_boss':  this.drawBillGatesSNES(ctx, screenX, screenY, flash); break;
             default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
@@ -1063,6 +1227,86 @@ class Enemy {
             const by = Math.floor(bullet.y - camera.y);
             const col = this.getBulletColor(bullet.type);
 
+            if (bullet.type === 'dollar') {
+                // Falling dollar bill - green rectangle with $ symbol
+                ctx.fillStyle = '#208a30';
+                ctx.fillRect(bx - 5, by - 3, 10, 6);
+                ctx.fillStyle = '#50ff70';
+                ctx.fillRect(bx - 5, by - 3, 10, 1);
+                ctx.fillStyle = '#1a4a18';
+                ctx.fillRect(bx - 5, by + 2, 10, 1);
+                // $ sign
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(bx - 1, by - 2, 2, 1);
+                ctx.fillRect(bx - 2, by - 1, 1, 1);
+                ctx.fillRect(bx - 1, by,     2, 1);
+                ctx.fillRect(bx,     by + 1, 1, 1);
+                ctx.fillRect(bx - 1, by + 2, 2, 1);
+                // Crisp center bar
+                ctx.fillRect(bx, by - 3, 1, 6);
+                return;
+            }
+            if (bullet.type === 'bsod') {
+                // Blue Screen of Death - 12x10 rect with white text
+                ctx.fillStyle = '#0040a0';
+                ctx.fillRect(bx - 6, by - 5, 12, 10);
+                ctx.fillStyle = '#80a8ff';
+                ctx.fillRect(bx - 6, by - 5, 12, 1);
+                ctx.fillStyle = '#001830';
+                ctx.fillRect(bx - 6, by + 4, 12, 1);
+                // Tiny white text bands (gibberish)
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(bx - 4, by - 3, 8, 1);
+                ctx.fillRect(bx - 4, by - 1, 6, 1);
+                ctx.fillRect(bx - 4, by + 1, 7, 1);
+                // :( smiley
+                ctx.fillRect(bx - 4, by - 2, 1, 1);
+                return;
+            }
+            if (bullet.type === 'lawsuit') {
+                // Court paper - cream sheet with seal
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(bx - 4, by - 5, 8, 10);
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(bx - 4, by - 5, 8, 1);
+                ctx.fillRect(bx - 4, by + 4, 8, 1);
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(bx + 2, by + 1, 2, 2);    // red wax seal
+                ctx.fillStyle = '#806848';
+                ctx.fillRect(bx - 3, by - 3, 6, 1);
+                ctx.fillRect(bx - 3, by - 1, 5, 1);
+                ctx.fillRect(bx - 3, by + 1, 4, 1);
+                return;
+            }
+            if (bullet.type === 'cmd') {
+                // CMD text bullet - green-on-black text-line
+                ctx.fillStyle = '#0a0612';
+                ctx.fillRect(bx - 8, by - 3, 16, 6);
+                ctx.fillStyle = '#50ff70';
+                ctx.fillRect(bx - 7, by - 2, 4, 1);    // C:\
+                ctx.fillRect(bx - 7, by,     1, 1);    // letter
+                ctx.fillRect(bx - 5, by,     2, 1);
+                ctx.fillRect(bx - 2, by,     3, 1);
+                ctx.fillRect(bx + 2, by,     1, 1);
+                ctx.fillRect(bx + 4, by,     3, 1);
+                // Blinking cursor at the end
+                if ((bullet.life & 8) < 4) ctx.fillRect(bx + 7, by - 2, 1, 4);
+                return;
+            }
+            if (bullet.type === 'update') {
+                // Windows-update progress bar coming down
+                ctx.fillStyle = '#80a8ff';
+                ctx.fillRect(bx - 8, by - 2, 16, 5);
+                ctx.fillStyle = '#0040a0';
+                ctx.fillRect(bx - 7, by - 1, 14, 3);
+                // Bar fill animates
+                const fill = ((bullet.life * 2) % 14);
+                ctx.fillStyle = '#50ff70';
+                ctx.fillRect(bx - 7, by - 1, fill, 3);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(bx - 8, by - 2, 16, 1);
+                return;
+            }
             if (bullet.type === 'shockwave') {
                 // Cup-shaped sound wave moving forward
                 ctx.fillStyle = '#fff8d0';
@@ -1566,7 +1810,220 @@ class Enemy {
             case 'fire': return '#ff8030';
             case 'punch': return '#e8a878';
             case 'kick': return '#a87040';
+            case 'dollar': return '#50a050';
+            case 'bsod': return '#0040a0';
+            case 'lawsuit': return '#fff8d0';
+            case 'cmd': return '#50ff70';
+            case 'update': return '#5aa8e0';
             default: return '#f00';
+        }
+    }
+
+    // BILL GATES - Stage 6 true-final boss
+    drawBillGatesSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) x += (Math.floor(this.behaviorTimer / 4) % 2);
+        const phase2 = this.health / this.maxHealth <= 0.5;
+
+        const C = flash ? {
+            outline:'#fff', skin:'#fff', skinlit:'#fff', skinshad:'#fff',
+            hair:'#fff', sweater:'#fff', sweaterlit:'#fff', sweatershad:'#fff',
+            slacks:'#fff', slackslit:'#fff', shoe:'#fff', glasses:'#000',
+            lens:'#000', smug:'#000', smugred:'#000'
+        } : {
+            outline:'#1a0e08',
+            skin:'#f0c890',
+            skinlit:'#f8dcb0',
+            skinshad:'#a88060',
+            hair:'#806838',
+            hairlit:'#a08858',
+            sweater: phase2 ? '#a82020' : '#c8b878',
+            sweaterlit: phase2 ? '#cc4444' : '#e0d098',
+            sweatershad: phase2 ? '#601010' : '#806848',
+            slacks:'#806848',
+            slackslit:'#a08868',
+            shoe:'#3a1f10',
+            glasses:'#0a0612',
+            lens:'#a8d8ff',
+            smug:'#1a0e08',
+            smugred:'#a82020'
+        };
+
+        // ---- Shoes (small dress loafers) ----
+        ctx.fillStyle = C.shoe;
+        ctx.fillRect(x + 3,  y + H - 4, 9, 4);
+        ctx.fillRect(x + W - 12, y + H - 4, 9, 4);
+        ctx.fillStyle = '#5a3a18';
+        ctx.fillRect(x + 3,  y + H - 4, 8, 1);
+        ctx.fillRect(x + W - 12, y + H - 4, 8, 1);
+
+        // ---- Slacks ----
+        ctx.fillStyle = C.slacks;
+        ctx.fillRect(x + 5, y + 36, 9, H - 40);
+        ctx.fillRect(x + W - 14, y + 36, 9, H - 40);
+        ctx.fillStyle = C.slackslit;
+        ctx.fillRect(x + 5, y + 36, 1, H - 40);
+        ctx.fillRect(x + W - 14, y + 36, 1, H - 40);
+        // Crease down each leg
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 8, y + 36, 1, H - 40);
+        ctx.fillRect(x + W - 11, y + 36, 1, H - 40);
+
+        // ---- Sweater (the classic 90s look) ----
+        ctx.fillStyle = C.sweater;
+        ctx.fillRect(x + 2, y + 22, W - 4, 16);
+        ctx.fillStyle = C.sweaterlit;
+        ctx.fillRect(x + 2, y + 22, W - 4, 2);
+        ctx.fillRect(x + 2, y + 22, 1, 16);
+        ctx.fillStyle = C.sweatershad;
+        ctx.fillRect(x + 2, y + 36, W - 4, 2);
+        // Diamond knit pattern
+        ctx.fillStyle = C.sweatershad;
+        for (let py = 26; py < 36; py += 4) {
+            for (let px = 6; px < W - 8; px += 6) {
+                ctx.fillRect(x + px, y + py, 1, 1);
+                ctx.fillRect(x + px + 3, y + py + 2, 1, 1);
+            }
+        }
+        // V-neck collar
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + W / 2 - 4, y + 22, 1, 1);
+        ctx.fillRect(x + W / 2 + 3, y + 22, 1, 1);
+        ctx.fillRect(x + W / 2 - 3, y + 23, 1, 1);
+        ctx.fillRect(x + W / 2 + 2, y + 23, 1, 1);
+        ctx.fillRect(x + W / 2 - 2, y + 24, 1, 1);
+        ctx.fillRect(x + W / 2 + 1, y + 24, 1, 1);
+        ctx.fillRect(x + W / 2 - 1, y + 25, 2, 1);
+        // Shirt collar peeking through
+        ctx.fillStyle = '#fff8d0';
+        ctx.fillRect(x + W / 2 - 1, y + 22, 2, 3);
+
+        // ---- Arms ----
+        // Default: hands clasped in front of him (calculating pose)
+        const pat = this.attackTelegraph;
+        const armsForward = (pat === 0 || pat === 5);    // money rain / windows update
+        const armsOut = (pat === 2);                     // antitrust fan
+        ctx.fillStyle = C.sweater;
+        if (armsForward) {
+            // Arms raised forward to summon
+            ctx.fillRect(x - 1, y + 22, 4, 8);
+            ctx.fillRect(x - 3, y + 18, 4, 6);
+            ctx.fillRect(x + W - 3, y + 22, 4, 8);
+            ctx.fillRect(x + W - 1, y + 18, 4, 6);
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x - 4, y + 16, 4, 4);
+            ctx.fillRect(x + W, y + 16, 4, 4);
+        } else if (armsOut) {
+            // Arms wide in lawsuit gesture
+            ctx.fillRect(x - 5, y + 24, 7, 5);
+            ctx.fillRect(x + W - 2, y + 24, 7, 5);
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x - 7, y + 23, 3, 4);
+            ctx.fillRect(x + W + 4, y + 23, 3, 4);
+        } else {
+            // Default: hands clasped in front
+            ctx.fillRect(x + 1, y + 24, 4, 8);
+            ctx.fillRect(x + W - 5, y + 24, 4, 8);
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x + W / 2 - 4, y + 32, 8, 4);
+            ctx.fillStyle = C.skinshad;
+            ctx.fillRect(x + W / 2 - 4, y + 35, 8, 1);
+        }
+
+        // ---- Head ----
+        const hx = x + W / 2;
+        // Skin
+        ctx.fillStyle = C.skin;
+        ctx.fillRect(x + 4, y + 6, W - 8, 16);
+        ctx.fillStyle = C.skinlit;
+        ctx.fillRect(x + 6, y + 6, W - 12, 1);
+        // Bowl-cut hair - the trademark
+        ctx.fillStyle = C.hair;
+        ctx.fillRect(x + 2, y + 2, W - 4, 6);     // top mop
+        ctx.fillRect(x + 2, y + 4, 2, 10);        // side
+        ctx.fillRect(x + W - 4, y + 4, 2, 10);    // side
+        // Hair highlight
+        ctx.fillStyle = C.hairlit;
+        ctx.fillRect(x + 4, y + 2, W - 8, 1);
+        ctx.fillRect(x + 2, y + 3, 1, 1);
+        // Bangs
+        ctx.fillStyle = C.hair;
+        ctx.fillRect(x + 5, y + 8, W - 10, 2);
+
+        // ---- The Glasses (giant rectangular frames) ----
+        // Outer frame
+        ctx.fillStyle = C.glasses;
+        // Left lens
+        ctx.fillRect(x + 4, y + 11, 9, 7);
+        // Right lens
+        ctx.fillRect(x + W - 13, y + 11, 9, 7);
+        // Bridge
+        ctx.fillRect(x + 13, y + 13, W - 26, 1);
+        // Inner lens (light blue tint)
+        ctx.fillStyle = C.lens;
+        ctx.fillRect(x + 5, y + 12, 7, 5);
+        ctx.fillRect(x + W - 12, y + 12, 7, 5);
+        // Eyes behind lenses (small, beady, calculating)
+        ctx.fillStyle = '#1a0e08';
+        ctx.fillRect(x + 8, y + 14, 1, 1);
+        ctx.fillRect(x + W - 9, y + 14, 1, 1);
+        // Glasses gleam during telegraph - bright streaks across both lenses
+        if (tele) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + 5, y + 12, 3, 1);
+            ctx.fillRect(x + W - 12, y + 12, 3, 1);
+        } else {
+            // Subtle glasses shine
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + 11, y + 12, 1, 1);
+            ctx.fillRect(x + W - 6, y + 12, 1, 1);
+        }
+
+        // ---- Smug Smirk ----
+        // Mouth tilts up to one side - smug grin
+        // Width grows as HP decreases (he's enjoying this)
+        const smirkW = phase2 ? 7 : 5;
+        ctx.fillStyle = C.smug;
+        // The grin line
+        for (let i = 0; i < smirkW; i++) {
+            const yOffset = Math.floor(i * 0.4);
+            ctx.fillRect(hx - 2 + i, y + 19 - yOffset, 1, 1);
+        }
+        // Tiny visible tooth
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(hx, y + 19, 1, 1);
+
+        // ---- Yell text overlay ----
+        if (this.yellTimer && this.yellTimer > 0) {
+            const wobble = Math.floor(Math.sin(this.behaviorTimer * 0.4) * 1);
+            const color = this.yellText === 'CHA-CHING' ? '#50ff70'
+                        : this.yellText === 'ANTITRUST' ? '#5aa8e0'
+                        : this.yellText === 'INSTALLING UPDATES' ? '#5aa8e0'
+                        : '#ffe070';
+            drawPixelTextOutlined(ctx, this.yellText, hx + wobble, y - 14, color, '#1a0000', 1, 'center', 1);
+            this.yellTimer--;
+        }
+
+        // Phase 2 - sinister glow rim and floating dollar signs
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.2) > 0;
+            ctx.fillStyle = pulse ? '#50ff70' : '#208a30';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
+            // Sinister dollar-sign halo particles
+            if (this.behaviorTimer % 8 === 0 && typeof particles !== 'undefined') {
+                particles.spawn({
+                    x: x + Math.random() * W, y: y - 4,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: -0.4,
+                    life: 30,
+                    size: 1,
+                    colors: ['#50ff70', '#208a30', '#1a4a18']
+                });
+            }
         }
     }
 

@@ -108,6 +108,7 @@ class ParallaxBackground {
         if (this.theme === 'serverroom') return this.drawServerRoom(ctx, camera);
         if (this.theme === 'boardroom') return this.drawBoardRoom(ctx, camera);
         if (this.theme === 'keynote') return this.drawKeynote(ctx, camera);
+        if (this.theme === 'founder') return this.drawFounderLair(ctx, camera);
         this.drawSky(ctx);
         this.drawSun(ctx);
         this.drawClouds(ctx, camera);
@@ -693,6 +694,192 @@ class ParallaxBackground {
             if ((i + (this.time / 30 | 0)) & 1) {
                 ctx.fillStyle = '#a8d8ff';
                 ctx.fillRect(x, y - 2, 1, 2);
+            }
+        }
+    }
+
+    // ============================================
+    // STAGE 6 - THE FOUNDER'S LAIR
+    // Dark vault with a giant CRT showing Windows 95, stacks of money,
+    // framed software boxes (Windows / Office / DOS), and gold trophies
+    // hovering in the dark behind a faint green grid floor.
+    // ============================================
+    drawFounderLair(ctx, camera) {
+        // Pitch black base
+        ctx.fillStyle = '#08050a';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Slow code-rain background (Matrix-ish in green)
+        this.drawFounderCodeRain(ctx);
+        // Far wall - giant CRT monitor with Windows 95 desktop
+        this.drawFounderCRT(ctx);
+        // Framed software products on the wall
+        this.drawFounderProductFrames(ctx, camera);
+        // Money stacks on the floor (foreground)
+        this.drawFounderMoneyStacks(ctx, camera);
+        // Faint green grid (tron-style floor)
+        this.drawFounderGrid(ctx);
+    }
+
+    drawFounderCodeRain(ctx) {
+        // Green Matrix-style streams of binary
+        ctx.fillStyle = '#0a3a14';
+        for (let i = 0; i < 28; i++) {
+            const x = (i * 11 + 4) % GAME.WIDTH;
+            const offset = (this.time * (1 + (i % 3) * 0.3)) | 0;
+            for (let j = 0; j < 6; j++) {
+                const y = (offset + j * 18) % 192;
+                if (((i + j) & 3) === 0) {
+                    ctx.fillStyle = j === 0 ? '#50ff70' : '#208a30';
+                    ctx.fillRect(x, y, 1, 6);
+                }
+            }
+        }
+    }
+
+    drawFounderCRT(ctx) {
+        // Big CRT monitor in the back. Shows the Windows 95 desktop.
+        const mX = 40, mY = 22, mW = GAME.WIDTH - 80, mH = 80;
+        // CRT case
+        ctx.fillStyle = '#3a3838';
+        ctx.fillRect(mX - 8, mY - 8, mW + 16, mH + 16);
+        ctx.fillStyle = '#5a5858';
+        ctx.fillRect(mX - 8, mY - 8, mW + 16, 2);
+        ctx.fillStyle = '#1a1818';
+        ctx.fillRect(mX - 8, mY + mH + 6, mW + 16, 2);
+        // Screen with a slight curve illusion via dark corners
+        ctx.fillStyle = '#0a205a';
+        ctx.fillRect(mX, mY, mW, mH);
+        ctx.fillStyle = '#3a78b8';
+        ctx.fillRect(mX, mY, mW, 1);
+        ctx.fillRect(mX, mY + mH - 1, mW, 1);
+        // Win95-style 'Start' bar at the bottom
+        ctx.fillStyle = '#a8a8a8';
+        ctx.fillRect(mX + 2, mY + mH - 8, mW - 4, 6);
+        ctx.fillStyle = '#dadada';
+        ctx.fillRect(mX + 2, mY + mH - 8, mW - 4, 1);
+        ctx.fillStyle = '#5a5a5a';
+        ctx.fillRect(mX + 2, mY + mH - 3, mW - 4, 1);
+        // 'Start' button
+        ctx.fillStyle = '#a8a8a8';
+        ctx.fillRect(mX + 4, mY + mH - 7, 16, 4);
+        ctx.fillStyle = '#dadada';
+        ctx.fillRect(mX + 4, mY + mH - 7, 16, 1);
+        // 4-square logo on Start button
+        const lx = mX + 6, ly = mY + mH - 6;
+        ctx.fillStyle = '#ff5050'; ctx.fillRect(lx,     ly,     2, 2);
+        ctx.fillStyle = '#50ff70'; ctx.fillRect(lx + 3, ly,     2, 2);
+        ctx.fillStyle = '#5aa8e0'; ctx.fillRect(lx,     ly + 3, 2, 2);
+        ctx.fillStyle = '#ffd460'; ctx.fillRect(lx + 3, ly + 3, 2, 2);
+        // Desktop icons (My Computer, Recycle Bin etc.)
+        const icons = ['#a8a8c0', '#c0a070', '#5a5a5a', '#a82020'];
+        for (let i = 0; i < icons.length; i++) {
+            const ix = mX + 6, iy = mY + 4 + i * 14;
+            ctx.fillStyle = icons[i];
+            ctx.fillRect(ix, iy, 8, 8);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(ix, iy, 8, 1);
+            ctx.fillStyle = '#0a205a';
+            ctx.fillRect(ix - 1, iy + 9, 10, 2);   // label bar
+        }
+        // Cursor blinks at top-right
+        if ((this.time & 16) < 8) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(mX + mW - 8, mY + 4, 1, 1);
+            ctx.fillRect(mX + mW - 7, mY + 4, 1, 1);
+            ctx.fillRect(mX + mW - 6, mY + 4, 1, 1);
+            ctx.fillRect(mX + mW - 8, mY + 5, 1, 1);
+            ctx.fillRect(mX + mW - 6, mY + 5, 1, 1);
+        }
+        // Reflective glass highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(mX, mY, mW / 3, mH);
+        // CRT scanlines
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        for (let y = mY; y < mY + mH; y += 2) ctx.fillRect(mX, y, mW, 1);
+    }
+
+    drawFounderProductFrames(ctx, camera) {
+        // Hovering "TROPHY" frames of his products
+        const off = (camera.x * 0.25) | 0;
+        const frames = [
+            { x: 16,  label: 'WIN', col: '#5aa8e0' },
+            { x: 64,  label: 'DOS', col: '#0a0612' },
+            { x: 184, label: 'OFC', col: '#ff5050' },
+            { x: 232, label: 'XCL', col: '#208a30' }
+        ];
+        for (const f of frames) {
+            const sx = ((f.x - off) % 320 + 320) % 320 - 32;
+            if (sx < -20 || sx > GAME.WIDTH) continue;
+            const y = 116;
+            // Gold trophy frame
+            ctx.fillStyle = '#806010';
+            ctx.fillRect(sx, y, 16, 14);
+            ctx.fillStyle = '#ffd460';
+            ctx.fillRect(sx, y, 16, 1);
+            ctx.fillStyle = '#503006';
+            ctx.fillRect(sx, y + 13, 16, 1);
+            // Software box
+            ctx.fillStyle = f.col;
+            ctx.fillRect(sx + 2, y + 2, 12, 10);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(sx + 2, y + 2, 12, 1);
+            // Label
+            if (typeof drawPixelText === 'function') {
+                drawPixelText(ctx, f.label, sx + 8, y + 5, '#fff', 1, 'center', 1);
+            }
+        }
+    }
+
+    drawFounderMoneyStacks(ctx, camera) {
+        // Foreground money stacks
+        const baseY = 168;
+        const off = (camera.x * 0.7) | 0;
+        for (let i = 0; i < 8; i++) {
+            const sx = (((i * 36 - off) % (GAME.WIDTH + 36)) + GAME.WIDTH + 36) % (GAME.WIDTH + 36) - 18;
+            // Stack of bills
+            const stackH = 6 + (i % 3) * 2;
+            for (let s = 0; s < stackH; s++) {
+                ctx.fillStyle = s & 1 ? '#208a30' : '#1a4a18';
+                ctx.fillRect(sx, baseY - s * 2, 20, 2);
+                ctx.fillStyle = '#50a050';
+                ctx.fillRect(sx + 2, baseY - s * 2, 16, 1);
+                // $ symbol on top of each bill
+                if (s === stackH - 1) {
+                    ctx.fillStyle = '#fff8d0';
+                    ctx.fillRect(sx + 9, baseY - s * 2 - 1, 2, 1);
+                }
+            }
+            // Band around the stack
+            ctx.fillStyle = '#a87040';
+            ctx.fillRect(sx + 8, baseY - stackH * 2, 4, stackH * 2);
+        }
+    }
+
+    drawFounderGrid(ctx) {
+        // Tron-style green grid receding into the distance under the boss
+        const baseY = 174;
+        const horizonY = 130;
+        ctx.fillStyle = '#0a3a14';
+        // Horizontal grid lines (perspective)
+        for (let i = 0; i < 8; i++) {
+            const t = i / 8;
+            const ly = horizonY + Math.pow(t, 2) * (baseY - horizonY);
+            const alpha = 0.2 + t * 0.5;
+            ctx.fillStyle = `rgba(80,255,112,${alpha})`;
+            ctx.fillRect(0, ly, GAME.WIDTH, 1);
+        }
+        // Vertical converging lines from horizon to bottom
+        const vp = GAME.WIDTH / 2;
+        for (let i = -4; i <= 4; i++) {
+            const bottomX = vp + i * (GAME.WIDTH / 8);
+            const topX = vp + i * 4;
+            const steps = 12;
+            for (let s = 0; s < steps; s++) {
+                const t = s / steps;
+                const lx = topX + (bottomX - topX) * t;
+                const ly = horizonY + (baseY - horizonY) * t;
+                ctx.fillStyle = `rgba(80,255,112,${0.1 + t * 0.4})`;
+                ctx.fillRect(Math.floor(lx), Math.floor(ly), 1, 1);
             }
         }
     }
