@@ -226,6 +226,7 @@ const ENEMY_TYPE = {
     },
     PHOTOCOPIER: {
         name: 'Copier 3000',
+        tagline: 'PC-LOAD-LETTER OF DEATH',
         width: 44,
         height: 40,
         health: 28,
@@ -259,6 +260,7 @@ const ENEMY_TYPE = {
     },
     SHREDDER: {
         name: 'Mega-Shredder',
+        tagline: 'CHEWS THROUGH ANYTHING',
         width: 40,
         height: 44,
         health: 32,
@@ -270,6 +272,7 @@ const ENEMY_TYPE = {
     },
     CTRL_ALT_DEL: {
         name: 'Ctrl-Alt-Del',
+        tagline: 'THE BLUE SCREEN OF DEATH',
         width: 56,
         height: 56,
         health: 50,
@@ -281,6 +284,7 @@ const ENEMY_TYPE = {
     },
     BALLMER: {
         name: 'CEO Ballmer',
+        tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS',
         width: 36,
         height: 56,
         health: 70,
@@ -292,6 +296,7 @@ const ENEMY_TYPE = {
     },
     BILL_GATES: {
         name: 'The Founder',
+        tagline: 'YOU HAD ONE JOB, CLIPPY',
         width: 32,
         height: 52,
         health: 100,
@@ -303,6 +308,7 @@ const ENEMY_TYPE = {
     },
     CLIPPY_2: {
         name: 'Clippy 2.0',
+        tagline: 'THE REPLACEMENT MODEL',
         width: 36,
         height: 56,
         health: 120,
@@ -314,6 +320,7 @@ const ENEMY_TYPE = {
     },
     ALGORITHM: {
         name: 'The Algorithm',
+        tagline: 'IT KNOWS WHAT YOU WANT',
         width: 48,
         height: 48,
         health: 140,

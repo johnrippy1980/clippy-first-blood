@@ -675,8 +675,14 @@ class Game {
             // VS. text on the left
             drawPixelText(ctx, 'VS.', 50, yC + 2, '#ffe070', 1, 'left', 1);
             // Boss name on the right
-            const name = (this.bossIntroEnemy.type && this.bossIntroEnemy.type.name) || 'BOSS';
+            const type = this.bossIntroEnemy.type;
+            const name = (type && type.name) || 'BOSS';
             drawPixelTextOutlined(ctx, name.toUpperCase(), GAME.WIDTH - 50, yC + 2, '#ff5050', '#1a0000', 1, 'right', 1);
+            // Tagline slides in slightly after the name and sits below the banner
+            if (type && type.tagline && t > 28) {
+                drawPixelText(ctx, type.tagline.toUpperCase(),
+                    GAME.WIDTH / 2, yC + 18, '#a890c0', 1, 'center', 1);
+            }
         }
     }
 
