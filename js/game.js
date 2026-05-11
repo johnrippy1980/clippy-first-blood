@@ -4453,6 +4453,40 @@ class Game {
             this.flashText(ctx, 'RECOVERING', 4, BAR_H + 8, '#7af0ff');
         }
 
+        // ---- Boss health bar (when a boss is on-screen, intro is done) ----
+        const boss = this.enemies && this.enemies.enemies
+            ? this.enemies.enemies.find(e => e.active && !e.dying && e.isBoss && e.isBoss())
+            : null;
+        if (boss && !this.bossIntroActive) {
+            const bbX = 24, bbY = BAR_H + 4, bbW = W - 48, bbH = 6;
+            // Frame
+            ctx.fillStyle = '#000';
+            ctx.fillRect(bbX - 1, bbY - 1, bbW + 2, bbH + 2);
+            ctx.fillStyle = '#1a0e1e';
+            ctx.fillRect(bbX, bbY, bbW, bbH);
+            // Fill
+            const bossMax = (boss.type && boss.type.health) || 100;
+            const pct = Math.max(0, Math.min(1, boss.health / bossMax));
+            const fillW = Math.floor(pct * (bbW - 2));
+            // Color shifts as HP drops; flash on phase 2 (≤ 50%)
+            let topCol, botCol;
+            if (pct < 0.3)      { topCol = '#ff5050'; botCol = '#a82020'; }
+            else if (pct < 0.6) { topCol = '#ffd040'; botCol = '#a87020'; }
+            else                { topCol = '#ff8a40'; botCol = '#a84020'; }
+            ctx.fillStyle = botCol;
+            ctx.fillRect(bbX + 1, bbY + 1, fillW, bbH - 2);
+            ctx.fillStyle = topCol;
+            ctx.fillRect(bbX + 1, bbY + 1, fillW, 2);
+            // 50% phase-2 tick mark
+            const halfX = bbX + Math.floor((bbW - 2) * 0.5);
+            ctx.fillStyle = pct <= 0.5 ? '#ff60ff' : '#564468';
+            ctx.fillRect(halfX, bbY - 2, 1, bbH + 4);
+            // Boss name on the left side of the bar
+            const bossName = (boss.type && boss.type.name) || 'BOSS';
+            drawPixelTextOutlined(ctx, bossName.toUpperCase(),
+                bbX, bbY - 8, '#ffe070', '#1a0a1e', 1, 'left', 1);
+        }
+
         // ---- Stage timer (small readout under the bar, top-right) ----
         if (this.stageStartTime > 0) {
             const elapsed = (Date.now() - this.stageStartTime) / 1000;
