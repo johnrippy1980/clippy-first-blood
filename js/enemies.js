@@ -1487,6 +1487,18 @@ class Enemy {
         if (Math.random() < dropChance && typeof pickupManager !== 'undefined' && pickupManager.spawnDrop) {
             pickupManager.spawnDrop(this.x + this.width / 2, this.y + this.height / 2, '1UP');
         }
+        // Bosses additionally drop a random weapon pickup so the next stage
+        // doesn't start the player back on the base machine gun.
+        if (this.isBoss() && typeof pickupManager !== 'undefined' && pickupManager.spawnDrop && typeof WEAPON !== 'undefined') {
+            const weaponPool = ['SPREAD', 'LASER', 'FLAME', 'STAPLE_REMOVER', 'HOMING', 'THUNDER']
+                .filter(k => WEAPON[k]);
+            const pick = weaponPool[Math.floor(Math.random() * weaponPool.length)];
+            if (pick) {
+                // Offset slightly so the 1UP and weapon don't stack at the
+                // same pixel - players see two distinct icons drop.
+                pickupManager.spawnDrop(this.x + this.width / 2 + 20, this.y + this.height / 2, pick);
+            }
+        }
     }
 
     draw(ctx, camera) {
