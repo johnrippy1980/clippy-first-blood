@@ -1450,6 +1450,34 @@ class Enemy {
                 game.combo++;
                 game.comboTimer = game.COMBO_WINDOW;
                 if (game.combo > game.comboBest) game.comboBest = game.combo;
+                // Combo milestone payouts: a popup + bonus score the first
+                // time the chain crosses each tier. Player-facing only;
+                // doesn't affect comboBest persistence.
+                const milestones = [
+                    { at: 5,  bonus: 250,  label: 'STREAK',  color: '#7af0ff' },
+                    { at: 10, bonus: 1000, label: 'RAMPAGE', color: '#ffe070' },
+                    { at: 20, bonus: 2500, label: 'CARNAGE', color: '#ff60ff' },
+                    { at: 30, bonus: 5000, label: 'GOD-LIKE', color: '#ff5050' }
+                ];
+                for (const m of milestones) {
+                    if (game.combo === m.at) {
+                        game.score += m.bonus;
+                        if (typeof particles !== 'undefined') {
+                            // Label as a plain text particle (scorePopup
+                            // would prepend a '+' which we don't want here).
+                            particles.spawn({
+                                x: this.x + this.width / 2, y: this.y - 28,
+                                vx: 0, vy: -0.6, life: 60, size: 2,
+                                shape: 'text', text: m.label,
+                                colors: [m.color, m.color, '#ffffff', '#1a0e1e']
+                            });
+                            particles.scorePopup(this.x + this.width / 2, this.y - 16, m.bonus);
+                        }
+                        if (game.shake) game.shake(2, 8);
+                        if (typeof audio !== 'undefined' && audio.sfxPickup) audio.sfxPickup();
+                        break;
+                    }
+                }
             }
             if (game.runEnemiesDefeated !== undefined) game.runEnemiesDefeated++;
         }
