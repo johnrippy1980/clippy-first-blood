@@ -266,6 +266,9 @@ async function loadAllSprites() {
 // Used when PNG sprites aren't available yet
 // ============================================
 
+// 4-frame ping-pong run cycle (hoisted so it isn't reallocated per frame)
+const RUN_CYCLE = [1, 2, 3, 2];
+
 class ProceduralSprites {
     constructor() {
         this.cache = new Map();
@@ -289,11 +292,13 @@ class ProceduralSprites {
     }
 
     getClippyFrameName(state, animFrame, deathPhase) {
+        // JS `%` preserves sign, so a negative animFrame would produce
+        // missing frame names like `clippy_run_0undefined`. Normalize.
+        const af = ((animFrame | 0) % 1024 + 1024) % 1024;
         switch (state) {
             case PLAYER_STATE.RUNNING:
                 // 3-frame run cycle: 1 -> 2 -> 3 -> 2 -> 1... (ping-pong for smooth motion)
-                const runCycle = [1, 2, 3, 2];
-                return `clippy_run_0${runCycle[animFrame % 4]}`;
+                return `clippy_run_0${RUN_CYCLE[af % 4]}`;
             case PLAYER_STATE.JUMPING:
                 return 'clippy_jump_01';
             case PLAYER_STATE.FALLING:
@@ -302,9 +307,10 @@ class ProceduralSprites {
             case PLAYER_STATE.CROUCHING:
                 return 'clippy_crouch_01';
             case PLAYER_STATE.PRONE:
+            case PLAYER_STATE.SLIDING:
                 return 'clippy_prone_01';
             case PLAYER_STATE.CLIMBING:
-                return `clippy_climb_0${(animFrame % 2) + 1}`;
+                return `clippy_climb_0${(af % 2) + 1}`;
             case PLAYER_STATE.COVER:
                 return 'clippy_cover_01';
             case PLAYER_STATE.HURT:
@@ -314,7 +320,7 @@ class ProceduralSprites {
                 const phase = Math.min(2, deathPhase || 0);
                 return `clippy_death_0${phase + 1}`;
             default:
-                return `clippy_idle_0${(animFrame % 2) + 1}`;
+                return `clippy_idle_0${(af % 2) + 1}`;
         }
     }
 
