@@ -29,6 +29,9 @@ class Game {
         this.runDeaths = 0;
         this.runEnemiesDefeated = 0;
         this.runSecretsFound = 0;
+        // Damage dealt per weapon name, used for the end-of-run "FAVORITE
+        // WEAPON" affinity badge. { 'Machine Gun': 123, 'Spread Gun': 45, ... }
+        this.runWeaponDamage = {};
 
         // Konami code state
         this.konamiSequence = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyZ', 'KeyX'];
@@ -604,6 +607,17 @@ class Game {
         this.shakeIntensity = Math.max(0, Math.min(1, v));
         try { localStorage.setItem('clippy_first_blood_shake', String(this.shakeIntensity)); }
         catch (e) {}
+    }
+
+    // Returns the weapon name that dealt the most damage this run, or null
+    // if the player never fired (or every weapon tied at 0).
+    favoriteWeapon() {
+        let best = null, bestDmg = 0;
+        for (const name in this.runWeaponDamage) {
+            const d = this.runWeaponDamage[name];
+            if (d > bestDmg) { bestDmg = d; best = name; }
+        }
+        return best;
     }
 
     drawBossIntro() {
@@ -2462,6 +2476,9 @@ class Game {
         line('ENEMIES KILLED', String(this.runEnemiesDefeated), '#ffffff');
         line('DEATHS',         String(this.runDeaths), this.runDeaths === 0 ? '#50ff70' : '#ffffff');
         line('SECRETS',        `${this.runSecretsFound} OF 1`, this.runSecretsFound > 0 ? '#50ff70' : '#888');
+        // Affinity: which weapon dealt the most damage this run
+        const fav = this.favoriteWeapon();
+        if (fav) line('FAVORITE',     fav.toUpperCase(), '#ff8030');
 
         // Special call-outs
         if (this.runDeaths === 0) {
@@ -3573,6 +3590,7 @@ class Game {
                 this.runDeaths = 0;
                 this.runEnemiesDefeated = 0;
                 this.runSecretsFound = 0;
+                this.runWeaponDamage = {};
             }
             // Start replay-ghost recording + load ghost for this stage
             // (skipped in boss rush since stages are mashed together)

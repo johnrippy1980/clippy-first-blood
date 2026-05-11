@@ -3520,6 +3520,11 @@ class EnemyManager {
                     if (typeof game !== 'undefined' && game.dailyMode && game.dailyPlayerDmg) {
                         dmg *= game.dailyPlayerDmg;
                     }
+                    // Credit damage to the weapon for the end-of-run affinity badge
+                    if (typeof game !== 'undefined' && bullet.weaponName && game.runWeaponDamage) {
+                        game.runWeaponDamage[bullet.weaponName] =
+                            (game.runWeaponDamage[bullet.weaponName] || 0) + dmg;
+                    }
                     enemy.takeDamage(dmg);
                     // Thunder chains: jump to nearest other enemy within range
                     if (bullet.chain && bullet.chainsLeft > 0) {

@@ -431,6 +431,7 @@ class Player {
             vx: Math.cos(angle) * w.bulletSpeed,
             vy: Math.sin(angle) * w.bulletSpeed,
             damage: w.damage * dmgMul,
+            weaponName: w.name,         // for the per-run affinity badge
             color: w.color,
             piercing: w.piercing || false,
             life: 60,
