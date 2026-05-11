@@ -289,6 +289,21 @@ class ProceduralSprites {
         if (sprite) {
             this.drawPixelSprite(ctx, x, y, sprite, paletteOverride || CLIPPY_PALETTE, !facingRight);
         }
+
+        // Slide pose: layer motion streaks behind the prone-style sprite so
+        // a sliding Clippy reads differently from a stationary prone one.
+        if (state === PLAYER_STATE.SLIDING) {
+            const streakRows = [26, 28, 30];        // bottom three rows of the prone pose
+            const trailDir = facingRight ? -1 : 1;
+            ctx.fillStyle = '#c0a8d0';
+            for (let i = 0; i < streakRows.length; i++) {
+                const sy = y + streakRows[i];
+                const sx = facingRight ? x : x + 22;
+                for (let s = 0; s < 4; s++) {
+                    ctx.fillRect(sx + trailDir * (4 + s * 4), sy, 2, 1);
+                }
+            }
+        }
     }
 
     getClippyFrameName(state, animFrame, deathPhase) {
