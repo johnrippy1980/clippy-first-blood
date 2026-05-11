@@ -44,7 +44,12 @@ class InputHandler {
         this.gameKeys = [
             'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
             'KeyW', 'KeyA', 'KeyS', 'KeyD',
-            'Space', 'KeyZ', 'KeyX', 'KeyC', 'KeyP', 'KeyT', 'KeyH', 'KeyN', 'KeyK',
+            'Space', 'KeyZ', 'KeyX', 'KeyC', 'KeyP', 'KeyT', 'KeyH', 'KeyN', 'KeyK', 'KeyF', 'KeyB',
+            'KeyE', 'KeyR', 'KeyY', 'KeyU', 'KeyI', 'KeyO',
+            'KeyG', 'KeyJ', 'KeyL',
+            'KeyV', 'KeyM', 'KeyQ',
+            'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7',
+            'Backspace', 'Enter',
             'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight',
             'Escape'
         ];

@@ -42,6 +42,16 @@ class Game {
         this.newGamePlus = false;
         // Currently selected Clippy skin (id)
         this.skinId = 'classic';
+        // First-time tutorial hints (only show on Stage 1 the first time)
+        this.tutorialDone = false;
+        this.tutorialStep = 0;
+        this.tutorialTimer = 0;
+        // Steps fire in sequence as conditions are met:
+        //   0  MOVE    - waiting for any left/right press
+        //   1  JUMP    - waiting for first jump
+        //   2  SHOOT   - waiting for first shot
+        //   3  COVER   - briefly explains cover once nearby a cover spot
+        //   4  done
         // Pause menu slider state (0 = music, 1 = sfx)
         this.pauseMenuCursor = 0;
         // Stage-select grid cursor (0..stages.length-1)
@@ -334,6 +344,99 @@ class Game {
         this.pickupFlashTimer = 90;
     }
 
+    // Photo mode: re-render the current frame at 3x via an offscreen canvas
+    // and trigger a download. Called from the pause overlay so a still frame
+    // is captured (the world is paused anyway).
+    tickTutorial() {
+        if (this.tutorialDone || this.tutorialStep >= 4) return;
+        this.tutorialTimer++;
+        const p = this.player;
+        if (!p) return;
+        switch (this.tutorialStep) {
+            case 0: // MOVE - advances when the player walks left or right
+                if (input.left || input.right) {
+                    this.tutorialStep = 1;
+                    this.tutorialTimer = 0;
+                }
+                break;
+            case 1: // JUMP - advances on first time leaving the ground
+                if (!p.onGround && p.vy < 0) {
+                    this.tutorialStep = 2;
+                    this.tutorialTimer = 0;
+                }
+                break;
+            case 2: // SHOOT - advances on first fired bullet
+                if (p.bullets && p.bullets.length > 0) {
+                    this.tutorialStep = 3;
+                    this.tutorialTimer = 0;
+                }
+                break;
+            case 3: // COVER - advance when near a cover spot OR after 8s
+                if (this.tutorialTimer > 480 ||
+                    (this.level && this.level.getCoverSpotAt &&
+                     this.level.getCoverSpotAt(p.x, p.y))) {
+                    this.tutorialStep = 4;
+                    this.tutorialDone = true;
+                    try { localStorage.setItem('clippy_first_blood_tutorial_done', '1'); }
+                    catch (e) {}
+                }
+                break;
+        }
+    }
+
+    drawTutorialOverlay(ctx) {
+        if (this.tutorialDone || this.tutorialStep >= 4) return;
+        // Slide the tutorial bubble in from the bottom over 12 frames
+        const slide = Math.min(1, this.tutorialTimer / 12);
+        const baseY = GAME.HEIGHT - 28;
+        const y = baseY + (1 - slide) * 20;
+        const text = [
+            'ARROWS / WASD TO MOVE',
+            'Z OR SPACE TO JUMP',
+            'X OR CTRL TO SHOOT',
+            'C NEAR A DOORWAY TO TAKE COVER'
+        ][this.tutorialStep];
+        // Background panel
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(28, y - 6, GAME.WIDTH - 56, 16);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(30, y - 4, GAME.WIDTH - 60, 12);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(30, y - 4, GAME.WIDTH - 60, 1);
+        // Pulsing yellow arrow on the left
+        const blink = (Math.floor(Date.now() / 200) & 1) === 0;
+        if (blink) {
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(36, y, 5, 1);
+            ctx.fillRect(35, y - 1, 3, 1);
+            ctx.fillRect(35, y + 1, 3, 1);
+            ctx.fillRect(34, y - 2, 1, 1);
+            ctx.fillRect(34, y + 2, 1, 1);
+        }
+        drawPixelText(ctx, text, GAME.WIDTH / 2, y - 2, '#ffe070', 1, 'center', 1);
+    }
+
+    capturePhoto() {
+        try {
+            const src = this.canvas;
+            const scale = 3;
+            const w = src.width * scale, h = src.height * scale;
+            const off = document.createElement('canvas');
+            off.width = w; off.height = h;
+            const octx = off.getContext('2d');
+            octx.imageSmoothingEnabled = false;
+            octx.drawImage(src, 0, 0, w, h);
+            const url = off.toDataURL('image/png');
+            const a = document.createElement('a');
+            const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.href = url;
+            a.download = `clippy-first-blood-${ts}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (e) { /* clipboard / download blocked */ }
+    }
+
     loadHighScore() {
         try {
             const stored = localStorage.getItem('clippy_first_blood_hiscore');
@@ -353,6 +456,7 @@ class Game {
             if (savedSkin) this.skinId = savedSkin;
             // Track best combo so the Blood Moon skin can unlock
             this._loadedMaxCombo = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
+            this.tutorialDone = localStorage.getItem('clippy_first_blood_tutorial_done') === '1';
         } catch (e) {
             this.highScore = 0;
             this.bossRushUnlocked = false;
@@ -529,6 +633,8 @@ class Game {
                 this.updateHelpScreen();
             } else if (this.screen === 'skins') {
                 this.updateSkinsScreen();
+            } else if (this.screen === 'password') {
+                this.updatePasswordScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -565,6 +671,8 @@ class Game {
             this.renderHelpScreen();
         } else if (this.screen === 'skins') {
             this.renderSkinsScreen();
+        } else if (this.screen === 'password') {
+            this.renderPasswordScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -1166,6 +1274,128 @@ class Game {
             GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
     }
 
+    // ---- Password screen ----
+    updatePasswordScreen() {
+        this.passwordTimer = (this.passwordTimer || 0) + 1;
+        input.update();
+        if (input.pausePressed) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+            return;
+        }
+        // Tab swap between VIEW / ENTER modes
+        if (input.keysJustPressed['ArrowLeft'] || input.keysJustPressed['ArrowRight']) {
+            this.passwordMode = this.passwordMode === 'view' ? 'enter' : 'view';
+            this.passwordMessage = '';
+            this.passwordInput = '';
+        }
+        if (this.passwordMode === 'enter') {
+            // Typed input - accept base32 chars (A-Z 2-7), Backspace, Enter
+            const acceptKey = (code) => {
+                if (code.startsWith('Key')) {
+                    const c = code.charAt(3);
+                    return /[A-Z]/.test(c) ? c : null;
+                }
+                if (code.startsWith('Digit')) {
+                    const d = code.charAt(5);
+                    return /[2-7]/.test(d) ? d : null;
+                }
+                return null;
+            };
+            for (const code in input.keysJustPressed) {
+                if (!input.keysJustPressed[code]) continue;
+                const ch = acceptKey(code);
+                if (ch && this.passwordInput.replace(/-/g, '').length < 16) {
+                    this.passwordInput += ch;
+                    // Auto-insert dashes every 4 chars for readability
+                    const stripped = this.passwordInput.replace(/-/g, '');
+                    const grouped = [];
+                    for (let i = 0; i < stripped.length; i += 4) {
+                        grouped.push(stripped.slice(i, i + 4));
+                    }
+                    this.passwordInput = grouped.join('-');
+                }
+                if (code === 'Backspace') {
+                    this.passwordInput = this.passwordInput.replace(/-/g, '').slice(0, -1);
+                    const stripped = this.passwordInput;
+                    const grouped = [];
+                    for (let i = 0; i < stripped.length; i += 4) grouped.push(stripped.slice(i, i + 4));
+                    this.passwordInput = grouped.join('-');
+                }
+                if (code === 'Enter') {
+                    const payload = pwdDecode(this.passwordInput);
+                    if (payload) {
+                        pwdApply(this, payload);
+                        this.passwordMessage = 'APPLIED!';
+                        this.loadHighScore();    // refresh in-memory fields
+                    } else {
+                        this.passwordMessage = 'INVALID PASSWORD';
+                    }
+                }
+            }
+        }
+    }
+
+    renderPasswordScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Sparkle background
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 16; i++) {
+            const x = (i * 17 + this.passwordTimer) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        drawPixelTextOutlined(ctx, 'PASSWORD', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+
+        // Tabs
+        const tabs = ['VIEW', 'ENTER'];
+        for (let i = 0; i < tabs.length; i++) {
+            const tx = GAME.WIDTH / 2 - 70 + i * 70;
+            const sel = (i === 0 && this.passwordMode === 'view') ||
+                        (i === 1 && this.passwordMode === 'enter');
+            ctx.fillStyle = sel ? '#ffe070' : '#1a1140';
+            ctx.fillRect(tx, 30, 60, 11);
+            drawPixelText(ctx, tabs[i], tx + 30, 32,
+                sel ? '#1a0e1e' : '#a890c0', 1, 'center', 1);
+        }
+
+        if (this.passwordMode === 'view') {
+            // Show current password
+            const bytes = pwdMakePayload(this, typeof achievements !== 'undefined' ? achievements : null);
+            const code = pwdEncodeForDisplay(bytes);
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(20, 70, GAME.WIDTH - 40, 30);
+            ctx.fillStyle = '#3a2855';
+            ctx.fillRect(22, 72, GAME.WIDTH - 44, 26);
+            drawPixelTextOutlined(ctx, code, GAME.WIDTH / 2, 80,
+                '#ffe070', '#1a0e1e', 1, 'center', 1);
+            drawPixelText(ctx, 'YOUR PROGRESS - WRITE IT DOWN', GAME.WIDTH / 2, 110, '#a890c0', 1, 'center', 1);
+            drawPixelText(ctx, 'LR  ENTER A PASSWORD INSTEAD', GAME.WIDTH / 2, 130, '#7a6090', 1, 'center', 1);
+        } else {
+            // Input field
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(20, 70, GAME.WIDTH - 40, 30);
+            ctx.fillStyle = '#3a2855';
+            ctx.fillRect(22, 72, GAME.WIDTH - 44, 26);
+            const display = this.passwordInput || '_';
+            const blink = (this.passwordTimer & 16) < 8;
+            const text = blink ? (this.passwordInput + (this.passwordInput.replace(/-/g, '').length < 16 ? '_' : '')) : this.passwordInput;
+            drawPixelText(ctx, text || '_', GAME.WIDTH / 2, 80, '#ffe070', 1, 'center', 1);
+            drawPixelText(ctx, 'TYPE PASSWORD - ENTER TO APPLY', GAME.WIDTH / 2, 110, '#a890c0', 1, 'center', 1);
+            drawPixelText(ctx, 'BACKSPACE TO DELETE', GAME.WIDTH / 2, 122, '#7a6090', 1, 'center', 1);
+            if (this.passwordMessage) {
+                const c = this.passwordMessage === 'APPLIED!' ? '#50ff70' : '#ff5050';
+                drawPixelTextOutlined(ctx, this.passwordMessage, GAME.WIDTH / 2, 142, c, '#1a0000', 1, 'center', 1);
+            }
+        }
+
+        drawPixelText(ctx, 'ESC  BACK TO TITLE',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+    }
+
     beginCutscene(panels) {
         this.screen = 'cutscene';
         this.cutsceneActive = panels;
@@ -1252,7 +1482,8 @@ class Game {
         if (typeof achievements !== 'undefined') {
             achievements.onGameCleared(
                 this.difficultyKeys[this.difficultyIndex],
-                this.runDeaths
+                this.runDeaths,
+                this.newGamePlus
             );
         }
         // Record NG+ clear for the Clippetta skin unlock
@@ -1725,6 +1956,14 @@ class Game {
             // Start cursor on the currently selected skin
             const all = SKINS;
             this.skinsCursor = Math.max(0, all.findIndex(s => s.id === this.skinId));
+        }
+        // B opens the password / backup screen
+        if (input.keysJustPressed['KeyB']) {
+            this.screen = 'password';
+            this.passwordTimer = 0;
+            this.passwordMode = 'view';     // 'view' or 'enter'
+            this.passwordInput = '';
+            this.passwordMessage = '';
         }
         // N toggles NewGame+ (only meaningful once unlocked)
         if (this.bossRushUnlocked && input.keysJustPressed['KeyN']) {
@@ -2679,6 +2918,13 @@ class Game {
             // Snapshot run-deaths so stage-clear can tell if the player
             // died this stage (for the NO_DEATH_STAGE achievement).
             this._stageStartDeaths = this.runDeaths;
+            // Kick off the first-time tutorial on Stage 1 only
+            if (this.stageIndex === 0 && !this.tutorialDone && !this.bossRushMode) {
+                this.tutorialStep = 0;
+                this.tutorialTimer = 0;
+            } else {
+                this.tutorialStep = 4;
+            }
             if (typeof audio !== 'undefined') {
                 // Stop any previous theme so the new one snaps in cleanly
                 audio.stopMusic();
@@ -2781,7 +3027,7 @@ class Game {
 
         // Controls hint at bottom (line 1: gameplay, line 2: title menu)
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'LR DIFF  DN BOARD  T TROPHIES  H HELP  K SKINS' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
+        drawPixelText(ctx, 'LR DIFF  DN BOARD  T TROPH  H HELP  K SKINS  B PASS' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
@@ -2876,6 +3122,11 @@ class Game {
             return;
         }
         if (this.paused) {
+            // F captures a screenshot from the paused frame
+            if (input.keysJustPressed['KeyF']) {
+                this.capturePhoto();
+                this.photoFlash = 12;
+            }
             // Pause menu rows: 0 = music, 1 = sfx, 2 = quit to title
             const rows = 3;
             if (input.keysJustPressed['ArrowUp'])   this.pauseMenuCursor = (this.pauseMenuCursor + rows - 1) % rows;
@@ -2970,6 +3221,9 @@ class Game {
             this.comboTimer--;
             if (this.comboTimer === 0) this.combo = 0;
         }
+
+        // Drive the first-run tutorial state machine.
+        this.tickTutorial();
 
         // Replay ghost: record player snapshot every Nth frame
         if (this.recordingFrames && this.player) {
@@ -3213,6 +3467,9 @@ class Game {
         if (typeof achievements !== 'undefined') {
             achievements.drawBanner(this.ctx);
         }
+
+        // First-time tutorial overlay
+        this.drawTutorialOverlay(this.ctx);
 
         // Draw boss intro letterbox + name banner
         if (this.bossIntroActive) {
@@ -3674,8 +3931,18 @@ class Game {
         // Hints at the bottom
         drawPixelText(ctx, 'UP DOWN  SELECT    LEFT RIGHT  ADJUST',
             GAME.WIDTH / 2, py + ph - 22, '#a890c0', 1, 'center', 1);
-        drawPixelText(ctx, 'P RESUME    M FULL MUTE    SHOOT  QUIT',
+        drawPixelText(ctx, 'P RESUME    M MUTE    F PHOTO    SHOOT  QUIT',
             GAME.WIDTH / 2, py + ph - 10, '#a890c0', 1, 'center', 1);
+
+        // Photo-mode flash overlay - a quick white blip after F is pressed
+        if (this.photoFlash && this.photoFlash > 0) {
+            const a = this.photoFlash / 12;
+            ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+            ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+            drawPixelTextOutlined(ctx, 'PHOTO SAVED', GAME.WIDTH / 2, GAME.HEIGHT - 24,
+                '#50ff70', '#0a3a14', 1, 'center', 1);
+            this.photoFlash--;
+        }
     }
 
     restart() {

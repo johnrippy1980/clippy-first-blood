@@ -20,7 +20,8 @@ const ACHIEVEMENT_LIST = [
     { id: 'ALL_WEAPONS',       name: 'Arms Dealer',       desc: 'Use every weapon at least once.' },
     { id: 'BOSS_RUSH',         name: 'Bosses Are Tools',  desc: 'Clear Boss Rush.' },
     { id: 'SPEEDRUN_5',        name: 'Speed Demon',       desc: 'Beat any stage in under 60 seconds.' },
-    { id: 'HARD',              name: 'Why Are You Like This', desc: 'Beat the game on HARD.' }
+    { id: 'HARD',              name: 'Why Are You Like This', desc: 'Beat the game on HARD.' },
+    { id: 'NG_PLUS',           name: 'New Game++',        desc: 'Clear the game on NG+.' }
 ];
 
 class Achievements {
@@ -67,9 +68,10 @@ class Achievements {
         if (stageTimeSeconds > 0 && stageTimeSeconds < 60) this.grant('SPEEDRUN_5');
     }
     onBossRushCleared() { this.grant('BOSS_RUSH'); }
-    onGameCleared(difficultyKey, deaths) {
+    onGameCleared(difficultyKey, deaths, isNGPlus) {
         if (deaths === 0) this.grant('NO_DEATH_RUN');
         if (difficultyKey === 'HARD') this.grant('HARD');
+        if (isNGPlus) this.grant('NG_PLUS');
     }
     onStageClearedNoDeath() { this.grant('NO_DEATH_STAGE'); }
 
