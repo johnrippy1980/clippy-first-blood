@@ -75,6 +75,8 @@ class Audio {
         let pat;
         if (theme === 'breakroom') pat = this.buildBreakRoomPattern();
         else if (theme === 'serverroom') pat = this.buildServerRoomPattern();
+        else if (theme === 'keynote') pat = this.buildKeynotePattern();
+        else if (theme === 'boardroom') pat = this.buildPattern();   // reuse the jungle theme - stately
         else pat = this.buildPattern();
         this.patterns[theme] = pat;
         return pat;
@@ -155,6 +157,43 @@ class Audio {
             if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
         });
         return { events, length: 32, bpm: 102, name: 'breakroom' };
+    }
+
+    // Stage 5: KEYNOTE - bombastic boss-fight march in A minor, 168 BPM.
+    buildKeynotePattern() {
+        const compile = (channel, line) => {
+            const tokens = line.trim().split(/\s+/);
+            const events = [];
+            let lastNote = null;
+            let runStart = -1;
+            for (let i = 0; i <= tokens.length; i++) {
+                const tok = tokens[i];
+                if (lastNote && (i === tokens.length || tok !== '_')) {
+                    events.push({ step: runStart, channel, midi: lastNote, dur: i - runStart });
+                    lastNote = null;
+                }
+                if (i === tokens.length) break;
+                if (tok === '.' || tok === '_') continue;
+                lastNote = this.noteToMidi(tok);
+                runStart = i;
+            }
+            return events;
+        };
+        // Pounding fanfare with stabbing chords
+        const lead    = 'A4 _ A4 _ E5 _ A4 _ G4 _ G4 _ D5 _ G4 _ A4 _ A4 _ E5 _ A5 _ A4 _ G4 _ E5 _ D5 _ C5 _ ';
+        const harmony = 'C4 _ _  _ C4 _ _  _ B3 _ _  _ B3 _ _  _ C4 _ _  _ E4 _ _  _ G4 _ _  _ A4 _ _  _ ';
+        const bass    = 'A2 A2 A2 A2 A2 A2 A2 A2 G2 G2 G2 G2 G2 G2 G2 G2 A2 A2 A2 A2 A2 A2 A2 A2 E2 E2 E2 E2 A2 A2 A2 A2';
+        const drum    = 'K H K H S H K H K H K H S H K K K H K H S H K H K H K H S K S K';
+
+        const events = [];
+        events.push(...compile(0, lead));
+        events.push(...compile(1, harmony));
+        events.push(...compile(2, bass));
+        const drumTokens = drum.trim().split(/\s+/);
+        drumTokens.forEach((tok, i) => {
+            if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
+        });
+        return { events, length: 32, bpm: 168, name: 'keynote' };
     }
 
     // Stage 3: SERVER ROOM - faster, driving, industrial in E phrygian.

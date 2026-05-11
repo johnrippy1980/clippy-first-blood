@@ -259,6 +259,17 @@ const ENEMY_TYPE = {
         behavior: 'ctrl_alt_del_boss',
         projectile: 'data',
         score: 5000
+    },
+    BALLMER: {
+        name: 'CEO Ballmer',
+        width: 36,
+        height: 56,
+        health: 70,
+        damage: 24,
+        speed: 1.4,
+        behavior: 'ballmer_boss',
+        projectile: 'coffee',
+        score: 9999
     }
 };
 

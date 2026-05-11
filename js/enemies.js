@@ -78,6 +78,9 @@ class Enemy {
             case 'ctrl_alt_del_boss':
                 this.updateCtrlAltDelBoss(level, player);
                 break;
+            case 'ballmer_boss':
+                this.updateBallmerBoss(level, player);
+                break;
         }
 
         // Update projectiles
@@ -336,6 +339,197 @@ class Enemy {
             }
         } else {
             this.sniperTelegraph = undefined;
+        }
+    }
+
+    // ---------- STEVE BALLMER (Stage 5 final boss) ----------
+    // Bouncing high-energy CEO. Six attack patterns:
+    //   0  DEVELOPERS!  - shouted shockwaves spread horizontally
+    //   1  Coffee throw - three lobbed mug projectiles
+    //   2  Crash jump   - big leap into the air, AOE shockwaves on landing
+    //   3  YOU'RE FIRED - desk-phone slam triggers a ground fire wave
+    //   4  Punch combo  - five staggered punch hitboxes
+    //   5  Loafer kick  - one massive horizontal kick
+    updateBallmerBoss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 80 : 110;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 6 : 4);
+
+        // ----- Constant high-energy idle -----
+        this.vy += GAME.GRAVITY;
+
+        // Pour sweat every few frames
+        if (this.behaviorTimer % 6 === 0 && typeof particles !== 'undefined') {
+            particles.spawn({
+                x: this.x + 8 + Math.random() * (this.width - 16),
+                y: this.y + 4,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: 0.6 + Math.random() * 0.6,
+                gravity: 0.18,
+                life: 22,
+                size: 1,
+                colors: ['#a8d8ff', '#5aa8e0', '#2050a0']
+            });
+        }
+
+        // Ground collision (player physics-ish)
+        if (level.isSolid(this.x + this.width / 2, this.y + this.height)) {
+            this.y = Math.floor((this.y + this.height) / GAME.TILE_SIZE) * GAME.TILE_SIZE - this.height;
+            // Land detection - drop AOE shockwave if landing hard during crash-jump
+            if (this.vy > 4 && this.crashJumpArmed) {
+                this.crashJumpArmed = false;
+                this.spawnLandingShockwave();
+            }
+            this.vy = 0;
+            this.onGround = true;
+        } else {
+            this.onGround = false;
+        }
+
+        // Constant bouncy hopping to harass the player
+        if (this.onGround && this.behaviorTimer % 36 === 0 && !this.lockMove) {
+            this.vy = -4.5;
+            this.vx = (player.x > this.x ? 1 : -1) * this.speed;
+            this.facingRight = player.x > this.x;
+        } else if (this.onGround && !this.lockMove) {
+            this.vx *= 0.8;
+        }
+
+        this.x += this.vx;
+
+        // Telegraph
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 16) this.attackTelegraph = pattern;
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+        const dir = player.x > this.x ? 1 : -1;
+        this.facingRight = dir > 0;
+
+        switch (pattern) {
+            case 0: {
+                // DEVELOPERS x3 - 3 horizontal shockwave bullets, yelled text overlay
+                this.yellText = 'DEVELOPERS!';
+                this.yellTimer = 60;
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                for (let i = -1; i <= 1; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 18 + i * 6,
+                        vx: dir * 3.6,
+                        vy: 0,
+                        damage: this.damage * 0.6,
+                        life: 90,
+                        type: 'shockwave',
+                        delay: Math.abs(i) * 6
+                    });
+                }
+                if (typeof game !== 'undefined' && game.shake) game.shake(2, 6);
+                break;
+            }
+            case 1: {
+                // Coffee cup lob
+                for (let i = 0; i < 3; i++) {
+                    const dx = player.x + i * 24 - this.x;
+                    const time = 28 + i * 4;
+                    const vx = dx / time;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 12,
+                        vx, vy: -3.5 - i * 0.4,
+                        gravity: 0.22,
+                        damage: this.damage * 0.8,
+                        life: 100,
+                        type: 'coffee'
+                    });
+                }
+                break;
+            }
+            case 2: {
+                // Crash jump - leap high, land hard with AOE shockwave (handled in collision)
+                this.vy = -8;
+                this.vx = (player.x - this.x) / 30;
+                this.crashJumpArmed = true;
+                break;
+            }
+            case 3: {
+                // YOU'RE FIRED - ground fire wave traveling toward the player
+                this.yellText = "YOU'RE FIRED!";
+                this.yellTimer = 70;
+                this.phoneSlam = 30;       // visual: holding the phone slammed down
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                if (typeof game !== 'undefined' && game.shake) game.shake(6, 14);
+                // 8-bullet flame chain, each delayed so it looks like the fire spreads
+                for (let i = 0; i < 8; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height - 6,
+                        vx: dir * 3,
+                        vy: 0,
+                        damage: this.damage * 0.9,
+                        life: 100,
+                        type: 'fire',
+                        delay: i * 6,
+                        groundHug: true
+                    });
+                }
+                break;
+            }
+            case 4: {
+                // Wild punch combo - five staggered close-range punches
+                for (let i = 0; i < 5; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 18 + (i % 2) * 8,
+                        vx: dir * (3.6 + i * 0.3),
+                        vy: (i & 1) ? -0.4 : 0.4,
+                        damage: this.damage * 0.5,
+                        life: 35,
+                        type: 'punch',
+                        delay: i * 6
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxShoot();
+                break;
+            }
+            case 5: {
+                // Loafer kick - one big slow heavy hitbox
+                this.bullets.push({
+                    x: this.x + this.width / 2,
+                    y: this.y + this.height - 10,
+                    vx: dir * 4.5,
+                    vy: 0,
+                    damage: this.damage * 1.3,
+                    life: 90,
+                    type: 'kick',
+                    large: true
+                });
+                if (typeof game !== 'undefined' && game.shake) game.shake(5, 12);
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                break;
+            }
+        }
+    }
+
+    spawnLandingShockwave() {
+        // AOE on crash-jump landing
+        if (typeof game !== 'undefined' && game.shake) game.shake(6, 12);
+        if (typeof particles !== 'undefined') {
+            particles.explosion(this.x + this.width / 2, this.y + this.height);
+        }
+        for (let i = -2; i <= 2; i++) {
+            if (i === 0) continue;
+            this.bullets.push({
+                x: this.x + this.width / 2,
+                y: this.y + this.height - 4,
+                vx: Math.sign(i) * 3,
+                vy: -1.5,
+                gravity: 0.2,
+                damage: this.damage * 0.6,
+                life: 60,
+                type: 'shockwave'
+            });
         }
     }
 
@@ -678,11 +872,36 @@ class Enemy {
     updateBullets(level) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
+            // Hold-back delay - bullet stays put and inert until the timer hits 0
+            if (bullet.delay && bullet.delay > 0) {
+                bullet.delay--;
+                continue;
+            }
             bullet.x += bullet.vx;
             bullet.y += bullet.vy;
             if (bullet.gravity) bullet.vy += bullet.gravity;
             if (bullet.spin !== undefined) bullet.spin += 0.5;
             bullet.life--;
+
+            // Ground-hugging projectiles (fire wave) stick to the floor
+            if (bullet.groundHug && level.isSolid(bullet.x, bullet.y + 1)) {
+                // Fine: still on ground
+            } else if (bullet.groundHug) {
+                // Apply gravity to settle
+                bullet.vy += 0.3;
+            }
+
+            // Fire bullets emit smoke particles while travelling
+            if (bullet.type === 'fire' && typeof particles !== 'undefined' && Math.random() < 0.6) {
+                particles.spawn({
+                    x: bullet.x, y: bullet.y - 2,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: -0.4 - Math.random() * 0.4,
+                    life: 14,
+                    size: 2,
+                    colors: ['#ffe070', '#ff8030', '#a82020', '#3a0808']
+                });
+            }
 
             if (bullet.life <= 0 || level.isSolid(bullet.x, bullet.y)) {
                 if (typeof particles !== 'undefined' && level.isSolid(bullet.x, bullet.y)) {
@@ -697,7 +916,8 @@ class Enemy {
         return this.behavior === 'miniboss' ||
                this.behavior === 'photocopier_boss' ||
                this.behavior === 'shredder_boss' ||
-               this.behavior === 'ctrl_alt_del_boss';
+               this.behavior === 'ctrl_alt_del_boss' ||
+               this.behavior === 'ballmer_boss';
     }
 
     takeDamage(amount) {
@@ -831,16 +1051,99 @@ class Enemy {
             case 'hover_sniper':     this.drawHighlighterSNES(ctx, screenX, screenY, flash); break;
             case 'shredder_boss':    this.drawShredderSNES(ctx, screenX, screenY, flash); break;
             case 'ctrl_alt_del_boss': this.drawCtrlAltDelSNES(ctx, screenX, screenY, flash); break;
+            case 'ballmer_boss':     this.drawBallmerSNES(ctx, screenX, screenY, flash); break;
             default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
 
         // Enemy bullets - distinct visuals per projectile type
         this.bullets.forEach(bullet => {
+            if (bullet.delay && bullet.delay > 0) return;       // not yet active
             const bx = Math.floor(bullet.x - camera.x);
             const by = Math.floor(bullet.y - camera.y);
             const col = this.getBulletColor(bullet.type);
 
+            if (bullet.type === 'shockwave') {
+                // Cup-shaped sound wave moving forward
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(bx - 1, by - 4, 2, 9);
+                ctx.fillRect(bx - 3, by - 3, 1, 7);
+                ctx.fillRect(bx - 5, by - 2, 1, 5);
+                ctx.fillRect(bx + 2, by - 3, 1, 7);
+                ctx.fillRect(bx + 4, by - 2, 1, 5);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(bx, by, 1, 1);
+                return;
+            }
+            if (bullet.type === 'coffee') {
+                // Coffee mug spinning through the air with brown coffee splash trail
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(bx - 4, by - 4, 7, 7);
+                ctx.fillStyle = '#604030';
+                ctx.fillRect(bx - 3, by - 3, 5, 3);
+                // Handle
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(bx + 3, by - 2, 2, 3);
+                // Steam wisp
+                ctx.fillStyle = '#a8d8ff';
+                ctx.fillRect(bx - 2, by - 6, 1, 1);
+                ctx.fillRect(bx, by - 7, 1, 1);
+                ctx.fillRect(bx + 1, by - 6, 1, 1);
+                // Coffee drop trail
+                ctx.fillStyle = '#3a2418';
+                ctx.fillRect(bx - 5, by + 2, 1, 1);
+                return;
+            }
+            if (bullet.type === 'fire') {
+                // Big flickering ground flame
+                const flick = (bullet.life & 3);
+                const h = 8 + flick;
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(bx - 3, by - h + 4, 7, h);
+                ctx.fillStyle = '#ff5050';
+                ctx.fillRect(bx - 2, by - h + 5, 5, h - 1);
+                ctx.fillStyle = '#ff8030';
+                ctx.fillRect(bx - 1, by - h + 6, 3, h - 2);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(bx, by - h + 7, 1, h - 4);
+                // Embers above
+                if ((bullet.life & 1) === 0) {
+                    ctx.fillStyle = '#fff5c0';
+                    ctx.fillRect(bx + 1, by - h + 2, 1, 1);
+                }
+                return;
+            }
+            if (bullet.type === 'punch') {
+                // Cartoon impact - big flash
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(bx - 4, by, 8, 1);
+                ctx.fillRect(bx, by - 4, 1, 8);
+                ctx.fillStyle = '#ff8030';
+                ctx.fillRect(bx - 3, by - 1, 6, 3);
+                ctx.fillRect(bx - 1, by - 3, 3, 6);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(bx, by, 1, 1);
+                return;
+            }
+            if (bullet.type === 'kick') {
+                // Big sliding loafer hitbox
+                ctx.fillStyle = '#1a0e08';
+                ctx.fillRect(bx - 8, by - 4, 16, 8);
+                ctx.fillStyle = '#3a1f10';
+                ctx.fillRect(bx - 8, by - 4, 16, 1);
+                ctx.fillStyle = '#604030';
+                ctx.fillRect(bx - 7, by - 3, 14, 1);
+                // Shine
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(bx - 6, by - 4, 4, 1);
+                // Wind streaks behind
+                const tx = Math.sign(bullet.vx) * -1;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(bx + tx * 10, by - 2, 4, 1);
+                ctx.fillRect(bx + tx * 12, by, 5, 1);
+                ctx.fillRect(bx + tx * 10, by + 2, 4, 1);
+                return;
+            }
             if (bullet.type === 'blade') {
                 // Rotating saw blade
                 const s = bullet.spin || 0;
@@ -1258,7 +1561,266 @@ class Enemy {
             case 'blade': return '#c0c8d0';
             case 'confetti': return '#fff8d0';
             case 'data': return '#5aa8e0';
+            case 'shockwave': return '#fff8d0';
+            case 'coffee': return '#604030';
+            case 'fire': return '#ff8030';
+            case 'punch': return '#e8a878';
+            case 'kick': return '#a87040';
             default: return '#f00';
+        }
+    }
+
+    // STEVE BALLMER - Stage 5 final boss
+    drawBallmerSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        // Constant high-energy bobbing
+        const bob = Math.floor(Math.sin(this.behaviorTimer * 0.3) * 1);
+        y += bob;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) x += (Math.floor(this.behaviorTimer / 2) % 2) * 2 - 1;
+        const phase2 = this.health / this.maxHealth <= 0.5;
+
+        const C = flash ? {
+            outline:'#fff', skin:'#fff', skinlit:'#fff', skinshad:'#fff',
+            hair:'#fff', shirt:'#fff', suit:'#fff', suitlit:'#fff',
+            tie:'#fff', tieshad:'#fff', shoe:'#fff', shoelit:'#fff',
+            eye:'#000', eyered:'#000', mouth:'#000'
+        } : {
+            outline:'#1a0e08',
+            skin:'#e8a878',
+            skinlit:'#f4c890',
+            skinshad:'#a87040',
+            hair:'#3a2418',
+            shirt:'#fff8d0',
+            suit:'#1a1a2a',
+            suitlit:'#3a3a48',
+            tie:'#a82020',
+            tieshad:'#601010',
+            shoe:'#1a0e08',
+            shoelit:'#5a3a18',
+            eye:'#ffffff',
+            eyered:'#ff3030',
+            mouth:'#3a0808'
+        };
+
+        // ---- Shoes (loafers) ----
+        ctx.fillStyle = C.shoe;
+        ctx.fillRect(x + 2,  y + H - 5, 12, 5);
+        ctx.fillRect(x + W - 14, y + H - 5, 12, 5);
+        ctx.fillStyle = C.shoelit;
+        ctx.fillRect(x + 2,  y + H - 5, 10, 1);
+        ctx.fillRect(x + W - 14, y + H - 5, 10, 1);
+        // Penny-loafer detail
+        ctx.fillStyle = C.skinshad;
+        ctx.fillRect(x + 6,  y + H - 3, 2, 1);
+        ctx.fillRect(x + W - 8, y + H - 3, 2, 1);
+
+        // ---- Pants ----
+        ctx.fillStyle = C.suit;
+        ctx.fillRect(x + 4,  y + 38, 12, H - 43);
+        ctx.fillRect(x + W - 16, y + 38, 12, H - 43);
+        ctx.fillStyle = C.suitlit;
+        ctx.fillRect(x + 4,  y + 38, 1, H - 43);
+        ctx.fillRect(x + W - 16, y + 38, 1, H - 43);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 14, y + 38, 1, H - 43);
+        ctx.fillRect(x + W - 14, y + 38, 1, H - 43);
+
+        // ---- Torso / Suit Jacket ----
+        ctx.fillStyle = C.suit;
+        ctx.fillRect(x + 2, y + 22, W - 4, 18);
+        ctx.fillStyle = C.suitlit;
+        ctx.fillRect(x + 2, y + 22, W - 4, 2);
+        ctx.fillRect(x + 2, y + 22, 1, 18);
+        // Lapels
+        ctx.fillStyle = C.suitlit;
+        ctx.fillRect(x + 8,  y + 22, 4, 12);
+        ctx.fillRect(x + W - 12, y + 22, 4, 12);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 11, y + 22, 1, 12);
+        ctx.fillRect(x + W - 12, y + 22, 1, 12);
+
+        // ---- Shirt (visible between lapels) ----
+        ctx.fillStyle = C.shirt;
+        ctx.fillRect(x + 12, y + 22, W - 24, 14);
+        // Collar
+        ctx.fillStyle = C.shirt;
+        ctx.fillRect(x + 11, y + 22, 2, 4);
+        ctx.fillRect(x + W - 13, y + 22, 2, 4);
+        // Buttons
+        ctx.fillStyle = C.skinshad;
+        ctx.fillRect(x + W / 2 - 1, y + 28, 1, 1);
+        ctx.fillRect(x + W / 2 - 1, y + 32, 1, 1);
+
+        // ---- Tie ----
+        ctx.fillStyle = C.tie;
+        ctx.fillRect(x + W / 2 - 2, y + 22, 4, 4);   // knot
+        ctx.fillRect(x + W / 2 - 3, y + 26, 6, 12);  // body
+        ctx.fillStyle = C.tieshad;
+        ctx.fillRect(x + W / 2 + 1, y + 26, 2, 12);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + W / 2 - 3, y + 38, 6, 1);   // tip
+
+        // ---- Arms ----
+        // Sleeves (suit), arms pose changes by pattern telegraph
+        const pat = this.attackTelegraph;
+        const fistOut = (pat === 4 || pat === 5);
+        const phoneOut = (pat === 3 || this.phoneSlam > 0);
+        const yellPose = (this.yellTimer && this.yellTimer > 0);
+
+        ctx.fillStyle = C.suit;
+        if (yellPose || pat === 0 || pat === 1) {
+            // Arms raised in classic shouting pose
+            ctx.fillRect(x - 1,  y + 22, 5, 10);
+            ctx.fillRect(x - 2,  y + 16, 5, 8);
+            ctx.fillRect(x + W - 4, y + 22, 5, 10);
+            ctx.fillRect(x + W - 3, y + 16, 5, 8);
+            // Hands (skin)
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x - 3, y + 14, 5, 4);
+            ctx.fillRect(x + W - 2, y + 14, 5, 4);
+            ctx.fillStyle = C.skinlit;
+            ctx.fillRect(x - 3, y + 14, 1, 4);
+            ctx.fillRect(x + W - 2, y + 14, 1, 4);
+        } else if (fistOut) {
+            // Both fists punching forward
+            ctx.fillRect(x + W,     y + 24, 6, 6);
+            ctx.fillRect(x - 6,     y + 28, 6, 6);
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x + W + 6, y + 23, 5, 8);
+            ctx.fillRect(x - 11,    y + 27, 5, 8);
+            ctx.fillStyle = C.skinlit;
+            ctx.fillRect(x + W + 6, y + 23, 1, 8);
+            ctx.fillRect(x - 11,    y + 27, 1, 8);
+        } else if (phoneOut) {
+            // Holding phone aloft (or slammed)
+            ctx.fillRect(x - 1, y + 22, 5, 10);
+            ctx.fillRect(x + W - 4, y + 22, 5, 10);
+            const phY = this.phoneSlam > 15 ? y + 8 : y + 24;     // slam motion
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x - 3, phY - 2, 5, 4);
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(x - 6, phY, 6, 4);     // phone handset
+            ctx.fillRect(x - 5, phY - 1, 4, 1);
+            ctx.fillRect(x - 5, phY + 4, 4, 1);
+            ctx.fillStyle = '#3a3a48';
+            ctx.fillRect(x - 5, phY + 1, 1, 1);
+        } else {
+            // Default rest pose - arms down at sides
+            ctx.fillRect(x - 1, y + 22, 5, 14);
+            ctx.fillRect(x + W - 4, y + 22, 5, 14);
+            ctx.fillStyle = C.skin;
+            ctx.fillRect(x - 1, y + 34, 5, 4);
+            ctx.fillRect(x + W - 4, y + 34, 5, 4);
+        }
+
+        // ---- Head ----
+        const hx = x + W / 2;
+        const hy = y + 14;
+        // Dome
+        ctx.fillStyle = C.skin;
+        ctx.fillRect(x + 4, y + 4, W - 8, 18);
+        // Shine on top
+        ctx.fillStyle = C.skinlit;
+        ctx.fillRect(x + 6, y + 4, W - 12, 2);
+        ctx.fillRect(x + 6, y + 6, 1, 1);
+        ctx.fillRect(x + 8, y + 5, 1, 1);
+        // Chin shadow
+        ctx.fillStyle = C.skinshad;
+        ctx.fillRect(x + 4, y + 20, W - 8, 2);
+
+        // Side hair ring
+        ctx.fillStyle = C.hair;
+        ctx.fillRect(x + 2,  y + 12, 3, 8);
+        ctx.fillRect(x + W - 5, y + 12, 3, 8);
+        // Back-of-head hair
+        ctx.fillRect(x + 4, y + 18, W - 8, 2);
+
+        // Eyebrows (angry)
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 7, y + 10, 5, 1);
+        ctx.fillRect(x + W - 12, y + 10, 5, 1);
+        ctx.fillRect(x + 7, y + 11, 1, 1);
+        ctx.fillRect(x + W - 8, y + 11, 1, 1);
+
+        // BIG bulging eyes
+        const eyeOffsetY = (this.behaviorTimer & 12) < 6 ? 0 : 1;
+        ctx.fillStyle = C.eye;
+        ctx.fillRect(x + 7,  y + 12, 6, 6);
+        ctx.fillRect(x + W - 13, y + 12, 6, 6);
+        // Pupils (look toward facing direction)
+        const pupilDir = this.facingRight ? 1 : -1;
+        ctx.fillStyle = phase2 ? C.eyered : '#1a1a2a';
+        ctx.fillRect(x + 9 + pupilDir, y + 14 + eyeOffsetY, 2, 2);
+        ctx.fillRect(x + W - 11 + pupilDir, y + 14 + eyeOffsetY, 2, 2);
+        // Eye glint
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 9 + pupilDir, y + 14 + eyeOffsetY, 1, 1);
+        ctx.fillRect(x + W - 11 + pupilDir, y + 14 + eyeOffsetY, 1, 1);
+
+        // Mouth - opens wider when shouting
+        const shouting = (yellPose || tele);
+        const mouthH = shouting ? 5 : 2;
+        const mouthW = shouting ? 10 : 6;
+        ctx.fillStyle = C.mouth;
+        ctx.fillRect(hx - mouthW / 2, y + 20, mouthW, mouthH);
+        // Teeth
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(hx - mouthW / 2, y + 20, mouthW, 1);
+        if (shouting) {
+            // Tongue
+            ctx.fillStyle = '#ff5050';
+            ctx.fillRect(hx - 2, y + 22, 4, mouthH - 2);
+        }
+
+        // ---- Sweat drops ----
+        // Forehead drop (animated falling)
+        const sweatPhase = (this.behaviorTimer / 4) | 0;
+        ctx.fillStyle = '#80c8ff';
+        ctx.fillRect(x + 5,  y + 4 + (sweatPhase % 6), 1, 2);
+        ctx.fillRect(x + W - 6, y + 6 + ((sweatPhase + 2) % 5), 1, 2);
+
+        // ---- Yell text overlay ----
+        if (this.yellTimer && this.yellTimer > 0) {
+            const yt = this.yellTimer;
+            const wobble = Math.floor(Math.sin(this.behaviorTimer * 0.5) * 2);
+            drawPixelTextOutlined(ctx, this.yellText || 'YELL!',
+                hx + wobble, y - 18,
+                this.yellText === "YOU'RE FIRED!" ? '#ff5050' : '#ffe070',
+                '#1a0000', 2, 'center', 1);
+            // Sound-wave ripples
+            const ringR = (60 - yt) * 2;
+            if (ringR > 0 && ringR < 60) {
+                ctx.fillStyle = '#fff8d0';
+                for (let a = -Math.PI / 3; a <= Math.PI / 3; a += Math.PI / 12) {
+                    const rx = hx + Math.cos(a) * ringR;
+                    const ry = y + 18 + Math.sin(a) * ringR * 0.4;
+                    ctx.fillRect(Math.floor(rx), Math.floor(ry), 1, 1);
+                }
+            }
+            this.yellTimer--;
+        }
+
+        // Phone-slam afterimage / spark
+        if (this.phoneSlam && this.phoneSlam > 0) {
+            this.phoneSlam--;
+            if (this.phoneSlam < 20) {
+                // Ground crack visual under Ballmer
+                ctx.fillStyle = '#ff8030';
+                ctx.fillRect(x + 4, y + H, W - 8, 2);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(x + 6, y + H, W - 12, 1);
+            }
+        }
+
+        // Phase 2 rage rim - red pulsing border
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.25) > 0;
+            ctx.fillStyle = pulse ? '#ff3030' : '#a82020';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
         }
     }
 

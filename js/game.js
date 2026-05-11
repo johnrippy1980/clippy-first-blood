@@ -77,7 +77,8 @@ class Game {
             { number: 1, name: 'OFFICE JUNGLE',        loader: 'loadStage1', theme: 'jungle'    },
             { number: 2, name: 'BREAK ROOM RUMBLE',    loader: 'loadStage2', theme: 'breakroom' },
             { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' },
-            { number: 4, name: 'BOARDROOM FINALE',     loader: 'loadStage4', theme: 'boardroom'  }
+            { number: 4, name: 'THE BOARDROOM',         loader: 'loadStage4', theme: 'boardroom' },
+            { number: 5, name: 'THE KEYNOTE',          loader: 'loadStage5', theme: 'keynote'   }
         ];
         this.bossRushStage = { number: 'X', name: 'BOSS RUSH', loader: 'loadBossRush', theme: 'serverroom' };
         this.bossRushMode = false;

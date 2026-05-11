@@ -107,6 +107,7 @@ class ParallaxBackground {
         if (this.theme === 'breakroom') return this.drawBreakRoom(ctx, camera);
         if (this.theme === 'serverroom') return this.drawServerRoom(ctx, camera);
         if (this.theme === 'boardroom') return this.drawBoardRoom(ctx, camera);
+        if (this.theme === 'keynote') return this.drawKeynote(ctx, camera);
         this.drawSky(ctx);
         this.drawSun(ctx);
         this.drawClouds(ctx, camera);
@@ -552,6 +553,147 @@ class ParallaxBackground {
             ctx.fillRect(sx + 1, baseY - 13, 8, 8);
             ctx.fillStyle = '#5a2a18';
             ctx.fillRect(sx + 1, baseY - 13, 8, 1);
+        }
+    }
+
+    // ============================================
+    // STAGE 5 - THE KEYNOTE (developer conference stage)
+    // Giant LED screen, theater lighting, audience silhouettes,
+    // red velvet curtains framing the stage.
+    // ============================================
+    drawKeynote(ctx, camera) {
+        // Dim hall backdrop
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+
+        // Crossing spotlights from above
+        this.drawKeynoteSpotlights(ctx);
+        // Big LED screen at the back showing scrolling text
+        this.drawKeynoteScreen(ctx);
+        // Red velvet curtains framing the stage
+        this.drawKeynoteCurtains(ctx);
+        // Audience silhouettes in front of the stage
+        this.drawKeynoteAudience(ctx, camera);
+    }
+
+    drawKeynoteSpotlights(ctx) {
+        // Two crossing white spotlights from upper corners
+        ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
+        // Left cone
+        for (let y = 0; y < 160; y++) {
+            const w = Math.floor(y * 0.7);
+            ctx.fillRect(0, y, w, 1);
+        }
+        for (let y = 0; y < 160; y++) {
+            const w = Math.floor(y * 0.7);
+            ctx.fillRect(GAME.WIDTH - w, y, w, 1);
+        }
+        // Color tints sweeping (red and blue) - shifts each frame
+        const sway = Math.sin(this.time * 0.04);
+        ctx.fillStyle = 'rgba(255, 60, 60, 0.10)';
+        ctx.fillRect(40 + sway * 20, 0, 60, 140);
+        ctx.fillStyle = 'rgba(60, 120, 255, 0.10)';
+        ctx.fillRect(GAME.WIDTH - 100 - sway * 20, 0, 60, 140);
+        // Beam dots streaming down through the air (looks volumetric)
+        ctx.fillStyle = '#ffe070';
+        for (let i = 0; i < 18; i++) {
+            const x = (i * 13 + this.time) % GAME.WIDTH;
+            const y = (i * 7 + this.time * 0.5) % 140;
+            if (((i + this.time) | 0) & 3) continue;
+            ctx.fillRect(x, y, 1, 1);
+        }
+    }
+
+    drawKeynoteScreen(ctx) {
+        // Big LED screen - mounted high on the back wall
+        const sX = 28, sY = 22, sW = GAME.WIDTH - 56, sH = 80;
+        // Frame
+        ctx.fillStyle = '#1a0e1e';
+        ctx.fillRect(sX - 4, sY - 4, sW + 8, sH + 8);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(sX - 2, sY - 2, sW + 4, sH + 4);
+        // Screen body
+        ctx.fillStyle = '#0a1838';
+        ctx.fillRect(sX, sY, sW, sH);
+        // Subtle scanlines
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        for (let y = sY; y < sY + sH; y += 2) ctx.fillRect(sX, y, sW, 1);
+
+        // Big DEVELOPERS!!! text scrolling
+        const t = (this.time * 0.5) | 0;
+        const words = ['DEVELOPERS!', 'DEVELOPERS!', 'DEVELOPERS!'];
+        for (let i = 0; i < words.length; i++) {
+            const y = sY + 10 + i * 20;
+            const wob = Math.floor(Math.sin(t * 0.05 + i) * 1);
+            // Big text - drawn pixel-by-pixel via the font for crispness
+            if (typeof drawPixelTextOutlined === 'function') {
+                drawPixelTextOutlined(ctx, words[i],
+                    GAME.WIDTH / 2 + wob, y,
+                    i === 1 ? '#ffe070' : '#ff5050',
+                    '#1a0000', 2, 'center', 1);
+            }
+        }
+        // Microsoft-style 4-square logo above the text
+        const lx = sX + 8, ly = sY + 6;
+        ctx.fillStyle = '#ff5050'; ctx.fillRect(lx,     ly,     5, 5);
+        ctx.fillStyle = '#50ff70'; ctx.fillRect(lx + 6, ly,     5, 5);
+        ctx.fillStyle = '#5aa8e0'; ctx.fillRect(lx,     ly + 6, 5, 5);
+        ctx.fillStyle = '#ffd460'; ctx.fillRect(lx + 6, ly + 6, 5, 5);
+        // Stage edge / proscenium line
+        ctx.fillStyle = '#3a1f10';
+        ctx.fillRect(0, 124, GAME.WIDTH, 4);
+        ctx.fillStyle = '#806040';
+        ctx.fillRect(0, 124, GAME.WIDTH, 1);
+    }
+
+    drawKeynoteCurtains(ctx) {
+        // Red velvet curtains on both sides framing the stage
+        const fold = (sx, dir) => {
+            ctx.fillStyle = '#7a1010';
+            ctx.fillRect(sx, 0, 28, 124);
+            // Folds (vertical stripes)
+            for (let i = 0; i < 28; i += 4) {
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(sx + i, 0, 1, 124);
+                ctx.fillStyle = '#5a0808';
+                ctx.fillRect(sx + i + 2, 0, 1, 124);
+            }
+            // Top swag fringe
+            ctx.fillStyle = '#a82020';
+            for (let i = 0; i < 14; i++) {
+                ctx.fillRect(sx + i * 2, 0, 1, 4 + (i & 3));
+            }
+            // Gold trim
+            ctx.fillStyle = '#ffd460';
+            ctx.fillRect(sx + (dir > 0 ? 27 : 0), 0, 1, 124);
+        };
+        fold(0, 1);
+        fold(GAME.WIDTH - 28, -1);
+    }
+
+    drawKeynoteAudience(ctx, camera) {
+        // Audience heads as silhouettes in front of the stage at floor level
+        const baseY = 168;
+        const off = (camera.x * 0.5) | 0;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, baseY, GAME.WIDTH, 12);
+        ctx.fillStyle = '#1a1140';
+        for (let x = 4; x < GAME.WIDTH; x += 8) {
+            const sx = ((x + off) % 8) + x - (off % 8);
+            const wob = ((sx * 7 + (this.time / 20 | 0)) & 7) === 0 ? -1 : 0;
+            // Head
+            ctx.fillRect(sx,     baseY - 8 + wob, 6, 5);
+            // Shoulders
+            ctx.fillRect(sx - 1, baseY - 3 + wob, 8, 4);
+        }
+        // Glowing phones held up in the crowd
+        for (let i = 0; i < 8; i++) {
+            const x = (i * 31 + this.time * 0.2) % GAME.WIDTH;
+            const y = baseY - 4 + ((i * 7) % 3);
+            if ((i + (this.time / 30 | 0)) & 1) {
+                ctx.fillStyle = '#a8d8ff';
+                ctx.fillRect(x, y - 2, 1, 2);
+            }
         }
     }
 

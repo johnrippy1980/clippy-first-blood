@@ -545,6 +545,65 @@ class Level {
         ];
     }
 
+    // ---- Stage 5: THE KEYNOTE - Final boss BALLMER on the developer stage ----
+    loadStage5() {
+        this.theme = 'keynote';
+        this.width = 60;
+        this.height = 14;
+        this.bossArenaX = 14 * GAME.TILE_SIZE;     // boss arena starts almost immediately
+        this.endX = 59 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+        this.checkpoints = [
+            { x: 50, y: 160 }     // single checkpoint at the stage entrance
+        ];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++)
+                for (let x = x1; x <= x2; x++)
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width)
+                        this.tiles[y][x] = t;
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Stage floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+
+        // ===== Short entrance: a few speaker monitors to jump =====
+        fill(4, 11, 5, 11, TILE.PLATFORM);
+        fill(8, 10, 10, 10, TILE.PLATFORM);
+
+        // ===== Boss arena (14-58) - one big open stage =====
+        // Two speaker-monitor platforms scattered for verticality
+        fill(20, 9, 22, 9, TILE.PLATFORM);
+        fill(36, 9, 38, 9, TILE.PLATFORM);
+        fill(50, 9, 52, 9, TILE.PLATFORM);
+        // Cover spot mid-stage (a teleprompter)
+        cover(28);
+        cover(44);
+
+        // No exit door until Ballmer is dead - the player runs off the right edge
+        // after the boss arena finishes. Just a clean stage floor leads out.
+
+        // Reward pickups within the arena
+        this.pickups.push({ x: 12 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER', taken: false });
+        this.pickups.push({ x: 46 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'STAPLE_REMOVER', taken: false });
+
+        // Single boss spawn - centered
+        this.spawnPoints = [
+            { x: 30 * 16, y: 8 * 16, type: 'BALLMER' }
+        ];
+    }
+
     // ---- Boss Rush: three arenas in a row, fight all three bosses ----
     loadBossRush() {
         this.theme = 'serverroom';
@@ -733,6 +792,14 @@ class Level {
                 this.drawMarbleTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             } else {
                 this.drawHardwoodTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            }
+            return;
+        }
+        if (this.theme === 'keynote') {
+            if (isSurface) {
+                this.drawStageFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            } else {
+                this.drawStageUnderTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             }
             return;
         }
@@ -989,6 +1056,62 @@ class Level {
         if (rightEdge) { ctx.fillStyle = GOLD; ctx.fillRect(x + 15, y, 1, 16); }
     }
 
+    // Stage floor tile (Stage 5 keynote): glossy wood planks under spotlight
+    drawStageFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        const DARK   = '#1a0808';
+        const BASE   = '#3a1f10';
+        const MID    = '#5a2f1a';
+        const LIT    = '#806848';
+        const SHINE  = '#c0a070';
+        // Body
+        ctx.fillStyle = BASE;
+        ctx.fillRect(x, y, 16, 16);
+        // Plank grain noise
+        for (let py = 1; py < 15; py++) {
+            for (let px = 0; px < 16; px++) {
+                const n = (tileX * 31 + tileY * 17 + px * 11 + py * 5) & 0xff;
+                if (n < 60) { ctx.fillStyle = DARK; ctx.fillRect(x + px, y + py, 1, 1); }
+                else if (n > 220) { ctx.fillStyle = MID; ctx.fillRect(x + px, y + py, 1, 1); }
+            }
+        }
+        // Polished top reflection band
+        ctx.fillStyle = LIT;
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = SHINE;
+        for (let px = 0; px < 16; px += 3) {
+            ctx.fillRect(x + px, y + 1, 1, 1);
+        }
+        // Plank seam
+        ctx.fillStyle = DARK;
+        if ((tileX + tileY) & 1) ctx.fillRect(x, y + 8, 16, 1);
+        ctx.fillRect(x, y + 15, 16, 1);
+        // Gold trim on edges
+        if (leftEdge)  { ctx.fillStyle = '#ffd460'; ctx.fillRect(x,      y, 1, 16); }
+        if (rightEdge) { ctx.fillStyle = '#ffd460'; ctx.fillRect(x + 15, y, 1, 16); }
+    }
+
+    // Under-the-stage substrate - dark wooden truss
+    drawStageUnderTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(x, y, 16, 16);
+        // Bracing X-truss pattern
+        ctx.fillStyle = '#3a1f10';
+        for (let i = 0; i < 16; i++) {
+            ctx.fillRect(x + i, y + i, 1, 1);
+            ctx.fillRect(x + (15 - i), y + i, 1, 1);
+        }
+        // Bolt
+        const seed = (tileX * 41 + tileY * 19) & 0xff;
+        if (seed < 80) {
+            ctx.fillStyle = '#806848';
+            ctx.fillRect(x + (seed % 13) + 1, y + ((seed >> 3) % 13) + 1, 2, 2);
+            ctx.fillStyle = '#ffd460';
+            ctx.fillRect(x + (seed % 13) + 1, y + ((seed >> 3) % 13) + 1, 1, 1);
+        }
+        if (leftEdge)  { ctx.fillStyle = '#0a0612'; ctx.fillRect(x,      y, 1, 16); }
+        if (rightEdge) { ctx.fillStyle = '#0a0612'; ctx.fillRect(x + 15, y, 1, 16); }
+    }
+
     // Cable channel underneath the grating (Stage 3)
     drawCableTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
         const BG  = '#0a0a16';
@@ -1025,6 +1148,7 @@ class Level {
         if (this.theme === 'breakroom') return this.drawShelfPlatformTile(ctx, x, y);
         if (this.theme === 'serverroom') return this.drawServerShelfTile(ctx, x, y);
         if (this.theme === 'boardroom') return this.drawMarblePlatformTile(ctx, x, y);
+        if (this.theme === 'keynote') return this.drawStagePlatformTile(ctx, x, y);
         const TOP_LIT = '#d09050';
         const TOP     = '#a87040';
         const MID_LIT = '#8a5830';
@@ -1059,6 +1183,31 @@ class Level {
         ctx.fillStyle = TOP_LIT;
         ctx.fillRect(x + 1, y, 1, 1);
         ctx.fillRect(x + 14, y, 1, 1);
+    }
+
+    // Speaker monitor / equipment crate platform (Stage 5 keynote)
+    drawStagePlatformTile(ctx, x, y) {
+        // Black equipment crate with gold corner braces
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(x, y, 16, 6);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(x, y + 5, 16, 1);
+        // Vent slats
+        ctx.fillStyle = '#5a4068';
+        ctx.fillRect(x + 3, y + 2, 10, 1);
+        ctx.fillRect(x + 3, y + 4, 10, 1);
+        // Corner braces (gold)
+        ctx.fillStyle = '#ffd460';
+        ctx.fillRect(x,      y, 2, 2);
+        ctx.fillRect(x + 14, y, 2, 2);
+        ctx.fillStyle = '#a8780a';
+        ctx.fillRect(x + 1, y + 1, 1, 1);
+        ctx.fillRect(x + 14, y + 1, 1, 1);
+        // Drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(x, y + 6, 16, 2);
     }
 
     // Marble pedestal platform (Stage 4 boardroom)
