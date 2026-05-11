@@ -4477,6 +4477,11 @@ class Game {
             ctx.fillRect(bbX + 1, bbY + 1, fillW, bbH - 2);
             ctx.fillStyle = topCol;
             ctx.fillRect(bbX + 1, bbY + 1, fillW, 2);
+            // White hit flash that fades over the boss's hitFlash window
+            if (boss.hitFlash > 0) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${boss.hitFlash / 5})`;
+                ctx.fillRect(bbX + 1, bbY + 1, fillW, bbH - 2);
+            }
             // 50% phase-2 tick mark
             const halfX = bbX + Math.floor((bbW - 2) * 0.5);
             ctx.fillStyle = pct <= 0.5 ? '#ff60ff' : '#564468';
