@@ -60,6 +60,15 @@ class Enemy {
             case 'photocopier_boss':
                 this.updatePhotocopierBoss(level, player);
                 break;
+            case 'charge':
+                this.updateCharge(level, player);
+                break;
+            case 'hover_sniper':
+                this.updateHoverSniper(level, player);
+                break;
+            case 'shredder_boss':
+                this.updateShredderBoss(level, player);
+                break;
         }
 
         // Update projectiles
@@ -229,6 +238,190 @@ class Enemy {
         }
     }
 
+    // ---------- Swivel chair (Stage 2 ground threat) ----------
+    // Sits still, then when the player gets close enough on the same Y level
+    // it charges horizontally in a straight line. Bounces off walls.
+    updateCharge(level, player) {
+        this.vy += GAME.GRAVITY;
+        // Ground collision
+        if (level.isSolid(this.x + this.width / 2, this.y + this.height)) {
+            this.y = Math.floor((this.y + this.height) / GAME.TILE_SIZE) * GAME.TILE_SIZE - this.height;
+            this.vy = 0;
+            this.onGround = true;
+        } else {
+            this.onGround = false;
+        }
+
+        // State machine
+        if (!this.chargeState) this.chargeState = 'idle';
+        const sameLevel = Math.abs(player.y - this.y) < 32;
+
+        if (this.chargeState === 'idle') {
+            this.vx = 0;
+            if (sameLevel && Math.abs(player.x - this.x) < 140) {
+                this.chargeState = 'windup';
+                this.chargeTimer = 30;     // tilt back for 30 frames
+                this.facingRight = player.x > this.x;
+            }
+        } else if (this.chargeState === 'windup') {
+            this.vx = 0;
+            this.chargeTimer--;
+            if (this.chargeTimer <= 0) {
+                this.chargeState = 'charging';
+                this.chargeTimer = 90;     // charge for up to 1.5s
+            }
+        } else if (this.chargeState === 'charging') {
+            this.vx = (this.facingRight ? 1 : -1) * 4;
+            this.chargeTimer--;
+            // Stop if hitting a wall
+            const ahead = this.facingRight ? this.x + this.width + 2 : this.x - 2;
+            if (level.isSolid(ahead, this.y + this.height / 2) || this.chargeTimer <= 0) {
+                this.chargeState = 'recover';
+                this.chargeTimer = 45;
+                this.vx *= 0.3;
+                if (typeof particles !== 'undefined' && this.onGround) {
+                    particles.landDust(this.x + this.width / 2, this.y + this.height);
+                }
+            }
+        } else if (this.chargeState === 'recover') {
+            this.vx *= 0.85;
+            this.chargeTimer--;
+            if (this.chargeTimer <= 0) this.chargeState = 'idle';
+        }
+
+        this.x += this.vx;
+    }
+
+    // ---------- Highlighter (Stage 2 aerial sniper) ----------
+    // Hovers at a fixed altitude, drifts toward the player's column, and
+    // periodically fires a long laser beam straight down.
+    updateHoverSniper(level, player) {
+        if (this.hoverY === undefined) this.hoverY = this.y;
+        // Bob up and down sinusoidally
+        this.y = this.hoverY + Math.sin(this.behaviorTimer * 0.06) * 4;
+        // Drift toward the player horizontally
+        const dx = player.x - this.x;
+        const dir = Math.sign(dx);
+        this.vx = dir * this.speed;
+        this.x += this.vx;
+        this.facingRight = dir > 0;
+
+        // Fire beam when roughly above the player
+        if (Math.abs(dx) < 18 && this.fireTimer === 0) {
+            // Telegraph: brief delay before firing
+            if (this.sniperTelegraph === undefined) this.sniperTelegraph = 30;
+            if (this.sniperTelegraph > 0) {
+                this.sniperTelegraph--;
+                if (this.sniperTelegraph === 0) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height,
+                        vx: 0, vy: 6,
+                        damage: this.damage,
+                        life: 40,
+                        type: 'beam'
+                    });
+                    this.fireTimer = 80;
+                    if (typeof audio !== 'undefined') audio.sfxShoot();
+                }
+            }
+        } else {
+            this.sniperTelegraph = undefined;
+        }
+    }
+
+    // ---------- Mega-Shredder boss (Stage 3) ----------
+    // A massive paper shredder with rotating teeth. Fires saw-blade projectiles
+    // that curve through the air, plus confetti sprays and a paper geyser.
+    updateShredderBoss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 65 : 95;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 4 : 3);
+
+        // Telegraph - the teeth spin faster
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 14) this.attackTelegraph = pattern;
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+
+        const dx = player.x - this.x;
+
+        switch (pattern) {
+            case 0: {
+                // Confetti spray - many fast tiny shards in a fan
+                for (let i = 0; i < 7; i++) {
+                    const a = -Math.PI * 0.7 + (i / 6) * Math.PI * 0.4;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 2,
+                        vx: Math.cos(a) * 4,
+                        vy: Math.sin(a) * 4,
+                        gravity: 0.1,
+                        damage: this.damage * 0.4,
+                        life: 70,
+                        type: 'confetti'
+                    });
+                }
+                break;
+            }
+            case 1: {
+                // Saw-blade boomerang - curves through the air
+                const dir = dx > 0 ? 1 : -1;
+                this.facingRight = dx > 0;
+                this.bullets.push({
+                    x: this.x + this.width / 2,
+                    y: this.y + this.height / 2,
+                    vx: dir * 3.2,
+                    vy: -1.5,
+                    gravity: 0.06,
+                    damage: this.damage,
+                    life: 120,
+                    type: 'blade',
+                    spin: 0
+                });
+                if (typeof audio !== 'undefined') audio.sfxShoot();
+                break;
+            }
+            case 2: {
+                // Vertical paper geyser - 6 projectiles shooting straight up then falling
+                for (let i = 0; i < 6; i++) {
+                    this.bullets.push({
+                        x: this.x + 6 + i * 6,
+                        y: this.y,
+                        vx: (i - 2.5) * 0.4,
+                        vy: -7,
+                        gravity: 0.2,
+                        damage: this.damage * 0.7,
+                        life: 140,
+                        type: 'confetti'
+                    });
+                }
+                break;
+            }
+            case 3: {
+                // Phase 2 - triple blade volley
+                const dir = dx > 0 ? 1 : -1;
+                for (let i = 0; i < 3; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 6 + i * 10,
+                        vx: dir * (3 + i * 0.4),
+                        vy: -1 + i * 0.6,
+                        gravity: 0.08,
+                        damage: this.damage * 0.9,
+                        life: 110,
+                        type: 'blade',
+                        spin: i
+                    });
+                }
+                if (typeof game !== 'undefined' && game.shake) game.shake(2, 4);
+                break;
+            }
+        }
+    }
+
     // ---------- Copier 3000 boss ----------
     // Theme: a photocopier that has had enough. Phase 1 cycles paper-jam,
     // scanner sweep, and toner cloud attacks; phase 2 adds chaos jam.
@@ -353,6 +546,7 @@ class Enemy {
             bullet.x += bullet.vx;
             bullet.y += bullet.vy;
             if (bullet.gravity) bullet.vy += bullet.gravity;
+            if (bullet.spin !== undefined) bullet.spin += 0.5;
             bullet.life--;
 
             if (bullet.life <= 0 || level.isSolid(bullet.x, bullet.y)) {
@@ -365,7 +559,9 @@ class Enemy {
     }
 
     isBoss() {
-        return this.behavior === 'miniboss' || this.behavior === 'photocopier_boss';
+        return this.behavior === 'miniboss' ||
+               this.behavior === 'photocopier_boss' ||
+               this.behavior === 'shredder_boss';
     }
 
     takeDamage(amount) {
@@ -428,16 +624,72 @@ class Enemy {
             case 'stationary':       this.drawTapeDispenserSNES(ctx, screenX, screenY, flash); break;
             case 'miniboss':         this.drawFileCabinetSNES(ctx, screenX, screenY, flash); break;
             case 'photocopier_boss': this.drawCopierSNES(ctx, screenX, screenY, flash); break;
+            case 'charge':           this.drawSwivelChairSNES(ctx, screenX, screenY, flash); break;
+            case 'hover_sniper':     this.drawHighlighterSNES(ctx, screenX, screenY, flash); break;
+            case 'shredder_boss':    this.drawShredderSNES(ctx, screenX, screenY, flash); break;
             default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
 
-        // Enemy bullets with glow trail
+        // Enemy bullets - distinct visuals per projectile type
         this.bullets.forEach(bullet => {
             const bx = Math.floor(bullet.x - camera.x);
             const by = Math.floor(bullet.y - camera.y);
             const col = this.getBulletColor(bullet.type);
-            // Trail
+
+            if (bullet.type === 'blade') {
+                // Rotating saw blade
+                const s = bullet.spin || 0;
+                const t = Math.floor(s) & 3;
+                ctx.fillStyle = '#1a1a22';
+                ctx.fillRect(bx - 4, by - 4, 8, 8);
+                ctx.fillStyle = '#c0c8d0';
+                // Sawtooth pattern shifts each frame
+                if (t === 0)      { ctx.fillRect(bx - 5, by - 1, 10, 2); ctx.fillRect(bx - 1, by - 5, 2, 10); }
+                else if (t === 1) { ctx.fillRect(bx - 4, by - 4, 8, 1); ctx.fillRect(bx - 4, by + 3, 8, 1); ctx.fillRect(bx - 4, by - 4, 1, 8); ctx.fillRect(bx + 3, by - 4, 1, 8); }
+                else if (t === 2) { ctx.fillRect(bx - 5, by - 1, 10, 2); ctx.fillRect(bx - 1, by - 5, 2, 10); }
+                else              { ctx.fillRect(bx - 4, by - 4, 8, 1); ctx.fillRect(bx - 4, by + 3, 8, 1); ctx.fillRect(bx - 4, by - 4, 1, 8); ctx.fillRect(bx + 3, by - 4, 1, 8); }
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(bx - 1, by - 1, 2, 2);
+                return;
+            }
+            if (bullet.type === 'confetti') {
+                // Tiny shred of paper, color varies per bullet
+                const seed = (bullet.life & 7);
+                ctx.fillStyle = seed < 3 ? '#fff8d0' : (seed < 5 ? '#ffd070' : '#ff8030');
+                ctx.fillRect(bx - 1, by - 1, 2, 2);
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(bx, by, 1, 1);
+                return;
+            }
+            if (bullet.type === 'beam') {
+                // Vertical highlighter beam - tall yellow streak
+                ctx.fillStyle = 'rgba(255,255,64,0.35)';
+                ctx.fillRect(bx - 2, by - 8, 4, 14);
+                ctx.fillStyle = col;
+                ctx.fillRect(bx - 1, by - 8, 2, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(bx, by - 8, 1, 12);
+                return;
+            }
+            if (bullet.type === 'toner') {
+                // Dark cloud, soft edge
+                ctx.fillStyle = col;
+                ctx.fillRect(bx - 2, by - 2, 5, 5);
+                ctx.fillStyle = '#5a4060';
+                ctx.fillRect(bx - 1, by - 1, 3, 3);
+                return;
+            }
+            if (bullet.type === 'paper') {
+                // White paper sheet
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(bx - 3, by - 2, 6, 4);
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(bx - 3, by - 2, 6, 1);
+                ctx.fillRect(bx - 3, by + 1, 6, 1);
+                return;
+            }
+            // Default: trail + warm core
             ctx.fillStyle = col;
             ctx.globalAlpha = 0.35;
             ctx.fillRect(bx - 4, by - 1, 4, 2);
@@ -798,7 +1050,137 @@ class Enemy {
             case 'paper': return '#fff8d0';
             case 'scanner': return '#80ffe0';
             case 'toner': return '#3a2030';
+            case 'beam': return '#ffff40';
+            case 'blade': return '#c0c8d0';
+            case 'confetti': return '#fff8d0';
             default: return '#f00';
+        }
+    }
+
+    // Mega-Shredder boss for Stage 3
+    drawShredderSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) x += (Math.floor(this.behaviorTimer / 2) % 2) * 2 - 1;
+
+        const phase2 = this.health / this.maxHealth <= 0.5;
+
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', bodydark:'#fff',
+            mouth:'#000', teeth:'#fff', led:'#000'
+        } : {
+            outline:'#000',
+            body:'#1a1a22',
+            bodylit:'#3a3a48',
+            bodydark:'#0a0a14',
+            mouth:'#000',
+            teeth:'#a8a8c0',
+            led: phase2 ? '#ff3030' : '#50ff70'
+        };
+
+        // Drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x - 1, y + H, W + 2, 2);
+
+        // Main body
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x, y + 6, W, H - 6);
+        // Top highlight bar
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(x, y + 6, W, 2);
+        ctx.fillRect(x, y + 6, 1, H - 6);
+        // Bottom shadow
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(x, y + H - 2, W, 2);
+        ctx.fillRect(x + W - 1, y + 6, 1, H - 6);
+
+        // Slot at the top (where paper goes in) - wider than the copier's
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 2, y, W - 4, 6);
+        ctx.fillStyle = C.mouth;
+        ctx.fillRect(x + 4, y + 1, W - 8, 4);
+
+        // Rotating teeth in the slot
+        const spin = Math.floor((this.behaviorTimer + (tele ? this.behaviorTimer : 0)) / (tele ? 1 : 2)) & 3;
+        ctx.fillStyle = C.teeth;
+        for (let i = 0; i < (W - 8) / 4; i++) {
+            const tx = x + 5 + i * 4;
+            const ty = y + 2;
+            if ((i + spin) & 1) {
+                ctx.fillRect(tx,     ty,     2, 1);
+                ctx.fillRect(tx + 1, ty + 1, 2, 1);
+                ctx.fillRect(tx + 2, ty + 2, 2, 1);
+            } else {
+                ctx.fillRect(tx + 2, ty,     2, 1);
+                ctx.fillRect(tx + 1, ty + 1, 2, 1);
+                ctx.fillRect(tx,     ty + 2, 2, 1);
+            }
+        }
+
+        // Side fan grilles
+        ctx.fillStyle = C.bodylit;
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(x + 2, y + 14 + i * 4, 4, 1);
+            ctx.fillRect(x + W - 6, y + 14 + i * 4, 4, 1);
+        }
+
+        // Control panel in the lower middle
+        const pX = x + 8, pY = y + 18;
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(pX, pY, W - 16, H - 24);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(pX, pY, W - 16, 1);
+        // Status LEDs
+        for (let i = 0; i < 3; i++) {
+            const lit = (Math.floor(Date.now() / 200) + i) & 1;
+            ctx.fillStyle = lit ? C.led : '#0a1a0a';
+            ctx.fillRect(pX + 2 + i * 6, pY + 2, 4, 4);
+            if (lit) {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(pX + 3 + i * 6, pY + 2, 1, 1);
+            }
+        }
+        // Warning sticker
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(pX + W - 26, pY + 1, 6, 6);
+        ctx.fillStyle = '#1a0e1e';
+        ctx.fillRect(pX + W - 24, pY + 2, 2, 3);
+        ctx.fillRect(pX + W - 24, pY + 6, 2, 1);
+
+        // Confetti pile at the base
+        ctx.fillStyle = '#fff8d0';
+        ctx.fillRect(x + 4, y + H - 4, W - 8, 2);
+        ctx.fillStyle = '#ffd070';
+        ctx.fillRect(x + 6, y + H - 3, 2, 1);
+        ctx.fillRect(x + W - 10, y + H - 3, 2, 1);
+
+        // Outer outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, y + 6, W, 1);
+        ctx.fillRect(x, y + H - 1, W, 1);
+        ctx.fillRect(x, y + 6, 1, H - 6);
+        ctx.fillRect(x + W - 1, y + 6, 1, H - 6);
+
+        // Phase 2 - extra spin and rim
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.2) > 0;
+            ctx.fillStyle = pulse ? '#ff3030' : '#a82020';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
+            // Smoke from the slot
+            if (this.behaviorTimer % 6 === 0 && typeof particles !== 'undefined') {
+                particles.spawn({
+                    x: x + W / 2 + (Math.random() - 0.5) * 8,
+                    y: y - 1,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: -0.5,
+                    life: 22,
+                    size: 2,
+                    colors: ['#3a3a48', '#1a1a22', '#0a0a14']
+                });
+            }
         }
     }
 
@@ -942,6 +1324,148 @@ class Enemy {
                 });
             }
         }
+    }
+
+    // Swivel chair charger (Stage 2)
+    drawSwivelChairSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', bodydark:'#fff',
+            wheel:'#000', metal:'#fff', metallit:'#fff'
+        } : {
+            outline:'#1a0e1e',
+            body:'#3a2855',
+            bodylit:'#7a608c',
+            bodydark:'#1a1140',
+            wheel:'#0a0612',
+            metal:'#a8a8c0',
+            metallit:'#e0d8e8'
+        };
+
+        // Wheels at the bottom (5-wheel base shown as 2 visible wheels)
+        ctx.fillStyle = C.wheel;
+        ctx.fillRect(x + 2, y + H - 4, 4, 4);
+        ctx.fillRect(x + W - 6, y + H - 4, 4, 4);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 2, y + H - 1, 4, 1);
+        ctx.fillRect(x + W - 6, y + H - 1, 4, 1);
+
+        // Vertical post (gas cylinder)
+        ctx.fillStyle = C.metal;
+        ctx.fillRect(x + W / 2 - 1, y + 12, 2, H - 14);
+        ctx.fillStyle = C.metallit;
+        ctx.fillRect(x + W / 2 - 1, y + 12, 1, H - 14);
+
+        // Base spokes
+        ctx.fillStyle = C.metal;
+        ctx.fillRect(x + 4, y + H - 6, W - 8, 2);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 4, y + H - 4, W - 8, 1);
+
+        // Seat (the cushion - tilted during windup, level otherwise)
+        const tilt = this.chargeState === 'windup' ? (this.facingRight ? -1 : 1) : 0;
+        // Cushion
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x + 2, y + 8 + tilt, W - 4, 6);
+        // Highlight
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(x + 2, y + 8 + tilt, W - 4, 2);
+        // Shadow
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(x + 2, y + 12 + tilt, W - 4, 2);
+        // Outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 1, y + 8 + tilt, W - 2, 1);
+        ctx.fillRect(x + 1, y + 14 + tilt, W - 2, 1);
+        ctx.fillRect(x + 1, y + 8 + tilt, 1, 7);
+        ctx.fillRect(x + W - 2, y + 8 + tilt, 1, 7);
+
+        // Backrest (vertical, tilted)
+        const bx = this.facingRight ? x + W - 5 : x + 2;
+        const btilt = this.chargeState === 'charging' ? (this.facingRight ? -2 : 2) : 0;
+        ctx.fillStyle = C.body;
+        ctx.fillRect(bx + btilt, y + 1, 3, 10);
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(bx + btilt, y + 1, 1, 10);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(bx + btilt, y, 3, 1);
+        ctx.fillRect(bx + btilt + 2, y + 1, 1, 9);
+
+        // Angry eyes on the backrest (so it has personality)
+        if (this.chargeState === 'charging' || this.chargeState === 'windup') {
+            ctx.fillStyle = '#ff3030';
+            ctx.fillRect(bx + btilt, y + 4, 2, 2);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx + btilt, y + 4, 1, 1);
+        }
+
+        // Charge-state dust motion lines
+        if (this.chargeState === 'charging' && this.behaviorTimer % 4 === 0) {
+            ctx.fillStyle = '#d8d4c4';
+            const trail = this.facingRight ? x - 2 : x + W + 1;
+            ctx.fillRect(trail, y + H - 6, 3, 1);
+            ctx.fillRect(trail, y + H - 3, 3, 1);
+        }
+    }
+
+    // Highlighter (Stage 2 hovering sniper)
+    drawHighlighterSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', cap:'#fff',
+            tip:'#fff', tiplit:'#fff', wing:'#fff'
+        } : {
+            outline:'#1a0e1e',
+            body:'#ffe070',     // Classic highlighter yellow
+            bodylit:'#fff8c0',
+            cap:'#1a0e1e',
+            tip:'#3a3030',
+            tiplit:'#ffffff',
+            wing:'#fff8c0'
+        };
+
+        // Body (horizontal capsule)
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x + 3, y + 3, W - 6, H - 5);
+        // Highlight
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(x + 3, y + 3, W - 6, 1);
+        // Outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 3, y + 2, W - 6, 1);
+        ctx.fillRect(x + 3, y + H - 2, W - 6, 1);
+        ctx.fillRect(x + 3, y + 3, 1, H - 5);
+
+        // Cap (left side)
+        ctx.fillStyle = C.cap;
+        ctx.fillRect(x, y + 3, 4, H - 5);
+        ctx.fillStyle = '#3a3a48';
+        ctx.fillRect(x + 1, y + 4, 2, 1);
+
+        // Tip (right side - the chisel point)
+        ctx.fillStyle = C.tip;
+        ctx.fillRect(x + W - 3, y + 4, 3, H - 7);
+        ctx.fillStyle = C.tiplit;
+        ctx.fillRect(x + W - 3, y + 4, 1, 1);
+        // Tip glow when about to fire
+        if (this.sniperTelegraph !== undefined && this.sniperTelegraph > 0) {
+            const blink = this.sniperTelegraph & 4;
+            ctx.fillStyle = blink ? '#ffff40' : '#ff8030';
+            ctx.fillRect(x + W - 2, y + H - 3, 2, 2);
+        }
+
+        // Tiny flapping wings
+        const flap = ((this.behaviorTimer / 4) | 0) % 2;
+        ctx.fillStyle = C.wing;
+        ctx.fillRect(x + 6, y - 1 - flap, 6, 2);
+        ctx.fillRect(x + 6, y + H - 1 + flap, 6, 2);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 6, y - 2 - flap, 6, 1);
+        ctx.fillRect(x + 6, y + H + flap, 6, 1);
+
+        // Brand label band
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 6, y + H - 5, W - 10, 1);
     }
 
     drawStapler(ctx, x, y) {

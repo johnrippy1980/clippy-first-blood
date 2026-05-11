@@ -178,6 +178,39 @@ const ENEMY_TYPE = {
         behavior: 'photocopier_boss',
         projectile: 'paper',
         score: 1500
+    },
+    SWIVEL_CHAIR: {
+        name: 'Swivel Chair',
+        width: 20,
+        height: 24,
+        health: 4,
+        damage: 15,
+        speed: 1.2,
+        behavior: 'charge',
+        projectile: null,
+        score: 250
+    },
+    HIGHLIGHTER: {
+        name: 'Highlighter',
+        width: 18,
+        height: 14,
+        health: 2,
+        damage: 8,
+        speed: 0.8,
+        behavior: 'hover_sniper',
+        projectile: 'beam',
+        score: 200
+    },
+    SHREDDER: {
+        name: 'Mega-Shredder',
+        width: 40,
+        height: 44,
+        health: 32,
+        damage: 20,
+        speed: 0,
+        behavior: 'shredder_boss',
+        projectile: 'blade',
+        score: 2500
     }
 };
 

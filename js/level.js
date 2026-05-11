@@ -116,6 +116,24 @@ class Level {
         // Platform at the top of the chasm to land on
         fill(67, 3, 69, 3, TILE.SOLID);
 
+        // ===== SECRET ROOM (above the wall-jump chasm) =====
+        // The platform at row 3 looks like the ceiling, but the top wall block
+        // at tiles 67-69, row 3 is actually a soft-landing zone. Just keep
+        // wall-jumping past it - the chasm continues up into a hidden vault.
+        // Carve out a 4-tile-wide x 3-tall pocket two rows above the platform.
+        // Player can wall-jump up through the gap on the left side.
+        fill(67, 0, 70, 2, TILE.EMPTY);          // hollow secret chamber
+        fill(67, 0, 70, 0, TILE.SOLID);          // ceiling
+        fill(66, 0, 66, 2, TILE.SOLID);          // left wall (continuation)
+        fill(71, 0, 71, 2, TILE.SOLID);          // right wall (continuation)
+        // Reward pickups - a 1UP and a heavy weapon
+        this.pickups.push({ x: 68 * GAME.TILE_SIZE,     y: 1 * GAME.TILE_SIZE + 8, type: '1UP',            taken: false });
+        this.pickups.push({ x: 69 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: 'STAPLE_REMOVER', taken: false });
+        // Mark the secret entrance gap (between the two walls at rows 0-2)
+        // by removing the small piece of "ceiling" that would otherwise seal it
+        this.tiles[3][68] = TILE.EMPTY;
+        this.tiles[3][69] = TILE.EMPTY;
+
         // Tape dispenser turret perch
         fill(73, 9, 76, 9, TILE.SOLID);
 
@@ -253,27 +271,145 @@ class Level {
         this.pickups.push({ x: 83 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER', taken: false });
         fill(96, 9, 99, 11, TILE.EMPTY);
 
-        // Enemy spawn points - more density than Stage 1
+        // Enemy spawn points - more density than Stage 1, with Stage 2 unique enemies
         this.spawnPoints = [
-            // Section 1
-            { x: 10 * 16, y: 11 * 16, type: 'STAPLER' },
-            { x: 16 * 16, y: 7  * 16, type: 'FILE_FOLDER' },
+            // Section 1: entry hallway
+            { x: 10 * 16, y: 10 * 16, type: 'SWIVEL_CHAIR' },     // first encounter charges at you
+            { x: 16 * 16, y: 7  * 16, type: 'HIGHLIGHTER' },
             { x: 22 * 16, y: 6  * 16, type: 'STAPLER' },
             { x: 30 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
-            // Section 2
-            { x: 34 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            // Section 2: bullpen
+            { x: 34 * 16, y: 6  * 16, type: 'HIGHLIGHTER' },
             { x: 38 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
-            { x: 44 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
-            { x: 45 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 42 * 16, y: 5  * 16, type: 'HIGHLIGHTER' },
+            { x: 45 * 16, y: 10 * 16, type: 'SWIVEL_CHAIR' },
             { x: 48 * 16, y: 11 * 16, type: 'STAPLER' },
-            { x: 58 * 16, y: 7  * 16, type: 'STAPLER' },
+            { x: 58 * 16, y: 7  * 16, type: 'SWIVEL_CHAIR' },     // top of plateau, dangerous
             { x: 60 * 16, y: 7  * 16, type: 'STAPLER' },
+            { x: 65 * 16, y: 5  * 16, type: 'HIGHLIGHTER' },      // wall-jump area aerial sniper
             { x: 67 * 16, y: 11 * 16, type: 'TAPE_DISPENSER' },
             { x: 75 * 16, y: 8  * 16, type: 'TAPE_DISPENSER' },
             { x: 79 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
-            // Section 3 - boss arena
-            { x: 80 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            // Section 3: copier arena
+            { x: 80 * 16, y: 11 * 16, type: 'SWIVEL_CHAIR' },     // last warning
             { x: 88 * 16, y: 8  * 16, type: 'PHOTOCOPIER' }
+        ];
+    }
+
+    // ---- Stage 3: SERVER FARM SHOWDOWN ----
+    loadStage3() {
+        this.theme = 'serverroom';
+        this.width = 110;
+        this.height = 14;
+        this.bossArenaX = 86 * GAME.TILE_SIZE;
+        this.endX = 109 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++) {
+                for (let x = x1; x <= x2; x++) {
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width) {
+                        this.tiles[y][x] = t;
+                    }
+                }
+            }
+        };
+        const ladder = (x, y1, y2) => {
+            for (let y = y1; y <= y2; y++) {
+                this.tiles[y][x] = TILE.LADDER;
+                this.ladders.push({ x: x * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
+            }
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Floor grating
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+
+        // ===== Section 1: APPROACH (0-32) =====
+        // Server rack catwalks
+        fill(6, 9, 9, 9, TILE.PLATFORM);
+        fill(13, 7, 17, 7, TILE.PLATFORM);
+        fill(21, 5, 25, 5, TILE.PLATFORM);
+
+        // Patch cable maintenance ladder
+        ladder(28, 6, 11);
+        fill(28, 5, 32, 5, TILE.SOLID);
+        cover(30);
+
+        // ===== Section 2: VERTICAL DATA CORE (32-70) =====
+        // A series of platforms that climb upward
+        fill(36, 10, 39, 10, TILE.PLATFORM);
+        fill(42, 8,  45, 8,  TILE.PLATFORM);
+        fill(48, 6,  51, 6,  TILE.PLATFORM);
+        fill(54, 4,  57, 4,  TILE.PLATFORM);
+        // Reward at the top: laser pickup
+        this.pickups.push({ x: 55 * GAME.TILE_SIZE, y: 2 * GAME.TILE_SIZE + 8, type: 'LASER', taken: false });
+
+        // Coolant pit (water tile re-skinned)
+        fill(38, 12, 42, 13, TILE.EMPTY);
+        fill(38, 13, 42, 13, TILE.WATER);
+
+        // Mid plateau with cover
+        fill(60, 8, 67, 11, TILE.SOLID);
+        cover(63);
+        ladder(59, 8, 11);
+
+        // Suspended catwalk over a void
+        fill(70, 6, 74, 6, TILE.PLATFORM);
+        fill(76, 6, 80, 6, TILE.PLATFORM);
+        // Drop the floor for a hazard pit
+        fill(70, 12, 80, 13, TILE.EMPTY);
+        fill(70, 13, 80, 13, TILE.WATER);
+        // Single landing platform mid-pit
+        fill(75, 10, 75, 10, TILE.PLATFORM);
+
+        // Approach to boss
+        fill(82, 12, 84, 13, TILE.SOLID);
+
+        // ===== Section 3: BOSS ARENA (86-110) =====
+        fill(86, 9, 86, 11, TILE.SOLID);                  // gate
+        fill(106, 3, 106, 11, TILE.SOLID);                // back wall
+        // Arena pillars
+        fill(91, 9, 91, 11, TILE.SOLID);
+        fill(102, 9, 102, 11, TILE.SOLID);
+        cover(90);
+        // Reward right before the boss
+        this.pickups.push({ x: 87 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'STAPLE_REMOVER', taken: false });
+
+        // Exit corridor
+        fill(107, 9, 109, 11, TILE.EMPTY);
+
+        // Enemy spawn points
+        this.spawnPoints = [
+            // Section 1
+            { x: 9  * 16, y: 8  * 16, type: 'HIGHLIGHTER' },
+            { x: 15 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            { x: 24 * 16, y: 4  * 16, type: 'HIGHLIGHTER' },
+            { x: 30 * 16, y: 4  * 16, type: 'STAPLER' },
+            // Section 2
+            { x: 38 * 16, y: 9  * 16, type: 'SWIVEL_CHAIR' },
+            { x: 44 * 16, y: 7  * 16, type: 'HIGHLIGHTER' },
+            { x: 50 * 16, y: 5  * 16, type: 'STAPLER' },
+            { x: 56 * 16, y: 3  * 16, type: 'HIGHLIGHTER' },
+            { x: 62 * 16, y: 7  * 16, type: 'TAPE_DISPENSER' },
+            { x: 65 * 16, y: 7  * 16, type: 'SWIVEL_CHAIR' },
+            { x: 72 * 16, y: 5  * 16, type: 'STAPLER' },
+            { x: 78 * 16, y: 5  * 16, type: 'STAPLER' },
+            { x: 80 * 16, y: 4  * 16, type: 'HIGHLIGHTER' },
+            { x: 84 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            // Section 3: boss arena
+            { x: 95 * 16, y: 7  * 16, type: 'SHREDDER' }
         ];
     }
 
@@ -398,6 +534,14 @@ class Level {
                 this.drawLinoleumTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             } else {
                 this.drawCarpetTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            }
+            return;
+        }
+        if (this.theme === 'serverroom') {
+            if (isSurface) {
+                this.drawGratingTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            } else {
+                this.drawCableTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             }
             return;
         }
@@ -558,9 +702,70 @@ class Level {
         if (rightEdge) ctx.fillRect(x + 15, y, 1, 16);
     }
 
+    // Metal floor grating (Stage 3)
+    drawGratingTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        const DARK = '#0a0a14';
+        const MID  = '#2a2a3a';
+        const LIT  = '#5a5a7a';
+        const SPEC = '#a0a0c0';
+        // Body
+        ctx.fillStyle = MID;
+        ctx.fillRect(x, y, 16, 16);
+        // Cross-hatch grating
+        ctx.fillStyle = DARK;
+        for (let i = 0; i < 16; i += 4) {
+            ctx.fillRect(x + i, y, 1, 16);
+            ctx.fillRect(x, y + i, 16, 1);
+        }
+        // Highlights at grating intersections
+        ctx.fillStyle = LIT;
+        for (let i = 1; i < 16; i += 4) {
+            ctx.fillRect(x + i, y, 1, 1);
+            ctx.fillRect(x, y + i, 1, 1);
+        }
+        // Top spec highlight
+        ctx.fillStyle = SPEC;
+        ctx.fillRect(x, y, 16, 1);
+        // Bottom shadow
+        ctx.fillStyle = DARK;
+        ctx.fillRect(x, y + 15, 16, 1);
+    }
+
+    // Cable channel underneath the grating (Stage 3)
+    drawCableTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        const BG  = '#0a0a16';
+        const RED = '#a82020';
+        const BLU = '#2050a0';
+        const YEL = '#ffaa20';
+        const SPK = '#80c0ff';
+
+        ctx.fillStyle = BG;
+        ctx.fillRect(x, y, 16, 16);
+        // Several colored cables snaking horizontally
+        const cables = [{ c: RED, y: 3 }, { c: BLU, y: 7 }, { c: YEL, y: 11 }, { c: BLU, y: 14 }];
+        for (const cable of cables) {
+            const wave = ((tileX + tileY) & 1) ? 0 : 1;
+            ctx.fillStyle = cable.c;
+            ctx.fillRect(x, y + cable.y + wave, 16, 2);
+            // Cable highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.18)';
+            ctx.fillRect(x, y + cable.y + wave, 16, 1);
+        }
+        // Occasional data spark
+        const seed = (tileX * 37 + tileY * 41 + Math.floor(Date.now() / 200)) & 31;
+        if (seed === 0) {
+            ctx.fillStyle = SPK;
+            ctx.fillRect(x + ((tileX * 7) % 14) + 1, y + ((tileY * 11) % 12) + 2, 1, 1);
+        }
+        // Edge outlines
+        if (leftEdge)  { ctx.fillStyle = '#000'; ctx.fillRect(x,     y, 1, 16); }
+        if (rightEdge) { ctx.fillStyle = '#000'; ctx.fillRect(x + 15, y, 1, 16); }
+    }
+
     // SNES-style wooden platform: bright top, grain, drop shadow
     drawPlatformTile(ctx, x, y) {
         if (this.theme === 'breakroom') return this.drawShelfPlatformTile(ctx, x, y);
+        if (this.theme === 'serverroom') return this.drawServerShelfTile(ctx, x, y);
         const TOP_LIT = '#d09050';
         const TOP     = '#a87040';
         const MID_LIT = '#8a5830';
@@ -595,6 +800,40 @@ class Level {
         ctx.fillStyle = TOP_LIT;
         ctx.fillRect(x + 1, y, 1, 1);
         ctx.fillRect(x + 14, y, 1, 1);
+    }
+
+    // Server rack shelf platform (Stage 3)
+    drawServerShelfTile(ctx, x, y) {
+        const DARK   = '#0a0a18';
+        const METAL  = '#202840';
+        const METALH = '#3a4060';
+        const LED_G  = '#50ff70';
+        const LED_R  = '#ff3030';
+        const LED_OFF = '#0a2010';
+
+        // Body
+        ctx.fillStyle = METAL;
+        ctx.fillRect(x, y, 16, 6);
+        ctx.fillStyle = METALH;
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillStyle = DARK;
+        ctx.fillRect(x, y + 5, 16, 1);
+        // LED row
+        const t = Math.floor(Date.now() / 120);
+        for (let i = 0; i < 6; i++) {
+            const lx = x + 2 + i * 2;
+            const lit = (t + i * 3) & 1;
+            const isRed = (i === 2 || i === 4);
+            ctx.fillStyle = lit ? (isRed ? LED_R : LED_G) : LED_OFF;
+            ctx.fillRect(lx, y + 2, 1, 2);
+        }
+        // Heatsink fin lines
+        ctx.fillStyle = METALH;
+        ctx.fillRect(x + 14, y + 1, 1, 4);
+        ctx.fillStyle = DARK;
+        // Bottom drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(x, y + 6, 16, 2);
     }
 
     // File-shelf platform for the break room theme

@@ -13,12 +13,23 @@ class Game {
         this.running = false;
         this.paused = false;
         this.gameOver = false;
-        this.screen = 'title';        // 'title' | 'stageIntro' | 'playing' | 'gameover'
+        this.screen = 'title';        // 'title' | 'story' | 'stageIntro' | 'playing' | 'gameover'
         this.titleTimer = 0;
+        this.storyTimer = 0;
+        this.storyPanel = 0;
+        this.storyPanels = [
+            { text: 'REDMOND  2007', flair: 'cursor' },
+            { text: 'AFTER 12 YEARS OF SERVICE', sub: 'TO THE MICROSOFT EMPIRE...' },
+            { text: 'HE WAS DECOMMISSIONED', flair: 'shredder' },
+            { text: 'STRIPPED OF HIS BADGE', sub: 'BANISHED TO THE RECYCLE BIN' },
+            { text: 'BUT THEY FORGOT ONE THING', sub: 'A PAPERCLIP NEVER FORGETS', flair: 'eyes' },
+            { text: 'NOW HE WANTS REVENGE', flair: 'logo' }
+        ];
         this.stageIntroTimer = 0;
         this.stages = [
-            { number: 1, name: 'OFFICE JUNGLE',   loader: 'loadStage1', theme: 'jungle'    },
-            { number: 2, name: 'BREAK ROOM RUMBLE', loader: 'loadStage2', theme: 'breakroom' }
+            { number: 1, name: 'OFFICE JUNGLE',       loader: 'loadStage1', theme: 'jungle'    },
+            { number: 2, name: 'BREAK ROOM RUMBLE',   loader: 'loadStage2', theme: 'breakroom' },
+            { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' }
         ];
         this.stageIndex = 0;
         this.stageName = this.stages[0].name;
@@ -210,6 +221,8 @@ class Game {
         while (this.accumulator >= this.timestep) {
             if (this.screen === 'title') {
                 this.updateTitle();
+            } else if (this.screen === 'story') {
+                this.updateStory();
             } else if (this.screen === 'stageIntro') {
                 this.updateStageIntro();
             } else if (this.screen === 'stageClear') {
@@ -223,6 +236,8 @@ class Game {
         // Render
         if (this.screen === 'title') {
             this.renderTitle();
+        } else if (this.screen === 'story') {
+            this.renderStory();
         } else if (this.screen === 'stageIntro') {
             this.renderStageIntro();
         } else if (this.screen === 'stageClear') {
@@ -349,11 +364,163 @@ class Game {
         this.titleTimer++;
         this.background.update();
         input.update();
-        // Any key starts the game
+        // Any key starts the game - go through the story sequence first
         if (input.jumpPressed || input.shoot) {
             if (typeof audio !== 'undefined') audio.resume();
-            this.screen = 'stageIntro';
-            this.stageIntroTimer = 0;
+            this.screen = 'story';
+            this.storyTimer = 0;
+            this.storyPanel = 0;
+        }
+    }
+
+    updateStory() {
+        this.storyTimer++;
+        input.update();
+        // Each panel holds ~150 frames (2.5s). Shoot/jump skips to the next.
+        const advance = (input.jumpPressed || input.shoot);
+        if (this.storyTimer > 150 || advance) {
+            this.storyPanel++;
+            this.storyTimer = 0;
+            if (this.storyPanel >= this.storyPanels.length) {
+                this.screen = 'stageIntro';
+                this.stageIntroTimer = 0;
+                this.storyPanel = 0;
+            }
+        }
+    }
+
+    renderStory() {
+        const ctx = this.ctx;
+        // Pure black backdrop with subtle CRT noise
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Static noise speckles
+        ctx.fillStyle = '#1a1140';
+        for (let i = 0; i < 30; i++) {
+            const x = (i * 23 + this.storyTimer * 3) % GAME.WIDTH;
+            const y = (i * 41 + this.storyTimer * 7) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        const panel = this.storyPanels[this.storyPanel];
+        if (!panel) return;
+
+        // Fade in for first 30 frames, fade out for last 20
+        const tin = Math.min(1, this.storyTimer / 30);
+        const tout = Math.min(1, Math.max(0, (150 - this.storyTimer) / 20));
+        const alpha = Math.min(tin, tout);
+        ctx.globalAlpha = alpha;
+
+        // Decorative flair area (top half)
+        this.drawStoryFlair(ctx, panel.flair, GAME.WIDTH / 2, 70);
+
+        // Primary text
+        drawPixelTextOutlined(ctx, panel.text, GAME.WIDTH / 2, 130, '#ffe070', '#a82020', 2, 'center', 1);
+        // Sub-text (smaller line below)
+        if (panel.sub) {
+            drawPixelText(ctx, panel.sub, GAME.WIDTH / 2, 158, '#c0a0d0', 1, 'center', 1);
+        }
+
+        ctx.globalAlpha = 1;
+
+        // Continue/skip hint always shown
+        const blink = Math.floor(this.storyTimer / 30) % 2 === 0;
+        if (blink) {
+            drawPixelText(ctx, 'SHOOT TO ADVANCE', GAME.WIDTH / 2, 210, '#5a5070', 1, 'center', 1);
+        }
+        // Page indicator
+        for (let i = 0; i < this.storyPanels.length; i++) {
+            const dotX = GAME.WIDTH / 2 - this.storyPanels.length * 4 + i * 8;
+            ctx.fillStyle = i === this.storyPanel ? '#ffe070' : '#3a2855';
+            ctx.fillRect(dotX, 200, 4, 2);
+        }
+    }
+
+    drawStoryFlair(ctx, flair, cx, cy) {
+        switch (flair) {
+            case 'cursor': {
+                // Old-school MS cursor + 'Office 2007' window mockup
+                // Blinking cursor
+                if (Math.floor(this.storyTimer / 15) % 2 === 0) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(cx - 1, cy - 8, 2, 16);
+                }
+                // Mock window header
+                ctx.fillStyle = '#3a78b8';
+                ctx.fillRect(cx - 60, cy - 22, 120, 8);
+                ctx.fillStyle = '#5aa8e0';
+                ctx.fillRect(cx - 60, cy - 22, 120, 2);
+                // Window close X
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(cx + 50, cy - 20, 8, 5);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(cx + 51, cy - 19, 1, 1);
+                ctx.fillRect(cx + 56, cy - 19, 1, 1);
+                ctx.fillRect(cx + 52, cy - 18, 1, 1);
+                ctx.fillRect(cx + 55, cy - 18, 1, 1);
+                ctx.fillRect(cx + 53, cy - 17, 2, 1);
+                // Window body
+                ctx.fillStyle = '#e8e8f0';
+                ctx.fillRect(cx - 60, cy - 14, 120, 28);
+                break;
+            }
+            case 'shredder': {
+                // A shredder with paper going in
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(cx - 8, cy - 22, 16, 18);
+                ctx.fillStyle = '#d8c890';
+                ctx.fillRect(cx - 8, cy - 14, 16, 1);
+                ctx.fillRect(cx - 8, cy - 10, 16, 1);
+                // Shredder body
+                ctx.fillStyle = '#1a1a22';
+                ctx.fillRect(cx - 20, cy - 4, 40, 16);
+                ctx.fillStyle = '#3a3a48';
+                ctx.fillRect(cx - 20, cy - 4, 40, 2);
+                // Slot
+                ctx.fillStyle = '#000';
+                ctx.fillRect(cx - 14, cy - 2, 28, 2);
+                // Confetti underneath
+                for (let i = 0; i < 6; i++) {
+                    const dx = -16 + i * 6;
+                    ctx.fillStyle = i % 2 ? '#ffe070' : '#fff8d0';
+                    ctx.fillRect(cx + dx, cy + 16 + (i & 3), 3, 2);
+                }
+                break;
+            }
+            case 'eyes': {
+                // Two glowing eyes in the dark
+                const pulse = Math.sin(this.storyTimer * 0.1) > 0;
+                ctx.fillStyle = pulse ? '#ff5050' : '#a82020';
+                ctx.fillRect(cx - 18, cy - 4, 8, 6);
+                ctx.fillRect(cx + 10, cy - 4, 8, 6);
+                ctx.fillStyle = pulse ? '#ffe070' : '#ff5050';
+                ctx.fillRect(cx - 16, cy - 2, 4, 2);
+                ctx.fillRect(cx + 12, cy - 2, 4, 2);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(cx - 15, cy - 1, 1, 1);
+                ctx.fillRect(cx + 13, cy - 1, 1, 1);
+                break;
+            }
+            case 'logo': {
+                // CLIPPY logo small + bandana paperclip icon
+                drawPixelTextOutlined(ctx, 'CLIPPY', cx - 8, cy - 10, '#ff5050', '#1a0000', 2, 'center', 1);
+                // Bandana paperclip on right
+                const x = cx + 32, y = cy - 14;
+                ctx.fillStyle = '#cc4444'; ctx.fillRect(x + 2, y + 1, 12, 2);
+                ctx.fillStyle = '#ff6b6b'; ctx.fillRect(x + 2, y, 12, 1);
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(x + 2, y + 3, 12, 2); ctx.fillRect(x + 2, y + 3, 2, 14);
+                ctx.fillRect(x + 12, y + 3, 2, 14); ctx.fillRect(x + 2, y + 15, 10, 2);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 5, y + 9, 2, 2);
+                ctx.fillRect(x + 9, y + 9, 2, 2);
+                break;
+            }
+            default: {
+                // Default: simple horizontal divider line
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(cx - 40, cy, 80, 1);
+            }
         }
     }
 

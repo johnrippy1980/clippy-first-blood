@@ -105,6 +105,7 @@ class ParallaxBackground {
     // ----- public draw -----
     draw(ctx, camera) {
         if (this.theme === 'breakroom') return this.drawBreakRoom(ctx, camera);
+        if (this.theme === 'serverroom') return this.drawServerRoom(ctx, camera);
         this.drawSky(ctx);
         this.drawSun(ctx);
         this.drawClouds(ctx, camera);
@@ -256,6 +257,99 @@ class ParallaxBackground {
             ctx.fillStyle = '#7a6048';
             ctx.fillRect(sx, baseY - 12, 24, 2);
             ctx.fillStyle = '#5a4838';
+        }
+    }
+
+    // ============================================
+    // STAGE 3 - SERVER ROOM
+    // Dark blue datacenter with server racks, blinking LEDs, cables.
+    // ============================================
+    drawServerRoom(ctx, camera) {
+        // Solid dark backdrop
+        ctx.fillStyle = '#08080f';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Distant ceiling cables glow with a deep purple
+        this.drawServerCeiling(ctx);
+        // Far server rack silhouette
+        this.drawServerRackRow(ctx, camera, 0.2, 110, 64, '#101830', '#2030a0', false);
+        // Floor glow band (cyan from data lights below)
+        ctx.fillStyle = '#1a3a55';
+        ctx.fillRect(0, 168, GAME.WIDTH, 4);
+        ctx.fillStyle = '#3a78b8';
+        ctx.fillRect(0, 168, GAME.WIDTH, 2);
+        // Near server rack silhouette - taller, brighter LEDs
+        this.drawServerRackRow(ctx, camera, 0.55, 78, 80, '#0a0e1e', '#30a0ff', true);
+    }
+
+    drawServerCeiling(ctx) {
+        // Pipe and cable trunks running along the top of the screen
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(0, 0, GAME.WIDTH, 12);
+        // Cable bundles
+        const cables = ['#3a2855', '#1a508a', '#604838'];
+        for (let i = 0; i < 3; i++) {
+            ctx.fillStyle = cables[i];
+            ctx.fillRect(0, 14 + i * 3, GAME.WIDTH, 2);
+        }
+        // Status LEDs along the top - periodic blinks
+        for (let x = 8; x < GAME.WIDTH; x += 32) {
+            const blink = (Math.floor(this.time * 0.1 + x * 0.07) & 7) === 0;
+            ctx.fillStyle = blink ? '#50ff70' : '#206030';
+            ctx.fillRect(x, 4, 2, 2);
+        }
+        // Emergency red light - slow pulse
+        const emerg = Math.sin(this.time * 0.05) > 0;
+        ctx.fillStyle = emerg ? '#ff3030' : '#3a0808';
+        ctx.fillRect(GAME.WIDTH - 24, 2, 4, 4);
+        ctx.fillStyle = emerg ? 'rgba(255,48,48,0.3)' : 'rgba(58,8,8,0)';
+        ctx.fillRect(GAME.WIDTH - 32, -8, 20, 28);
+    }
+
+    drawServerRackRow(ctx, camera, parallaxSpeed, baseY, rackH, fill, ledColor, nearLayer) {
+        // Each rack is 32 wide x rackH tall with LED columns
+        const off = ((camera.x * parallaxSpeed) | 0);
+        const rackW = 32;
+        // Continuous floor under the racks
+        ctx.fillStyle = fill;
+        ctx.fillRect(0, baseY + rackH, GAME.WIDTH, GAME.HEIGHT - baseY - rackH);
+        for (let x = -off % rackW - rackW; x < GAME.WIDTH; x += rackW) {
+            // Rack body
+            ctx.fillStyle = fill;
+            ctx.fillRect(x, baseY, rackW - 2, rackH);
+            // Top trim
+            ctx.fillStyle = nearLayer ? '#3a4060' : '#202850';
+            ctx.fillRect(x, baseY, rackW - 2, 2);
+            // Side rim shadow
+            ctx.fillStyle = '#000';
+            ctx.fillRect(x + rackW - 2, baseY, 2, rackH);
+            // LED grid - several columns of stacked blinking lights
+            const ledCols = nearLayer ? 4 : 2;
+            for (let col = 0; col < ledCols; col++) {
+                const lx = x + 4 + col * 6;
+                for (let row = 0; row < rackH / 4 - 1; row++) {
+                    // Use position-based hashing so the pattern is stable but varied
+                    const seed = (Math.floor(x / 4) * 73 + col * 41 + row * 17 + Math.floor(this.time * 0.1)) & 15;
+                    if (seed < 3) {
+                        ctx.fillStyle = ledColor;
+                        ctx.fillRect(lx, baseY + 4 + row * 4, 2, 2);
+                        if (nearLayer && seed === 0) {
+                            ctx.fillStyle = 'rgba(48,160,255,0.25)';
+                            ctx.fillRect(lx - 1, baseY + 3 + row * 4, 4, 4);
+                        }
+                    } else if (seed < 5) {
+                        ctx.fillStyle = '#206030';
+                        ctx.fillRect(lx, baseY + 4 + row * 4, 2, 2);
+                    } else if (seed === 8 && nearLayer) {
+                        ctx.fillStyle = '#ff3030';
+                        ctx.fillRect(lx, baseY + 4 + row * 4, 2, 2);
+                    }
+                }
+            }
+            // Cooling vent slits at the bottom
+            ctx.fillStyle = '#000';
+            for (let v = 0; v < 4; v++) {
+                ctx.fillRect(x + 4 + v * 6, baseY + rackH - 4, 4, 1);
+            }
         }
     }
 
