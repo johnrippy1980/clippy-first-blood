@@ -188,6 +188,7 @@ class Game {
         // Boss warning state
         this.bossWarning = 0;         // Frames remaining of the WARNING banner
         this.bossWarningShown = false;
+        this.bossPhase2FlashTimer = 0;
         // Boss intro pan
         this.bossIntroActive = false;
         this.bossIntroTimer = 0;
@@ -3622,6 +3623,7 @@ class Game {
             this.stageStartTime = Date.now();
             this.slowMoUsedThisStage = false;
             this.slowMoTimer = 0;
+            this.bossPhase2FlashTimer = 0;
             // Mark the whole-run start at Stage 1 only
             if (this.stageIndex === 0 && !this.bossRushMode) {
                 this.runStartTime = Date.now();
@@ -4493,6 +4495,20 @@ class Game {
             const halfX = bbX + Math.floor((bbW - 2) * 0.5);
             ctx.fillStyle = pct <= 0.5 ? '#ff60ff' : '#564468';
             ctx.fillRect(halfX, bbY - 2, 1, bbH + 4);
+            // Fire a PHASE 2 banner the first time the bar crosses 50%
+            if (pct <= 0.5 && !boss._phase2Flashed) {
+                boss._phase2Flashed = true;
+                this.bossPhase2FlashTimer = 60;
+                if (this.shake) this.shake(3, 12);
+            }
+            if (this.bossPhase2FlashTimer > 0) {
+                this.bossPhase2FlashTimer--;
+                const blink = (this.bossPhase2FlashTimer & 4) === 0;
+                if (blink) {
+                    drawPixelTextOutlined(ctx, 'PHASE 2',
+                        W / 2, bbY + bbH + 4, '#ff60ff', '#3a0a3a', 1, 'center', 1);
+                }
+            }
             // Boss name on the left side of the bar
             const bossName = (boss.type && boss.type.name) || 'BOSS';
             drawPixelTextOutlined(ctx, bossName.toUpperCase(),
