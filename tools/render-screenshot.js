@@ -66,7 +66,8 @@ ctx.imageSmoothingEnabled = false;
 // Build a fake game state
 const stage = parseInt(process.argv[4] || '1', 10);
 const level = new Level();
-if (stage === 3) level.loadStage3();
+if (stage === 4) level.loadStage4();
+else if (stage === 3) level.loadStage3();
 else if (stage === 2) level.loadStage2();
 else level.loadStage1();
 const player = new Player(80, 160);
@@ -74,7 +75,8 @@ const enemies = new EnemyManager();
 level.spawnPoints.forEach(s => enemies.spawn(s.x, s.y, s.type));
 pickupManager.loadFromLevel(level);
 const bg = new ParallaxBackground();
-bg.init(stage === 3 ? 'serverroom' : (stage === 2 ? 'breakroom' : 'jungle'));
+const themeMap = { 1: 'jungle', 2: 'breakroom', 3: 'serverroom', 4: 'boardroom' };
+bg.init(themeMap[stage] || 'jungle');
 
 const cameraX = parseInt(process.argv[2] || '0', 10);
 const mode = process.argv[3] || 'play';   // 'play' | 'title'

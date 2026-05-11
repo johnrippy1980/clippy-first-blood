@@ -86,6 +86,43 @@ const WEAPON = {
 };
 
 // Player physics
+// Difficulty modes - applied as multipliers/flags at stage load
+const DIFFICULTY = {
+    EASY: {
+        name: 'EASY',
+        healthMul: 1.5,           // 150 HP instead of 100
+        livesStart: 5,
+        continuesStart: 5,
+        enemyDamageMul: 0.6,
+        playerDamageMul: 1.0,
+        regenSpeed: 1.5,
+        color: '#50ff70',
+        description: 'MORE HEALTH AND LIVES'
+    },
+    NORMAL: {
+        name: 'NORMAL',
+        healthMul: 1.0,
+        livesStart: 3,
+        continuesStart: 3,
+        enemyDamageMul: 1.0,
+        playerDamageMul: 1.0,
+        regenSpeed: 1.0,
+        color: '#ffe070',
+        description: 'AS INTENDED'
+    },
+    HARD: {
+        name: 'HARD',
+        healthMul: 0.7,
+        livesStart: 2,
+        continuesStart: 1,
+        enemyDamageMul: 1.4,
+        playerDamageMul: 0.8,
+        regenSpeed: 0.5,
+        color: '#ff5050',
+        description: 'NO CHECKPOINTS'
+    }
+};
+
 const PLAYER = {
     WIDTH: 16,
     HEIGHT: 32,
@@ -211,6 +248,17 @@ const ENEMY_TYPE = {
         behavior: 'shredder_boss',
         projectile: 'blade',
         score: 2500
+    },
+    CTRL_ALT_DEL: {
+        name: 'Ctrl-Alt-Del',
+        width: 56,
+        height: 56,
+        health: 50,
+        damage: 22,
+        speed: 0,
+        behavior: 'ctrl_alt_del_boss',
+        projectile: 'data',
+        score: 5000
     }
 };
 

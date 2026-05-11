@@ -13,7 +13,12 @@ class Game {
         this.running = false;
         this.paused = false;
         this.gameOver = false;
-        this.screen = 'title';        // 'title' | 'story' | 'stageIntro' | 'playing' | 'stageClear' | 'gameComplete' | 'gameover'
+        this.screen = 'title';        // 'title' | 'story' | 'stageIntro' | 'playing' | 'stageClear' | 'gameComplete' | 'gameover' | 'initials' | 'leaderboard'
+        // Initials entry state (when qualifying for the leaderboard)
+        this.initials = ['A', 'A', 'A'];
+        this.initialsCursor = 0;
+        this.initialsTimer = 0;
+        this.initialsPending = null;       // {score, time} we will commit on confirm
         this.titleTimer = 0;
         this.storyTimer = 0;
         this.storyPanel = 0;
@@ -33,6 +38,10 @@ class Game {
 
         // Unlocked features
         this.bossRushUnlocked = false;
+        // Difficulty selection (persisted)
+        this.difficultyKeys = ['EASY', 'NORMAL', 'HARD'];
+        this.difficultyIndex = 1;
+        this.difficulty = DIFFICULTY.NORMAL;
         this.storyPanels = [
             { text: 'REDMOND  2007', flair: 'cursor' },
             { text: 'AFTER 12 YEARS OF SERVICE', sub: 'TO THE MICROSOFT EMPIRE...' },
@@ -43,9 +52,10 @@ class Game {
         ];
         this.stageIntroTimer = 0;
         this.stages = [
-            { number: 1, name: 'OFFICE JUNGLE',       loader: 'loadStage1', theme: 'jungle'    },
-            { number: 2, name: 'BREAK ROOM RUMBLE',   loader: 'loadStage2', theme: 'breakroom' },
-            { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' }
+            { number: 1, name: 'OFFICE JUNGLE',        loader: 'loadStage1', theme: 'jungle'    },
+            { number: 2, name: 'BREAK ROOM RUMBLE',    loader: 'loadStage2', theme: 'breakroom' },
+            { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' },
+            { number: 4, name: 'BOARDROOM FINALE',     loader: 'loadStage4', theme: 'boardroom'  }
         ];
         this.bossRushStage = { number: 'X', name: 'BOSS RUSH', loader: 'loadBossRush', theme: 'serverroom' };
         this.bossRushMode = false;
@@ -187,7 +197,7 @@ class Game {
         this.lives = Math.max(this.lives + 9, 9);
         if (this.player) {
             this.player.weapon = WEAPON.LASER;
-            this.player.health = PLAYER.MAX_HEALTH;
+            this.player.health = this.player.maxHealth || PLAYER.MAX_HEALTH;
         }
         if (typeof audio !== 'undefined') {
             audio.sfxPickup();
@@ -215,6 +225,8 @@ class Game {
     getCurrentCheckpoint() {
         const cps = this.level && this.level.checkpoints;
         if (!cps || cps.length === 0) return { x: 50, y: 160 };
+        // Hard mode disables checkpoints - always respawn at stage start.
+        if (this.difficulty && this.difficulty === DIFFICULTY.HARD) return cps[0];
         let best = cps[0];
         for (const cp of cps) {
             if (this.player && this.player.x >= cp.x) best = cp;
@@ -234,11 +246,26 @@ class Game {
             this.bossRushUnlocked = localStorage.getItem('clippy_first_blood_complete') === '1';
             const bestTime = localStorage.getItem('clippy_first_blood_besttime');
             this.bestRunTime = bestTime ? parseFloat(bestTime) || 0 : 0;
+            const diff = localStorage.getItem('clippy_first_blood_difficulty');
+            const dIdx = diff ? this.difficultyKeys.indexOf(diff) : -1;
+            if (dIdx >= 0) {
+                this.difficultyIndex = dIdx;
+                this.difficulty = DIFFICULTY[diff];
+            }
         } catch (e) {
             this.highScore = 0;
             this.bossRushUnlocked = false;
             this.bestRunTime = 0;
         }
+    }
+
+    setDifficulty(idx) {
+        idx = ((idx % 3) + 3) % 3;
+        this.difficultyIndex = idx;
+        const key = this.difficultyKeys[idx];
+        this.difficulty = DIFFICULTY[key];
+        try { localStorage.setItem('clippy_first_blood_difficulty', key); }
+        catch (e) {}
     }
 
     checkHighScore() {
@@ -336,6 +363,10 @@ class Game {
                 this.updateStageClear();
             } else if (this.screen === 'gameComplete') {
                 this.updateGameComplete();
+            } else if (this.screen === 'initials') {
+                this.updateInitials();
+            } else if (this.screen === 'leaderboard') {
+                this.updateLeaderboard();
             } else if (!this.paused && !this.gameOver) {
                 this.update();
             }
@@ -353,6 +384,10 @@ class Game {
             this.renderStageClear();
         } else if (this.screen === 'gameComplete') {
             this.renderGameComplete();
+        } else if (this.screen === 'initials') {
+            this.renderInitials();
+        } else if (this.screen === 'leaderboard') {
+            this.renderLeaderboard();
         } else {
             this.render();
         }
@@ -433,6 +468,154 @@ class Game {
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
+    promptInitials(score, runTime, afterCallback) {
+        this.screen = 'initials';
+        this.initials = ['A', 'A', 'A'];
+        this.initialsCursor = 0;
+        this.initialsTimer = 0;
+        this.initialsPending = { score, time: runTime || 0, after: afterCallback || null };
+        if (typeof audio !== 'undefined') audio.stopMusic();
+    }
+
+    updateInitials() {
+        this.initialsTimer++;
+        input.update();
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789. !";
+        const idx = letters.indexOf(this.initials[this.initialsCursor]);
+        if (input.keysJustPressed['ArrowUp']) {
+            this.initials[this.initialsCursor] = letters[(idx - 1 + letters.length) % letters.length];
+        }
+        if (input.keysJustPressed['ArrowDown']) {
+            this.initials[this.initialsCursor] = letters[(idx + 1) % letters.length];
+        }
+        if (input.keysJustPressed['ArrowLeft'] && this.initialsCursor > 0) this.initialsCursor--;
+        if (input.keysJustPressed['ArrowRight'] && this.initialsCursor < 2) this.initialsCursor++;
+        if (input.shoot || input.jumpPressed) {
+            // Commit the entry
+            if (this.initialsPending) {
+                this.addToLeaderboard(
+                    this.initials.join(''),
+                    this.initialsPending.score,
+                    this.initialsPending.time
+                );
+                const cb = this.initialsPending.after;
+                this.initialsPending = null;
+                if (cb) cb();
+                else { this.screen = 'leaderboard'; this.leaderboardTimer = 0; }
+            }
+        }
+    }
+
+    renderInitials() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        ctx.fillStyle = '#1a1140';
+        for (let i = 0; i < 24; i++) {
+            const x = (i * 23 + this.initialsTimer * 2) % GAME.WIDTH;
+            const y = (i * 41 + this.initialsTimer * 3) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+        drawPixelTextOutlined(ctx, 'HIGH SCORE!', GAME.WIDTH / 2, 30, '#ffe070', '#a82020', 3, 'center', 1);
+        drawPixelText(ctx, 'ENTER YOUR INITIALS', GAME.WIDTH / 2, 70, '#c0a0d0', 1, 'center', 1);
+        // Three slots, centered
+        const slotW = 24;
+        const totalW = slotW * 3;
+        const startX = GAME.WIDTH / 2 - totalW / 2;
+        for (let i = 0; i < 3; i++) {
+            const sx = startX + i * slotW;
+            const sy = 100;
+            const active = i === this.initialsCursor;
+            ctx.fillStyle = active ? '#564468' : '#1a1140';
+            ctx.fillRect(sx + 2, sy, slotW - 4, 30);
+            ctx.fillStyle = active ? '#7a608c' : '#3a2855';
+            ctx.fillRect(sx + 2, sy, slotW - 4, 2);
+            drawPixelTextOutlined(ctx, this.initials[i], sx + slotW / 2, sy + 6, active ? '#ffe070' : '#ffffff', '#1a0000', 3, 'center', 1);
+            // Up/down arrows around the active slot
+            if (active) {
+                const blink = (this.initialsTimer & 16) < 8;
+                if (blink) {
+                    ctx.fillStyle = '#ffe070';
+                    ctx.fillRect(sx + slotW / 2 - 2, sy - 6, 5, 1);
+                    ctx.fillRect(sx + slotW / 2 - 1, sy - 7, 3, 1);
+                    ctx.fillRect(sx + slotW / 2,     sy - 8, 1, 1);
+                    ctx.fillRect(sx + slotW / 2 - 2, sy + 36, 5, 1);
+                    ctx.fillRect(sx + slotW / 2 - 1, sy + 37, 3, 1);
+                    ctx.fillRect(sx + slotW / 2,     sy + 38, 1, 1);
+                }
+            }
+        }
+        // Final score
+        if (this.initialsPending) {
+            drawPixelText(ctx, 'SCORE  ' + String(this.initialsPending.score).padStart(6, '0'),
+                GAME.WIDTH / 2, 152, '#ffe070', 1, 'center', 1);
+        }
+        // Hint
+        drawPixelText(ctx, 'UP/DOWN  PICK   LEFT/RIGHT  MOVE',
+            GAME.WIDTH / 2, 188, '#a890c0', 1, 'center', 1);
+        drawPixelText(ctx, 'SHOOT  CONFIRM',
+            GAME.WIDTH / 2, 200, '#a890c0', 1, 'center', 1);
+    }
+
+    updateLeaderboard() {
+        this.leaderboardTimer = (this.leaderboardTimer || 0) + 1;
+        input.update();
+        // Shoot/jump returns to title
+        if (this.leaderboardTimer > 30 && (input.shoot || input.jumpPressed)) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+            this.score = 0;
+            this.lives = this.difficulty.livesStart;
+            this.continues = this.difficulty.continuesStart;
+            this.loadStageByIndex(0);
+            this.player = new Player(50, 160);
+        }
+    }
+
+    renderLeaderboard() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Subtle moving sparkles
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 24; i++) {
+            const x = (i * 17 + this.leaderboardTimer * 1) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        drawPixelTextOutlined(ctx, 'LEADERBOARD', GAME.WIDTH / 2, 14, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const entries = this.loadLeaderboard();
+        if (entries.length === 0) {
+            drawPixelText(ctx, 'NO ENTRIES YET', GAME.WIDTH / 2, GAME.HEIGHT / 2, '#a890c0', 1, 'center', 1);
+        } else {
+            for (let i = 0; i < entries.length; i++) {
+                const e = entries[i];
+                const y = 50 + i * 14;
+                const rankColor = i === 0 ? '#ffe070' : (i < 3 ? '#ffa030' : '#a890c0');
+                drawPixelText(ctx, String(i + 1).padStart(2, '0'),
+                    20, y, rankColor, 1, 'left', 1);
+                drawPixelText(ctx, e.name,
+                    50, y, '#ffffff', 1, 'left', 1);
+                drawPixelText(ctx, String(e.score).padStart(6, '0'),
+                    GAME.WIDTH - 60, y, '#ffe070', 1, 'right', 1);
+                // Time if available
+                if (e.time) {
+                    const mm = Math.floor(e.time / 60);
+                    const ss = Math.floor(e.time % 60);
+                    drawPixelText(ctx, `${mm}:${String(ss).padStart(2, '0')}`,
+                        GAME.WIDTH - 18, y, '#7af0ff', 1, 'right', 1);
+                }
+            }
+        }
+
+        const blink = (this.leaderboardTimer & 16) < 8;
+        if (blink && this.leaderboardTimer > 30) {
+            drawPixelText(ctx, 'SHOOT TO RETURN', GAME.WIDTH / 2, GAME.HEIGHT - 14, '#ffffff', 1, 'center', 1);
+        }
+    }
+
     updateGameComplete() {
         this.completeTimer++;
         this.background.update();
@@ -447,13 +630,12 @@ class Game {
         }
         // Skip with shoot/jump after the credits-roll has had a chance to start
         if (this.completeTimer > 60 && (input.shoot || input.jumpPressed) && this.completeTimer > this.completeSkipEarliest) {
-            // Return to title
-            this.screen = 'title';
-            this.titleTimer = 0;
-            this.score = 0;
-            this.lives = 3;
-            this.loadStageByIndex(0);
-            this.player = new Player(50, 160);
+            if (this.qualifiesForLeaderboard(this.score)) {
+                this.promptInitials(this.score, this.completeRunTime, null);
+            } else {
+                this.screen = 'leaderboard';
+                this.leaderboardTimer = 0;
+            }
         }
     }
 
@@ -675,6 +857,14 @@ class Game {
             if (typeof audio !== 'undefined') audio.resume();
             this.startBossRush();
             return;
+        }
+        // LEFT/RIGHT cycles difficulty
+        if (input.keysJustPressed['ArrowLeft']) this.setDifficulty(this.difficultyIndex - 1);
+        if (input.keysJustPressed['ArrowRight']) this.setDifficulty(this.difficultyIndex + 1);
+        // DOWN shows leaderboard
+        if (input.keysJustPressed['ArrowDown']) {
+            this.screen = 'leaderboard';
+            this.leaderboardTimer = 0;
         }
 
         // Any key starts the game - go through the story sequence first
@@ -971,13 +1161,50 @@ class Game {
         // High score
         if (this.highScore > 0) {
             drawPixelText(ctx, 'HIGH ' + String(this.highScore).padStart(6, '0'),
-                GAME.WIDTH / 2, 160, '#a890c0', 1, 'center', 1);
+                GAME.WIDTH / 2, 158, '#a890c0', 1, 'center', 1);
         }
+
+        // Difficulty selector
+        const diffY = 168;
+        drawPixelText(ctx, '<  DIFFICULTY  >', GAME.WIDTH / 2, diffY - 8, '#7a6090', 1, 'center', 1);
+        drawPixelTextOutlined(ctx, this.difficulty.name, GAME.WIDTH / 2, diffY, this.difficulty.color, '#1a0e1e', 1, 'center', 1);
 
         drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
 
-        // Controls hint at bottom
-        drawPixelText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT   M MUTE', GAME.WIDTH / 2, 212, '#a8a0c0', 1, 'center', 1);
+        // Controls hint at bottom (line 1: gameplay, line 2: title menu)
+        drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
+        drawPixelText(ctx, 'LR DIFFICULTY  DN LEADERBOARD' + (this.bossRushUnlocked ? '  UP BOSS RUSH' : ''),
+            GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
+    }
+
+    // Best-score lookups for the leaderboard - here so renderTitle can show top
+    loadLeaderboard() {
+        try {
+            const raw = localStorage.getItem('clippy_first_blood_leaderboard');
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) { return []; }
+    }
+
+    saveLeaderboard(entries) {
+        try {
+            localStorage.setItem('clippy_first_blood_leaderboard', JSON.stringify(entries));
+        } catch (e) {}
+    }
+
+    addToLeaderboard(name, score, runTime) {
+        const entries = this.loadLeaderboard();
+        entries.push({ name, score, time: runTime, date: Date.now() });
+        entries.sort((a, b) => b.score - a.score);
+        const trimmed = entries.slice(0, 10);
+        this.saveLeaderboard(trimmed);
+        return trimmed;
+    }
+
+    qualifiesForLeaderboard(score) {
+        if (score <= 0) return false;
+        const entries = this.loadLeaderboard();
+        if (entries.length < 10) return true;
+        return score > entries[entries.length - 1].score;
     }
 
     drawTitleClippyIcon(ctx, x, y) {
@@ -1286,7 +1513,7 @@ class Game {
         ctx.fillRect(hbX, hbY, hbW, hbH);
         // Health segments
         const segs = 20;
-        const pct = Math.max(0, this.player.health / PLAYER.MAX_HEALTH);
+        const pct = Math.max(0, this.player.health / (this.player.maxHealth || PLAYER.MAX_HEALTH));
         const litSegs = Math.ceil(pct * segs);
         const segW = (hbW - 2) / segs;
         for (let i = 0; i < litSegs; i++) {
@@ -1333,7 +1560,7 @@ class Game {
             this.flashText(ctx, 'IN COVER', W / 2 - 18, BAR_H + 8, '#50ff70');
         }
         if (this.player.timeSinceDamage >= PLAYER.HEALTH_REGEN_DELAY &&
-            this.player.health < PLAYER.MAX_HEALTH) {
+            this.player.health < (this.player.maxHealth || PLAYER.MAX_HEALTH)) {
             this.flashText(ctx, 'RECOVERING', 4, BAR_H + 8, '#7af0ff');
         }
 
@@ -1471,7 +1698,13 @@ class Game {
                 drawPixelText(this.ctx, 'SHOOT TO RESTART', GAME.WIDTH / 2, GAME.HEIGHT / 2 + 30, '#ffffff', 1, 'center', 1);
             }
             if (input.shoot || input.jumpPressed) {
-                this.restart();
+                // Out of continues - if score qualifies, prompt for initials first.
+                if (this.qualifiesForLeaderboard(this.score)) {
+                    const runTime = this.runStartTime > 0 ? (Date.now() - this.runStartTime) / 1000 : 0;
+                    this.promptInitials(this.score, runTime, () => this.restart());
+                } else {
+                    this.restart();
+                }
             }
         }
     }
@@ -1497,14 +1730,17 @@ class Game {
 
     restart() {
         this.score = 0;
-        this.lives = 3;
-        this.continues = 3;
+        this.lives = this.difficulty.livesStart;
+        this.continues = this.difficulty.continuesStart;
         this.gameOver = false;
         this.paused = false;
         this.screen = 'stageIntro';
         this.stageIntroTimer = 0;
         this.loadStageByIndex(0);
         this.player = new Player(50, 160);
+        // Apply difficulty health multiplier
+        this.player.maxHealth = Math.floor(PLAYER.MAX_HEALTH * this.difficulty.healthMul);
+        this.player.health = this.player.maxHealth;
     }
 }
 

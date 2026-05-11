@@ -106,6 +106,7 @@ class ParallaxBackground {
     draw(ctx, camera) {
         if (this.theme === 'breakroom') return this.drawBreakRoom(ctx, camera);
         if (this.theme === 'serverroom') return this.drawServerRoom(ctx, camera);
+        if (this.theme === 'boardroom') return this.drawBoardRoom(ctx, camera);
         this.drawSky(ctx);
         this.drawSun(ctx);
         this.drawClouds(ctx, camera);
@@ -350,6 +351,207 @@ class ParallaxBackground {
             for (let v = 0; v < 4; v++) {
                 ctx.fillRect(x + 4 + v * 6, baseY + rackH - 4, 4, 1);
             }
+        }
+    }
+
+    // ============================================
+    // STAGE 4 - EXECUTIVE BOARDROOM (CEO floor)
+    // Floor-to-ceiling windows looking out over a sunrise city skyline,
+    // gold-trimmed walls with framed certificates, mahogany conference
+    // table silhouette in foreground.
+    // ============================================
+    drawBoardRoom(ctx, camera) {
+        this.drawBoardroomSky(ctx);
+        this.drawBoardroomSkyline(ctx, camera);
+        this.drawBoardroomWindowFrame(ctx);
+        this.drawBoardroomWall(ctx);
+        this.drawBoardroomFrames(ctx, camera);
+        this.drawBoardroomTable(ctx, camera);
+    }
+
+    drawBoardroomSky(ctx) {
+        // Sunrise gradient outside the window
+        const bands = [
+            { y: 0,   c: '#1a1a4a' },
+            { y: 10,  c: '#2a2a5a' },
+            { y: 22,  c: '#4a3a78' },
+            { y: 34,  c: '#7a4a78' },
+            { y: 48,  c: '#c84a78' },
+            { y: 62,  c: '#ee8a3a' },
+            { y: 78,  c: '#f4c860' },
+            { y: 92,  c: '#fff0a8' },
+            { y: 108, c: '#ffe0a0' }
+        ];
+        for (let i = 0; i < bands.length; i++) {
+            const top = bands[i].y;
+            const bot = i < bands.length - 1 ? bands[i + 1].y : 124;
+            ctx.fillStyle = bands[i].c;
+            ctx.fillRect(0, top, GAME.WIDTH, bot - top);
+            if (i < bands.length - 1) {
+                ctx.fillStyle = bands[i + 1].c;
+                for (let x = (i & 1); x < GAME.WIDTH; x += 2) {
+                    ctx.fillRect(x, bot - 1, 1, 1);
+                }
+            }
+        }
+        // Rising sun on the right
+        const sx = 200, sy = 86, r = 14;
+        ctx.fillStyle = '#ee8a3a';
+        this.fillPixelCircle(ctx, sx, sy, r + 3, 1);
+        ctx.fillStyle = '#ffd460';
+        this.fillPixelCircle(ctx, sx, sy, r, 1);
+        ctx.fillStyle = '#fff5c0';
+        this.fillPixelCircle(ctx, sx, sy, r - 6, 1);
+    }
+
+    drawBoardroomSkyline(ctx, camera) {
+        // Distant city skyline silhouette parallaxed slowly
+        const baseY = 124;
+        const off = (camera.x * 0.15) | 0;
+        ctx.fillStyle = '#1a1140';
+        const buildings = [
+            { x: 10,  w: 30, h: 24 }, { x: 44, w: 14, h: 36 },
+            { x: 62,  w: 24, h: 18 }, { x: 90, w: 18, h: 30 },
+            { x: 112, w: 32, h: 22 }, { x: 148, w: 20, h: 28 },
+            { x: 172, w: 16, h: 38 }, { x: 192, w: 28, h: 20 },
+            { x: 224, w: 18, h: 32 }
+        ];
+        for (const b of buildings) {
+            const sx = b.x - (off % 256);
+            ctx.fillRect(sx, baseY - b.h, b.w, b.h);
+            // Window lights
+            ctx.fillStyle = '#ffd460';
+            for (let wy = 4; wy < b.h - 2; wy += 4) {
+                for (let wx = 2; wx < b.w - 2; wx += 4) {
+                    if (((b.x + wx + wy * 3) & 7) < 2) {
+                        ctx.fillRect(sx + wx, baseY - b.h + wy, 1, 1);
+                    }
+                }
+            }
+            ctx.fillStyle = '#1a1140';
+        }
+        // Faint smog/haze band
+        ctx.fillStyle = 'rgba(192, 96, 96, 0.25)';
+        ctx.fillRect(0, 118, GAME.WIDTH, 6);
+    }
+
+    drawBoardroomWindowFrame(ctx) {
+        // Window mullions - the thick mahogany frames separating sky from wall
+        const y = 124;
+        ctx.fillStyle = '#3a2410';
+        ctx.fillRect(0, y, GAME.WIDTH, 4);
+        ctx.fillStyle = '#604830';
+        ctx.fillRect(0, y, GAME.WIDTH, 2);
+        ctx.fillStyle = '#806848';
+        ctx.fillRect(0, y, GAME.WIDTH, 1);
+        // Vertical window dividers
+        ctx.fillStyle = '#3a2410';
+        for (let x = 0; x < GAME.WIDTH; x += 64) {
+            ctx.fillRect(x, 0, 3, y);
+        }
+        ctx.fillStyle = '#604830';
+        for (let x = 0; x < GAME.WIDTH; x += 64) {
+            ctx.fillRect(x, 0, 1, y);
+        }
+    }
+
+    drawBoardroomWall(ctx) {
+        // Mahogany wainscoting wall below the window frame
+        const top = 128;
+        ctx.fillStyle = '#3a1f10';
+        ctx.fillRect(0, top, GAME.WIDTH, 192 - top);
+        // Wainscoting panel divisions
+        ctx.fillStyle = '#5a2f1a';
+        ctx.fillRect(0, top + 2, GAME.WIDTH, 2);
+        ctx.fillStyle = '#2a1408';
+        ctx.fillRect(0, top + 4, GAME.WIDTH, 1);
+        // Vertical panel lines every 32 px
+        ctx.fillStyle = '#1a0e08';
+        for (let x = 0; x < GAME.WIDTH; x += 32) {
+            ctx.fillRect(x, top + 4, 1, 192 - top - 4);
+        }
+        // Gold-trim chair rail
+        ctx.fillStyle = '#ffd460';
+        ctx.fillRect(0, top + 30, GAME.WIDTH, 1);
+        ctx.fillStyle = '#a8780a';
+        ctx.fillRect(0, top + 31, GAME.WIDTH, 1);
+    }
+
+    drawBoardroomFrames(ctx, camera) {
+        // Framed certificates / awards on the wall
+        const off = (camera.x * 0.4) | 0;
+        const items = [
+            { x: 48,  w: 22, h: 18, type: 0 },
+            { x: 130, w: 30, h: 14, type: 1 },
+            { x: 200, w: 24, h: 20, type: 2 },
+            { x: 280, w: 20, h: 16, type: 0 }
+        ];
+        for (const it of items) {
+            const sx = ((it.x - off) % 320 + 320) % 320 - 40;
+            if (sx < -it.w || sx > GAME.WIDTH) continue;
+            const y = 138;
+            // Frame
+            ctx.fillStyle = '#a8780a';
+            ctx.fillRect(sx, y, it.w, it.h);
+            ctx.fillStyle = '#ffd460';
+            ctx.fillRect(sx, y, it.w, 1);
+            ctx.fillStyle = '#604010';
+            ctx.fillRect(sx, y + it.h - 1, it.w, 1);
+            // Inside paper
+            ctx.fillStyle = '#fff8d0';
+            ctx.fillRect(sx + 2, y + 2, it.w - 4, it.h - 4);
+            // Content varies by type
+            if (it.type === 0) {
+                // Certificate with seal
+                ctx.fillStyle = '#a82020';
+                ctx.fillRect(sx + 4, y + 4, it.w - 8, 1);
+                ctx.fillRect(sx + 4, y + 6, it.w - 10, 1);
+                ctx.fillRect(sx + it.w - 8, y + it.h - 6, 4, 4);
+                ctx.fillStyle = '#ffd460';
+                ctx.fillRect(sx + it.w - 7, y + it.h - 5, 2, 2);
+            } else if (it.type === 1) {
+                // Stock chart going up
+                ctx.fillStyle = '#208a30';
+                for (let i = 0; i < (it.w - 6); i++) {
+                    const hh = Math.max(1, Math.floor(i / 3));
+                    ctx.fillRect(sx + 3 + i, y + it.h - 3 - hh, 1, hh);
+                }
+            } else {
+                // CEO portrait
+                ctx.fillStyle = '#a87040';
+                ctx.fillRect(sx + 4, y + 4, it.w - 8, 6);  // head
+                ctx.fillStyle = '#1a0e1e';
+                ctx.fillRect(sx + 6, y + 6, 1, 1);          // eye
+                ctx.fillRect(sx + it.w - 8, y + 6, 1, 1);   // eye
+                ctx.fillStyle = '#3a2855';
+                ctx.fillRect(sx + 4, y + 12, it.w - 8, it.h - 14);  // suit
+                ctx.fillStyle = '#ff5050';
+                ctx.fillRect(sx + it.w / 2 - 1, y + 12, 2, 4);     // tie
+            }
+        }
+    }
+
+    drawBoardroomTable(ctx, camera) {
+        // Long conference table silhouette in the foreground
+        const baseY = 174;
+        const off = (camera.x * 0.7) | 0;
+        ctx.fillStyle = '#1a0e08';
+        ctx.fillRect(0, baseY, GAME.WIDTH, 6);
+        // Mahogany top
+        ctx.fillStyle = '#5a2f1a';
+        ctx.fillRect(0, baseY, GAME.WIDTH, 2);
+        ctx.fillStyle = '#806848';
+        ctx.fillRect(0, baseY, GAME.WIDTH, 1);
+        // Leather chairs at intervals
+        for (let x = 8; x < GAME.WIDTH; x += 24) {
+            const sx = ((x - off) % 192 + 192) % 192;
+            // Chair back
+            ctx.fillStyle = '#1a0808';
+            ctx.fillRect(sx, baseY - 14, 10, 14);
+            ctx.fillStyle = '#3a1a10';
+            ctx.fillRect(sx + 1, baseY - 13, 8, 8);
+            ctx.fillStyle = '#5a2a18';
+            ctx.fillRect(sx + 1, baseY - 13, 8, 1);
         }
     }
 

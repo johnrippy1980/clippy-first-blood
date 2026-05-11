@@ -432,6 +432,119 @@ class Level {
         ];
     }
 
+    // ---- Stage 4: EXECUTIVE BOARDROOM ----
+    loadStage4() {
+        this.theme = 'boardroom';
+        this.width = 110;
+        this.height = 14;
+        this.bossArenaX = 88 * GAME.TILE_SIZE;
+        this.endX = 109 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+        this.checkpoints = [
+            { x: 50,             y: 160 },
+            { x: 32 * 16,        y: 160 },
+            { x: 60 * 16,        y: 7 * 16 },
+            { x: 86 * 16,        y: 160 }
+        ];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++)
+                for (let x = x1; x <= x2; x++)
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width)
+                        this.tiles[y][x] = t;
+        };
+        const ladder = (x, y1, y2) => {
+            for (let y = y1; y <= y2; y++) {
+                this.tiles[y][x] = TILE.LADDER;
+                this.ladders.push({ x: x * GAME.TILE_SIZE, y: y * GAME.TILE_SIZE });
+            }
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Marble floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+
+        // ===== Section 1: ANTECHAMBER (0-30) =====
+        // Stepping podiums
+        fill(6, 10, 8, 10, TILE.PLATFORM);
+        fill(12, 8, 15, 8, TILE.PLATFORM);
+        fill(19, 6, 22, 6, TILE.PLATFORM);
+
+        // Executive ladder
+        ladder(26, 6, 11);
+        fill(26, 5, 30, 5, TILE.SOLID);
+        cover(28);
+
+        // ===== Section 2: GLASS HALLWAY (30-65) =====
+        // Long open span with three high platforms - aerial threats
+        fill(34, 10, 36, 10, TILE.PLATFORM);
+        fill(40, 8,  43, 8,  TILE.PLATFORM);
+        fill(47, 6,  50, 6,  TILE.PLATFORM);
+        // Marble pedestal w/ pickup
+        fill(54, 8, 56, 8, TILE.SOLID);
+        this.pickups.push({ x: 55 * GAME.TILE_SIZE, y: 6 * GAME.TILE_SIZE + 8, type: 'LASER', taken: false });
+
+        // Glass-floor coffee-spill hazard (water)
+        fill(38, 12, 42, 13, TILE.EMPTY);
+        fill(38, 13, 42, 13, TILE.WATER);
+
+        // ===== Section 3: WALL-JUMP ELEVATOR SHAFT (60-78) =====
+        fill(60, 4, 60, 11, TILE.SOLID);
+        fill(64, 4, 64, 11, TILE.SOLID);
+        fill(61, 3, 63, 3, TILE.SOLID);   // top landing
+        this.pickups.push({ x: 62 * GAME.TILE_SIZE, y: 1 * GAME.TILE_SIZE + 8, type: 'STAPLE_REMOVER', taken: false });
+
+        // ===== Section 4: APPROACH (66-88) =====
+        // Tiered floor leading to the boss arena
+        fill(70, 11, 74, 11, TILE.SOLID);
+        fill(77, 9, 81, 9, TILE.SOLID);
+        cover(75);
+        fill(83, 12, 85, 13, TILE.SOLID);
+
+        // ===== Section 5: BOSS ARENA (88-110) =====
+        fill(88, 9, 88, 11, TILE.SOLID);                // entrance gate
+        fill(106, 3, 106, 11, TILE.SOLID);              // back wall
+        // Symmetric pillars for cover
+        fill(94, 9, 94, 11, TILE.SOLID);
+        fill(102, 9, 102, 11, TILE.SOLID);
+        cover(93);
+        this.pickups.push({ x: 89 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'FLAME', taken: false });
+        // Exit
+        fill(107, 9, 109, 11, TILE.EMPTY);
+
+        this.spawnPoints = [
+            // Section 1
+            { x: 10 * 16, y: 11 * 16, type: 'STAPLER' },
+            { x: 18 * 16, y: 6  * 16, type: 'FILE_FOLDER' },
+            { x: 24 * 16, y: 4  * 16, type: 'HIGHLIGHTER' },
+            // Section 2
+            { x: 36 * 16, y: 9  * 16, type: 'STAPLER' },
+            { x: 44 * 16, y: 7  * 16, type: 'HIGHLIGHTER' },
+            { x: 50 * 16, y: 5  * 16, type: 'FILE_FOLDER' },
+            { x: 56 * 16, y: 7  * 16, type: 'STAPLER' },
+            // Section 3 wall-jump area
+            { x: 58 * 16, y: 4  * 16, type: 'HIGHLIGHTER' },
+            { x: 65 * 16, y: 5  * 16, type: 'HIGHLIGHTER' },
+            // Section 4
+            { x: 72 * 16, y: 10 * 16, type: 'SWIVEL_CHAIR' },
+            { x: 79 * 16, y: 8  * 16, type: 'TAPE_DISPENSER' },
+            { x: 84 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
+            { x: 87 * 16, y: 11 * 16, type: 'SWIVEL_CHAIR' },
+            // Section 5: final boss
+            { x: 98 * 16, y: 6  * 16, type: 'CTRL_ALT_DEL' }
+        ];
+    }
+
     // ---- Boss Rush: three arenas in a row, fight all three bosses ----
     loadBossRush() {
         this.theme = 'serverroom';
@@ -612,6 +725,14 @@ class Level {
                 this.drawGratingTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             } else {
                 this.drawCableTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            }
+            return;
+        }
+        if (this.theme === 'boardroom') {
+            if (isSurface) {
+                this.drawMarbleTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            } else {
+                this.drawHardwoodTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             }
             return;
         }
@@ -801,6 +922,73 @@ class Level {
         ctx.fillRect(x, y + 15, 16, 1);
     }
 
+    // Marble floor tile with gold-veined surface (Stage 4)
+    drawMarbleTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        const ALT  = ((tileX + tileY) & 1) === 0;
+        const BASE = ALT ? '#e8e0d0' : '#d8cabc';
+        const LIT  = ALT ? '#fff8e8' : '#f0e2d0';
+        const SHAD = ALT ? '#a8987a' : '#988868';
+        const GOLD = '#ffd460';
+        const SEAM = '#3a2410';
+
+        // Body
+        ctx.fillStyle = BASE;
+        ctx.fillRect(x, y, 16, 16);
+        // Top bevel
+        ctx.fillStyle = LIT;
+        ctx.fillRect(x, y, 16, 2);
+        // Bottom shadow
+        ctx.fillStyle = SHAD;
+        ctx.fillRect(x, y + 14, 16, 2);
+        // Diagonal vein - deterministic per tile so it tiles smoothly
+        const veinSeed = (tileX * 73 + tileY * 41) & 0xff;
+        if (veinSeed < 70) {
+            ctx.fillStyle = SHAD;
+            for (let i = 0; i < 14; i++) {
+                const vx = x + 2 + i;
+                const vy = y + 4 + Math.floor(Math.sin(i * 0.5 + veinSeed) * 3) + 3;
+                ctx.fillRect(vx, vy, 1, 1);
+            }
+        } else if (veinSeed > 200) {
+            ctx.fillStyle = GOLD;
+            for (let i = 0; i < 10; i++) {
+                const vx = x + 3 + i;
+                const vy = y + 6 + Math.floor(Math.cos(i * 0.7 + veinSeed) * 2) + 2;
+                ctx.fillRect(vx, vy, 1, 1);
+            }
+        }
+        // Grout seams
+        ctx.fillStyle = SEAM;
+        ctx.fillRect(x, y + 15, 16, 1);
+        ctx.fillRect(x + 15, y, 1, 16);
+    }
+
+    // Polished hardwood under the marble (Stage 4)
+    drawHardwoodTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        const BG   = '#3a1f10';
+        const MID  = '#5a2f1a';
+        const LIT  = '#806848';
+        const DARK = '#1a0e08';
+        const GOLD = '#a8780a';
+
+        ctx.fillStyle = BG;
+        ctx.fillRect(x, y, 16, 16);
+        // Plank grain
+        for (let py = 0; py < 16; py++) {
+            for (let px = 0; px < 16; px++) {
+                let n = (tileX * 31 + tileY * 17 + px * 11 + py * 5) & 0xff;
+                if (n < 70) { ctx.fillStyle = MID; ctx.fillRect(x + px, y + py, 1, 1); }
+                else if (n > 220) { ctx.fillStyle = LIT; ctx.fillRect(x + px, y + py, 1, 1); }
+            }
+        }
+        // Plank seam lines
+        ctx.fillStyle = DARK;
+        if ((tileX + tileY) & 1) ctx.fillRect(x, y + 8, 16, 1);
+        // Edge gold trim
+        if (leftEdge)  { ctx.fillStyle = GOLD; ctx.fillRect(x,     y, 1, 16); }
+        if (rightEdge) { ctx.fillStyle = GOLD; ctx.fillRect(x + 15, y, 1, 16); }
+    }
+
     // Cable channel underneath the grating (Stage 3)
     drawCableTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
         const BG  = '#0a0a16';
@@ -836,6 +1024,7 @@ class Level {
     drawPlatformTile(ctx, x, y) {
         if (this.theme === 'breakroom') return this.drawShelfPlatformTile(ctx, x, y);
         if (this.theme === 'serverroom') return this.drawServerShelfTile(ctx, x, y);
+        if (this.theme === 'boardroom') return this.drawMarblePlatformTile(ctx, x, y);
         const TOP_LIT = '#d09050';
         const TOP     = '#a87040';
         const MID_LIT = '#8a5830';
@@ -870,6 +1059,33 @@ class Level {
         ctx.fillStyle = TOP_LIT;
         ctx.fillRect(x + 1, y, 1, 1);
         ctx.fillRect(x + 14, y, 1, 1);
+    }
+
+    // Marble pedestal platform (Stage 4 boardroom)
+    drawMarblePlatformTile(ctx, x, y) {
+        const LIT  = '#fff8e8';
+        const TOP  = '#e8e0d0';
+        const MID  = '#a8987a';
+        const GOLD = '#ffd460';
+        const DARK = '#3a2410';
+
+        // Slab body
+        ctx.fillStyle = TOP;
+        ctx.fillRect(x, y, 16, 5);
+        // Top bevel
+        ctx.fillStyle = LIT;
+        ctx.fillRect(x, y, 16, 1);
+        // Bottom shadow
+        ctx.fillStyle = MID;
+        ctx.fillRect(x, y + 4, 16, 1);
+        // Gold trim line under
+        ctx.fillStyle = GOLD;
+        ctx.fillRect(x, y + 5, 16, 1);
+        ctx.fillStyle = DARK;
+        ctx.fillRect(x, y + 6, 16, 1);
+        // Drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(x, y + 7, 16, 2);
     }
 
     // Server rack shelf platform (Stage 3)

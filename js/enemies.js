@@ -35,6 +35,12 @@ class Enemy {
     update(level, player) {
         if (!this.active) return;
 
+        // Boss death pyrotechnics freeze the AI and bullets
+        if (this.dying) {
+            this.updateDeathSequence();
+            return;
+        }
+
         this.behaviorTimer++;
 
         // Face player
@@ -68,6 +74,9 @@ class Enemy {
                 break;
             case 'shredder_boss':
                 this.updateShredderBoss(level, player);
+                break;
+            case 'ctrl_alt_del_boss':
+                this.updateCtrlAltDelBoss(level, player);
                 break;
         }
 
@@ -330,6 +339,132 @@ class Enemy {
         }
     }
 
+    // ---------- CTRL-ALT-DEL (Stage 4 final boss) ----------
+    // A giant control-panel terminal that has gone sentient. Three keycaps
+    // (CTRL, ALT, DEL) light up to telegraph its attacks. Five patterns
+    // total in phase 1, plus a sixth phase-2 BSOD finisher.
+    updateCtrlAltDelBoss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 70 : 100;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 6 : 5);
+
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 18) this.attackTelegraph = pattern;
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const ang = Math.atan2(dy, dx);
+
+        switch (pattern) {
+            case 0: {
+                // CTRL: spinning ring of bits (12 small projectiles)
+                for (let i = 0; i < 12; i++) {
+                    const a = (i / 12) * Math.PI * 2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 2.4,
+                        vy: Math.sin(a) * 2.4,
+                        damage: this.damage * 0.5,
+                        life: 100,
+                        type: 'data'
+                    });
+                }
+                break;
+            }
+            case 1: {
+                // ALT: aimed homing-style 3-shot (light tracking, just heading-of-launch)
+                for (let i = -1; i <= 1; i++) {
+                    const a = ang + i * 0.22;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 4,
+                        vy: Math.sin(a) * 4,
+                        damage: this.damage,
+                        life: 80,
+                        type: 'data'
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxShoot();
+                break;
+            }
+            case 2: {
+                // DEL: deletion beam (a powerful horizontal sweep)
+                const dir = dx > 0 ? 1 : -1;
+                this.facingRight = dx > 0;
+                for (let i = 0; i < 6; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + 18 + i * 4,
+                        vx: dir * 5,
+                        vy: 0,
+                        damage: this.damage,
+                        life: 60,
+                        type: 'scanner'
+                    });
+                }
+                break;
+            }
+            case 3: {
+                // Pop-up dialogs raining from above
+                for (let i = 0; i < 4; i++) {
+                    const px = this.x + (i + 1) * (this.width / 5);
+                    this.bullets.push({
+                        x: px, y: this.y - 4,
+                        vx: (Math.random() - 0.5) * 1.5,
+                        vy: -2,
+                        gravity: 0.2,
+                        damage: this.damage * 0.8,
+                        life: 140,
+                        type: 'paper'
+                    });
+                }
+                break;
+            }
+            case 4: {
+                // Cursor swarm: 8 paperclip-style projectiles spiraling out
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2 + (this.behaviorTimer * 0.01);
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 3,
+                        vy: Math.sin(a) * 3 - 1,
+                        gravity: 0.05,
+                        damage: this.damage * 0.7,
+                        life: 100,
+                        type: 'paperclip'
+                    });
+                }
+                break;
+            }
+            case 5: {
+                // PHASE 2: BLUE SCREEN OF DEATH - massive 16-shot horizontal volley
+                for (let i = 0; i < 16; i++) {
+                    const a = -Math.PI / 2 - 0.6 + (i / 15) * 1.2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 4.5,
+                        vy: Math.sin(a) * 4.5,
+                        gravity: 0.05,
+                        damage: this.damage * 0.8,
+                        life: 110,
+                        type: 'data'
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                if (typeof game !== 'undefined' && game.shake) game.shake(5, 8);
+                break;
+            }
+        }
+    }
+
     // ---------- Mega-Shredder boss (Stage 3) ----------
     // A massive paper shredder with rotating teeth. Fires saw-blade projectiles
     // that curve through the air, plus confetti sprays and a paper geyser.
@@ -561,10 +696,12 @@ class Enemy {
     isBoss() {
         return this.behavior === 'miniboss' ||
                this.behavior === 'photocopier_boss' ||
-               this.behavior === 'shredder_boss';
+               this.behavior === 'shredder_boss' ||
+               this.behavior === 'ctrl_alt_del_boss';
     }
 
     takeDamage(amount) {
+        if (this.dying) return;
         this.health -= amount;
         this.hitFlash = 5;  // White flash for 5 frames
         if (typeof particles !== 'undefined') {
@@ -572,6 +709,68 @@ class Enemy {
         }
         if (typeof audio !== 'undefined') audio.sfxEnemyHit();
         if (this.health <= 0) {
+            // Bosses get a multi-stage death sequence; everything else dies instantly.
+            if (this.isBoss()) {
+                this.beginDeathSequence();
+            } else {
+                this.die();
+            }
+        }
+    }
+
+    // ---- Boss death sequence ----
+    // 90 frames of chained explosions over the boss sprite, freezing it and
+    // suppressing further attacks. Final frame triggers the big payoff
+    // explosion, score popup, 1UP drop, and screen shake.
+    beginDeathSequence() {
+        this.dying = true;
+        this.deathSequenceTimer = 0;
+        this.bullets = [];          // Stop firing
+        this.hitFlash = 0;
+        if (typeof audio !== 'undefined') audio.sfxExplosion();
+        if (typeof game !== 'undefined' && game.shake) game.shake(6, 14);
+    }
+
+    updateDeathSequence() {
+        if (!this.dying) return;
+        this.deathSequenceTimer++;
+        // Continuous small explosions across the boss while dying
+        if (this.deathSequenceTimer % 5 === 0 && typeof particles !== 'undefined') {
+            const ex = this.x + Math.random() * this.width;
+            const ey = this.y + Math.random() * this.height;
+            // Use the smaller explosion presets directly for variety
+            particles.spawn({
+                x: ex, y: ey, life: 8, size: 5, shape: 'flash',
+                colors: ['#ffffff', '#ffeec0', '#ff8030', '#a82030']
+            });
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2 + Math.random() * 0.4;
+                const sp = 1 + Math.random() * 2;
+                particles.spawn({
+                    x: ex, y: ey,
+                    vx: Math.cos(a) * sp,
+                    vy: Math.sin(a) * sp,
+                    gravity: 0.12,
+                    life: 16 + Math.floor(Math.random() * 8),
+                    size: 1,
+                    colors: ['#ffffff', '#ffe070', '#ff8030', '#3a0a0a']
+                });
+            }
+            // Audio chirps for every other burst
+            if ((this.deathSequenceTimer / 5) % 2 === 0 && typeof audio !== 'undefined') {
+                audio.sfxEnemyHit();
+            }
+        }
+        // Small jolt of shake every 12 frames
+        if (this.deathSequenceTimer % 12 === 0 && typeof game !== 'undefined' && game.shake) {
+            game.shake(3, 4);
+        }
+        // Tilt/shudder offset for the visual
+        this.deathShudderX = (Math.random() - 0.5) * 4;
+
+        // Payoff at frame 90: full death
+        if (this.deathSequenceTimer >= 90) {
+            this.dying = false;
             this.die();
         }
     }
@@ -604,11 +803,14 @@ class Enemy {
     draw(ctx, camera) {
         if (!this.active) return;
 
-        const screenX = Math.floor(this.x - camera.x);
+        const shudderX = this.dying ? (this.deathShudderX || 0) : 0;
+        const screenX = Math.floor(this.x - camera.x + shudderX);
         const screenY = Math.floor(this.y - camera.y);
 
-        // Hit flash: invert palette briefly when damaged
-        const flash = this.hitFlash > 0;
+        // Hit flash: invert palette briefly when damaged. Bosses also flash
+        // bright white repeatedly during the death sequence.
+        const flash = this.hitFlash > 0 ||
+                      (this.dying && ((this.deathSequenceTimer / 4) | 0) % 2 === 0);
 
         ctx.save();
         // Flip horizontally if facing left
@@ -628,6 +830,7 @@ class Enemy {
             case 'charge':           this.drawSwivelChairSNES(ctx, screenX, screenY, flash); break;
             case 'hover_sniper':     this.drawHighlighterSNES(ctx, screenX, screenY, flash); break;
             case 'shredder_boss':    this.drawShredderSNES(ctx, screenX, screenY, flash); break;
+            case 'ctrl_alt_del_boss': this.drawCtrlAltDelSNES(ctx, screenX, screenY, flash); break;
             default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
@@ -1054,7 +1257,162 @@ class Enemy {
             case 'beam': return '#ffff40';
             case 'blade': return '#c0c8d0';
             case 'confetti': return '#fff8d0';
+            case 'data': return '#5aa8e0';
             default: return '#f00';
+        }
+    }
+
+    // Ctrl-Alt-Del final boss (Stage 4 BOARDROOM)
+    drawCtrlAltDelSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        const phase2 = this.health / this.maxHealth <= 0.5;
+
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', bodydark:'#fff',
+            screen:'#fff', text:'#000', key:'#fff', keylit:'#fff', keydark:'#fff',
+            ctrl:'#fff', alt:'#fff', del:'#fff', glow:'#fff'
+        } : {
+            outline:'#0a0612',
+            body:'#3a2855',
+            bodylit:'#7a608c',
+            bodydark:'#1a1140',
+            screen:'#1a508a',
+            text:'#a8d8ff',
+            key:'#c8c8d8',
+            keylit:'#f0f0ff',
+            keydark:'#7a7a8a',
+            ctrl: '#ff5050',
+            alt:  '#ffd460',
+            del:  '#ff60ff',
+            glow:'#a8d8ff'
+        };
+
+        // Drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(x - 2, y + H, W + 4, 3);
+
+        // Body - big mahogany-trimmed terminal
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x, y, W, H);
+        // Outer mahogany trim
+        ctx.fillStyle = '#a8780a';
+        ctx.fillRect(x, y, W, 2);
+        ctx.fillRect(x, y, 2, H);
+        ctx.fillRect(x + W - 2, y, 2, H);
+        ctx.fillRect(x, y + H - 2, W, 2);
+        ctx.fillStyle = '#ffd460';
+        ctx.fillRect(x, y, W, 1);
+        ctx.fillRect(x, y, 1, H);
+        ctx.fillStyle = '#604010';
+        ctx.fillRect(x, y + H - 1, W, 1);
+        ctx.fillRect(x + W - 1, y, 1, H);
+
+        // Screen at the top - shows scrolling code
+        const sx = x + 5, sy = y + 5, sw = W - 10, sh = 20;
+        ctx.fillStyle = C.screen;
+        ctx.fillRect(sx, sy, sw, sh);
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(sx, sy, sw, 1);
+        ctx.fillStyle = C.glow;
+        ctx.fillRect(sx, sy + sh - 1, sw, 1);
+        // Scrolling code lines
+        ctx.fillStyle = C.text;
+        const scroll = Math.floor(this.behaviorTimer * 0.3);
+        for (let r = 0; r < 4; r++) {
+            const charSeed = (r * 17 + scroll) & 31;
+            for (let c = 0; c < (sw - 4) / 3; c++) {
+                if (((c + charSeed) * 7) & 3) {
+                    ctx.fillRect(sx + 2 + c * 3, sy + 3 + r * 4, 2, 1);
+                }
+            }
+        }
+        // Cursor blink
+        if ((this.behaviorTimer & 16) < 8) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(sx + 2, sy + 15, 2, 2);
+        }
+        // BSOD overlay in phase 2
+        if (phase2 && (this.behaviorTimer & 8) < 4) {
+            ctx.fillStyle = '#0040a0';
+            ctx.fillRect(sx, sy, sw, sh);
+            // White ":(" face
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(sx + sw / 2 - 4, sy + 4, 1, 2);
+            ctx.fillRect(sx + sw / 2 + 3, sy + 4, 1, 2);
+            ctx.fillRect(sx + sw / 2 - 3, sy + 12, 1, 1);
+            ctx.fillRect(sx + sw / 2 - 2, sy + 11, 1, 1);
+            ctx.fillRect(sx + sw / 2 - 1, sy + 11, 1, 1);
+            ctx.fillRect(sx + sw / 2,     sy + 11, 1, 1);
+            ctx.fillRect(sx + sw / 2 + 1, sy + 12, 1, 1);
+        }
+
+        // Three keycaps at the bottom: CTRL ALT DEL
+        // The keycap matching the current attack pattern lights up during telegraph.
+        const keys = [
+            { label:'C', color:C.ctrl, x: x + 4 },
+            { label:'A', color:C.alt,  x: x + W / 2 - 8 },
+            { label:'D', color:C.del,  x: x + W - 20 }
+        ];
+        for (let k = 0; k < keys.length; k++) {
+            const K = keys[k];
+            const kx = K.x, ky = y + H - 22;
+            const kw = 16, kh = 14;
+            // Determine which keys light up - patterns 0/1/2 map to CTRL/ALT/DEL,
+            // patterns 3/4 light all keys together, pattern 5 lights all and flashes.
+            const tPat = this.attackTelegraph;
+            const lit = tele && (
+                tPat === k || tPat >= 3
+            );
+            ctx.fillStyle = C.outline;
+            ctx.fillRect(kx, ky, kw, kh);
+            ctx.fillStyle = lit ? K.color : C.key;
+            ctx.fillRect(kx + 1, ky + 1, kw - 2, kh - 2);
+            ctx.fillStyle = lit ? '#fff' : C.keylit;
+            ctx.fillRect(kx + 1, ky + 1, kw - 2, 2);
+            ctx.fillStyle = C.keydark;
+            ctx.fillRect(kx + 1, ky + kh - 3, kw - 2, 2);
+            // Letter
+            ctx.fillStyle = lit ? '#fff' : '#1a1a22';
+            if (typeof drawPixelText === 'function') {
+                drawPixelText(ctx, K.label, kx + kw / 2, ky + 4, lit ? '#fff' : '#1a1a22', 1, 'center', 1);
+            }
+            // Glow if lit
+            if (lit) {
+                ctx.fillStyle = K.color + '00'; // not used directly; emulate w/ rgba
+                ctx.fillStyle = 'rgba(255,255,255,0.18)';
+                ctx.fillRect(kx - 2, ky - 2, kw + 4, kh + 4);
+            }
+        }
+
+        // Side blinking status LEDs
+        for (let i = 0; i < 4; i++) {
+            const lit = (Math.floor(this.behaviorTimer / 6 + i) & 1);
+            ctx.fillStyle = lit ? '#50ff70' : '#206030';
+            ctx.fillRect(x + 3, y + 30 + i * 5, 2, 2);
+            ctx.fillRect(x + W - 5, y + 30 + i * 5, 2, 2);
+        }
+
+        // Phase 2 - red alert rim
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.2) > 0;
+            ctx.fillStyle = pulse ? '#ff3030' : '#a82020';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
+            // Smoke from the top
+            if (this.behaviorTimer % 5 === 0 && typeof particles !== 'undefined') {
+                particles.spawn({
+                    x: x + W / 2 + (Math.random() - 0.5) * W / 2,
+                    y: y - 1,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: -0.5 - Math.random() * 0.4,
+                    life: 22,
+                    size: 2,
+                    colors: ['#fff', '#aaaab8', '#3a3a48']
+                });
+            }
         }
     }
 
@@ -1555,7 +1913,7 @@ class Enemy {
 
     // Collision detection with player
     checkCollision(player) {
-        return this.active &&
+        return this.active && !this.dying &&
                this.x < player.x + player.width &&
                this.x + this.width > player.x &&
                this.y < player.y + player.height &&

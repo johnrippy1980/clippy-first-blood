@@ -16,8 +16,13 @@ class Player {
         this.facingRight = true;
         this.aimDirection = AIM_DIR.RIGHT;
 
-        // Health system (Halo-style regen)
-        this.health = PLAYER.MAX_HEALTH;
+        // Health system (Halo-style regen).
+        // maxHealth allows the difficulty system to inflate the player's pool.
+        const baseHealth = (typeof game !== 'undefined' && game.difficulty)
+            ? Math.floor(this.maxHealth * game.difficulty.healthMul)
+            : this.maxHealth;
+        this.maxHealth = baseHealth;
+        this.health = baseHealth;
         this.timeSinceDamage = 0;
         this.invincibilityTimer = 0;
 
@@ -574,16 +579,20 @@ class Player {
     updateHealthRegen() {
         this.timeSinceDamage++;
 
-        if (this.timeSinceDamage >= PLAYER.HEALTH_REGEN_DELAY && this.health < PLAYER.MAX_HEALTH) {
+        if (this.timeSinceDamage >= PLAYER.HEALTH_REGEN_DELAY && this.health < this.maxHealth) {
             // Regen faster in cover
             const regenRate = this.inCover ? PLAYER.HEALTH_REGEN_RATE * 2 : PLAYER.HEALTH_REGEN_RATE;
-            this.health = Math.min(PLAYER.MAX_HEALTH, this.health + regenRate);
+            this.health = Math.min(this.maxHealth, this.health + regenRate);
         }
     }
 
     takeDamage(amount) {
         if (this.invincibilityTimer > 0 || this.inCover) return;
 
+        // Apply difficulty modifier
+        if (typeof game !== 'undefined' && game.difficulty) {
+            amount = amount * game.difficulty.enemyDamageMul;
+        }
         this.health -= amount;
         this.timeSinceDamage = 0;
         this.invincibilityTimer = PLAYER.INVINCIBILITY_FRAMES;
