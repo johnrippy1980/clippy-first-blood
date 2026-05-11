@@ -147,20 +147,81 @@ class Enemy {
     }
 
     updateMiniboss(level, player) {
-        // File cabinet - opens drawers to attack
-        if (this.behaviorTimer % 90 === 0) {
-            // Fire from multiple drawers
-            for (let i = 0; i < 3; i++) {
-                const bullet = {
-                    x: this.facingRight ? this.x + this.width : this.x,
-                    y: this.y + 10 + i * 14,
-                    vx: (this.facingRight ? 1 : -1) * 3,
-                    vy: 0,
-                    damage: this.damage,
-                    life: 120,
-                    type: 'drawer'
-                };
-                this.bullets.push(bullet);
+        // File cabinet boss - three attack patterns, phase 2 when HP drops below half
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        // Cycle attack patterns every 90 frames (phase 1) or 60 frames (phase 2)
+        const cycleLen = phase2 ? 60 : 90;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 4 : 3);
+
+        // Telegraph: blink one frame before firing
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 10) {
+            this.attackTelegraph = pattern;
+        }
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+
+        const fx = this.facingRight ? this.x + this.width : this.x;
+        const dir = this.facingRight ? 1 : -1;
+
+        switch (pattern) {
+            case 0: {
+                // Triple drawer barrage (original)
+                for (let i = 0; i < 3; i++) {
+                    this.bullets.push({
+                        x: fx, y: this.y + 10 + i * 14,
+                        vx: dir * 3, vy: 0,
+                        damage: this.damage, life: 120, type: 'drawer'
+                    });
+                }
+                break;
+            }
+            case 1: {
+                // Aimed paperclip spread (5 projectiles fanning toward player)
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const ang = Math.atan2(dy, dx);
+                const speed = phase2 ? 4 : 3.2;
+                for (let i = -2; i <= 2; i++) {
+                    const a = ang + i * 0.18;
+                    this.bullets.push({
+                        x: this.x + this.width / 2, y: this.y + 8,
+                        vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+                        damage: this.damage, life: 100, type: 'paperclip'
+                    });
+                }
+                break;
+            }
+            case 2: {
+                // Arcing drawer lobbed toward player
+                const dx = player.x - this.x;
+                const time = 40;
+                const vx = dx / time;
+                const vy = -3.5 - Math.random() * 1.5;
+                this.bullets.push({
+                    x: this.x + this.width / 2, y: this.y,
+                    vx, vy, gravity: 0.18,
+                    damage: this.damage * 1.5, life: 120, type: 'drawer'
+                });
+                if (typeof audio !== 'undefined') audio.sfxEnemyHit();
+                break;
+            }
+            case 3: {
+                // Phase 2 only: ripping staple burst (8 rapid shots in a sweep)
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const baseAng = Math.atan2(dy, dx);
+                for (let i = 0; i < 8; i++) {
+                    const a = baseAng - 0.6 + (i / 7) * 1.2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2, y: this.y + 16,
+                        vx: Math.cos(a) * 4.5, vy: Math.sin(a) * 4.5,
+                        damage: this.damage * 0.7, life: 80, type: 'staple'
+                    });
+                }
+                break;
             }
         }
     }
@@ -189,9 +250,13 @@ class Enemy {
             const bullet = this.bullets[i];
             bullet.x += bullet.vx;
             bullet.y += bullet.vy;
+            if (bullet.gravity) bullet.vy += bullet.gravity;
             bullet.life--;
 
             if (bullet.life <= 0 || level.isSolid(bullet.x, bullet.y)) {
+                if (typeof particles !== 'undefined' && level.isSolid(bullet.x, bullet.y)) {
+                    particles.bulletImpact(bullet.x, bullet.y, '#a82020');
+                }
                 this.bullets.splice(i, 1);
             }
         }
@@ -521,7 +586,17 @@ class Enemy {
 
     drawFileCabinetSNES(ctx, x, y, flash) {
         const W = this.width, H = this.height;
-        const open = ((this.behaviorTimer / 30) | 0) % 4 === 0;  // top drawer opens to fire
+        // Telegraph: rattle horizontally just before firing
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) {
+            x += (Math.floor(this.behaviorTimer / 2) % 2) * 2 - 1;
+        }
+        // Pick which drawer "opens" based on pattern being telegraphed
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 60 : 90;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 4 : 3);
+        const open = tele;
+        const openDrawer = pattern % 3;     // 0=top, 1=middle, 2=bottom
         const C = flash ? {
             outline:'#fff', body:'#fff', bodylit:'#fff', bodydark:'#fff',
             drawer:'#fff', drawerlit:'#fff', handle:'#fff', shadow:'#000',
@@ -546,7 +621,7 @@ class Enemy {
         const drawerH = Math.floor((H - 4) / 3);
         for (let i = 0; i < 3; i++) {
             const dy = y + 2 + i * drawerH;
-            const dOpen = i === 0 && open;
+            const dOpen = i === openDrawer && open;
             ctx.fillStyle = C.drawer;
             ctx.fillRect(x + 3, dy + 1, W - 6, drawerH - 2);
             ctx.fillStyle = C.drawerlit;
@@ -589,6 +664,16 @@ class Enemy {
         ctx.fillRect(x, y + H - 1, W, 1);
         ctx.fillRect(x, y, 1, H);
         ctx.fillRect(x + W - 1, y, 1, H);
+
+        // Phase 2 rage rim - red pulsing border around the cabinet
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.2) > 0;
+            ctx.fillStyle = pulse ? '#ff3030' : '#a82020';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
+        }
     }
 
     getBulletColor(type) {

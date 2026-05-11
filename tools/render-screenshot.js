@@ -126,6 +126,44 @@ if (mode === 'title') {
   drawPixelTextOutlined(ctx, 'STAGE 1', GAME.WIDTH / 2, panelTop + 14, '#ffe070', '#a82020', 2, 'center', 1);
   drawPixelTextOutlined(ctx, 'OFFICE JUNGLE', GAME.WIDTH / 2, panelTop + 42, '#ff5050', '#1a0000', 3, 'center', 1);
   drawPixelText(ctx, 'READY?', GAME.WIDTH / 2, 200, '#ffffff', 2, 'center', 1);
+} else if (mode === 'clear') {
+  // Stage clear celebration mock
+  bg.draw(ctx, camera);
+  level.draw(ctx, camera);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+  // Fireworks
+  for (let i = 0; i < 3; i++) {
+    particles.explosion(40 + i * 80, 80 + i * 20);
+  }
+  particles.update(); particles.draw(ctx, camera);
+  drawPixelTextOutlined(ctx, 'STAGE CLEAR', GAME.WIDTH / 2, 38, '#ffe070', '#a82020', 3, 'center', 1);
+  const py = 90;
+  ctx.fillStyle = '#0a0612'; ctx.fillRect(40, py - 4, GAME.WIDTH - 80, 70);
+  ctx.fillStyle = '#3a2855'; ctx.fillRect(42, py - 2, GAME.WIDTH - 84, 66);
+  ctx.fillStyle = '#564468'; ctx.fillRect(42, py - 2, GAME.WIDTH - 84, 2);
+  ctx.fillStyle = '#1a1140'; ctx.fillRect(42, py + 62, GAME.WIDTH - 84, 2);
+  drawPixelText(ctx, 'SCORE',      54, py + 6,  '#c0a0d0', 1, 'left', 1);
+  drawPixelText(ctx, '012700', GAME.WIDTH - 54, py + 6,  '#ffffff', 1, 'right', 1);
+  drawPixelText(ctx, 'TIME BONUS', 54, py + 22, '#c0a0d0', 1, 'left', 1);
+  drawPixelText(ctx, '023500', GAME.WIDTH - 54, py + 22, '#ffe070', 1, 'right', 1);
+  drawPixelText(ctx, 'TIME',       54, py + 38, '#c0a0d0', 1, 'left', 1);
+  drawPixelText(ctx, '0:55', GAME.WIDTH - 54, py + 38, '#ffffff', 1, 'right', 1);
+  drawPixelText(ctx, 'TOTAL',      54, py + 54, '#ffe070', 1, 'left', 1);
+  drawPixelTextOutlined(ctx, '036200', GAME.WIDTH - 54, py + 54, '#ff5050', '#1a0000', 1, 'right', 1);
+  drawPixelTextOutlined(ctx, 'NEW HIGH SCORE!', GAME.WIDTH / 2, 180, '#ffe070', '#a82020', 1, 'center', 1);
+  drawPixelText(ctx, 'SHOOT TO REPLAY', GAME.WIDTH / 2, 205, '#ffffff', 1, 'center', 1);
+} else if (mode === 'boss') {
+  // Render boss at low HP to show phase 2 rim
+  // Find the file-cabinet enemy and damage it down
+  const boss = enemies.enemies.find(e => e.behavior === 'miniboss');
+  if (boss) { boss.health = boss.maxHealth * 0.3; boss.behaviorTimer = 80; boss.attackTelegraph = 1; }
+  bg.draw(ctx, camera);
+  level.draw(ctx, camera);
+  pickupManager.draw(ctx, camera);
+  enemies.draw(ctx, camera);
+  player.draw(ctx, camera);
+  particles.draw(ctx, camera);
 } else if (mode === 'death') {
   // Render gameplay then overlay a dying clippy
   bg.draw(ctx, camera);

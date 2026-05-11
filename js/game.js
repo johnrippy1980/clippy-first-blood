@@ -26,6 +26,17 @@ class Game {
         this.pickupFlash = '';
         this.pickupFlashTimer = 0;
 
+        // Stage clear tally state
+        this.stageStartTime = 0;
+        this.stageClearTimer = 0;
+        this.stageClearScore = 0;
+        this.stageClearBonusTotal = 0;
+        this.stageClearBonusShown = 0;
+        this.stageClearTime = 0;
+
+        // High score (loaded in init)
+        this.highScore = 0;
+
         this.score = 0;
         this.lives = 3;
 
@@ -69,6 +80,8 @@ class Game {
         this.background = new ParallaxBackground();
         this.background.init();
 
+        this.loadHighScore();
+
         // Start game loop
         this.running = true;
         this.lastTime = performance.now();
@@ -81,6 +94,23 @@ class Game {
     flashPickup(name) {
         this.pickupFlash = 'GOT ' + name.toUpperCase() + '!';
         this.pickupFlashTimer = 90;
+    }
+
+    loadHighScore() {
+        try {
+            const stored = localStorage.getItem('clippy_first_blood_hiscore');
+            this.highScore = stored ? parseInt(stored, 10) || 0 : 0;
+        } catch (e) {
+            this.highScore = 0;
+        }
+    }
+
+    checkHighScore() {
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            try { localStorage.setItem('clippy_first_blood_hiscore', String(this.score)); }
+            catch (e) { /* localStorage unavailable in private mode */ }
+        }
     }
 
     shake(amount, duration) {
@@ -118,6 +148,8 @@ class Game {
                 this.updateTitle();
             } else if (this.screen === 'stageIntro') {
                 this.updateStageIntro();
+            } else if (this.screen === 'stageClear') {
+                this.updateStageClear();
             } else if (!this.paused && !this.gameOver) {
                 this.update();
             }
@@ -129,11 +161,119 @@ class Game {
             this.renderTitle();
         } else if (this.screen === 'stageIntro') {
             this.renderStageIntro();
+        } else if (this.screen === 'stageClear') {
+            this.renderStageClear();
         } else {
             this.render();
         }
 
         requestAnimationFrame((time) => this.gameLoop(time));
+    }
+
+    updateStageClear() {
+        this.stageClearTimer++;
+        this.background.update();
+        if (typeof particles !== 'undefined') particles.update();
+        input.update();
+
+        // Tick up the bonus over ~2 seconds
+        if (this.stageClearTimer > 60 && this.stageClearTimer < 180) {
+            const inc = Math.ceil(this.stageClearBonusTotal / 120);
+            if (this.stageClearBonusShown < this.stageClearBonusTotal) {
+                this.stageClearBonusShown = Math.min(
+                    this.stageClearBonusTotal,
+                    this.stageClearBonusShown + inc
+                );
+                this.score = this.stageClearScore + this.stageClearBonusShown;
+                if (this.stageClearTimer % 4 === 0 && typeof audio !== 'undefined') {
+                    audio.sfxPickup();
+                }
+            }
+        }
+        // Snap to full at completion
+        if (this.stageClearTimer === 180) {
+            this.stageClearBonusShown = this.stageClearBonusTotal;
+            this.score = this.stageClearScore + this.stageClearBonusTotal;
+            this.checkHighScore();
+        }
+
+        // Burst occasional fireworks while waiting
+        if (this.stageClearTimer % 30 === 0 && typeof particles !== 'undefined') {
+            const fx = 30 + Math.random() * (GAME.WIDTH - 60);
+            const fy = 60 + Math.random() * 80;
+            particles.explosion(fx, fy);
+            if (typeof audio !== 'undefined') audio.sfxExplosion();
+        }
+
+        // Restart on shoot/jump after the bonus tally finishes
+        if (this.stageClearTimer > 200 && (input.shoot || input.jumpPressed)) {
+            this.restart();
+        }
+    }
+
+    renderStageClear() {
+        const ctx = this.ctx;
+        // Keep the world visible behind the celebration
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        this.background.draw(ctx, this.camera);
+        this.level.draw(ctx, this.camera);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        if (typeof particles !== 'undefined') particles.draw(ctx, this.camera);
+
+        // Title
+        const slide = Math.min(1, this.stageClearTimer / 24);
+        const titleY = -30 + slide * 70;
+        drawPixelTextOutlined(ctx, 'STAGE CLEAR', GAME.WIDTH / 2, titleY, '#ffe070', '#a82020', 3, 'center', 1);
+
+        // Tally panel
+        if (this.stageClearTimer > 30) {
+            const py = 90;
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(40, py - 4, GAME.WIDTH - 80, 70);
+            ctx.fillStyle = '#3a2855';
+            ctx.fillRect(42, py - 2, GAME.WIDTH - 84, 66);
+            ctx.fillStyle = '#564468';
+            ctx.fillRect(42, py - 2, GAME.WIDTH - 84, 2);
+            ctx.fillStyle = '#1a1140';
+            ctx.fillRect(42, py + 62, GAME.WIDTH - 84, 2);
+
+            drawPixelText(ctx, 'SCORE',      54, py + 6,  '#c0a0d0', 1, 'left', 1);
+            drawPixelText(ctx, String(this.stageClearScore).padStart(6, '0'),
+                          GAME.WIDTH - 54, py + 6, '#ffffff', 1, 'right', 1);
+            drawPixelText(ctx, 'TIME BONUS', 54, py + 22, '#c0a0d0', 1, 'left', 1);
+            drawPixelText(ctx, String(this.stageClearBonusShown).padStart(6, '0'),
+                          GAME.WIDTH - 54, py + 22, '#ffe070', 1, 'right', 1);
+            drawPixelText(ctx, 'TIME',       54, py + 38, '#c0a0d0', 1, 'left', 1);
+            const mins = Math.floor(this.stageClearTime / 60);
+            const secs = Math.floor(this.stageClearTime % 60);
+            drawPixelText(ctx, `${mins}:${String(secs).padStart(2, '0')}`,
+                          GAME.WIDTH - 54, py + 38, '#ffffff', 1, 'right', 1);
+            drawPixelText(ctx, 'TOTAL',      54, py + 54, '#ffe070', 1, 'left', 1);
+            drawPixelTextOutlined(ctx, String(this.score).padStart(6, '0'),
+                          GAME.WIDTH - 54, py + 54, '#ff5050', '#1a0000', 1, 'right', 1);
+        }
+
+        // High score line
+        if (this.stageClearTimer > 180) {
+            const isNew = this.score >= this.highScore && this.score > 0;
+            const blink = Math.floor(this.stageClearTimer / 12) % 2 === 0;
+            if (isNew) {
+                if (blink) drawPixelTextOutlined(ctx, 'NEW HIGH SCORE!',
+                    GAME.WIDTH / 2, 180, '#ffe070', '#a82020', 1, 'center', 1);
+            } else {
+                drawPixelText(ctx, 'HIGH ' + String(this.highScore).padStart(6, '0'),
+                    GAME.WIDTH / 2, 180, '#a890c0', 1, 'center', 1);
+            }
+        }
+
+        // Continue prompt
+        if (this.stageClearTimer > 200) {
+            const blink = Math.floor(this.stageClearTimer / 20) % 2 === 0;
+            if (blink) drawPixelText(ctx, 'SHOOT TO REPLAY',
+                GAME.WIDTH / 2, 205, '#ffffff', 1, 'center', 1);
+        }
     }
 
     updateTitle() {
@@ -155,6 +295,7 @@ class Game {
         // Auto-advance after 2.5 seconds, or shoot/jump to skip
         if (this.stageIntroTimer > 150 || input.jumpPressed || input.shoot) {
             this.screen = 'playing';
+            this.stageStartTime = Date.now();
             if (typeof audio !== 'undefined') audio.startMusic();
         }
     }
@@ -220,10 +361,17 @@ class Game {
 
         // ---- Credit / tagline ----
         drawPixelText(ctx, 'A PAPERCLIP HERO REBORN', GAME.WIDTH / 2, 116, '#c0a0d0', 1, 'center', 1);
+
+        // High score
+        if (this.highScore > 0) {
+            drawPixelText(ctx, 'HIGH ' + String(this.highScore).padStart(6, '0'),
+                GAME.WIDTH / 2, 160, '#a890c0', 1, 'center', 1);
+        }
+
         drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
 
         // Controls hint at bottom
-        drawPixelText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT', GAME.WIDTH / 2, 212, '#a8a0c0', 1, 'center', 1);
+        drawPixelText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT   M MUTE', GAME.WIDTH / 2, 212, '#a8a0c0', 1, 'center', 1);
     }
 
     drawTitleClippyIcon(ctx, x, y) {
@@ -320,6 +468,7 @@ class Game {
             if (this.lives <= 0) {
                 this.gameOver = true;
                 if (typeof audio !== 'undefined') audio.stopMusic();
+                this.checkHighScore();
             } else {
                 // Respawn
                 this.player = new Player(50, 160);
@@ -328,10 +477,22 @@ class Game {
 
         // Win condition (reach end of level)
         const endX = this.level.endX || (this.level.width * GAME.TILE_SIZE - 100);
-        if (this.player.x > endX) {
-            this.paused = true;
-            if (typeof audio !== 'undefined') audio.stopMusic();
+        if (this.screen === 'playing' && this.player.x > endX) {
+            this.beginStageClear();
         }
+    }
+
+    beginStageClear() {
+        this.screen = 'stageClear';
+        this.stageClearTimer = 0;
+        // Total time bonus: more time left = better. Time = frames played.
+        this.stageClearTime = (Date.now() - this.stageStartTime) / 1000;
+        // 30000 points if cleared in under 30s, scaling down to 0 at 5 minutes
+        const ts = Math.max(0, 300 - this.stageClearTime);
+        this.stageClearBonusTotal = Math.floor(ts * 100);
+        this.stageClearBonusShown = 0;
+        this.stageClearScore = this.score;
+        if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
     render() {
