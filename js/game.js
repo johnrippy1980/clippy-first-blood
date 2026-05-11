@@ -683,6 +683,12 @@ class Game {
                 this.updateDailyScreen();
             } else if (this.screen === 'menu') {
                 this.updateMenuScreen();
+            } else if (this.screen === 'midi') {
+                this.updateMidiScreen();
+            } else if (this.screen === 'rebind') {
+                this.updateRebindScreen();
+            } else if (this.screen === 'modStages') {
+                this.updateModStagesScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -725,6 +731,12 @@ class Game {
             this.renderDailyScreen();
         } else if (this.screen === 'menu') {
             this.renderMenuScreen();
+        } else if (this.screen === 'midi') {
+            this.renderMidiScreen();
+        } else if (this.screen === 'rebind') {
+            this.renderRebindScreen();
+        } else if (this.screen === 'modStages') {
+            this.renderModStagesScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -781,6 +793,18 @@ class Game {
                 return;
             }
             if (this.stageClearIsFinal) {
+                if (this.stageIndex < 0) {
+                    // Mod stage finished - back to title
+                    this.screen = 'title';
+                    this.titleTimer = 0;
+                    this.score = 0;
+                    this.lives = this.difficulty.livesStart;
+                    this.continues = this.difficulty.continuesStart;
+                    this.stageIndex = 0;
+                    this.loadStageByIndex(0);
+                    this.player = new Player(50, 160);
+                    return;
+                }
                 if (this.dailyMode) {
                     // Daily challenge: save best and bounce to title
                     dailySaveBest(this.dailyDateString, this.score);
@@ -1354,6 +1378,26 @@ class Game {
         items.push({ label: 'TROPHIES',      run: () => { this.screen = 'achievements'; this.achievementsTimer = 0; this.achievementsScroll = 0; } });
         items.push({ label: 'LEADERBOARD',   run: () => { this.screen = 'leaderboard'; this.leaderboardTimer = 0; } });
         items.push({ label: 'PASSWORD',      run: () => { this.screen = 'password'; this.passwordTimer = 0; this.passwordMode = 'view'; this.passwordInput = ''; this.passwordMessage = ''; } });
+        items.push({ label: 'EXPORT MIDI',    run: () => { this.screen = 'midi'; this.midiTimer = 0; this.midiCursor = 0; this.midiMessage = ''; } });
+        items.push({ label: 'KEY BINDINGS',   run: () => { this.screen = 'rebind'; this.rebindTimer = 0; this.rebindCursor = 0; this.rebindWaiting = false; } });
+        items.push({
+            label: 'LOAD MOD' + (typeof Mods !== 'undefined' && Mods.hasMods() ? '   (' + Mods.loaded.length + ' LOADED)' : ''),
+            run: () => {
+                if (typeof Mods === 'undefined') return;
+                Mods.pickFile((mod, err) => {
+                    if (mod) {
+                        this.menuMessage = 'LOADED ' + mod.name;
+                        this.menuMessageTimer = 180;
+                    } else {
+                        this.menuMessage = 'LOAD FAILED: ' + (err || 'BAD FORMAT');
+                        this.menuMessageTimer = 180;
+                    }
+                });
+            }
+        });
+        if (typeof Mods !== 'undefined' && Mods.hasMods()) {
+            items.push({ label: 'PLAY MOD STAGE', run: () => { this.screen = 'modStages'; this.modStagesTimer = 0; this.modStagesCursor = 0; } });
+        }
         items.push({ label: 'HELP',          run: () => { this.screen = 'help'; this.helpTimer = 0; this.helpPage = 0; } });
         // Difficulty + co-op + NG+ inline toggles
         items.push({
@@ -1434,6 +1478,298 @@ class Game {
         }
 
         drawPixelText(ctx, 'UP DOWN  PICK    SHOOT  CONFIRM    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+
+        if (this.menuMessage && this.menuMessageTimer > 0) {
+            drawPixelTextOutlined(ctx, this.menuMessage,
+                GAME.WIDTH / 2, GAME.HEIGHT - 24, '#50ff70', '#0a3a14', 1, 'center', 1);
+            this.menuMessageTimer--;
+        }
+    }
+
+    // ---- Keybind remap screen ----
+    getRebindActions() {
+        return [
+            { id: 'left',    label: 'MOVE LEFT' },
+            { id: 'right',   label: 'MOVE RIGHT' },
+            { id: 'up',      label: 'AIM UP / CLIMB' },
+            { id: 'down',    label: 'AIM DOWN / CROUCH' },
+            { id: 'jump',    label: 'JUMP' },
+            { id: 'shoot',   label: 'SHOOT' },
+            { id: 'lockAim', label: 'AIM LOCK' },
+            { id: 'cover',   label: 'TAKE COVER' },
+            { id: 'pause',   label: 'PAUSE' }
+        ];
+    }
+
+    // Pretty-print a KeyboardEvent.code (e.g. 'KeyA' -> 'A', 'ArrowUp' -> 'UP')
+    prettyKey(code) {
+        if (!code) return '-';
+        if (code.startsWith('Key')) return code.slice(3);
+        if (code.startsWith('Digit')) return code.slice(5);
+        if (code.startsWith('Numpad')) return 'NUM ' + code.slice(6);
+        if (code.startsWith('Arrow')) return code.slice(5).toUpperCase();
+        if (code === 'Space') return 'SPACE';
+        if (code === 'ControlLeft')  return 'LCTRL';
+        if (code === 'ControlRight') return 'RCTRL';
+        if (code === 'ShiftLeft')    return 'LSHIFT';
+        if (code === 'ShiftRight')   return 'RSHIFT';
+        if (code === 'Escape')       return 'ESC';
+        if (code === 'Enter')        return 'ENTER';
+        if (code === 'Backspace')    return 'BACK';
+        return code.toUpperCase();
+    }
+
+    updateRebindScreen() {
+        this.rebindTimer = (this.rebindTimer || 0) + 1;
+        input.update();
+        const actions = this.getRebindActions();
+
+        // If we're waiting for a key to be pressed, the capture callback
+        // handles it - we just sit until it returns.
+        if (this.rebindWaiting) {
+            // ESC cancels the capture (works because Escape goes through
+            // the key capture, which then completes the binding).
+            return;
+        }
+        if (input.keysJustPressed['ArrowUp'])   this.rebindCursor = (this.rebindCursor + actions.length - 1) % actions.length;
+        if (input.keysJustPressed['ArrowDown']) this.rebindCursor = (this.rebindCursor + 1) % actions.length;
+        // R resets all bindings to defaults
+        if (input.keysJustPressed['KeyR']) {
+            input.resetBindings();
+            this.rebindMessage = 'BINDINGS RESET';
+            this.rebindMessageTimer = 120;
+        }
+        if (input.pausePressed) {
+            this.screen = 'menu';
+            this.menuTimer = 0;
+            return;
+        }
+        if (input.shoot || input.jumpPressed) {
+            // Start capture: next physical key sets the binding.
+            this.rebindWaiting = true;
+            const action = actions[this.rebindCursor];
+            input.captureNext = (code) => {
+                // ESC cancels without rebinding
+                if (code === 'Escape') {
+                    this.rebindWaiting = false;
+                    return;
+                }
+                input.setBinding(action.id, code);
+                this.rebindWaiting = false;
+                this.rebindMessage = `${action.label}  ->  ${this.prettyKey(code)}`;
+                this.rebindMessageTimer = 120;
+            };
+        }
+        if (this.rebindMessageTimer && this.rebindMessageTimer > 0) this.rebindMessageTimer--;
+    }
+
+    renderRebindScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 16; i++) {
+            const x = (i * 17 + this.rebindTimer) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+        drawPixelTextOutlined(ctx, 'KEY BINDINGS', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const actions = this.getRebindActions();
+        const startY = 36;
+        const rowH = 14;
+        for (let i = 0; i < actions.length; i++) {
+            const a = actions[i];
+            const sel = i === this.rebindCursor;
+            const y = startY + i * rowH;
+            if (sel) {
+                ctx.fillStyle = 'rgba(86,68,104,0.55)';
+                ctx.fillRect(20, y - 3, GAME.WIDTH - 40, 11);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(20, y - 3, GAME.WIDTH - 40, 1);
+                ctx.fillRect(20, y + 7, GAME.WIDTH - 40, 1);
+            }
+            drawPixelText(ctx, a.label, 30, y,
+                sel ? '#ffffff' : '#c0a0d0', 1, 'left', 1);
+            // Current primary binding
+            const code = input.bindings[a.id] && input.bindings[a.id][0];
+            drawPixelText(ctx, this.prettyKey(code),
+                GAME.WIDTH - 30, y, sel ? '#ffe070' : '#7af0ff', 1, 'right', 1);
+        }
+
+        // Capture banner
+        if (this.rebindWaiting) {
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(0, GAME.HEIGHT / 2 - 16, GAME.WIDTH, 32);
+            const blink = (this.rebindTimer & 16) < 8;
+            if (blink) {
+                drawPixelTextOutlined(ctx, 'PRESS A KEY...', GAME.WIDTH / 2, GAME.HEIGHT / 2 - 8,
+                    '#ffe070', '#a82020', 2, 'center', 1);
+            }
+        }
+        if (this.rebindMessage && this.rebindMessageTimer > 0) {
+            drawPixelTextOutlined(ctx, this.rebindMessage,
+                GAME.WIDTH / 2, GAME.HEIGHT - 28, '#50ff70', '#0a3a14', 1, 'center', 1);
+        }
+
+        drawPixelText(ctx, 'UP DOWN  PICK    SHOOT  REBIND    R  RESET    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+    }
+
+    // ---- Mod stage picker ----
+    updateModStagesScreen() {
+        this.modStagesTimer = (this.modStagesTimer || 0) + 1;
+        input.update();
+        if (typeof Mods === 'undefined') { this.screen = 'menu'; return; }
+        const list = Mods.allStages();
+        if (list.length === 0) { this.screen = 'menu'; return; }
+        if (input.keysJustPressed['ArrowUp'])   this.modStagesCursor = (this.modStagesCursor + list.length - 1) % list.length;
+        if (input.keysJustPressed['ArrowDown']) this.modStagesCursor = (this.modStagesCursor + 1) % list.length;
+        if (input.pausePressed) {
+            this.screen = 'menu';
+            this.menuTimer = 0;
+            return;
+        }
+        if (input.shoot || input.jumpPressed) {
+            const pick = list[this.modStagesCursor];
+            this.startModStage(pick.stage);
+        }
+    }
+
+    renderModStagesScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        drawPixelTextOutlined(ctx, 'MOD STAGES', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+        if (typeof Mods === 'undefined') return;
+        const list = Mods.allStages();
+        const startY = 36;
+        for (let i = 0; i < Math.min(10, list.length); i++) {
+            const it = list[i];
+            const y = startY + i * 14;
+            const sel = i === this.modStagesCursor;
+            if (sel) {
+                ctx.fillStyle = 'rgba(86,68,104,0.55)';
+                ctx.fillRect(20, y - 3, GAME.WIDTH - 40, 11);
+            }
+            drawPixelText(ctx, it.mod, 28, y, '#a890c0', 1, 'left', 1);
+            drawPixelText(ctx, it.stage.name, GAME.WIDTH - 28, y,
+                sel ? '#ffe070' : '#ffffff', 1, 'right', 1);
+        }
+        drawPixelText(ctx, 'UP DOWN  PICK    SHOOT  PLAY    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+    }
+
+    // Run a mod stage as a one-off free-play
+    startModStage(modStage) {
+        if (typeof audio !== 'undefined') audio.resume();
+        this.score = 0;
+        this.lives = this.difficulty.livesStart;
+        this.continues = this.difficulty.continuesStart;
+        this.gameOver = false;
+        this.paused = false;
+        this.bossRushMode = false;
+        this.dailyMode = false;
+        this.newGamePlus = false;
+        this.level = this.level || new Level();
+        this.level.loadModStage(modStage);
+        this.background.setTheme(modStage.theme);
+        this.background.init(modStage.theme);
+
+        this.enemies = new EnemyManager();
+        this.level.spawnPoints.forEach(s => this.enemies.spawn(s.x, s.y, s.type));
+        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
+
+        this.bossWarning = 0;
+        this.bossWarningShown = false;
+        this.bossIntroActive = false;
+        this.bossIntroTimer = 0;
+        this.bossIntroEnemy = null;
+        this.pickupFlashTimer = 0;
+        this.combo = 0;
+        this.comboTimer = 0;
+        this.camera.x = 0; this.camera.y = 0;
+        this.camera.shakeAmount = 0; this.camera.shakeTimer = 0;
+        if (typeof particles !== 'undefined') particles.clear();
+
+        this.player = new Player(50, 160);
+        this.stageName = modStage.name;
+        this.stageNumber = 'M';
+        this.stageIndex = -1;
+        this.screen = 'stageIntro';
+        this.stageIntroTimer = 0;
+    }
+
+    // ---- MIDI export screen ----
+    getMidiThemes() {
+        return [
+            { id: 'jungle',     label: 'STAGE 1 - OFFICE JUNGLE' },
+            { id: 'breakroom',  label: 'STAGE 2 - BREAK ROOM' },
+            { id: 'serverroom', label: 'STAGE 3 - SERVER FARM' },
+            { id: 'boardroom',  label: 'STAGE 4 - BOARDROOM' },
+            { id: 'keynote',    label: 'STAGE 5 - THE KEYNOTE' },
+            { id: 'founder',    label: 'STAGE 6 - THE FOUNDER' },
+            { id: 'cloud',      label: 'STAGE 8 - THE CLOUD' }
+        ];
+    }
+
+    updateMidiScreen() {
+        this.midiTimer = (this.midiTimer || 0) + 1;
+        input.update();
+        const themes = this.getMidiThemes();
+        if (input.keysJustPressed['ArrowUp'])   this.midiCursor = (this.midiCursor + themes.length - 1) % themes.length;
+        if (input.keysJustPressed['ArrowDown']) this.midiCursor = (this.midiCursor + 1) % themes.length;
+        if (input.pausePressed) {
+            this.screen = 'menu';
+            this.menuTimer = 0;
+            return;
+        }
+        if (input.shoot || input.jumpPressed) {
+            const t = themes[this.midiCursor];
+            if (typeof MIDI !== 'undefined' && typeof audio !== 'undefined') {
+                const ok = MIDI.exportTheme(audio, t.id);
+                this.midiMessage = ok ? `SAVED clippy-${t.id}.mid` : 'EXPORT FAILED';
+                this.midiMessageTimer = 120;
+            }
+        }
+        if (this.midiMessageTimer && this.midiMessageTimer > 0) this.midiMessageTimer--;
+    }
+
+    renderMidiScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 16; i++) {
+            const x = (i * 17 + this.midiTimer) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+        drawPixelTextOutlined(ctx, 'EXPORT MIDI', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+        drawPixelText(ctx, 'PICK A THEME AND SHOOT TO DOWNLOAD',
+            GAME.WIDTH / 2, 30, '#a890c0', 1, 'center', 1);
+
+        const themes = this.getMidiThemes();
+        const startY = 52;
+        for (let i = 0; i < themes.length; i++) {
+            const sel = i === this.midiCursor;
+            const y = startY + i * 16;
+            if (sel) {
+                ctx.fillStyle = 'rgba(86,68,104,0.55)';
+                ctx.fillRect(28, y - 3, GAME.WIDTH - 56, 12);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(28, y - 3, GAME.WIDTH - 56, 1);
+                ctx.fillRect(28, y + 8, GAME.WIDTH - 56, 1);
+            }
+            drawPixelText(ctx, themes[i].label, GAME.WIDTH / 2, y,
+                sel ? '#ffffff' : '#c0a0d0', 1, 'center', 1);
+        }
+        if (this.midiMessage && this.midiMessageTimer > 0) {
+            drawPixelTextOutlined(ctx, this.midiMessage,
+                GAME.WIDTH / 2, GAME.HEIGHT - 28, '#50ff70', '#0a3a14', 1, 'center', 1);
+        }
+        drawPixelText(ctx, 'UP DOWN  PICK    SHOOT  SAVE .MID    ESC  BACK',
             GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
     }
 
@@ -3718,6 +4054,10 @@ class Game {
         if (this.dailyMode) {
             this.stageClearIsFinal = true;
             dailySaveBest(this.dailyDateString, this.score);
+        }
+        // Mod stage is also single-shot and not tracked in main progression
+        if (this.stageIndex < 0) {
+            this.stageClearIsFinal = true;
         }
         // Boss rush has just one "stage" so it's always final there.
         // Stage is final if it is the boss-rush, or if every later stage is hidden.

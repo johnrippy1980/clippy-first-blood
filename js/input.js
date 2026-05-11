@@ -15,6 +15,22 @@ class InputHandler {
         // would otherwise be lost. Set on keydown, drained by update().
         this.pressBuffer = {};
 
+        // Custom key bindings - users can remap actions in the Settings
+        // screen. Defaults below are honored when the user has not chosen
+        // a custom binding.
+        this.defaultBindings = {
+            left:    ['ArrowLeft',  'KeyA'],
+            right:   ['ArrowRight', 'KeyD'],
+            up:      ['ArrowUp',    'KeyW'],
+            down:    ['ArrowDown',  'KeyS'],
+            jump:    ['KeyZ',       'Space'],
+            shoot:   ['KeyX',       'ControlLeft', 'ControlRight'],
+            lockAim: ['ShiftLeft',  'ShiftRight'],
+            cover:   ['KeyC'],
+            pause:   ['KeyP',       'Escape']
+        };
+        this.bindings = null;
+        this.loadBindings();
         // Touch-control state - any touch button can synthesize a key
         this.touchKeys = {};
         this.touchActive = false;
@@ -64,6 +80,12 @@ class InputHandler {
         // pressBuffer only catches the FIRST transition from up->down.
         if (!this.physicalKeys[e.code]) this.pressBuffer[e.code] = true;
         this.physicalKeys[e.code] = true;
+        // Hand the keypress to any active capture (used by rebind screen)
+        if (this.captureNext) {
+            const cb = this.captureNext;
+            this.captureNext = null;
+            cb(e.code);
+        }
     }
 
     onKeyUp(e) {
@@ -220,56 +242,57 @@ class InputHandler {
         this.previousKeys = { ...this.keys };
     }
 
-    // Helpers for common inputs
-    get left() {
-        return this.keys['ArrowLeft'] || this.keys['KeyA'];
+    // ---- Bindings ----
+    loadBindings() {
+        const merged = {};
+        for (const k in this.defaultBindings) merged[k] = this.defaultBindings[k].slice();
+        try {
+            const raw = localStorage.getItem('clippy_first_blood_bindings');
+            if (raw) {
+                const saved = JSON.parse(raw);
+                for (const k in saved) if (merged[k]) merged[k] = saved[k];
+            }
+        } catch (e) {}
+        this.bindings = merged;
+    }
+    saveBindings() {
+        try { localStorage.setItem('clippy_first_blood_bindings', JSON.stringify(this.bindings)); } catch (e) {}
+    }
+    resetBindings() {
+        this.bindings = {};
+        for (const k in this.defaultBindings) this.bindings[k] = this.defaultBindings[k].slice();
+        this.saveBindings();
+    }
+    setBinding(action, code) {
+        if (!this.bindings[action]) this.bindings[action] = [];
+        this.bindings[action][0] = code;
+        this.saveBindings();
+    }
+    // Returns true if any bound code for the action is currently down.
+    actionDown(action) {
+        const list = this.bindings[action] || this.defaultBindings[action] || [];
+        for (let i = 0; i < list.length; i++) if (this.keys[list[i]]) return true;
+        return false;
+    }
+    actionPressed(action) {
+        const list = this.bindings[action] || this.defaultBindings[action] || [];
+        for (let i = 0; i < list.length; i++) if (this.keysJustPressed[list[i]]) return true;
+        return false;
     }
 
-    get right() {
-        return this.keys['ArrowRight'] || this.keys['KeyD'];
-    }
-
-    get up() {
-        return this.keys['ArrowUp'] || this.keys['KeyW'];
-    }
-
-    get down() {
-        return this.keys['ArrowDown'] || this.keys['KeyS'];
-    }
-
-    get jump() {
-        return this.keys['Space'] || this.keys['KeyZ'];
-    }
-
-    get jumpPressed() {
-        return this.keysJustPressed['Space'] || this.keysJustPressed['KeyZ'];
-    }
-
-    get shoot() {
-        return this.keys['KeyX'] || this.keys['ControlLeft'] || this.keys['ControlRight'];
-    }
-
-    get shootPressed() {
-        return this.keysJustPressed['KeyX'] ||
-               this.keysJustPressed['ControlLeft'] ||
-               this.keysJustPressed['ControlRight'];
-    }
-
-    get lockAim() {
-        return this.keys['ShiftLeft'] || this.keys['ShiftRight'];
-    }
-
-    get cover() {
-        return this.keysJustPressed['KeyC'];
-    }
-
-    get downPressed() {
-        return this.keysJustPressed['ArrowDown'] || this.keysJustPressed['KeyS'];
-    }
-
-    get pausePressed() {
-        return this.keysJustPressed['KeyP'] || this.keysJustPressed['Escape'];
-    }
+    // ---- Action getters (route through the binding table) ----
+    get left()          { return this.actionDown('left'); }
+    get right()         { return this.actionDown('right'); }
+    get up()            { return this.actionDown('up'); }
+    get down()          { return this.actionDown('down'); }
+    get jump()          { return this.actionDown('jump'); }
+    get jumpPressed()   { return this.actionPressed('jump'); }
+    get shoot()         { return this.actionDown('shoot'); }
+    get shootPressed()  { return this.actionPressed('shoot'); }
+    get lockAim()       { return this.actionDown('lockAim'); }
+    get cover()         { return this.actionPressed('cover'); }
+    get downPressed()   { return this.actionPressed('down'); }
+    get pausePressed()  { return this.actionPressed('pause'); }
 
     // --- Player 2 input set: numpad + Y/O/N
     //   8/4/5/6 d-pad   7 jump   9 shoot   N cover   Y aim-lock

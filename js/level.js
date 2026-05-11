@@ -748,6 +748,11 @@ class Level {
         ];
     }
 
+    // ---- Mod stages - applied from a loaded JSON file ----
+    loadModStage(modStage) {
+        if (typeof Mods !== 'undefined') Mods.applyToLevel(this, modStage);
+    }
+
     // ---- Stage 8: THE CLOUD - hidden ascended boss vs THE ALGORITHM ----
     loadStage8() {
         this.theme = 'cloud';
