@@ -688,7 +688,10 @@ class Game {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
                 this.updateLeaderboard();
-            } else if (!this.paused && !this.gameOver) {
+            } else if (!this.gameOver) {
+                // update() handles the pause toggle and pause menu input
+                // internally - don't gate it on !this.paused or the pause
+                // becomes uncancellable (input.update wouldn't run either).
                 this.update();
             }
             this.accumulator -= this.timestep;
@@ -1427,7 +1430,7 @@ class Game {
             this.titleTimer = 0;
             return;
         }
-        if (input.shoot || input.jumpPressed || input.keysJustPressed['Enter']) {
+        if (input.shootPressed || input.jumpPressed || input.keysJustPressed['Enter']) {
             const item = items[this.menuCursor];
             if (item && item.run) item.run();
         }
@@ -1720,7 +1723,7 @@ class Game {
             this.menuTimer = 0;
             return;
         }
-        if (input.shoot || input.jumpPressed) {
+        if (input.shootPressed || input.jumpPressed) {
             const t = themes[this.midiCursor];
             if (typeof MIDI !== 'undefined' && typeof audio !== 'undefined') {
                 const ok = MIDI.exportTheme(audio, t.id);
@@ -1811,7 +1814,7 @@ class Game {
             this.titleTimer = 0;
             return;
         }
-        if (input.shoot || input.jumpPressed) {
+        if (input.shootPressed || input.jumpPressed) {
             this.startDailyChallenge();
         }
     }
@@ -2177,14 +2180,16 @@ class Game {
         this.leaderboardTimer = (this.leaderboardTimer || 0) + 1;
         input.update();
         if (this.leaderboardTab === undefined) this.leaderboardTab = this.difficultyIndex;
-        // LEFT/RIGHT cycles the difficulty tab
+        // LEFT/RIGHT cycles the difficulty tab. Reset onlineTop to undefined
+        // (not null) so the lazy-fetch gate below re-runs for the new tab -
+        // null is the "fetch in flight" sentinel.
         if (input.keysJustPressed['ArrowLeft']) {
             this.leaderboardTab = (this.leaderboardTab + 2) % 3;
-            this.onlineTop = null;
+            this.onlineTop = undefined;
         }
         if (input.keysJustPressed['ArrowRight']) {
             this.leaderboardTab = (this.leaderboardTab + 1) % 3;
-            this.onlineTop = null;
+            this.onlineTop = undefined;
         }
         // S triggers a SHARE for the most recent entry (if any)
         if (input.keysJustPressed['KeyS'] && this.lastEntry && typeof OnlineLeaderboard !== 'undefined') {
