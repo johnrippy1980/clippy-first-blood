@@ -43,6 +43,12 @@ class Game {
         // Stage-select grid cursor (0..stages.length-1)
         this.stageSelectCursor = 0;
         this.stageSelectTimer = 0;
+        // Speedrun replay ghost - records this run, plays back the best run
+        this.recordingFrames = null;        // array of frame snapshots
+        this.recordingTick = 0;
+        this.ghostFrames = null;            // loaded ghost (if any)
+        this.ghostFrame = 0;
+        this.GHOST_SAMPLE = 4;              // every Nth frame
         // Difficulty selection (persisted)
         this.difficultyKeys = ['EASY', 'NORMAL', 'HARD'];
         this.difficultyIndex = 1;
@@ -343,6 +349,46 @@ class Game {
             try { localStorage.setItem('clippy_first_blood_hiscore', String(this.score)); }
             catch (e) { /* localStorage unavailable in private mode */ }
         }
+    }
+
+    // ---- Replay ghost persistence ----
+    loadGhostForStage(stageIndex) {
+        try {
+            const raw = localStorage.getItem(`clippy_first_blood_ghost_${stageIndex}`);
+            if (!raw) return null;
+            // Compact format: "x,y,state,af,fr|x,y,..." per frame
+            const out = [];
+            const parts = raw.split('|');
+            for (const p of parts) {
+                if (!p) continue;
+                const f = p.split(',');
+                if (f.length < 5) continue;
+                out.push({
+                    x: parseFloat(f[0]),
+                    y: parseFloat(f[1]),
+                    state: f[2],
+                    animFrame: parseInt(f[3], 10),
+                    facingRight: f[4] === '1'
+                });
+            }
+            return out;
+        } catch (e) { return null; }
+    }
+
+    saveGhostForStage(stageIndex, frames, timeSeconds) {
+        try {
+            // Only save if there is no previous ghost, or this run beats its time.
+            const prevTime = parseFloat(localStorage.getItem(`clippy_first_blood_ghost_t_${stageIndex}`) || 'NaN');
+            if (!isNaN(prevTime) && timeSeconds >= prevTime) return;
+            // Hard cap on frames to avoid blowing localStorage on slow runs.
+            const max = 6000;     // ~16 minutes at 4-frame sampling, 60 fps
+            const trimmed = frames.length > max ? frames.slice(0, max) : frames;
+            const enc = trimmed.map(f =>
+                `${f.x | 0},${f.y | 0},${f.state},${f.animFrame},${f.facingRight ? 1 : 0}`
+            ).join('|');
+            localStorage.setItem(`clippy_first_blood_ghost_${stageIndex}`, enc);
+            localStorage.setItem(`clippy_first_blood_ghost_t_${stageIndex}`, String(timeSeconds));
+        } catch (e) { /* localStorage full or unavailable */ }
     }
 
     markGameComplete(runTime) {
@@ -2114,6 +2160,17 @@ class Game {
                 this.runEnemiesDefeated = 0;
                 this.runSecretsFound = 0;
             }
+            // Start replay-ghost recording + load ghost for this stage
+            // (skipped in boss rush since stages are mashed together)
+            if (!this.bossRushMode) {
+                this.recordingFrames = [];
+                this.recordingTick = 0;
+                this.ghostFrames = this.loadGhostForStage(this.stageIndex);
+                this.ghostFrame = 0;
+            } else {
+                this.recordingFrames = null;
+                this.ghostFrames = null;
+            }
             if (typeof audio !== 'undefined') {
                 // Stop any previous theme so the new one snaps in cleanly
                 audio.stopMusic();
@@ -2352,6 +2409,24 @@ class Game {
         // Pickup flash timer
         if (this.pickupFlashTimer > 0) this.pickupFlashTimer--;
 
+        // Replay ghost: record player snapshot every Nth frame
+        if (this.recordingFrames && this.player) {
+            this.recordingTick++;
+            if (this.recordingTick % this.GHOST_SAMPLE === 0) {
+                this.recordingFrames.push({
+                    x: this.player.x,
+                    y: this.player.y,
+                    state: this.player.state,
+                    animFrame: this.player.animFrame || 0,
+                    facingRight: this.player.facingRight
+                });
+            }
+            // Advance ghost playback if loaded
+            if (this.ghostFrames && this.recordingTick % this.GHOST_SAMPLE === 0) {
+                this.ghostFrame++;
+            }
+        }
+
         // Update camera to follow player
         this.updateCamera();
 
@@ -2419,6 +2494,12 @@ class Game {
         this.stageClearScore = this.score;
         // Boss rush has just one "stage" so it's always final there.
         this.stageClearIsFinal = this.bossRushMode || (this.stageIndex >= this.stages.length - 1);
+        // Persist the replay ghost if this run beats the saved best time
+        if (this.recordingFrames && !this.bossRushMode) {
+            this.saveGhostForStage(this.stageIndex, this.recordingFrames, this.stageClearTime);
+        }
+        this.recordingFrames = null;
+        this.ghostFrames = null;
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
@@ -2467,6 +2548,27 @@ class Game {
 
         // Draw enemies
         this.enemies.draw(this.ctx, shakeCam);
+
+        // Draw the speedrun ghost behind the live player
+        if (this.ghostFrames && this.ghostFrames.length > 0) {
+            const gf = this.ghostFrames[Math.min(this.ghostFrame, this.ghostFrames.length - 1)];
+            if (gf && typeof proceduralSprites !== 'undefined') {
+                const gx = gf.x - shakeCam.x;
+                const gy = gf.y - shakeCam.y;
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.35;
+                // Pale cyan tint - hard to do per-pixel, so we draw the sprite
+                // then overlay a faint cyan rectangle masked to the ghost area.
+                proceduralSprites.drawClippy(
+                    this.ctx,
+                    gx - 16, gy - 16,
+                    gf.state, gf.animFrame, gf.facingRight, 0
+                );
+                this.ctx.fillStyle = 'rgba(120, 220, 255, 0.25)';
+                this.ctx.fillRect(gx - 16, gy - 16, 48, 48);
+                this.ctx.restore();
+            }
+        }
 
         // Draw player
         this.player.draw(this.ctx, shakeCam);
@@ -2630,6 +2732,11 @@ class Game {
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(tX, BAR_H + 1, 62, 10);
             drawPixelText(ctx, timeStr, tX + 31, BAR_H + 3, '#c0a8d0', 1, 'center', 1);
+        }
+
+        // GHOST indicator when a replay ghost is loaded
+        if (this.ghostFrames && this.ghostFrames.length > 0) {
+            drawPixelText(ctx, 'GHOST', 4, BAR_H + 3, '#7ad8ff', 1, 'left', 1);
         }
     }
 
