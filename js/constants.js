@@ -20,6 +20,7 @@ const PLAYER_STATE = {
     FALLING: 'falling',
     CROUCHING: 'crouching',
     PRONE: 'prone',
+    SLIDING: 'sliding',
     CLIMBING: 'climbing',
     WALL_SLIDING: 'wallSliding',
     COVER: 'cover',         // Blackthorne-style hiding

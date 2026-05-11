@@ -57,6 +57,11 @@ class Player {
         this.downTapTimer = 0;
         this.downTapCount = 0;
 
+        // Slide attack: a short fast dash with a prone-height hitbox and a
+        // few iframes, triggered by Down + Jump while running on the ground.
+        this.slideTimer = 0;
+        this.slideCooldown = 0;
+
         // Animation
         this.animFrame = 0;
         this.animTimer = 0;
@@ -82,6 +87,7 @@ class Player {
         if (this.wallJumpCooldown > 0) {
             this.wallJumpCooldown--;
         }
+        if (this.slideCooldown > 0) this.slideCooldown--;
 
         // Update based on state
         switch (this.state) {
@@ -93,6 +99,9 @@ class Player {
                 break;
             case PLAYER_STATE.DYING:
                 this.updateDying(level);
+                break;
+            case PLAYER_STATE.SLIDING:
+                this.updateSliding(level);
                 break;
             default:
                 this.updateNormal(level);
@@ -112,6 +121,24 @@ class Player {
 
     updateNormal(level) {
         const move = this.controls.getMovement();
+
+        // Slide trigger: running + down held + jump pressed, on the ground,
+        // off cooldown. Short fast dash with a prone-height hitbox.
+        if (this.onGround && this.controls.down && this.controls.jumpPressed
+            && this.slideCooldown <= 0
+            && (this.state === PLAYER_STATE.RUNNING || Math.abs(this.vx) > 0.5)) {
+            this.state = PLAYER_STATE.SLIDING;
+            this.height = PLAYER.PRONE_HEIGHT;
+            this.y += PLAYER.HEIGHT - PLAYER.PRONE_HEIGHT;
+            this.slideTimer = 22;
+            this.invincibilityTimer = Math.max(this.invincibilityTimer, 16);
+            this.vx = (this.facingRight ? 1 : -1) * 5.5;
+            if (typeof particles !== 'undefined' && particles.landDust) {
+                particles.landDust(this.x + this.width / 2, this.y + this.height);
+            }
+            if (typeof audio !== 'undefined' && audio.sfxJump) audio.sfxJump();
+            return;
+        }
 
         // Prone double-tap detection
         if (this.controls.downPressed) {
@@ -290,6 +317,37 @@ class Player {
             this.state = PLAYER_STATE.JUMPING;
         } else {
             this.state = PLAYER_STATE.FALLING;
+        }
+    }
+
+    // Mid-slide: keep dashing in the locked direction until the timer runs
+    // down, a wall stops us, or we leave the ground. Aim+shoot still works.
+    updateSliding(level) {
+        // Hold the prone-height while the slide is active. Gravity still
+        // applies in case the player slides off a ledge.
+        this.vy += GAME.GRAVITY;
+        if (this.vy > GAME.MAX_FALL_SPEED) this.vy = GAME.MAX_FALL_SPEED;
+        this.moveAndCollide(level);
+
+        this.updateAiming();
+        this.updateShooting();
+
+        this.slideTimer--;
+        const hitWall = this.facingRight ? this.touchingWallRight : this.touchingWallLeft;
+        const exit = this.slideTimer <= 0 || hitWall || !this.onGround;
+        if (exit) {
+            // Try to stand back up - only if the ceiling is clear, otherwise
+            // hold the low pose until headroom appears.
+            const delta = PLAYER.HEIGHT - PLAYER.PRONE_HEIGHT;
+            if (this.hasHeadroom(level, delta)) {
+                this.height = PLAYER.HEIGHT;
+                this.y -= delta;
+                this.state = this.onGround ? PLAYER_STATE.IDLE : PLAYER_STATE.FALLING;
+            } else {
+                this.state = PLAYER_STATE.PRONE;
+            }
+            this.slideCooldown = 30;
+            this.vx *= 0.4;
         }
     }
 
