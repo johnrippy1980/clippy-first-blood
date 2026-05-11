@@ -27,6 +27,10 @@ class Game {
         // Boss warning state
         this.bossWarning = 0;         // Frames remaining of the WARNING banner
         this.bossWarningShown = false;
+        // Boss intro pan
+        this.bossIntroActive = false;
+        this.bossIntroTimer = 0;
+        this.bossIntroEnemy = null;
         // Pickup acquisition notification
         this.pickupFlash = '';
         this.pickupFlashTimer = 0;
@@ -106,6 +110,9 @@ class Game {
         // Reset per-stage state
         this.bossWarning = 0;
         this.bossWarningShown = false;
+        this.bossIntroActive = false;
+        this.bossIntroTimer = 0;
+        this.bossIntroEnemy = null;
         this.pickupFlashTimer = 0;
         this.camera.x = 0;
         this.camera.y = 0;
@@ -141,6 +148,40 @@ class Game {
         if (amount > this.camera.shakeAmount) {
             this.camera.shakeAmount = amount;
             this.camera.shakeTimer = duration;
+        }
+    }
+
+    drawBossIntro() {
+        const ctx = this.ctx;
+        const t = this.bossIntroTimer;
+        // Letterbox bars sliding in
+        const barH = Math.min(28, t * 2);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, barH);
+        ctx.fillRect(0, GAME.HEIGHT - barH, GAME.WIDTH, barH);
+        // Trim line on inside edge
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(0, barH - 1, GAME.WIDTH, 1);
+        ctx.fillRect(0, GAME.HEIGHT - barH, GAME.WIDTH, 1);
+
+        // Name banner appears after the bars are in
+        if (t > 20 && this.bossIntroEnemy) {
+            const slide = Math.min(1, (t - 20) / 14);
+            const yC = GAME.HEIGHT / 2 + 24 - (1 - slide) * 16;
+            // Banner background
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(40, yC - 4, GAME.WIDTH - 80, 18);
+            ctx.fillStyle = '#3a2855';
+            ctx.fillRect(42, yC - 2, GAME.WIDTH - 84, 14);
+            ctx.fillStyle = '#564468';
+            ctx.fillRect(42, yC - 2, GAME.WIDTH - 84, 1);
+            ctx.fillStyle = '#1a1140';
+            ctx.fillRect(42, yC + 11, GAME.WIDTH - 84, 1);
+            // VS. text on the left
+            drawPixelText(ctx, 'VS.', 50, yC + 2, '#ffe070', 1, 'left', 1);
+            // Boss name on the right
+            const name = (this.bossIntroEnemy.type && this.bossIntroEnemy.type.name) || 'BOSS';
+            drawPixelTextOutlined(ctx, name.toUpperCase(), GAME.WIDTH - 50, yC + 2, '#ff5050', '#1a0000', 1, 'right', 1);
         }
     }
 
@@ -447,8 +488,10 @@ class Game {
         }
         if (this.paused) return;
 
-        // Update player
-        this.player.update(this.level);
+        // During boss intro the player stops moving but enemies + bg still animate
+        if (!this.bossIntroActive) {
+            this.player.update(this.level);
+        }
 
         // Update enemies
         this.enemies.update(this.level, this.player);
@@ -461,14 +504,32 @@ class Game {
         if (typeof particles !== 'undefined') particles.update();
         this.updateShake();
 
-        // Boss warning trigger
+        // Boss warning + intro pan trigger
         if (!this.bossWarningShown && this.level.bossArenaX &&
             this.player.x > this.level.bossArenaX - 80) {
-            this.bossWarning = 120;     // 2 seconds
             this.bossWarningShown = true;
+            // Find the boss so the camera can pan to it
+            const boss = this.enemies.enemies.find(e => e.isBoss && e.isBoss());
+            if (boss) {
+                this.bossIntroActive = true;
+                this.bossIntroTimer = 0;
+                this.bossIntroEnemy = boss;
+            } else {
+                this.bossWarning = 120;
+            }
             if (typeof game !== 'undefined' && game.shake) game.shake(3, 30);
         }
         if (this.bossWarning > 0) this.bossWarning--;
+
+        // Drive boss intro pan (camera locked, slow zoom-in feel)
+        if (this.bossIntroActive) {
+            this.bossIntroTimer++;
+            // After 90 frames, kick off the WARNING banner and resume normal play
+            if (this.bossIntroTimer > 90) {
+                this.bossIntroActive = false;
+                this.bossWarning = 90;
+            }
+        }
 
         // Pickup flash timer
         if (this.pickupFlashTimer > 0) this.pickupFlashTimer--;
@@ -481,9 +542,17 @@ class Game {
     }
 
     updateCamera() {
-        // Target camera on player, centered
-        this.camera.targetX = this.player.x - GAME.WIDTH / 2 + this.player.width / 2;
-        this.camera.targetY = this.player.y - GAME.HEIGHT / 2 + this.player.height / 2;
+        // Boss intro: aim at the boss instead of the player
+        let focusX, focusY;
+        if (this.bossIntroActive && this.bossIntroEnemy) {
+            focusX = this.bossIntroEnemy.x + this.bossIntroEnemy.width / 2;
+            focusY = this.bossIntroEnemy.y + this.bossIntroEnemy.height / 2;
+        } else {
+            focusX = this.player.x + this.player.width / 2;
+            focusY = this.player.y + this.player.height / 2;
+        }
+        this.camera.targetX = focusX - GAME.WIDTH / 2;
+        this.camera.targetY = focusY - GAME.HEIGHT / 2;
 
         // Clamp to level bounds
         this.camera.targetX = Math.max(0, Math.min(
@@ -589,6 +658,11 @@ class Game {
 
         // Draw HUD (unaffected by shake)
         this.drawHUD();
+
+        // Draw boss intro letterbox + name banner
+        if (this.bossIntroActive) {
+            this.drawBossIntro();
+        }
 
         // Draw boss warning banner
         if (this.bossWarning > 0) {
@@ -711,6 +785,19 @@ class Game {
         if (this.player.timeSinceDamage >= PLAYER.HEALTH_REGEN_DELAY &&
             this.player.health < PLAYER.MAX_HEALTH) {
             this.flashText(ctx, 'RECOVERING', 4, BAR_H + 8, '#7af0ff');
+        }
+
+        // ---- Stage timer (small readout under the bar, top-right) ----
+        if (this.stageStartTime > 0) {
+            const elapsed = (Date.now() - this.stageStartTime) / 1000;
+            const mins = Math.floor(elapsed / 60);
+            const secs = Math.floor(elapsed % 60);
+            const ms = Math.floor((elapsed * 100) % 100);
+            const timeStr = `${mins}:${String(secs).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+            const tX = W - 64;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(tX, BAR_H + 1, 62, 10);
+            drawPixelText(ctx, timeStr, tX + 31, BAR_H + 3, '#c0a8d0', 1, 'center', 1);
         }
     }
 

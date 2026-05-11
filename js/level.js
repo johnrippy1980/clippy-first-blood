@@ -273,7 +273,7 @@ class Level {
             { x: 79 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
             // Section 3 - boss arena
             { x: 80 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
-            { x: 90 * 16, y: 8  * 16, type: 'FILE_CABINET' }
+            { x: 88 * 16, y: 8  * 16, type: 'PHOTOCOPIER' }
         ];
     }
 

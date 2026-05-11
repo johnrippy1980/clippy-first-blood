@@ -57,6 +57,9 @@ class Enemy {
             case 'miniboss':
                 this.updateMiniboss(level, player);
                 break;
+            case 'photocopier_boss':
+                this.updatePhotocopierBoss(level, player);
+                break;
         }
 
         // Update projectiles
@@ -226,6 +229,105 @@ class Enemy {
         }
     }
 
+    // ---------- Copier 3000 boss ----------
+    // Theme: a photocopier that has had enough. Phase 1 cycles paper-jam,
+    // scanner sweep, and toner cloud attacks; phase 2 adds chaos jam.
+    updatePhotocopierBoss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 70 : 100;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 4 : 3);
+
+        // Telegraph: LED indicator and motion lines kick in 18 frames before firing
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 18) this.attackTelegraph = pattern;
+        // For the scanner sweep, drive the scanner bar across during the telegraph
+        if (pattern === 1 && step >= fireFrame - 18 && step <= fireFrame) {
+            this.scannerProgress = (step - (fireFrame - 18)) / 18;
+        } else if (pattern !== 1) {
+            this.scannerProgress = 0;
+        }
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+
+        switch (pattern) {
+            case 0: {
+                // Paper jam: three sheets eject upward then sail toward the player
+                for (let i = -1; i <= 1; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2 + i * 8,
+                        y: this.y - 4,
+                        vx: i * 1.5 + (this.facingRight ? 0.8 : -0.8),
+                        vy: -4,
+                        gravity: 0.15,
+                        damage: this.damage,
+                        life: 140,
+                        type: 'paper'
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxEnemyHit();
+                break;
+            }
+            case 1: {
+                // Scanner sweep: a wide low laser sweeps in the player's direction
+                const dir = dx > 0 ? 1 : -1;
+                this.facingRight = dx > 0;
+                const fy = this.y + this.height / 2;
+                for (let i = 0; i < 5; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: fy,
+                        vx: dir * (3 + i * 0.4),
+                        vy: 0,
+                        damage: this.damage,
+                        life: 70,
+                        type: 'scanner'
+                    });
+                }
+                break;
+            }
+            case 2: {
+                // Toner cloud: three slow-falling sticky clouds
+                for (let i = 0; i < 3; i++) {
+                    const a = -Math.PI / 2 + (i - 1) * 0.5;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y,
+                        vx: Math.cos(a) * 2,
+                        vy: Math.sin(a) * 3,
+                        gravity: 0.12,
+                        damage: this.damage * 0.6,
+                        life: 100,
+                        type: 'toner'
+                    });
+                }
+                break;
+            }
+            case 3: {
+                // Phase-2 chaos jam: 8 papers in a star burst
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2,
+                        y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 3,
+                        vy: Math.sin(a) * 3,
+                        damage: this.damage * 0.7,
+                        life: 90,
+                        type: 'paper'
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                if (typeof game !== 'undefined' && game.shake) game.shake(3, 6);
+                break;
+            }
+        }
+    }
+
     fireAtPlayer(player, projectileType = null) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
@@ -262,6 +364,10 @@ class Enemy {
         }
     }
 
+    isBoss() {
+        return this.behavior === 'miniboss' || this.behavior === 'photocopier_boss';
+    }
+
     takeDamage(amount) {
         this.health -= amount;
         this.hitFlash = 5;  // White flash for 5 frames
@@ -286,12 +392,13 @@ class Enemy {
         if (typeof audio !== 'undefined') audio.sfxExplosion();
         if (typeof game !== 'undefined') {
             if (game.shake) {
-                game.shake(this.behavior === 'miniboss' ? 8 : 3, this.behavior === 'miniboss' ? 18 : 6);
+                const isBoss = this.isBoss();
+                game.shake(isBoss ? 8 : 3, isBoss ? 18 : 6);
             }
             if (this.score > 0) game.score += this.score;
         }
         // Random 1UP drop - bosses always drop, otherwise small chance
-        const dropChance = this.behavior === 'miniboss' ? 1.0 : 0.04;
+        const dropChance = this.isBoss() ? 1.0 : 0.04;
         if (Math.random() < dropChance && typeof pickupManager !== 'undefined' && pickupManager.spawnDrop) {
             pickupManager.spawnDrop(this.x + this.width / 2, this.y + this.height / 2, '1UP');
         }
@@ -315,12 +422,13 @@ class Enemy {
         }
 
         switch (this.behavior) {
-            case 'hop':        this.drawStaplerSNES(ctx, screenX, screenY, flash); break;
-            case 'fly_sine':   this.drawFolderSNES(ctx, screenX, screenY, flash); break;
-            case 'bounce':     this.drawRubberBallSNES(ctx, screenX, screenY, flash); break;
-            case 'stationary': this.drawTapeDispenserSNES(ctx, screenX, screenY, flash); break;
-            case 'miniboss':   this.drawFileCabinetSNES(ctx, screenX, screenY, flash); break;
-            default:           this.drawStaplerSNES(ctx, screenX, screenY, flash);
+            case 'hop':              this.drawStaplerSNES(ctx, screenX, screenY, flash); break;
+            case 'fly_sine':         this.drawFolderSNES(ctx, screenX, screenY, flash); break;
+            case 'bounce':           this.drawRubberBallSNES(ctx, screenX, screenY, flash); break;
+            case 'stationary':       this.drawTapeDispenserSNES(ctx, screenX, screenY, flash); break;
+            case 'miniboss':         this.drawFileCabinetSNES(ctx, screenX, screenY, flash); break;
+            case 'photocopier_boss': this.drawCopierSNES(ctx, screenX, screenY, flash); break;
+            default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
 
@@ -340,7 +448,7 @@ class Enemy {
         });
 
         // Boss health bar - SNES style with frame
-        if (this.behavior === 'miniboss') {
+        if (this.isBoss()) {
             const bx = screenX, by = screenY - 10;
             ctx.fillStyle = '#000';
             ctx.fillRect(bx - 1, by - 1, this.width + 2, 6);
@@ -687,7 +795,152 @@ class Enemy {
             case 'paperclip': return '#ccc';
             case 'tape': return '#ffc';
             case 'drawer': return '#654';
+            case 'paper': return '#fff8d0';
+            case 'scanner': return '#80ffe0';
+            case 'toner': return '#3a2030';
             default: return '#f00';
+        }
+    }
+
+    // Copier 3000 mini-boss for Stage 2
+    drawCopierSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) x += (Math.floor(this.behaviorTimer / 2) % 2) * 2 - 1;
+
+        const phase2 = this.health / this.maxHealth <= 0.5;
+
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', bodydark:'#fff',
+            glass:'#fff', scan:'#fff', tray:'#fff', led:'#000', lit:'#000'
+        } : {
+            outline:'#1a1a22',
+            body:'#c0c8d0',
+            bodylit:'#e8ecf0',
+            bodydark:'#7a8090',
+            glass:'#102030',
+            scan:'#80ffe0',
+            tray:'#3a3a48',
+            led: phase2 ? '#ff3030' : '#50ff70',
+            lit:'#ffffff'
+        };
+
+        // Drop shadow under the copier
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(x - 1, y + H, W + 2, 2);
+
+        // Main body (the bulk)
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x, y + 8, W, H - 8);
+        // Top highlight
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(x, y + 8, W, 2);
+        ctx.fillRect(x, y + 8, 1, H - 8);
+        // Bottom shadow
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(x, y + H - 2, W, 2);
+        ctx.fillRect(x + W - 1, y + 8, 1, H - 8);
+
+        // Paper tray section at top (where papers come out)
+        ctx.fillStyle = C.tray;
+        ctx.fillRect(x + 4, y, W - 8, 10);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 4, y, W - 8, 1);
+        ctx.fillRect(x + 4, y + 9, W - 8, 1);
+        // Stack of papers in tray
+        ctx.fillStyle = '#fff8d0';
+        ctx.fillRect(x + 7, y + 3, W - 14, 5);
+        ctx.fillStyle = '#d8c890';
+        ctx.fillRect(x + 7, y + 7, W - 14, 1);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 7, y + 3, W - 14, 1);
+
+        // Scanner glass strip - long dark rectangle on the front
+        const scanX = x + 4;
+        const scanW = W - 8;
+        const scanY = y + 14;
+        ctx.fillStyle = C.glass;
+        ctx.fillRect(scanX, scanY, scanW, 6);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(scanX, scanY, scanW, 1);
+        ctx.fillRect(scanX, scanY + 5, scanW, 1);
+        // Scanner bar slides during the scanner-sweep telegraph
+        const sp = this.scannerProgress || 0;
+        if (sp > 0) {
+            const barX = scanX + Math.floor(sp * (scanW - 4));
+            ctx.fillStyle = C.scan;
+            ctx.fillRect(barX, scanY + 1, 4, 4);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(barX + 1, scanY + 1, 2, 1);
+            // Beam glow
+            ctx.fillStyle = 'rgba(128,255,224,0.35)';
+            ctx.fillRect(barX, scanY - 2, 4, 10);
+        }
+
+        // Control panel (lower front)
+        const pX = x + 6;
+        const pY = y + 24;
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(pX, pY, W - 12, 8);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(pX, pY, W - 12, 1);
+        // Button row
+        for (let i = 0; i < 4; i++) {
+            ctx.fillStyle = '#1a1a22';
+            ctx.fillRect(pX + 2 + i * 6, pY + 2, 4, 4);
+            ctx.fillStyle = '#5a5060';
+            ctx.fillRect(pX + 2 + i * 6, pY + 2, 4, 1);
+        }
+        // Power LED - blinks during telegraph
+        const ledBlink = tele && (this.behaviorTimer & 2);
+        ctx.fillStyle = ledBlink ? C.lit : C.led;
+        ctx.fillRect(x + W - 9, pY + 2, 4, 4);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + W - 8, pY + 2, 1, 1);
+        // LED glow on telegraph
+        if (ledBlink) {
+            ctx.fillStyle = phase2 ? 'rgba(255,48,48,0.4)' : 'rgba(80,255,112,0.4)';
+            ctx.fillRect(x + W - 11, pY, 8, 8);
+        }
+
+        // Vents on the side
+        ctx.fillStyle = C.bodydark;
+        for (let i = 0; i < 3; i++) {
+            ctx.fillRect(x + 2, y + 24 + i * 4, 2, 2);
+            ctx.fillRect(x + W - 4, y + 24 + i * 4, 2, 2);
+        }
+
+        // Outer outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, y + 8, W, 1);
+        ctx.fillRect(x, y + H - 1, W, 1);
+        ctx.fillRect(x, y + 8, 1, H - 8);
+        ctx.fillRect(x + W - 1, y + 8, 1, H - 8);
+        ctx.fillRect(x + 4, y, 1, 10);
+        ctx.fillRect(x + W - 5, y, 1, 10);
+        ctx.fillRect(x + 4, y, W - 8, 1);
+
+        // Phase 2 rim glow
+        if (phase2 && !flash) {
+            const pulse = Math.sin(this.behaviorTimer * 0.2) > 0;
+            ctx.fillStyle = pulse ? '#ff3030' : '#a82020';
+            ctx.fillRect(x - 1, y - 1, W + 2, 1);
+            ctx.fillRect(x - 1, y + H, W + 2, 1);
+            ctx.fillRect(x - 1, y, 1, H);
+            ctx.fillRect(x + W, y, 1, H);
+            // Steam puffs - paper-jam visual
+            if (this.behaviorTimer % 8 === 0 && typeof particles !== 'undefined') {
+                particles.spawn({
+                    x: x + W / 2 + (Math.random() - 0.5) * W,
+                    y: y - 2,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: -0.4 - Math.random() * 0.3,
+                    gravity: -0.01,
+                    life: 18,
+                    size: 2,
+                    colors: ['#ffffff', '#c0c0d0', '#8080a0']
+                });
+            }
         }
     }
 

@@ -167,6 +167,17 @@ const ENEMY_TYPE = {
         behavior: 'miniboss',
         projectile: 'drawer',
         score: 1000
+    },
+    PHOTOCOPIER: {
+        name: 'Copier 3000',
+        width: 44,
+        height: 40,
+        health: 28,
+        damage: 18,
+        speed: 0,
+        behavior: 'photocopier_boss',
+        projectile: 'paper',
+        score: 1500
     }
 };
 
