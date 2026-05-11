@@ -67,6 +67,7 @@ const Mods = {
                 tiles.push(r);
             }
             const theme = themes.has(s.theme) ? s.theme : 'jungle';
+            const hasXY = p => p && Number.isFinite(p.x) && Number.isFinite(p.y);
             sanitized.stages.push({
                 name: String(s.name || 'MOD STAGE').slice(0, 24),
                 theme,
@@ -74,11 +75,11 @@ const Mods = {
                 bossArenaX: typeof s.bossArenaX === 'number' ? s.bossArenaX : (w - 6) * GAME.TILE_SIZE,
                 endX: typeof s.endX === 'number' ? s.endX : (w - 1) * GAME.TILE_SIZE,
                 tiles,
-                checkpoints: Array.isArray(s.checkpoints) ? s.checkpoints.slice(0, 8) : [{ x: 50, y: 160 }],
-                coverSpots:  Array.isArray(s.coverSpots)  ? s.coverSpots.slice(0, 16) : [],
-                ladders:     Array.isArray(s.ladders)     ? s.ladders.slice(0, 64) : [],
-                pickups:     Array.isArray(s.pickups)     ? s.pickups.slice(0, 32) : [],
-                spawnPoints: Array.isArray(s.spawnPoints) ? s.spawnPoints.slice(0, 64) : []
+                checkpoints: Array.isArray(s.checkpoints) ? s.checkpoints.filter(hasXY).slice(0, 8) : [{ x: 50, y: 160 }],
+                coverSpots:  Array.isArray(s.coverSpots)  ? s.coverSpots.filter(hasXY).slice(0, 16) : [],
+                ladders:     Array.isArray(s.ladders)     ? s.ladders.filter(hasXY).slice(0, 64) : [],
+                pickups:     Array.isArray(s.pickups)     ? s.pickups.filter(hasXY).slice(0, 32) : [],
+                spawnPoints: Array.isArray(s.spawnPoints) ? s.spawnPoints.filter(hasXY).slice(0, 64) : []
             });
         }
         if (sanitized.stages.length === 0) return null;
@@ -108,7 +109,7 @@ const Mods = {
         level.coverSpots  = stage.coverSpots.map(c => ({ x: c.x | 0, y: c.y | 0 }));
         level.ladders     = stage.ladders.map(c => ({ x: c.x | 0, y: c.y | 0 }));
         level.pickups     = stage.pickups
-            .filter(p => typeof p.type === 'string' && WEAPON[p.type] || p.type === '1UP')
+            .filter(p => (typeof p.type === 'string' && WEAPON[p.type]) || p.type === '1UP')
             .map(p => ({ x: p.x | 0, y: p.y | 0, type: p.type, secret: !!p.secret, taken: false }));
         level.spawnPoints = stage.spawnPoints
             .filter(s => typeof s.type === 'string' && ENEMY_TYPE[s.type])

@@ -153,6 +153,7 @@ const MIDI = {
     exportTheme(audioObj, theme) {
         if (!audioObj || !audioObj.getPattern) return false;
         const pattern = audioObj.getPattern(theme);
+        if (!pattern) return false;
         const name = 'Clippy First Blood - ' + (pattern.name || theme);
         const buf = this.encodePattern(pattern, name);
         if (!buf) return false;

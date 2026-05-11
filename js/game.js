@@ -358,9 +358,6 @@ class Game {
         this.pickupFlashTimer = 90;
     }
 
-    // Photo mode: re-render the current frame at 3x via an offscreen canvas
-    // and trigger a download. Called from the pause overlay so a still frame
-    // is captured (the world is paused anyway).
     tickTutorial() {
         if (this.tutorialDone || this.tutorialStep >= 4) return;
         this.tutorialTimer++;
@@ -498,8 +495,6 @@ class Game {
             this.newGamePlus = localStorage.getItem('clippy_first_blood_ngplus') === '1';
             const savedSkin = localStorage.getItem('clippy_first_blood_skin');
             if (savedSkin) this.skinId = savedSkin;
-            // Track best combo so the Blood Moon skin can unlock
-            this._loadedMaxCombo = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
             this.tutorialDone = localStorage.getItem('clippy_first_blood_tutorial_done') === '1';
         } catch (e) {
             this.highScore = 0;
@@ -1244,7 +1239,7 @@ class Game {
         const all = SKINS;
         if (input.keysJustPressed['ArrowLeft'])  this.skinsCursor = (this.skinsCursor + all.length - 1) % all.length;
         if (input.keysJustPressed['ArrowRight']) this.skinsCursor = (this.skinsCursor + 1) % all.length;
-        if (input.shoot) {
+        if (input.shootPressed) {
             // Confirm - only equip if unlocked
             const target = all[this.skinsCursor];
             const ctxObj = { game: this, achievements: typeof achievements !== 'undefined' ? achievements : null };
@@ -2085,14 +2080,7 @@ class Game {
             try { localStorage.setItem('clippy_first_blood_ngplus_clear', '1'); } catch (e) {}
         }
         // Record best combo for the Blood Moon skin unlock
-        if (this.comboBest > 0) {
-            try {
-                const prev = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
-                if (this.comboBest > prev) {
-                    localStorage.setItem('clippy_first_blood_max_combo', String(this.comboBest));
-                }
-            } catch (e) {}
-        }
+        this.persistMaxCombo();
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
@@ -3695,6 +3683,18 @@ class Game {
         }
     }
 
+    // Persist the run's best combo if it improves on the stored value.
+    // Used by the Blood Moon skin unlock check.
+    persistMaxCombo() {
+        if (this.comboBest <= 0) return;
+        try {
+            const prev = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
+            if (this.comboBest > prev) {
+                localStorage.setItem('clippy_first_blood_max_combo', String(this.comboBest));
+            }
+        } catch (e) {}
+    }
+
     // ---- Leaderboard (split by difficulty) ----
     leaderboardKey(diffKey) {
         // Backwards-compat with the original single-list key.
@@ -3708,7 +3708,9 @@ class Game {
         diffKey = diffKey || this.difficultyKeys[this.difficultyIndex];
         try {
             const raw = localStorage.getItem(this.leaderboardKey(diffKey));
-            return raw ? JSON.parse(raw) : [];
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
         } catch (e) { return []; }
     }
 
@@ -3744,16 +3746,15 @@ class Game {
     // Merge an incoming shared entry into the local board.
     importSharedEntry(entry) {
         if (!entry || !entry.name || !entry.score) return false;
-        const diff = entry.difficulty || 'NORMAL';
+        const diff = this.difficultyKeys.includes(entry.difficulty) ? entry.difficulty : 'NORMAL';
         const entries = this.loadLeaderboard(diff);
         entries.push({
-            name: entry.name,
-            score: entry.score,
-            time: entry.time,
+            name: String(entry.name).slice(0, 3).toUpperCase(),
+            score: entry.score | 0,
+            time: Number(entry.time) || 0,
             date: Date.now(),
             difficulty: diff,
-            ngplus: !!entry.ngplus,
-            imported: true
+            ngplus: !!entry.ngplus
         });
         entries.sort((a, b) => b.score - a.score);
         this.saveLeaderboard(entries.slice(0, 10), diff);
@@ -4052,16 +4053,15 @@ class Game {
         this.stageClearScore = this.score;
         // Daily challenge is single-stage: this clear IS the end of the run.
         if (this.dailyMode) {
-            this.stageClearIsFinal = true;
             dailySaveBest(this.dailyDateString, this.score);
         }
-        // Mod stage is also single-shot and not tracked in main progression
-        if (this.stageIndex < 0) {
-            this.stageClearIsFinal = true;
-        }
-        // Boss rush has just one "stage" so it's always final there.
-        // Stage is final if it is the boss-rush, or if every later stage is hidden.
-        let isFinal = this.bossRushMode || (this.stageIndex >= this.stages.length - 1);
+        // Boss rush has just one "stage" so it's always final there. Daily
+        // and mod stages are also single-shot. Otherwise it's final when no
+        // visible stage remains after this one.
+        let isFinal = this.dailyMode
+            || this.stageIndex < 0
+            || this.bossRushMode
+            || (this.stageIndex >= this.stages.length - 1);
         if (!isFinal) {
             isFinal = true;
             for (let i = this.stageIndex + 1; i < this.stages.length; i++) {
@@ -4080,14 +4080,7 @@ class Game {
             this.saveStageBest(this.stageIndex, this.stageClearTime, this.score);
         }
         // Persist max combo so the Blood Moon skin unlock check passes
-        if (this.comboBest > 0) {
-            try {
-                const prev = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
-                if (this.comboBest > prev) {
-                    localStorage.setItem('clippy_first_blood_max_combo', String(this.comboBest));
-                }
-            } catch (e) {}
-        }
+        this.persistMaxCombo();
         // Achievements
         if (typeof achievements !== 'undefined') {
             if (this.bossRushMode) {

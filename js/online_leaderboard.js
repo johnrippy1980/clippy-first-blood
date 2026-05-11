@@ -62,7 +62,11 @@ const OnlineLeaderboard = {
                 d: entry.difficulty || 'NORMAL',
                 p: entry.ngplus ? 1 : 0
             });
-            const b64 = btoa(unescape(encodeURIComponent(json)));
+            // UTF-8 -> base64url. TextEncoder handles non-Latin names correctly.
+            const bytes = new TextEncoder().encode(json);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            const b64 = btoa(binary);
             return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         } catch (e) { return ''; }
     },
@@ -70,7 +74,10 @@ const OnlineLeaderboard = {
     decodeShare(s) {
         try {
             const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
-            const json = decodeURIComponent(escape(atob(b64)));
+            const binary = atob(b64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const json = new TextDecoder().decode(bytes);
             const obj = JSON.parse(json);
             if (obj && obj.v === 1) return {
                 name: String(obj.n || 'AAA').slice(0, 3),

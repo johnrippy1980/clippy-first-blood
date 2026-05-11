@@ -110,44 +110,42 @@ class InputHandler {
             const t = e.touches[i];
             const x = (t.clientX - rect.left) * scaleX;
             const y = (t.clientY - rect.top) * scaleY;
-            const tk = this.touchButtonAt(x, y);
-            if (tk) next[tk] = true;
+            this.touchButtonAt(x, y, next);
         }
         this.touchKeys = next;
     }
 
-    // Map a canvas-space x/y to a virtual key code. The button layout below
-    // mirrors the one drawn by the renderer.
-    touchButtonAt(x, y) {
+    // Map a canvas-space x/y to virtual key code(s) and set them on `out`.
+    // The button layout below mirrors the one drawn by the renderer.
+    touchButtonAt(x, y, out) {
         // D-pad on the lower-left (5 zones - 4 directions + center deadzone)
         const dpadCx = 32, dpadCy = 188, dpadR = 28;
         const dx = x - dpadCx, dy = y - dpadCy;
         const dist2 = dx * dx + dy * dy;
         if (dist2 < dpadR * dpadR) {
-            if (dist2 < 64) return null;        // 8px deadzone
+            if (dist2 < 64) return;             // 8px deadzone
             const ang = Math.atan2(dy, dx);
             const a = (ang + Math.PI * 2) % (Math.PI * 2);
             // 8-way slice
             const slice = Math.round(a / (Math.PI / 4)) % 8;
             switch (slice) {
-                case 0: return 'ArrowRight';
-                case 1: this.touchKeys['ArrowDown'] = true; return 'ArrowRight';
-                case 2: return 'ArrowDown';
-                case 3: this.touchKeys['ArrowDown'] = true; return 'ArrowLeft';
-                case 4: return 'ArrowLeft';
-                case 5: this.touchKeys['ArrowUp']   = true; return 'ArrowLeft';
-                case 6: return 'ArrowUp';
-                case 7: this.touchKeys['ArrowUp']   = true; return 'ArrowRight';
+                case 0: out['ArrowRight'] = true; return;
+                case 1: out['ArrowRight'] = true; out['ArrowDown'] = true; return;
+                case 2: out['ArrowDown']  = true; return;
+                case 3: out['ArrowLeft']  = true; out['ArrowDown'] = true; return;
+                case 4: out['ArrowLeft']  = true; return;
+                case 5: out['ArrowLeft']  = true; out['ArrowUp']   = true; return;
+                case 6: out['ArrowUp']    = true; return;
+                case 7: out['ArrowRight'] = true; out['ArrowUp']   = true; return;
             }
         }
         // Jump / shoot buttons on the lower-right
         const jx = GAME.WIDTH - 56, jy = 196;
-        if ((x - jx) ** 2 + (y - jy) ** 2 < 256) return 'KeyZ';   // Z = jump
+        if ((x - jx) ** 2 + (y - jy) ** 2 < 256) { out['KeyZ'] = true; return; }
         const sx = GAME.WIDTH - 18, sy = 184;
-        if ((x - sx) ** 2 + (y - sy) ** 2 < 256) return 'KeyX';   // X = shoot
+        if ((x - sx) ** 2 + (y - sy) ** 2 < 256) { out['KeyX'] = true; return; }
         // Pause button top-right
-        if (x > GAME.WIDTH - 20 && y < 20) return 'KeyP';
-        return null;
+        if (x > GAME.WIDTH - 20 && y < 20) out['KeyP'] = true;
     }
 
     // Poll any connected gamepads and translate them into virtual keys.
