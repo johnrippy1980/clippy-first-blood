@@ -4689,7 +4689,7 @@ class Game {
         // Dimmer overlay
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
-        // Center panel - now holds three rows (music, sfx, quit)
+        // Center panel - holds four rows (music, sfx, shake, quit)
         const px = 48, pw = GAME.WIDTH - 96;
         const py = GAME.HEIGHT / 2 - 60, ph = 120;
         ctx.fillStyle = '#0a0612';
