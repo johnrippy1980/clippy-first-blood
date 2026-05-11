@@ -35,10 +35,27 @@ class PickupManager {
     }
 
     update(player) {
+        // Low-HP pickup magnet: when the player is at 1 HP, nearby pickups
+        // drift toward them so a panic-grab is possible. Tuned to be a
+        // last-ditch assist, not a general convenience.
+        const magnet = player && player.health <= 1 && player.state !== PLAYER_STATE.DYING;
+        const px = player ? player.x + player.width / 2 : 0;
+        const py = player ? player.y + player.height / 2 : 0;
         for (let i = this.items.length - 1; i >= 0; i--) {
             const p = this.items[i];
             if (p.taken) continue;
             p.bob += 0.1;
+
+            if (magnet) {
+                const dx = px - (p.x + 8);
+                const dy = py - (p.y + 8);
+                const d2 = dx * dx + dy * dy;
+                if (d2 < 90 * 90 && d2 > 4) {
+                    const inv = 1 / Math.sqrt(d2);
+                    p.x += dx * inv * 0.9;
+                    p.y += dy * inv * 0.9;
+                }
+            }
 
             // Falling-drop physics for runtime drops
             if (p.isDrop) {
