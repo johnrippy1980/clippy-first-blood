@@ -334,6 +334,7 @@ class Game {
         this.lives = Math.max(this.lives + 9, 9);
         if (this.player) {
             this.player.weapon = WEAPON.LASER;
+            this.player.weaponLevel = 2;   // konami's a cheat - give the upgrade too
             this.player.health = this.player.maxHealth || PLAYER.MAX_HEALTH;
         }
         if (typeof achievements !== 'undefined') achievements.onKonami();
@@ -4423,6 +4424,11 @@ class Game {
         ctx.font = '8px monospace';
         const wname = this.player.weapon.name.substring(0, 6).toUpperCase();
         ctx.fillText(wname, wX + 10, 14);
+        // Level-2 upgrade indicator: small "+" tag next to the name
+        if (this.player.weaponLevel >= 2) {
+            ctx.fillStyle = '#ff60ff';
+            ctx.fillText('+', wX + 48, 14);
+        }
 
         // ---- Status overlays (under the bar) ----
         if (this.player.inCover) {

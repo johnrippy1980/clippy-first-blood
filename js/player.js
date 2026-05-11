@@ -50,6 +50,7 @@ class Player {
 
         // Shooting
         this.weapon = WEAPON.MACHINE_GUN;
+        this.weaponLevel = 1;   // 1 = base, 2 = upgraded (stack same pickup)
         this.fireTimer = 0;
         this.bullets = [];
 
@@ -483,12 +484,14 @@ class Player {
         // Difficulty's playerDamageMul scales outgoing damage (HARD = 0.8).
         const dmgMul = (typeof game !== 'undefined' && game.difficulty)
             ? game.difficulty.playerDamageMul : 1;
+        // Same-weapon pickup upgrade: +50% damage at level 2.
+        const levelMul = (this.weaponLevel === 2) ? 1.5 : 1;
         const bullet = {
             x: muzzleX,
             y: muzzleY,
             vx: Math.cos(angle) * w.bulletSpeed,
             vy: Math.sin(angle) * w.bulletSpeed,
-            damage: w.damage * dmgMul,
+            damage: w.damage * dmgMul * levelMul,
             weaponName: w.name,         // for the per-run affinity badge
             color: w.color,
             piercing: w.piercing || false,
