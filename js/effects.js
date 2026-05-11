@@ -190,6 +190,21 @@ class Particles {
         });
     }
 
+    damageNumber(x, y, amount, isCrit) {
+        // Damage floater - drifts up, larger if "crit" (explosive / boss hit)
+        this.spawn({
+            x: x + (Math.random() - 0.5) * 6,
+            y, vx: (Math.random() - 0.5) * 0.4, vy: -1.2,
+            gravity: 0.04,
+            life: 30, size: isCrit ? 2 : 1,
+            shape: 'text',
+            text: String(Math.ceil(amount)),
+            colors: isCrit
+                ? ['#ffffff', '#ffe070', '#ff8030', '#a82020']
+                : ['#ffffff', '#ffe070', '#a87020']
+        });
+    }
+
     jumpPuff(x, y) {
         for (let i = 0; i < 4; i++) {
             const a = Math.PI - Math.PI / 4 + Math.random() * (Math.PI / 2);

@@ -49,6 +49,13 @@ class Game {
         this.ghostFrames = null;            // loaded ghost (if any)
         this.ghostFrame = 0;
         this.GHOST_SAMPLE = 4;              // every Nth frame
+        // Combo / streak system: chain kills within COMBO_WINDOW for a
+        // bonus multiplier. Each kill within the window increments combo,
+        // each tick outside the window decays it back to 0.
+        this.combo = 0;
+        this.comboTimer = 0;                // frames left in the window
+        this.COMBO_WINDOW = 90;             // 1.5s at 60fps
+        this.comboBest = 0;                 // peak combo this run
         // Difficulty selection (persisted)
         this.difficultyKeys = ['EASY', 'NORMAL', 'HARD'];
         this.difficultyIndex = 1;
@@ -237,6 +244,8 @@ class Game {
         this.bossIntroTimer = 0;
         this.bossIntroEnemy = null;
         this.pickupFlashTimer = 0;
+        this.combo = 0;
+        this.comboTimer = 0;
         this.camera.x = 0;
         this.camera.y = 0;
         this.camera.shakeAmount = 0;
@@ -496,6 +505,8 @@ class Game {
                 this.updateCutscene();
             } else if (this.screen === 'stageSelect') {
                 this.updateStageSelect();
+            } else if (this.screen === 'achievements') {
+                this.updateAchievementsScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -526,6 +537,8 @@ class Game {
             this.renderCutscene();
         } else if (this.screen === 'stageSelect') {
             this.renderStageSelect();
+        } else if (this.screen === 'achievements') {
+            this.renderAchievementsScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -755,8 +768,22 @@ class Game {
 
         // Short label (truncate long stage names)
         const label = tile.name.length > 11 ? tile.name.substring(0, 11) : tile.name;
-        drawPixelText(ctx, label, cx, y + h - 10,
+        drawPixelText(ctx, label, cx, y + h - 12,
             selected ? '#ffe070' : '#c0a0d0', 1, 'center', 1);
+
+        // Best time + score under the label, only for normal stage tiles
+        if (tile.kind === 'stage' && tile.name !== '??') {
+            const best = this.getStageBest(tile.index);
+            if (best.time !== null) {
+                const mm = Math.floor(best.time / 60);
+                const ss = Math.floor(best.time % 60);
+                const ts = `${mm}:${String(ss).padStart(2, '0')}`;
+                drawPixelText(ctx, ts, cx, y + h - 4,
+                    selected ? '#7af0ff' : '#5a7090', 1, 'center', 1);
+            } else {
+                drawPixelText(ctx, '- - -', cx, y + h - 4, '#3a2855', 1, 'center', 1);
+            }
+        }
 
         // Selected outline blink
         if (selected) {
@@ -769,6 +796,103 @@ class Game {
                 ctx.fillRect(x + w + 1, y - 2, 1, h + 4);
             }
         }
+    }
+
+    updateAchievementsScreen() {
+        this.achievementsTimer = (this.achievementsTimer || 0) + 1;
+        input.update();
+        const list = (typeof ACHIEVEMENT_LIST !== 'undefined') ? ACHIEVEMENT_LIST : [];
+        const visible = 6;
+        const maxScroll = Math.max(0, list.length - visible);
+        if (input.keysJustPressed['ArrowUp'])   this.achievementsScroll = Math.max(0, (this.achievementsScroll || 0) - 1);
+        if (input.keysJustPressed['ArrowDown']) this.achievementsScroll = Math.min(maxScroll, (this.achievementsScroll || 0) + 1);
+        if (input.pausePressed || input.shoot || input.jumpPressed) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+        }
+    }
+
+    renderAchievementsScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Subtle sparkle
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 18; i++) {
+            const x = (i * 17 + this.achievementsTimer * 1) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        const list = (typeof ACHIEVEMENT_LIST !== 'undefined') ? ACHIEVEMENT_LIST : [];
+        const unlockedCount = list.filter(a => achievements && achievements.has(a.id)).length;
+        drawPixelTextOutlined(ctx, 'TROPHIES', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+        drawPixelText(ctx, unlockedCount + ' OF ' + list.length,
+            GAME.WIDTH / 2, 26, '#a890c0', 1, 'center', 1);
+        // Completion bar
+        const pct = list.length > 0 ? unlockedCount / list.length : 0;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(60, 34, GAME.WIDTH - 120, 6);
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(60, 34, GAME.WIDTH - 120, 6);
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(61, 35, Math.floor((GAME.WIDTH - 122) * pct), 4);
+
+        // Visible list (6 at a time, scrollable)
+        const visible = 6;
+        const scroll = this.achievementsScroll || 0;
+        for (let i = 0; i < visible; i++) {
+            const idx = scroll + i;
+            if (idx >= list.length) break;
+            const ach = list[idx];
+            const got = achievements && achievements.has(ach.id);
+            const y = 52 + i * 22;
+            // Row background
+            ctx.fillStyle = '#1a1140';
+            ctx.fillRect(16, y, GAME.WIDTH - 32, 18);
+            ctx.fillStyle = '#3a2855';
+            ctx.fillRect(16, y, GAME.WIDTH - 32, 1);
+            // Trophy icon
+            const tx = 22, ty = y + 4;
+            if (got) {
+                ctx.fillStyle = '#ffd460';
+                ctx.fillRect(tx, ty, 10, 10);
+                ctx.fillStyle = '#a8780a';
+                ctx.fillRect(tx, ty + 9, 10, 1);
+                ctx.fillStyle = '#fff8d0';
+                ctx.fillRect(tx + 1, ty + 1, 7, 1);
+            } else {
+                ctx.fillStyle = '#3a3050';
+                ctx.fillRect(tx, ty, 10, 10);
+                ctx.fillStyle = '#5a5070';
+                ctx.fillRect(tx + 4, ty + 3, 2, 4);
+                ctx.fillStyle = '#1a1140';
+                ctx.fillRect(tx + 4, ty + 6, 2, 1);
+            }
+            // Name + description
+            const nameColor = got ? '#ffe070' : '#7a6090';
+            const descColor = got ? '#ffffff' : '#5a5070';
+            drawPixelText(ctx, ach.name, 38, y + 3, nameColor, 1, 'left', 1);
+            drawPixelText(ctx, got ? ach.desc : '? ? ? ? ?', 38, y + 11, descColor, 1, 'left', 1);
+        }
+
+        // Scroll indicators
+        if (scroll > 0) {
+            ctx.fillStyle = '#a890c0';
+            ctx.fillRect(GAME.WIDTH - 12, 48, 5, 1);
+            ctx.fillRect(GAME.WIDTH - 11, 47, 3, 1);
+            ctx.fillRect(GAME.WIDTH - 10, 46, 1, 1);
+        }
+        if (scroll + visible < list.length) {
+            ctx.fillStyle = '#a890c0';
+            ctx.fillRect(GAME.WIDTH - 12, GAME.HEIGHT - 26, 5, 1);
+            ctx.fillRect(GAME.WIDTH - 11, GAME.HEIGHT - 25, 3, 1);
+            ctx.fillRect(GAME.WIDTH - 10, GAME.HEIGHT - 24, 1, 1);
+        }
+
+        // Hint
+        drawPixelText(ctx, 'UP DOWN  SCROLL    SHOOT  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#a890c0', 1, 'center', 1);
     }
 
     beginCutscene(panels) {
@@ -1297,6 +1421,12 @@ class Game {
         if (input.keysJustPressed['ArrowDown']) {
             this.screen = 'leaderboard';
             this.leaderboardTimer = 0;
+        }
+        // T opens the trophies / achievements screen
+        if (input.keysJustPressed['KeyT']) {
+            this.screen = 'achievements';
+            this.achievementsTimer = 0;
+            this.achievementsScroll = 0;
         }
 
         // Any key starts the game - go through the story sequence first
@@ -2340,7 +2470,7 @@ class Game {
 
         // Controls hint at bottom (line 1: gameplay, line 2: title menu)
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'LR DIFFICULTY  DN LEADERBOARD' + (this.bossRushUnlocked ? '  UP STAGE SELECT' : ''),
+        drawPixelText(ctx, 'LR DIFFICULTY  DN BOARD  T TROPHIES' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
@@ -2500,6 +2630,12 @@ class Game {
         // Pickup flash timer
         if (this.pickupFlashTimer > 0) this.pickupFlashTimer--;
 
+        // Combo timer: ticks down each frame; combo resets when it expires
+        if (this.comboTimer > 0) {
+            this.comboTimer--;
+            if (this.comboTimer === 0) this.combo = 0;
+        }
+
         // Replay ghost: record player snapshot every Nth frame
         if (this.recordingFrames && this.player) {
             this.recordingTick++;
@@ -2575,6 +2711,26 @@ class Game {
         }
     }
 
+    // Per-stage best stats (time and score) for the Stage Select tiles.
+    getStageBest(stageIndex) {
+        try {
+            const t = parseFloat(localStorage.getItem(`clippy_first_blood_stage_t_${stageIndex}`) || 'NaN');
+            const s = parseInt(localStorage.getItem(`clippy_first_blood_stage_s_${stageIndex}`) || '0', 10);
+            return { time: isNaN(t) ? null : t, score: s || 0 };
+        } catch (e) { return { time: null, score: 0 }; }
+    }
+    saveStageBest(stageIndex, timeSeconds, stageScore) {
+        try {
+            const prev = this.getStageBest(stageIndex);
+            if (prev.time === null || timeSeconds < prev.time) {
+                localStorage.setItem(`clippy_first_blood_stage_t_${stageIndex}`, String(timeSeconds));
+            }
+            if (stageScore > prev.score) {
+                localStorage.setItem(`clippy_first_blood_stage_s_${stageIndex}`, String(stageScore));
+            }
+        } catch (e) {}
+    }
+
     beginStageClear() {
         this.screen = 'stageClear';
         this.stageClearTimer = 0;
@@ -2599,6 +2755,10 @@ class Game {
         }
         this.recordingFrames = null;
         this.ghostFrames = null;
+        // Persist per-stage best time + score for the Stage Select hub
+        if (!this.bossRushMode) {
+            this.saveStageBest(this.stageIndex, this.stageClearTime, this.score);
+        }
         // Achievements
         if (typeof achievements !== 'undefined') {
             if (this.bossRushMode) {
@@ -2861,6 +3021,29 @@ class Game {
         // GHOST indicator when a replay ghost is loaded
         if (this.ghostFrames && this.ghostFrames.length > 0) {
             drawPixelText(ctx, 'GHOST', 4, BAR_H + 3, '#7ad8ff', 1, 'left', 1);
+        }
+
+        // Combo readout - centered, pulses with the timer and grows on chain
+        if (this.combo >= 2) {
+            const mult = 1 + Math.min(4, this.combo * 0.2);
+            const cx = W / 2;
+            const cy = BAR_H + 4;
+            const fade = Math.min(1, this.comboTimer / 30);
+            // Big combo number with x and multiplier
+            const tier = this.combo >= 15 ? '#ff60ff'
+                       : this.combo >= 10 ? '#ff5050'
+                       : this.combo >= 5  ? '#ffe070' : '#7af0ff';
+            ctx.globalAlpha = fade;
+            drawPixelTextOutlined(ctx, this.combo + ' HIT', cx, cy, tier, '#1a0e1e', 1, 'center', 1);
+            drawPixelText(ctx, 'x' + mult.toFixed(1), cx, cy + 9, tier, 1, 'center', 1);
+            ctx.globalAlpha = 1;
+            // Timer bar under the combo
+            const barW = 30;
+            const fill = Math.floor((this.comboTimer / this.COMBO_WINDOW) * barW);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - barW / 2 - 1, cy + 18, barW + 2, 3);
+            ctx.fillStyle = tier;
+            ctx.fillRect(cx - barW / 2, cy + 19, fill, 1);
         }
     }
 

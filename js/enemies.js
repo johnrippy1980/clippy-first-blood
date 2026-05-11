@@ -1230,6 +1230,13 @@ class Enemy {
         this.hitFlash = 5;  // White flash for 5 frames
         if (typeof particles !== 'undefined') {
             particles.hitSpark(this.x + this.width / 2, this.y + this.height / 2, '#ffd040');
+            // Damage floater - crit-styled (larger + more colors) on bosses
+            particles.damageNumber(
+                this.x + this.width / 2,
+                this.y + this.height / 2 - 4,
+                amount,
+                this.isBoss() || amount >= 3
+            );
         }
         if (typeof audio !== 'undefined') audio.sfxEnemyHit();
         if (this.health <= 0) {
@@ -1304,9 +1311,7 @@ class Enemy {
         this.active = false;
         if (typeof particles !== 'undefined') {
             particles.explosion(this.x + this.width / 2, this.y + this.height / 2);
-            if (this.score > 0) {
-                particles.scorePopup(this.x + this.width / 2, this.y, this.score);
-            }
+            // Score popup is spawned below with the combo multiplier applied
         }
         if (typeof audio !== 'undefined') audio.sfxExplosion();
         if (typeof game !== 'undefined') {
@@ -1314,7 +1319,19 @@ class Enemy {
                 const isBoss = this.isBoss();
                 game.shake(isBoss ? 8 : 3, isBoss ? 18 : 6);
             }
-            if (this.score > 0) game.score += this.score;
+            // Award score with combo multiplier (1x .. up to ~5x at 20+ kills)
+            if (this.score > 0) {
+                const mult = 1 + Math.min(4, game.combo * 0.2);
+                const earned = Math.floor(this.score * mult);
+                game.score += earned;
+                // Show the score popup with the multiplied amount
+                if (typeof particles !== 'undefined') {
+                    particles.scorePopup(this.x + this.width / 2, this.y, earned);
+                }
+                game.combo++;
+                game.comboTimer = game.COMBO_WINDOW;
+                if (game.combo > game.comboBest) game.comboBest = game.combo;
+            }
             if (game.runEnemiesDefeated !== undefined) game.runEnemiesDefeated++;
         }
         if (typeof achievements !== 'undefined') achievements.onEnemyKilled();
