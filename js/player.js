@@ -178,6 +178,9 @@ class Player {
         if (this.jumpBufferTime > 0) {
             if (this.coyoteTime > 0) {
                 // Normal jump
+                if (typeof particles !== 'undefined') {
+                    particles.jumpPuff(this.x + this.width / 2, this.y + this.height);
+                }
                 this.vy = PLAYER.JUMP_FORCE;
                 this.onGround = false;
                 this.coyoteTime = 0;
@@ -371,9 +374,16 @@ class Player {
         const gunX = this.x + this.width / 2;
         const gunY = this.y + (this.state === PLAYER_STATE.PRONE ? this.height / 2 : this.height / 3);
 
+        // Offset the muzzle a bit out from the body in the aim direction
+        const muzzleX = gunX + Math.cos(angle) * 10;
+        const muzzleY = gunY + Math.sin(angle) * 10;
+        if (typeof particles !== 'undefined') {
+            particles.muzzleFlash(muzzleX, muzzleY, angle, this.weapon.color);
+        }
+
         this.bullets.push({
-            x: gunX,
-            y: gunY,
+            x: muzzleX,
+            y: muzzleY,
             vx: Math.cos(angle) * this.weapon.bulletSpeed,
             vy: Math.sin(angle) * this.weapon.bulletSpeed,
             damage: this.weapon.damage,
@@ -416,6 +426,9 @@ class Player {
 
             // Check tile collision
             if (!bullet.piercing && level.isSolid(bullet.x, bullet.y)) {
+                if (typeof particles !== 'undefined') {
+                    particles.bulletImpact(bullet.x, bullet.y, bullet.color);
+                }
                 this.bullets.splice(i, 1);
             }
         }
@@ -450,6 +463,8 @@ class Player {
 
         // Vertical movement
         this.y += this.vy;
+        const wasOnGround = this.onGround;
+        const prevVy = this.vy;
         this.onGround = false;
 
         // Vertical collision
@@ -462,6 +477,10 @@ class Player {
                 this.y = Math.floor((this.y + this.height) / GAME.TILE_SIZE) * GAME.TILE_SIZE - this.height;
                 this.vy = 0;
                 this.onGround = true;
+                // Landing dust kick if we hit ground with significant downward velocity
+                if (!wasOnGround && prevVy > 3 && typeof particles !== 'undefined') {
+                    particles.landDust(this.x + this.width / 2, this.y + this.height);
+                }
             }
         } else if (this.vy < 0) {
             // Jumping up
@@ -528,13 +547,23 @@ class Player {
             this.facingRight
         );
 
-        // Draw bullets as pixel-perfect projectiles
+        // Bullets with glow trail
         this.bullets.forEach(bullet => {
-            // Bullet pixels
+            const bx = Math.floor(bullet.x - camera.x);
+            const by = Math.floor(bullet.y - camera.y);
+            // Faint trail behind
             ctx.fillStyle = bullet.color;
-            ctx.fillRect(Math.floor(bullet.x - camera.x - 2), Math.floor(bullet.y - camera.y - 1), 4, 2);
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(Math.floor(bullet.x - camera.x - 1), Math.floor(bullet.y - camera.y), 2, 1);
+            ctx.globalAlpha = 0.35;
+            const tx = Math.sign(bullet.vx) * 4;
+            const ty = Math.sign(bullet.vy) * 2;
+            ctx.fillRect(bx - 2 - tx, by - 1 - ty, 4, 2);
+            ctx.globalAlpha = 1;
+            // Bullet core
+            ctx.fillStyle = bullet.color;
+            ctx.fillRect(bx - 2, by - 1, 4, 2);
+            // Hot center
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bx - 1, by, 2, 1);
         });
     }
 }

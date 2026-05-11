@@ -71,8 +71,10 @@ class ParallaxBackground {
     draw(ctx, camera) {
         this.drawSky(ctx);
         this.drawSun(ctx);
+        this.drawClouds(ctx, camera);
         this.drawHorizonHaze(ctx);
         this.drawMountains(ctx, this.farMountains, camera.x * 0.12, '#3a2855', null);
+        this.drawDistantExplosions(ctx);
         this.drawMountains(ctx, this.midMountains, camera.x * 0.22, '#241a3a', '#3a2855');
         this.drawTreeLine(ctx, this.farJungle, camera.x * 0.4, '#1a3a22', '#264a2a', false);
         this.drawEmbers(ctx);
@@ -121,22 +123,73 @@ class ParallaxBackground {
     // ----- sun: pixel disk with rim glow and reflection bands -----
     drawSun(ctx) {
         const cx = this.sunX, cy = this.sunY, r = this.sunR;
+        // Slow shimmer modulates the halo width
+        const shimmer = Math.sin(this.time * 0.05) * 1.2;
         // Solid outer halo - one ring of warm color around the disk
         ctx.fillStyle = '#ee8a3a';
-        this.fillPixelCircle(ctx, cx, cy, r + 4, 1);
+        this.fillPixelCircle(ctx, cx, cy, r + 4 + shimmer, 1);
         ctx.fillStyle = '#f4a83f';
         this.fillPixelCircle(ctx, cx, cy, r + 2, 1);
         // Sun body
         ctx.fillStyle = '#ffe07a';
         this.fillPixelCircle(ctx, cx, cy, r, 1);
-        // Hot core
+        // Hot core (subtle pulse)
         ctx.fillStyle = '#fff5c0';
-        this.fillPixelCircle(ctx, cx, cy, r - 5, 1);
-        // Horizontal heat haze bands across the sun
+        this.fillPixelCircle(ctx, cx, cy, r - 5 + Math.sin(this.time * 0.08) * 0.8, 1);
+        // Animated horizontal heat haze bands across the sun
         ctx.fillStyle = '#c84a4a';
+        const bandShift = (this.time * 0.15) | 0;
         for (let i = 0; i < 4; i++) {
-            const by = cy - r + 6 + i * 6;
+            const by = cy - r + 6 + ((i * 6 + bandShift) % (r * 2));
             ctx.fillRect(cx - r - 2, by, (r + 2) * 2, 1);
+        }
+    }
+
+    // Slow-drifting flat clouds, drawn in the upper sky band
+    drawClouds(ctx, camera) {
+        const drift = this.time * 0.12;
+        const clouds = [
+            { y: 36, w: 36, sx: 20 },
+            { y: 56, w: 24, sx: 130 },
+            { y: 48, w: 30, sx: 220 },
+            { y: 70, w: 18, sx: 80 }
+        ];
+        for (const c of clouds) {
+            const x = ((c.sx + drift - camera.x * 0.05) % (GAME.WIDTH + 80) + GAME.WIDTH + 80) % (GAME.WIDTH + 80) - 40;
+            // Cloud body: stacked pixel rows like SNES clouds
+            ctx.fillStyle = '#e8a070';
+            ctx.fillRect(x + 2, c.y,     c.w - 4, 1);
+            ctx.fillStyle = '#f4c890';
+            ctx.fillRect(x,     c.y + 1, c.w,     2);
+            ctx.fillStyle = '#fff0c0';
+            ctx.fillRect(x + 1, c.y + 1, c.w - 2, 1);
+            ctx.fillStyle = '#c87060';
+            ctx.fillRect(x + 4, c.y + 3, c.w - 8, 1);
+        }
+    }
+
+    // Distant firefight: muzzle flashes flicker on the horizon
+    drawDistantExplosions(ctx) {
+        const flashes = [
+            { x: 28,  base: 11 },
+            { x: 92,  base: 23 },
+            { x: 156, base: 41 },
+            { x: 220, base: 59 }
+        ];
+        const baseY = this.horizonY - 14;
+        for (const f of flashes) {
+            // Each flash blinks on a different phase
+            const v = Math.sin(this.time * 0.07 + f.base);
+            if (v > 0.85) {
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(f.x - 1, baseY, 3, 1);
+                ctx.fillRect(f.x, baseY - 1, 1, 3);
+                ctx.fillStyle = '#fff5c0';
+                ctx.fillRect(f.x, baseY, 1, 1);
+            } else if (v > 0.6) {
+                ctx.fillStyle = '#c84a4a';
+                ctx.fillRect(f.x, baseY, 1, 1);
+            }
         }
     }
 

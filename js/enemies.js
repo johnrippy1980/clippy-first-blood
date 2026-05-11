@@ -24,6 +24,7 @@ class Enemy {
         this.fireTimer = 0;
         this.fireRate = 60; // frames between shots
         this.bullets = [];
+        this.hitFlash = 0;
 
         // Behavior-specific
         this.behaviorTimer = 0;
@@ -63,6 +64,7 @@ class Enemy {
 
         // Fire timer
         if (this.fireTimer > 0) this.fireTimer--;
+        if (this.hitFlash > 0) this.hitFlash--;
     }
 
     updateHop(level, player) {
@@ -197,6 +199,10 @@ class Enemy {
 
     takeDamage(amount) {
         this.health -= amount;
+        this.hitFlash = 5;  // White flash for 5 frames
+        if (typeof particles !== 'undefined') {
+            particles.hitSpark(this.x + this.width / 2, this.y + this.height / 2, '#ffd040');
+        }
         if (this.health <= 0) {
             this.die();
         }
@@ -204,7 +210,9 @@ class Enemy {
 
     die() {
         this.active = false;
-        // Spawn death particles, etc.
+        if (typeof particles !== 'undefined') {
+            particles.explosion(this.x + this.width / 2, this.y + this.height / 2);
+        }
     }
 
     draw(ctx, camera) {
@@ -213,55 +221,362 @@ class Enemy {
         const screenX = Math.floor(this.x - camera.x);
         const screenY = Math.floor(this.y - camera.y);
 
-        // Draw using pixel sprites based on enemy type
-        let sprite, palette;
+        // Hit flash: invert palette briefly when damaged
+        const flash = this.hitFlash > 0;
+
+        ctx.save();
+        // Flip horizontally if facing left
+        if (!this.facingRight) {
+            ctx.translate(screenX + this.width, screenY);
+            ctx.scale(-1, 1);
+            ctx.translate(-screenX, -screenY);
+        }
+
         switch (this.behavior) {
-            case 'hop':
-                sprite = ENEMY_SPRITES.stapler;
-                palette = STAPLER_PALETTE;
-                break;
-            case 'fly_sine':
-                sprite = ENEMY_SPRITES.folder;
-                palette = FOLDER_PALETTE;
-                break;
-            case 'bounce':
-                sprite = ENEMY_SPRITES.rubberBall;
-                palette = RUBBER_BALL_PALETTE;
-                break;
-            case 'stationary':
-                sprite = ENEMY_SPRITES.stapler; // Reuse stapler for tape dispenser
-                palette = STAPLER_PALETTE;
-                break;
-            case 'miniboss':
-                this.drawFileCabinet(ctx, screenX, screenY);
-                sprite = null;
-                break;
-            default:
-                sprite = ENEMY_SPRITES.stapler;
-                palette = STAPLER_PALETTE;
+            case 'hop':        this.drawStaplerSNES(ctx, screenX, screenY, flash); break;
+            case 'fly_sine':   this.drawFolderSNES(ctx, screenX, screenY, flash); break;
+            case 'bounce':     this.drawRubberBallSNES(ctx, screenX, screenY, flash); break;
+            case 'stationary': this.drawTapeDispenserSNES(ctx, screenX, screenY, flash); break;
+            case 'miniboss':   this.drawFileCabinetSNES(ctx, screenX, screenY, flash); break;
+            default:           this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
+        ctx.restore();
 
-        if (sprite) {
-            spriteRenderer.drawSprite(ctx, screenX, screenY, sprite, palette, !this.facingRight);
-        }
-
-        // Draw enemy bullets as pixel projectiles
+        // Enemy bullets with glow trail
         this.bullets.forEach(bullet => {
             const bx = Math.floor(bullet.x - camera.x);
             const by = Math.floor(bullet.y - camera.y);
-            ctx.fillStyle = this.getBulletColor(bullet.type);
+            const col = this.getBulletColor(bullet.type);
+            // Trail
+            ctx.fillStyle = col;
+            ctx.globalAlpha = 0.35;
+            ctx.fillRect(bx - 4, by - 1, 4, 2);
+            ctx.globalAlpha = 1;
             ctx.fillRect(bx - 2, by - 1, 4, 2);
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = '#ffe0a0';
             ctx.fillRect(bx - 1, by, 2, 1);
         });
 
-        // Health bar for minibosses
+        // Boss health bar - SNES style with frame
         if (this.behavior === 'miniboss') {
-            ctx.fillStyle = '#300';
-            ctx.fillRect(screenX, screenY - 8, this.width, 4);
-            ctx.fillStyle = '#f00';
-            ctx.fillRect(screenX, screenY - 8, this.width * (this.health / this.maxHealth), 4);
+            const bx = screenX, by = screenY - 10;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(bx - 1, by - 1, this.width + 2, 6);
+            ctx.fillStyle = '#3a0a0a';
+            ctx.fillRect(bx, by, this.width, 4);
+            const hp = this.health / this.maxHealth;
+            ctx.fillStyle = hp > 0.5 ? '#ff5050' : '#ffa030';
+            ctx.fillRect(bx, by, this.width * hp, 2);
+            ctx.fillStyle = hp > 0.5 ? '#ff9090' : '#ffd070';
+            ctx.fillRect(bx, by, this.width * hp, 1);
         }
+    }
+
+    // ---------- SNES-style enemy renderers ----------
+
+    drawStaplerSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        // Hop squash/stretch
+        const sq = this.vy < -1 ? -2 : (this.vy > 1 ? 1 : 0);
+        const top = y + sq, midY = y + 6 + sq;
+        const C = flash ? {
+            outline:'#fff', deep:'#fff', red:'#fff', rmid:'#fff', rlit:'#fff',
+            steel:'#fff', steellt:'#fff', eye:'#000', glint:'#000'
+        } : {
+            outline:'#1a0000', deep:'#3a0808', red:'#c8202a', rmid:'#e83838', rlit:'#ff5856',
+            steel:'#404048', steellt:'#909098', eye:'#fff5c0', glint:'#ffa0a0'
+        };
+        // Lower jaw (the stapler base)
+        ctx.fillStyle = C.steel;
+        ctx.fillRect(x + 1, y + H - 4, W - 2, 3);
+        ctx.fillStyle = C.steellt;
+        ctx.fillRect(x + 1, y + H - 4, W - 2, 1);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, y + H - 4, 1, 4);
+        ctx.fillRect(x + W - 1, y + H - 4, 1, 4);
+        ctx.fillRect(x, y + H - 1, W, 1);
+        // Upper red body (the stapler head)
+        ctx.fillStyle = C.red;
+        ctx.fillRect(x + 1, top + 1, W - 2, H - 6);
+        ctx.fillStyle = C.rlit;  // top highlight
+        ctx.fillRect(x + 2, top + 1, W - 4, 2);
+        ctx.fillStyle = C.rmid;
+        ctx.fillRect(x + 1, top + 3, W - 2, 1);
+        ctx.fillStyle = C.deep;  // bottom shadow
+        ctx.fillRect(x + 1, midY + 4, W - 2, 1);
+        // Front lip of head
+        ctx.fillStyle = C.deep;
+        ctx.fillRect(x + W - 3, top + 1, 2, H - 6);
+        ctx.fillStyle = C.rmid;
+        ctx.fillRect(x + W - 4, top + 1, 1, H - 6);
+        // Outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, top, W, 1);
+        ctx.fillRect(x, top, 1, H - 4 - sq);
+        ctx.fillRect(x + W - 1, top, 1, H - 4 - sq);
+        // Angry eyes (face is on the side facing forward)
+        const eyeY = top + 3;
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + W - 9, eyeY - 1, 3, 4);
+        ctx.fillRect(x + W - 5, eyeY - 1, 3, 4);
+        ctx.fillStyle = C.eye;
+        ctx.fillRect(x + W - 8, eyeY, 1, 2);
+        ctx.fillRect(x + W - 4, eyeY, 1, 2);
+        ctx.fillStyle = C.glint;
+        ctx.fillRect(x + W - 8, eyeY, 1, 1);
+        ctx.fillRect(x + W - 4, eyeY, 1, 1);
+        // Angry brow
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + W - 10, eyeY - 2, 4, 1);
+        ctx.fillRect(x + W - 5, eyeY - 2, 4, 1);
+        ctx.fillRect(x + W - 9, eyeY - 1, 1, 1);
+        ctx.fillRect(x + W - 4, eyeY - 1, 1, 1);
+        // Mouth - a snarling staple slot
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + W - 8, y + H - 6, 5, 1);
+    }
+
+    drawFolderSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        // Wings flap based on animation time
+        const flap = ((this.behaviorTimer / 6) | 0) % 2;
+        const C = flash ? {
+            outline:'#fff', tab:'#fff', folder:'#fff', flit:'#fff', fdark:'#fff',
+            wing:'#fff', wlit:'#fff', eye:'#000', tooth:'#000', mouth:'#000'
+        } : {
+            outline:'#3a2410', tab:'#a87040', folder:'#e8c089', flit:'#ffd8a0',
+            fdark:'#a8783a', wing:'#f0e0a0', wlit:'#fff8c0',
+            eye:'#c80020', tooth:'#fff5c0', mouth:'#1a0000'
+        };
+        // Wings - flap up/down
+        const wingOff = flap ? -3 : -1;
+        ctx.fillStyle = C.wing;
+        ctx.fillRect(x - 3, y + wingOff, 5, 4);
+        ctx.fillRect(x + W - 2, y + wingOff, 5, 4);
+        ctx.fillStyle = C.wlit;
+        ctx.fillRect(x - 3, y + wingOff, 5, 1);
+        ctx.fillRect(x + W - 2, y + wingOff, 5, 1);
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x - 3, y + wingOff + 4, 5, 1);
+        ctx.fillRect(x + W - 2, y + wingOff + 4, 5, 1);
+        // Folder body
+        ctx.fillStyle = C.folder;
+        ctx.fillRect(x, y + 1, W, H - 1);
+        // Tab on top-left
+        ctx.fillStyle = C.tab;
+        ctx.fillRect(x + 1, y, 7, 2);
+        // Top highlight stripe
+        ctx.fillStyle = C.flit;
+        ctx.fillRect(x, y + 1, W, 1);
+        // Bottom shadow
+        ctx.fillStyle = C.fdark;
+        ctx.fillRect(x, y + H - 2, W, 1);
+        // Outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, y + 1, W, 1);  // top of body (after highlight)
+        // actually do proper border
+        ctx.fillRect(x, y, 1, H);
+        ctx.fillRect(x + W - 1, y + 1, 1, H - 1);
+        ctx.fillRect(x, y + H - 1, W, 1);
+        ctx.fillRect(x + 1, y, 7, 1);
+        ctx.fillRect(x + 8, y, 1, 2);
+        // Evil face
+        const eyeY = y + 4;
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x + 5, eyeY, 4, 3);
+        ctx.fillRect(x + W - 9, eyeY, 4, 3);
+        ctx.fillStyle = C.eye;
+        ctx.fillRect(x + 6, eyeY + 1, 2, 1);
+        ctx.fillRect(x + W - 8, eyeY + 1, 2, 1);
+        ctx.fillStyle = '#ffa0a0';
+        ctx.fillRect(x + 6, eyeY + 1, 1, 1);
+        ctx.fillRect(x + W - 8, eyeY + 1, 1, 1);
+        // Jagged tooth mouth
+        ctx.fillStyle = C.mouth;
+        ctx.fillRect(x + 7, y + H - 4, W - 14, 2);
+        ctx.fillStyle = C.tooth;
+        ctx.fillRect(x + 8, y + H - 4, 1, 1);
+        ctx.fillRect(x + 10, y + H - 4, 1, 1);
+        ctx.fillRect(x + 12, y + H - 4, 1, 1);
+        ctx.fillRect(x + W - 9, y + H - 4, 1, 1);
+        ctx.fillRect(x + W - 11, y + H - 4, 1, 1);
+    }
+
+    drawRubberBallSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const cx = x + W / 2, cy = y + H / 2, r = W / 2;
+        const C = flash ? ['#fff','#fff','#fff','#fff','#fff'] :
+            ['#1a1008','#3a2814','#5e3e1c','#8a5a28','#bc8838'];
+        // Fill ball as pixel circle layers
+        const fillCircle = (cr, color) => {
+            ctx.fillStyle = color;
+            const ir = Math.floor(cr);
+            for (let dy = -ir; dy <= ir; dy++) {
+                for (let dx = -ir; dx <= ir; dx++) {
+                    if (dx * dx + dy * dy <= cr * cr) {
+                        ctx.fillRect(Math.floor(cx + dx), Math.floor(cy + dy), 1, 1);
+                    }
+                }
+            }
+        };
+        fillCircle(r,     C[0]);   // outline
+        fillCircle(r - 1, C[2]);   // mid
+        fillCircle(r - 3, C[3]);   // light
+        // Rubber band stripes (deterministic - spin slowly)
+        ctx.fillStyle = C[1];
+        const spin = (this.behaviorTimer * 0.05) % (Math.PI * 2);
+        for (let i = 0; i < 7; i++) {
+            const a = spin + i * (Math.PI / 7);
+            for (let t = -r + 1; t <= r - 1; t++) {
+                const sx = Math.floor(cx + Math.cos(a) * t);
+                const sy = Math.floor(cy + Math.sin(a) * t);
+                if ((sx - cx) ** 2 + (sy - cy) ** 2 <= (r - 1) ** 2) {
+                    ctx.fillRect(sx, sy, 1, 1);
+                }
+            }
+        }
+        // Specular highlight
+        ctx.fillStyle = C[4];
+        ctx.fillRect(Math.floor(cx - r * 0.5), Math.floor(cy - r * 0.5), 2, 2);
+        ctx.fillRect(Math.floor(cx - r * 0.5) + 2, Math.floor(cy - r * 0.5) - 1, 1, 1);
+        // Tiny angry eyes
+        if (!flash) {
+            ctx.fillStyle = '#ff2020';
+            ctx.fillRect(Math.floor(cx - 3), Math.floor(cy - 1), 2, 2);
+            ctx.fillRect(Math.floor(cx + 1), Math.floor(cy - 1), 2, 2);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(Math.floor(cx - 3), Math.floor(cy - 1), 1, 1);
+            ctx.fillRect(Math.floor(cx + 1), Math.floor(cy - 1), 1, 1);
+        }
+    }
+
+    drawTapeDispenserSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const C = flash ? {
+            outline:'#fff', base:'#fff', baselit:'#fff', basedark:'#fff',
+            tape:'#fff', tapelit:'#fff', tapedark:'#fff', spool:'#fff', eye:'#000'
+        } : {
+            outline:'#0a0a0a', base:'#3a3a48', baselit:'#7a7a90', basedark:'#1a1a22',
+            tape:'#d0c89a', tapelit:'#f0e8c0', tapedark:'#8a8068',
+            spool:'#604838', eye:'#ff3030'
+        };
+        // Heavy black base
+        ctx.fillStyle = C.base;
+        ctx.fillRect(x, y + H - 8, W, 8);
+        ctx.fillStyle = C.baselit;
+        ctx.fillRect(x, y + H - 8, W, 1);
+        ctx.fillStyle = C.basedark;
+        ctx.fillRect(x, y + H - 1, W, 1);
+        // Curving hood that holds the spool
+        ctx.fillStyle = C.base;
+        ctx.fillRect(x + 2, y + 2, W - 4, H - 8);
+        ctx.fillRect(x + 1, y + 4, 1, H - 10);
+        ctx.fillRect(x + W - 2, y + 4, 1, H - 10);
+        ctx.fillStyle = C.baselit;
+        ctx.fillRect(x + 2, y + 2, W - 4, 1);
+        // Tape spool (donut)
+        const sx = x + W - 9, sy = y + 5;
+        ctx.fillStyle = C.tape;
+        ctx.fillRect(sx, sy, 8, 8);
+        ctx.fillStyle = C.tapedark;
+        ctx.fillRect(sx, sy + 6, 8, 2);
+        ctx.fillStyle = C.tapelit;
+        ctx.fillRect(sx, sy, 8, 2);
+        ctx.fillStyle = C.spool;
+        ctx.fillRect(sx + 2, sy + 2, 4, 4);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sx + 3, sy + 3, 2, 2);
+        // Outline around spool
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(sx, sy - 1, 8, 1);
+        ctx.fillRect(sx, sy + 8, 8, 1);
+        // Cutting teeth at front
+        ctx.fillStyle = C.outline;
+        for (let i = 0; i < 4; i++) ctx.fillRect(x + 3 + i * 2, y + H - 10, 1, 2);
+        // Glowing eyes
+        ctx.fillStyle = C.eye;
+        ctx.fillRect(x + 3, y + 5, 3, 3);
+        ctx.fillRect(x + 8, y + 5, 3, 3);
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(x + 4, y + 6, 1, 1);
+        ctx.fillRect(x + 9, y + 6, 1, 1);
+        // Outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, y + 2, 1, H - 2);
+        ctx.fillRect(x + W - 1, y + 2, 1, H - 2);
+        ctx.fillRect(x + 2, y + 1, W - 4, 1);
+    }
+
+    drawFileCabinetSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const open = ((this.behaviorTimer / 30) | 0) % 4 === 0;  // top drawer opens to fire
+        const C = flash ? {
+            outline:'#fff', body:'#fff', bodylit:'#fff', bodydark:'#fff',
+            drawer:'#fff', drawerlit:'#fff', handle:'#fff', shadow:'#000',
+            eye:'#000', red:'#000'
+        } : {
+            outline:'#0a0a14', body:'#6a6a78', bodylit:'#aaaab0', bodydark:'#3a3a48',
+            drawer:'#5a5a68', drawerlit:'#8a8a98', handle:'#dadae0', shadow:'#1a1a22',
+            eye:'#ff3838', red:'#a82020'
+        };
+        // Body
+        ctx.fillStyle = C.body;
+        ctx.fillRect(x + 1, y + 1, W - 2, H - 2);
+        // Top-left highlight
+        ctx.fillStyle = C.bodylit;
+        ctx.fillRect(x + 1, y + 1, W - 2, 2);
+        ctx.fillRect(x + 1, y + 1, 1, H - 2);
+        // Bottom-right shadow
+        ctx.fillStyle = C.bodydark;
+        ctx.fillRect(x + 1, y + H - 3, W - 2, 2);
+        ctx.fillRect(x + W - 2, y + 1, 1, H - 2);
+        // Three drawers
+        const drawerH = Math.floor((H - 4) / 3);
+        for (let i = 0; i < 3; i++) {
+            const dy = y + 2 + i * drawerH;
+            const dOpen = i === 0 && open;
+            ctx.fillStyle = C.drawer;
+            ctx.fillRect(x + 3, dy + 1, W - 6, drawerH - 2);
+            ctx.fillStyle = C.drawerlit;
+            ctx.fillRect(x + 3, dy + 1, W - 6, 1);
+            ctx.fillStyle = C.shadow;
+            ctx.fillRect(x + 3, dy + drawerH - 2, W - 6, 1);
+            // Drawer outlines
+            ctx.fillStyle = C.outline;
+            ctx.fillRect(x + 3, dy, W - 6, 1);
+            ctx.fillRect(x + 3, dy + drawerH - 1, W - 6, 1);
+            // Handle
+            const hx = x + W / 2 - 4;
+            ctx.fillStyle = C.outline;
+            ctx.fillRect(hx, dy + drawerH / 2 - 1, 8, 3);
+            ctx.fillStyle = C.handle;
+            ctx.fillRect(hx + 1, dy + drawerH / 2 - 1, 6, 1);
+            // Top drawer when "open" gets a red glow inside
+            if (dOpen) {
+                ctx.fillStyle = C.red;
+                ctx.fillRect(x + 4, dy + 2, W - 8, drawerH - 5);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(x + W / 2 - 2, dy + drawerH / 2, 4, 1);
+            }
+        }
+        // Evil face on top drawer (only when closed)
+        if (!open) {
+            ctx.fillStyle = C.outline;
+            ctx.fillRect(x + 6, y + 6, 5, 4);
+            ctx.fillRect(x + W - 11, y + 6, 5, 4);
+            ctx.fillStyle = C.eye;
+            ctx.fillRect(x + 7, y + 7, 3, 2);
+            ctx.fillRect(x + W - 10, y + 7, 3, 2);
+            ctx.fillStyle = '#ffe0a0';
+            ctx.fillRect(x + 7, y + 7, 1, 1);
+            ctx.fillRect(x + W - 10, y + 7, 1, 1);
+        }
+        // Outer outline
+        ctx.fillStyle = C.outline;
+        ctx.fillRect(x, y, W, 1);
+        ctx.fillRect(x, y + H - 1, W, 1);
+        ctx.fillRect(x, y, 1, H);
+        ctx.fillRect(x + W - 1, y, 1, H);
     }
 
     getBulletColor(type) {

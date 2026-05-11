@@ -13,6 +13,8 @@ class Game {
         this.running = false;
         this.paused = false;
         this.gameOver = false;
+        this.screen = 'title';        // 'title' | 'playing' | 'gameover'
+        this.titleTimer = 0;
 
         this.score = 0;
         this.lives = 3;
@@ -71,16 +73,100 @@ class Game {
 
         // Fixed timestep updates
         while (this.accumulator >= this.timestep) {
-            if (!this.paused && !this.gameOver) {
+            if (this.screen === 'title') {
+                this.updateTitle();
+            } else if (!this.paused && !this.gameOver) {
                 this.update();
             }
             this.accumulator -= this.timestep;
         }
 
         // Render
-        this.render();
+        if (this.screen === 'title') {
+            this.renderTitle();
+        } else {
+            this.render();
+        }
 
         requestAnimationFrame((time) => this.gameLoop(time));
+    }
+
+    updateTitle() {
+        this.titleTimer++;
+        this.background.update();
+        input.update();
+        // Any key starts the game
+        if (input.jumpPressed || input.shoot) {
+            this.screen = 'playing';
+        }
+    }
+
+    renderTitle() {
+        const ctx = this.ctx;
+        // Clear and draw the parallax background as if at world x=0
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        this.background.draw(ctx, { x: 0, y: 0 });
+
+        // Dim the scene slightly so the title pops
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+
+        // ---- Title logo ----
+        // Top line: "CLIPPY" big and red
+        drawPixelTextOutlined(ctx, 'CLIPPY', GAME.WIDTH / 2, 36, '#ff5050', '#1a0000', 4, 'center', 1);
+        // Subtitle: "FIRST BLOOD" smaller, yellow with red shadow
+        drawPixelTextOutlined(ctx, 'FIRST BLOOD', GAME.WIDTH / 2, 76, '#ffe070', '#a82020', 2, 'center', 1);
+
+        // ---- Decorative paperclip on left/right of title ----
+        this.drawTitleClippyIcon(ctx, GAME.WIDTH / 2 - 88, 38);
+        this.drawTitleClippyIcon(ctx, GAME.WIDTH / 2 + 64, 38);
+
+        // ---- Press Start ----
+        const blink = Math.floor(this.titleTimer / 30) % 2 === 0;
+        if (blink) {
+            drawPixelTextOutlined(ctx, 'PRESS SHOOT TO START', GAME.WIDTH / 2, 140, '#ffffff', '#000000', 1, 'center', 1);
+        }
+
+        // ---- Credit / tagline ----
+        drawPixelText(ctx, 'A PAPERCLIP HERO REBORN', GAME.WIDTH / 2, 116, '#c0a0d0', 1, 'center', 1);
+        drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
+
+        // Controls hint at bottom
+        drawPixelText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT', GAME.WIDTH / 2, 212, '#a8a0c0', 1, 'center', 1);
+    }
+
+    drawTitleClippyIcon(ctx, x, y) {
+        // 24x24 stylized Clippy paperclip icon for the title flanks
+        // Bandana
+        ctx.fillStyle = '#cc4444';
+        ctx.fillRect(x + 4, y + 1, 16, 2);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fillRect(x + 4, y, 16, 1);
+        ctx.fillStyle = '#aa2828';
+        ctx.fillRect(x + 4, y + 3, 16, 1);
+        // Paperclip outer loop
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x + 4, y + 4, 16, 2);
+        ctx.fillRect(x + 4, y + 4, 2, 16);
+        ctx.fillRect(x + 18, y + 4, 2, 18);
+        ctx.fillRect(x + 4, y + 20, 14, 2);
+        // Inner highlight
+        ctx.fillStyle = '#a8a8c0';
+        ctx.fillRect(x + 6, y + 6, 12, 1);
+        ctx.fillRect(x + 6, y + 6, 1, 14);
+        // Inner loop
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x + 8, y + 8, 10, 2);
+        ctx.fillRect(x + 8, y + 8, 2, 8);
+        ctx.fillRect(x + 14, y + 8, 2, 8);
+        // Eyes (peering over the paperclip)
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 8, y + 12, 3, 3);
+        ctx.fillRect(x + 13, y + 12, 3, 3);
+        ctx.fillStyle = '#2a5298';
+        ctx.fillRect(x + 9, y + 13, 1, 2);
+        ctx.fillRect(x + 14, y + 13, 1, 2);
     }
 
     update() {
@@ -90,8 +176,9 @@ class Game {
         // Update enemies
         this.enemies.update(this.level, this.player);
 
-        // Update background
+        // Update background and effects
         this.background.update();
+        if (typeof particles !== 'undefined') particles.update();
 
         // Update camera to follow player
         this.updateCamera();
@@ -164,6 +251,9 @@ class Game {
 
         // Draw player
         this.player.draw(this.ctx, this.camera);
+
+        // Draw particle effects (over world, under HUD)
+        if (typeof particles !== 'undefined') particles.draw(this.ctx, this.camera);
 
         // Draw HUD
         this.drawHUD();

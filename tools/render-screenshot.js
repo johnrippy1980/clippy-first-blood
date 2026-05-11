@@ -15,7 +15,7 @@ global.input = { update() {}, jumpPressed: false };
 // Use indirect eval so `const`/`class` go into global scope
 const indirectEval = eval;
 const loadInto = {};
-const files = ['js/constants.js','js/sprites.js','js/input.js','js/player.js','js/enemies.js','js/level.js','js/parallax.js'];
+const files = ['js/constants.js','js/pixelfont.js','js/sprites.js','js/input.js','js/effects.js','js/player.js','js/enemies.js','js/level.js','js/parallax.js'];
 const combined = files.map(p => fs.readFileSync(path.join(__dirname, '..', p), 'utf-8')).join('\n');
 // Strip `const`/`class` declarations to `var`/global so they reach the global object.
 // Easier: wrap with a `with(globalThis){}`-equivalent by assigning module locals to globalThis after eval.
@@ -48,6 +48,10 @@ ${combined}
 ;global.TILE_SPRITES = TILE_SPRITES;
 ;global.CLIPPY_SPRITES = CLIPPY_SPRITES;
 ;global.CLIPPY_PALETTE = CLIPPY_PALETTE;
+;global.particles = particles;
+;global.drawPixelText = drawPixelText;
+;global.drawPixelTextOutlined = drawPixelTextOutlined;
+;global.PIXEL_FONT = PIXEL_FONT;
 `);
 
 const canvas = createCanvas(GAME.WIDTH, GAME.HEIGHT);
@@ -63,11 +67,44 @@ level.spawnPoints.forEach(s => enemies.spawn(s.x, s.y, s.type));
 const bg = new ParallaxBackground();
 bg.init();
 
-const camera = { x: 0, y: 0 };
+const cameraX = parseInt(process.argv[2] || '0', 10);
+const mode = process.argv[3] || 'play';   // 'play' | 'title'
+const camera = { x: cameraX, y: 0 };
+player.x = cameraX + 80;
 
 // Render
 ctx.fillStyle = '#000';
 ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+if (mode === 'title') {
+  bg.draw(ctx, { x: 0, y: 0 });
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+  drawPixelTextOutlined(ctx, 'CLIPPY', GAME.WIDTH / 2, 36, '#ff5050', '#1a0000', 4, 'center', 1);
+  drawPixelTextOutlined(ctx, 'FIRST BLOOD', GAME.WIDTH / 2, 76, '#ffe070', '#a82020', 2, 'center', 1);
+  // Title flank icons
+  function drawTitleClippyIcon(ctx, x, y) {
+    ctx.fillStyle = '#cc4444'; ctx.fillRect(x + 4, y + 1, 16, 2);
+    ctx.fillStyle = '#ff6b6b'; ctx.fillRect(x + 4, y, 16, 1);
+    ctx.fillStyle = '#aa2828'; ctx.fillRect(x + 4, y + 3, 16, 1);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + 4, y + 4, 16, 2); ctx.fillRect(x + 4, y + 4, 2, 16);
+    ctx.fillRect(x + 18, y + 4, 2, 18); ctx.fillRect(x + 4, y + 20, 14, 2);
+    ctx.fillStyle = '#a8a8c0';
+    ctx.fillRect(x + 6, y + 6, 12, 1); ctx.fillRect(x + 6, y + 6, 1, 14);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + 8, y + 8, 10, 2); ctx.fillRect(x + 8, y + 8, 2, 8);
+    ctx.fillRect(x + 14, y + 8, 2, 8);
+    ctx.fillStyle = '#fff'; ctx.fillRect(x + 8, y + 12, 3, 3); ctx.fillRect(x + 13, y + 12, 3, 3);
+    ctx.fillStyle = '#2a5298'; ctx.fillRect(x + 9, y + 13, 1, 2); ctx.fillRect(x + 14, y + 13, 1, 2);
+  }
+  drawTitleClippyIcon(ctx, GAME.WIDTH / 2 - 88, 38);
+  drawTitleClippyIcon(ctx, GAME.WIDTH / 2 + 64, 38);
+  drawPixelText(ctx, 'A PAPERCLIP HERO REBORN', GAME.WIDTH / 2, 116, '#c0a0d0', 1, 'center', 1);
+  drawPixelTextOutlined(ctx, 'PRESS SHOOT TO START', GAME.WIDTH / 2, 140, '#ffffff', '#000000', 1, 'center', 1);
+  drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
+  drawPixelText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT', GAME.WIDTH / 2, 212, '#a8a0c0', 1, 'center', 1);
+  // Skip play-mode renderers
+} else {
 bg.draw(ctx, camera);
 level.draw(ctx, camera);
 enemies.draw(ctx, camera);
@@ -107,6 +144,7 @@ function tinyHUD() {
   ctx.fillText('001234', 122, 14);
 }
 tinyHUD();
+}  // end of play branch
 
 // Upscale 3x for viewing
 const big = createCanvas(GAME.WIDTH*3, GAME.HEIGHT*3);
