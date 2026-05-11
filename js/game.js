@@ -32,6 +32,11 @@ class Game {
         // Damage dealt per weapon name, used for the end-of-run "FAVORITE
         // WEAPON" affinity badge. { 'Machine Gun': 123, 'Spread Gun': 45, ... }
         this.runWeaponDamage = {};
+        // Bullet-time / "second chance" state. Triggered once per stage when
+        // a hit would kill the player; gives them 30 ticks of subjective-time
+        // slow-mo at 1 HP to find a window to escape.
+        this.slowMoTimer = 0;
+        this.slowMoUsedThisStage = false;
 
         // Konami code state
         this.konamiSequence = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyZ', 'KeyX'];
@@ -620,6 +625,27 @@ class Game {
         return best;
     }
 
+    // Called from enemy bullet/contact damage paths when the incoming hit
+    // would reduce the player below 0 HP. Once per stage, the player gets a
+    // second-chance burst of slow-mo at 1 HP to find a window to escape.
+    // Returns true if the rescue triggered (caller should skip the kill).
+    trySecondChance(player) {
+        if (this.slowMoUsedThisStage) return false;
+        if (!player || player.state === PLAYER_STATE.DYING) return false;
+        if (player.inCover || player.invincibilityTimer > 0) return false;
+        this.slowMoUsedThisStage = true;
+        this.slowMoTimer = 30;
+        player.health = 1;
+        player.invincibilityTimer = PLAYER.INVINCIBILITY_FRAMES;
+        player.timeSinceDamage = 0;
+        if (typeof particles !== 'undefined' && particles.scorePopup) {
+            particles.scorePopup(player.x + player.width / 2, player.y - 8, 'CLOSE!');
+        }
+        if (typeof audio !== 'undefined' && audio.sfxHurt) audio.sfxHurt();
+        if (this.shake) this.shake(4, 12);
+        return true;
+    }
+
     drawBossIntro() {
         const ctx = this.ctx;
         const t = this.bossIntroTimer;
@@ -675,7 +701,10 @@ class Game {
         // backgrounded for a long time. Without this, the accumulator
         // explodes and the while-loop below freezes the page on return.
         const raw = currentTime - this.lastTime;
-        const deltaTime = Math.min(raw, this.timestep * 5);   // up to 5 ticks of catchup
+        // Bullet-time: when slowMoTimer > 0 we feed the accumulator at 40%
+        // rate so physics + animation slow down while wall-clock keeps moving.
+        const slowFactor = (this.slowMoTimer > 0) ? 0.4 : 1;
+        const deltaTime = Math.min(raw * slowFactor, this.timestep * 5);
         this.lastTime = currentTime;
         this.accumulator += deltaTime;
 
@@ -3584,6 +3613,8 @@ class Game {
         if (this.stageIntroTimer > 150 || input.jumpPressed || input.shoot) {
             this.screen = 'playing';
             this.stageStartTime = Date.now();
+            this.slowMoUsedThisStage = false;
+            this.slowMoTimer = 0;
             // Mark the whole-run start at Stage 1 only
             if (this.stageIndex === 0 && !this.bossRushMode) {
                 this.runStartTime = Date.now();
@@ -3945,6 +3976,7 @@ class Game {
         if (typeof particles !== 'undefined') particles.update();
         if (typeof achievements !== 'undefined') achievements.update();
         this.updateShake();
+        if (this.slowMoTimer > 0) this.slowMoTimer--;
 
         // Boss warning + intro pan trigger
         if (!this.bossWarningShown && this.level.bossArenaX &&

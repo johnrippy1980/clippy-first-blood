@@ -3500,15 +3500,32 @@ class EnemyManager {
         this.enemies.forEach(enemy => {
             enemy.update(level, player);
 
-            // Check collision with player
+            // Compute the post-multiplier damage so the "would this kill?"
+            // check matches what player.takeDamage actually applies.
+            const incoming = (raw) => {
+                let d = raw;
+                if (typeof game !== 'undefined' && game.difficulty) d *= game.difficulty.enemyDamageMul;
+                if (typeof game !== 'undefined' && game.dailyMode && game.dailyDamageMul) d *= game.dailyDamageMul;
+                return d;
+            };
+            const tryRescue = (raw) => {
+                const wouldKill = player.health - incoming(raw) <= 0;
+                if (wouldKill && typeof game !== 'undefined' && game.trySecondChance && game.trySecondChance(player)) {
+                    return true;   // rescue applied; skip the actual damage
+                }
+                return false;
+            };
+
+            // Check collision with player. If the hit would be lethal and
+            // the once-per-stage second-chance is available, use it instead.
             if (enemy.checkCollision(player)) {
-                player.takeDamage(enemy.damage);
+                if (!tryRescue(enemy.damage)) player.takeDamage(enemy.damage);
             }
 
-            // Check enemy bullets hitting player
+            // Check enemy bullets hitting player (same lethal-hit rescue)
             const bulletDamage = enemy.checkBulletCollision(player);
             if (bulletDamage > 0) {
-                player.takeDamage(bulletDamage);
+                if (!tryRescue(bulletDamage)) player.takeDamage(bulletDamage);
             }
 
             // Check player bullets hitting enemy
