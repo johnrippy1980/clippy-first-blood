@@ -128,9 +128,13 @@ class Player {
         if (this.onGround && this.controls.down && this.controls.jumpPressed
             && this.slideCooldown <= 0
             && (this.state === PLAYER_STATE.RUNNING || Math.abs(this.vx) > 0.5)) {
+            // Shift the hitbox top down by the current height delta so the
+            // feet stay where they were (works whether triggered from
+            // IDLE/RUNNING (height=32) or CROUCHING (height=20)).
+            const drop = this.height - PLAYER.PRONE_HEIGHT;
             this.state = PLAYER_STATE.SLIDING;
             this.height = PLAYER.PRONE_HEIGHT;
-            this.y += PLAYER.HEIGHT - PLAYER.PRONE_HEIGHT;
+            this.y += drop;
             this.slideTimer = 22;
             this.invincibilityTimer = Math.max(this.invincibilityTimer, 16);
             this.vx = (this.facingRight ? 1 : -1) * 5.5;
