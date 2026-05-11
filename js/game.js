@@ -3769,6 +3769,25 @@ class Game {
 
         drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
 
+        // ---- Today's daily challenge ticker (just above the credit) ----
+        // Scrolls "TODAY: <modifier> | BEST <score>" right-to-left so the
+        // daily mode is discoverable from the title screen.
+        if (typeof dailyDateString === 'function' && typeof dailyModifierFor === 'function') {
+            const dateStr = dailyDateString();
+            const mod = dailyModifierFor(dateStr);
+            const best = (typeof dailyBestScore === 'function') ? dailyBestScore(dateStr) : 0;
+            const text = `TODAY  ${mod ? mod.name : '???'}` +
+                (best > 0 ? `  --  YOUR BEST ${String(best).padStart(6, '0')}` : '  --  PRESS D');
+            // Scroll right-to-left across the title bottom strip
+            const speed = 0.6;
+            const offset = (this.titleTimer * speed) % (GAME.WIDTH + 200);
+            const tx = GAME.WIDTH - offset;
+            // Backdrop strip so the ticker is readable over the parallax
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fillRect(0, 188, GAME.WIDTH, 10);
+            drawPixelText(ctx, text, tx, 190, '#ffd040', 1, 'left', 1);
+        }
+
         // Controls hint at bottom - keep it short and obvious
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
         const menuBlink = (this.titleTimer & 32) < 16;
