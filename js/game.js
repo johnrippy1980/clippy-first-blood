@@ -4015,10 +4015,17 @@ class Game {
         // Pickup flash timer
         if (this.pickupFlashTimer > 0) this.pickupFlashTimer--;
 
-        // Combo timer: ticks down each frame; combo resets when it expires
+        // Combo timer: ticks down each frame; combo resets when it expires.
+        // The reset plays a short break SFX so the player knows their streak
+        // ended even when their eyes are on the action.
         if (this.comboTimer > 0) {
             this.comboTimer--;
-            if (this.comboTimer === 0) this.combo = 0;
+            if (this.comboTimer === 0) {
+                if (this.combo >= 5 && typeof audio !== 'undefined' && audio.sfxComboBreak) {
+                    audio.sfxComboBreak();
+                }
+                this.combo = 0;
+            }
         }
 
         // Drive the first-run tutorial state machine.

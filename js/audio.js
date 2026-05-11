@@ -648,6 +648,23 @@ class Audio {
         osc.stop(t + 0.16);
     }
 
+    // Combo-break: brief descending triangle chirp that says "you lost it"
+    // without sounding harsh. Only played for streaks of 5+.
+    sfxComboBreak() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(440, t);
+        osc.frequency.exponentialRampToValueAtTime(120, t + 0.18);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.connect(gain).connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.22);
+    }
+
     // Slide whoosh: filtered noise that drops in pitch quickly, like fabric
     // sliding on concrete. Distinct from the jump square chirp.
     sfxSlide() {
