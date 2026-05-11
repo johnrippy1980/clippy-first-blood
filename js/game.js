@@ -38,6 +38,11 @@ class Game {
 
         // Unlocked features
         this.bossRushUnlocked = false;
+        // Pause menu slider state (0 = music, 1 = sfx)
+        this.pauseMenuCursor = 0;
+        // Stage-select grid cursor (0..stages.length-1)
+        this.stageSelectCursor = 0;
+        this.stageSelectTimer = 0;
         // Difficulty selection (persisted)
         this.difficultyKeys = ['EASY', 'NORMAL', 'HARD'];
         this.difficultyIndex = 1;
@@ -429,6 +434,8 @@ class Game {
                 this.updateGameComplete();
             } else if (this.screen === 'cutscene') {
                 this.updateCutscene();
+            } else if (this.screen === 'stageSelect') {
+                this.updateStageSelect();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -452,6 +459,8 @@ class Game {
             this.renderGameComplete();
         } else if (this.screen === 'cutscene') {
             this.renderCutscene();
+        } else if (this.screen === 'stageSelect') {
+            this.renderStageSelect();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -529,6 +538,157 @@ class Game {
                 }
             } else {
                 this.advanceStage();
+            }
+        }
+    }
+
+    // Stage-select tiles: indices 0..stages.length-1 are stages,
+    // then BOSS_RUSH and BACK.
+    getStageSelectTiles() {
+        const tiles = this.stages.map((s, i) => ({
+            kind: 'stage', index: i, name: s.name, number: s.number, theme: s.theme
+        }));
+        tiles.push({ kind: 'bossRush', name: 'BOSS RUSH', theme: 'serverroom' });
+        tiles.push({ kind: 'back',     name: 'BACK',      theme: 'jungle' });
+        return tiles;
+    }
+
+    updateStageSelect() {
+        this.stageSelectTimer++;
+        input.update();
+        const tiles = this.getStageSelectTiles();
+        const cols = 4;
+        const rows = Math.ceil(tiles.length / cols);
+        if (input.keysJustPressed['ArrowLeft'])  this.stageSelectCursor = Math.max(0, this.stageSelectCursor - 1);
+        if (input.keysJustPressed['ArrowRight']) this.stageSelectCursor = Math.min(tiles.length - 1, this.stageSelectCursor + 1);
+        if (input.keysJustPressed['ArrowUp'])    this.stageSelectCursor = Math.max(0, this.stageSelectCursor - cols);
+        if (input.keysJustPressed['ArrowDown'])  this.stageSelectCursor = Math.min(tiles.length - 1, this.stageSelectCursor + cols);
+        if (input.pausePressed) {
+            // Escape back to title
+            this.screen = 'title';
+            this.titleTimer = 0;
+            return;
+        }
+        if (input.shoot || input.jumpPressed) {
+            const tile = tiles[this.stageSelectCursor];
+            if (tile.kind === 'back') {
+                this.screen = 'title';
+                this.titleTimer = 0;
+            } else if (tile.kind === 'bossRush') {
+                if (typeof audio !== 'undefined') audio.resume();
+                this.startBossRush();
+            } else {
+                // Start a fresh run from the chosen stage
+                if (typeof audio !== 'undefined') audio.resume();
+                this.score = 0;
+                this.lives = this.difficulty.livesStart;
+                this.continues = this.difficulty.continuesStart;
+                this.gameOver = false;
+                this.paused = false;
+                this.bossRushMode = false;
+                this.loadStageByIndex(tile.index);
+                this.player = new Player(50, 160);
+                this.player.maxHealth = Math.floor(PLAYER.MAX_HEALTH * this.difficulty.healthMul);
+                this.player.health = this.player.maxHealth;
+                this.screen = 'stageIntro';
+                this.stageIntroTimer = 0;
+            }
+        }
+    }
+
+    renderStageSelect() {
+        const ctx = this.ctx;
+        // Background
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Subtle moving stars
+        ctx.fillStyle = '#3a2855';
+        for (let i = 0; i < 30; i++) {
+            const x = (i * 17 + this.stageSelectTimer) % GAME.WIDTH;
+            const y = (i * 41 + this.stageSelectTimer * 2) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        drawPixelTextOutlined(ctx, 'STAGE SELECT', GAME.WIDTH / 2, 12, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const tiles = this.getStageSelectTiles();
+        const cols = 4;
+        const tileW = 56, tileH = 50;
+        const gridW = cols * tileW + (cols - 1) * 6;
+        const startX = (GAME.WIDTH - gridW) / 2;
+        const startY = 38;
+
+        for (let i = 0; i < tiles.length; i++) {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = startX + col * (tileW + 6);
+            const y = startY + row * (tileH + 6);
+            const t = tiles[i];
+            const selected = i === this.stageSelectCursor;
+            this.drawStageSelectTile(ctx, t, x, y, tileW, tileH, selected);
+        }
+
+        // Bottom hint
+        drawPixelText(ctx, 'ARROWS  PICK    SHOOT  CONFIRM    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#a890c0', 1, 'center', 1);
+    }
+
+    drawStageSelectTile(ctx, tile, x, y, w, h, selected) {
+        // Frame
+        ctx.fillStyle = selected ? '#ffe070' : '#1a1140';
+        ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(x, y, w, h);
+        // Theme-colored backdrop (tiny preview)
+        const themeColor = {
+            jungle:    '#2d6a1e',
+            breakroom: '#a87040',
+            serverroom:'#202840',
+            boardroom: '#5a2f1a',
+            keynote:   '#7a1010',
+            founder:   '#1a4a18'
+        }[tile.theme] || '#3a2855';
+        ctx.fillStyle = themeColor;
+        ctx.fillRect(x + 2, y + 2, w - 4, h - 18);
+        // Highlight strip
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x + 2, y + 2, w - 4, 2);
+
+        // Tile-specific icon
+        const cx = x + w / 2, cy = y + 18;
+        if (tile.kind === 'stage') {
+            // Stage number large
+            drawPixelTextOutlined(ctx, String(tile.number), cx, y + 6, '#ffe070', '#a82020', 3, 'center', 1);
+        } else if (tile.kind === 'bossRush') {
+            drawPixelTextOutlined(ctx, 'B', cx, y + 6, '#ff60ff', '#3a0a3a', 3, 'center', 1);
+        } else if (tile.kind === 'back') {
+            // Arrow icon
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(cx - 6, cy - 2, 10, 4);
+            ctx.fillRect(cx - 8, cy,     2, 1);
+            ctx.fillRect(cx - 9, cy - 1, 2, 3);
+        }
+
+        // Bottom label strip
+        ctx.fillStyle = selected ? '#3a2855' : '#0a0612';
+        ctx.fillRect(x, y + h - 14, w, 14);
+        ctx.fillStyle = selected ? '#564468' : '#1a1140';
+        ctx.fillRect(x, y + h - 14, w, 1);
+
+        // Short label (truncate long stage names)
+        const label = tile.name.length > 11 ? tile.name.substring(0, 11) : tile.name;
+        drawPixelText(ctx, label, cx, y + h - 10,
+            selected ? '#ffe070' : '#c0a0d0', 1, 'center', 1);
+
+        // Selected outline blink
+        if (selected) {
+            const blink = (Math.floor(this.stageSelectTimer / 12) & 1) === 0;
+            if (blink) {
+                ctx.fillStyle = '#ff5050';
+                ctx.fillRect(x - 2, y - 2, w + 4, 1);
+                ctx.fillRect(x - 2, y + h + 1, w + 4, 1);
+                ctx.fillRect(x - 2, y - 2, 1, h + 4);
+                ctx.fillRect(x + w + 1, y - 2, 1, h + 4);
             }
         }
     }
@@ -1003,10 +1163,12 @@ class Game {
         // Konami code listener (active on title)
         this.tickKonami();
 
-        // UP arrow on the title launches Boss Rush when unlocked
+        // UP arrow on the title opens the stage-select hub (when unlocked)
         if (this.bossRushUnlocked && input.keysJustPressed['ArrowUp']) {
             if (typeof audio !== 'undefined') audio.resume();
-            this.startBossRush();
+            this.screen = 'stageSelect';
+            this.stageSelectTimer = 0;
+            this.stageSelectCursor = 0;
             return;
         }
         // LEFT/RIGHT cycles difficulty
@@ -2045,7 +2207,7 @@ class Game {
 
         // Controls hint at bottom (line 1: gameplay, line 2: title menu)
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'LR DIFFICULTY  DN LEADERBOARD' + (this.bossRushUnlocked ? '  UP BOSS RUSH' : ''),
+        drawPixelText(ctx, 'LR DIFFICULTY  DN LEADERBOARD' + (this.bossRushUnlocked ? '  UP STAGE SELECT' : ''),
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
@@ -2123,10 +2285,26 @@ class Game {
         // Pause toggle
         if (input.pausePressed) {
             this.paused = !this.paused;
-            if (typeof audio !== 'undefined') audio.toggleMute();
             return;
         }
-        if (this.paused) return;
+        if (this.paused) {
+            // While paused, drive the audio mixer with arrow keys
+            if (input.keysJustPressed['ArrowUp']) this.pauseMenuCursor = (this.pauseMenuCursor + 1) % 2;
+            if (input.keysJustPressed['ArrowDown']) this.pauseMenuCursor = (this.pauseMenuCursor + 1) % 2;
+            if (typeof audio !== 'undefined') {
+                // Hold-down support so the sliders feel smooth
+                const step = 0.04;
+                if (input.left) {
+                    if (this.pauseMenuCursor === 0) audio.setMusicVolume(audio.musicVolume - step);
+                    else                            audio.setSfxVolume(audio.sfxVolume - step);
+                }
+                if (input.right) {
+                    if (this.pauseMenuCursor === 0) audio.setMusicVolume(audio.musicVolume + step);
+                    else                            audio.setSfxVolume(audio.sfxVolume + step);
+                }
+            }
+            return;
+        }
 
         // During boss intro the player stops moving but enemies + bg still animate
         if (!this.bossIntroActive) {
@@ -2300,6 +2478,11 @@ class Game {
 
         // Draw HUD (unaffected by shake)
         this.drawHUD();
+
+        // Touch controls overlay - only on touch devices
+        if (typeof input !== 'undefined' && input.touchEnabled) {
+            this.drawTouchControls(this.ctx);
+        }
 
         // Draw boss intro letterbox + name banner
         if (this.bossIntroActive) {
@@ -2478,6 +2661,72 @@ class Game {
         ctx.fillRect(x + 1, y + 8, 8, 1);
     }
 
+    drawTouchControls(ctx) {
+        // Match the hit-zones declared in InputHandler.touchButtonAt()
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+
+        // D-pad on lower-left
+        const dx = 32, dy = 188, dr = 28;
+        ctx.fillStyle = '#0a0612';
+        ctx.beginPath(); ctx.arc(dx, dy, dr, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#3a2855';
+        ctx.beginPath(); ctx.arc(dx, dy, dr - 2, 0, Math.PI * 2); ctx.fill();
+        // Cross
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(dx - dr + 4, dy - 4, dr * 2 - 8, 8);
+        ctx.fillRect(dx - 4, dy - dr + 4, 8, dr * 2 - 8);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(dx - dr + 6, dy - 3, dr * 2 - 12, 6);
+        ctx.fillRect(dx - 3, dy - dr + 6, 6, dr * 2 - 12);
+        // Arrows highlight when pressed
+        const arr = (key) => input && input.keys && input.keys[key];
+        ctx.fillStyle = '#ffe070';
+        if (arr('ArrowUp'))    ctx.fillRect(dx - 2, dy - dr + 8, 4, 6);
+        if (arr('ArrowDown'))  ctx.fillRect(dx - 2, dy + dr - 14, 4, 6);
+        if (arr('ArrowLeft'))  ctx.fillRect(dx - dr + 8, dy - 2, 6, 4);
+        if (arr('ArrowRight')) ctx.fillRect(dx + dr - 14, dy - 2, 6, 4);
+        // Arrow icons (always visible faintly)
+        ctx.fillStyle = '#a890c0';
+        ctx.fillRect(dx - 1, dy - dr + 10, 2, 1);
+        ctx.fillRect(dx - 2, dy - dr + 11, 4, 1);
+        ctx.fillRect(dx - 1, dy + dr - 11, 2, 1);
+        ctx.fillRect(dx - 2, dy + dr - 12, 4, 1);
+        ctx.fillRect(dx - dr + 10, dy - 1, 1, 2);
+        ctx.fillRect(dx - dr + 11, dy - 2, 1, 4);
+        ctx.fillRect(dx + dr - 11, dy - 1, 1, 2);
+        ctx.fillRect(dx + dr - 12, dy - 2, 1, 4);
+
+        // Jump button (Z) - lower right
+        const jx = GAME.WIDTH - 56, jy = 196;
+        this._drawTouchBtn(ctx, jx, jy, 'Z', '#3a2855', arr('KeyZ'));
+        // Shoot button (X) - just inside the right edge, slightly up
+        const sx = GAME.WIDTH - 18, sy = 184;
+        this._drawTouchBtn(ctx, sx, sy, 'X', '#a82020', arr('KeyX'));
+
+        // Pause button - tiny corner
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(GAME.WIDTH - 18, 2, 14, 14);
+        ctx.fillStyle = arr('KeyP') ? '#ffe070' : '#564468';
+        ctx.fillRect(GAME.WIDTH - 14, 6, 2, 6);
+        ctx.fillRect(GAME.WIDTH - 10, 6, 2, 6);
+
+        ctx.restore();
+    }
+
+    _drawTouchBtn(ctx, x, y, label, color, pressed) {
+        const r = 14;
+        ctx.fillStyle = '#0a0612';
+        ctx.beginPath(); ctx.arc(x, y, r + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = pressed ? '#fff' : color;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = pressed ? color : 'rgba(255,255,255,0.25)';
+        ctx.beginPath(); ctx.arc(x, y - 2, r - 4, 0, Math.PI * 2); ctx.fill();
+        if (typeof drawPixelTextOutlined === 'function') {
+            drawPixelTextOutlined(ctx, label, x, y - 3, '#ffffff', '#1a0000', 1, 'center', 1);
+        }
+    }
+
     flashText(ctx, text, x, y, color) {
         ctx.fillStyle = '#000';
         ctx.fillRect(x - 1, y - 7, text.length * 6 + 2, 9);
@@ -2583,21 +2832,68 @@ class Game {
 
     drawPaused() {
         const ctx = this.ctx;
-        // Dimmer overlay - more like a true SNES pause
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        // Dimmer overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
-        // Center panel
-        const py = GAME.HEIGHT / 2 - 24;
+        // Center panel - taller now that it holds the mixer
+        const px = 48, pw = GAME.WIDTH - 96;
+        const py = GAME.HEIGHT / 2 - 50, ph = 100;
         ctx.fillStyle = '#0a0612';
-        ctx.fillRect(64, py - 4, GAME.WIDTH - 128, 50);
+        ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
         ctx.fillStyle = '#3a2855';
-        ctx.fillRect(66, py - 2, GAME.WIDTH - 132, 46);
+        ctx.fillRect(px, py, pw, ph);
         ctx.fillStyle = '#564468';
-        ctx.fillRect(66, py - 2, GAME.WIDTH - 132, 2);
+        ctx.fillRect(px, py, pw, 2);
         ctx.fillStyle = '#1a1140';
-        ctx.fillRect(66, py + 42, GAME.WIDTH - 132, 2);
+        ctx.fillRect(px, py + ph - 2, pw, 2);
+
         drawPixelTextOutlined(ctx, 'PAUSED', GAME.WIDTH / 2, py + 6, '#ffe070', '#a82020', 2, 'center', 1);
-        drawPixelText(ctx, 'P TO RESUME   M MUTE', GAME.WIDTH / 2, py + 28, '#c0a0d0', 1, 'center', 1);
+
+        // ---- Volume sliders ----
+        const mixer = (typeof audio !== 'undefined') ? audio : null;
+        const sliderX = px + 18, sliderW = pw - 60, sliderH = 6;
+        const labels = [
+            { name: 'MUSIC', val: mixer ? mixer.musicVolume : 0.7 },
+            { name: 'SFX',   val: mixer ? mixer.sfxVolume   : 0.85 }
+        ];
+        for (let i = 0; i < labels.length; i++) {
+            const sy = py + 30 + i * 18;
+            const isSelected = i === this.pauseMenuCursor;
+
+            // Label
+            drawPixelText(ctx, labels[i].name,
+                sliderX - 4, sy - 4, isSelected ? '#ffe070' : '#c0a0d0', 1, 'right', 1);
+            // Slider frame
+            ctx.fillStyle = '#000';
+            ctx.fillRect(sliderX, sy - 1, sliderW, sliderH + 2);
+            ctx.fillStyle = '#1a1140';
+            ctx.fillRect(sliderX, sy, sliderW, sliderH);
+            // Fill
+            const fill = Math.floor(labels[i].val * (sliderW - 2));
+            ctx.fillStyle = isSelected ? '#ffe070' : '#7a608c';
+            ctx.fillRect(sliderX + 1, sy + 1, fill, sliderH - 2);
+            // Tick marks
+            ctx.fillStyle = '#3a2855';
+            for (let t = 0; t <= 10; t++) {
+                ctx.fillRect(sliderX + Math.floor(t * (sliderW - 1) / 10), sy + sliderH, 1, 2);
+            }
+            // Cursor arrow on the selected row
+            if (isSelected) {
+                const blink = (Math.floor(Date.now() / 200) & 1) === 0;
+                ctx.fillStyle = blink ? '#ffe070' : '#ffa030';
+                ctx.fillRect(sliderX + sliderW + 4, sy, 4, 4);
+                ctx.fillRect(sliderX + sliderW + 5, sy - 1, 2, 6);
+            }
+            // Numeric value
+            drawPixelText(ctx, Math.round(labels[i].val * 100) + '',
+                sliderX + sliderW + 18, sy - 4, '#a890c0', 1, 'right', 1);
+        }
+
+        // Hints at the bottom
+        drawPixelText(ctx, 'UP DOWN  SELECT    LEFT RIGHT  ADJUST',
+            GAME.WIDTH / 2, py + ph - 22, '#a890c0', 1, 'center', 1);
+        drawPixelText(ctx, 'P RESUME    M FULL MUTE',
+            GAME.WIDTH / 2, py + ph - 10, '#a890c0', 1, 'center', 1);
     }
 
     restart() {

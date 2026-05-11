@@ -14,6 +14,17 @@ class Audio {
         this.masterGain = null;
         this.musicGain = null;
         this.sfxGain = null;
+        // Independent volume levels persisted to localStorage.
+        // 0..1 each. The corresponding GainNode multiplies by these.
+        this.musicVolume = 0.7;
+        this.sfxVolume = 0.85;
+        this.masterMuted = false;
+        try {
+            const m = localStorage.getItem('clippy_first_blood_music_vol');
+            const s = localStorage.getItem('clippy_first_blood_sfx_vol');
+            if (m !== null) this.musicVolume = Math.max(0, Math.min(1, parseFloat(m)));
+            if (s !== null) this.sfxVolume = Math.max(0, Math.min(1, parseFloat(s)));
+        } catch (e) {}
 
         // Music sequencer state
         this.musicPlaying = false;
@@ -38,15 +49,15 @@ class Audio {
             const Ctx = window.AudioContext || window.webkitAudioContext;
             this.ctx = new Ctx();
             this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.4;
+            this.masterGain.gain.value = this.masterMuted ? 0 : 0.4;
             this.masterGain.connect(this.ctx.destination);
 
             this.musicGain = this.ctx.createGain();
-            this.musicGain.gain.value = 0.35;
+            this.musicGain.gain.value = 0.5 * this.musicVolume;
             this.musicGain.connect(this.masterGain);
 
             this.sfxGain = this.ctx.createGain();
-            this.sfxGain.gain.value = 0.55;
+            this.sfxGain.gain.value = 0.65 * this.sfxVolume;
             this.sfxGain.connect(this.masterGain);
 
             this.enabled = true;
@@ -63,9 +74,22 @@ class Audio {
     }
 
     toggleMute() {
-        if (!this.masterGain) return;
-        const isMuted = this.masterGain.gain.value < 0.001;
-        this.masterGain.gain.value = isMuted ? 0.4 : 0;
+        this.masterMuted = !this.masterMuted;
+        if (this.masterGain) {
+            this.masterGain.gain.value = this.masterMuted ? 0 : 0.4;
+        }
+    }
+
+    setMusicVolume(v) {
+        this.musicVolume = Math.max(0, Math.min(1, v));
+        if (this.musicGain) this.musicGain.gain.value = 0.5 * this.musicVolume;
+        try { localStorage.setItem('clippy_first_blood_music_vol', String(this.musicVolume)); } catch (e) {}
+    }
+
+    setSfxVolume(v) {
+        this.sfxVolume = Math.max(0, Math.min(1, v));
+        if (this.sfxGain) this.sfxGain.gain.value = 0.65 * this.sfxVolume;
+        try { localStorage.setItem('clippy_first_blood_sfx_vol', String(this.sfxVolume)); } catch (e) {}
     }
 
     // ---------- Music ----------
