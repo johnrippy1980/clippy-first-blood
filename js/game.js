@@ -4283,6 +4283,20 @@ class Game {
 
         this.ctx.restore();
 
+        // Bullet-time second-chance vignette: pulse a translucent red frame
+        // around the edges while slowMoTimer is active so the player knows
+        // they're inside the rescue window.
+        if (this.slowMoTimer > 0) {
+            const t = this.slowMoTimer / 30;
+            const pulse = 0.35 + 0.15 * Math.sin(this.slowMoTimer * 0.6);
+            this.ctx.fillStyle = `rgba(255, 60, 60, ${(0.25 + pulse * 0.3) * t})`;
+            const thick = Math.ceil(6 + t * 6);
+            this.ctx.fillRect(0, 0, GAME.WIDTH, thick);
+            this.ctx.fillRect(0, GAME.HEIGHT - thick, GAME.WIDTH, thick);
+            this.ctx.fillRect(0, 0, thick, GAME.HEIGHT);
+            this.ctx.fillRect(GAME.WIDTH - thick, 0, thick, GAME.HEIGHT);
+        }
+
         // Draw HUD (unaffected by shake)
         this.drawHUD();
 
