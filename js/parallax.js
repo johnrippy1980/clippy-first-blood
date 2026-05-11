@@ -109,6 +109,7 @@ class ParallaxBackground {
         if (this.theme === 'boardroom') return this.drawBoardRoom(ctx, camera);
         if (this.theme === 'keynote') return this.drawKeynote(ctx, camera);
         if (this.theme === 'founder') return this.drawFounderLair(ctx, camera);
+        if (this.theme === 'cloud') return this.drawCloud(ctx, camera);
         this.drawSky(ctx);
         this.drawSun(ctx);
         this.drawClouds(ctx, camera);
@@ -881,6 +882,162 @@ class ParallaxBackground {
                 ctx.fillStyle = `rgba(80,255,112,${0.1 + t * 0.4})`;
                 ctx.fillRect(Math.floor(lx), Math.floor(ly), 1, 1);
             }
+        }
+    }
+
+    // ============================================
+    // STAGE 8 - THE CLOUD (corporate heaven / data ascension)
+    // Bright blue sky gradient, fluffy server-rack-shaped clouds,
+    // beams of light, distant floating data nodes, marble columns
+    // in the foreground.
+    // ============================================
+    drawCloud(ctx, camera) {
+        this.drawCloudSky(ctx);
+        this.drawCloudGodRays(ctx);
+        this.drawCloudFarClouds(ctx, camera);
+        this.drawCloudDataNodes(ctx, camera);
+        this.drawCloudNearClouds(ctx, camera);
+        this.drawCloudColumns(ctx, camera);
+    }
+
+    drawCloudSky(ctx) {
+        const bands = [
+            { y: 0,   c: '#3a78b8' },
+            { y: 24,  c: '#5aa8e0' },
+            { y: 56,  c: '#80c8f0' },
+            { y: 92,  c: '#a8d8f0' },
+            { y: 128, c: '#c0e0f0' },
+            { y: 164, c: '#e0f0f8' }
+        ];
+        for (let i = 0; i < bands.length; i++) {
+            const top = bands[i].y;
+            const bot = i < bands.length - 1 ? bands[i + 1].y : 192;
+            ctx.fillStyle = bands[i].c;
+            ctx.fillRect(0, top, GAME.WIDTH, bot - top);
+            if (i < bands.length - 1) {
+                ctx.fillStyle = bands[i + 1].c;
+                for (let x = (i & 1); x < GAME.WIDTH; x += 2) {
+                    ctx.fillRect(x, bot - 1, 1, 1);
+                }
+            }
+        }
+    }
+
+    drawCloudGodRays(ctx) {
+        // Soft beams of light angling down from the upper-right
+        ctx.fillStyle = 'rgba(255, 248, 200, 0.18)';
+        for (let i = 0; i < 5; i++) {
+            const x = GAME.WIDTH - 40 - i * 12;
+            for (let y = 0; y < 180; y++) {
+                const w = Math.max(0, 80 - i * 16 - Math.floor(y * 0.4));
+                if (w > 0) ctx.fillRect(x - i * 4, y, 2, 1);
+            }
+        }
+        // Bright sun
+        ctx.fillStyle = '#fff8d0';
+        const sx = GAME.WIDTH - 32, sy = 26, r = 12;
+        this.fillPixelCircle(ctx, sx, sy, r + 3, 1);
+        ctx.fillStyle = '#ffe070';
+        this.fillPixelCircle(ctx, sx, sy, r, 1);
+        ctx.fillStyle = '#ffffff';
+        this.fillPixelCircle(ctx, sx, sy, r - 5, 1);
+    }
+
+    drawCloudFarClouds(ctx, camera) {
+        // Distant fluffy clouds drifting slowly
+        const off = (camera.x * 0.15 + this.time * 0.3) | 0;
+        const cs = [
+            { x: 20,  y: 50, w: 32, h: 10 },
+            { x: 96,  y: 38, w: 40, h: 12 },
+            { x: 168, y: 60, w: 28, h: 9 },
+            { x: 220, y: 44, w: 36, h: 11 },
+            { x: 280, y: 56, w: 30, h: 10 }
+        ];
+        for (const c of cs) {
+            const sx = (((c.x - off) % 320) + 320) % 320 - 30;
+            if (sx < -c.w || sx > GAME.WIDTH) continue;
+            // Cloud body - layered pixel ovals
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sx, c.y, c.w, c.h);
+            ctx.fillRect(sx + 4, c.y - 2, c.w - 8, 2);
+            ctx.fillRect(sx + 8, c.y - 4, c.w - 16, 2);
+            ctx.fillStyle = '#c0d8e8';
+            ctx.fillRect(sx, c.y + c.h - 1, c.w, 1);
+        }
+    }
+
+    drawCloudDataNodes(ctx, camera) {
+        // Mid-distance floating data nodes (cube + LEDs) glide by
+        const off = (camera.x * 0.3 + this.time * 0.5) | 0;
+        const nodes = [
+            { x: 40,  y: 80 },
+            { x: 140, y: 96 },
+            { x: 240, y: 88 },
+            { x: 60,  y: 110 },
+            { x: 200, y: 116 }
+        ];
+        for (const n of nodes) {
+            const sx = (((n.x - off) % 320) + 320) % 320 - 24;
+            if (sx < -16 || sx > GAME.WIDTH) continue;
+            const float = Math.floor(Math.sin(this.time * 0.04 + n.x) * 2);
+            const sy = n.y + float;
+            // Cube body
+            ctx.fillStyle = '#1a508a';
+            ctx.fillRect(sx, sy, 12, 12);
+            ctx.fillStyle = '#3a78b8';
+            ctx.fillRect(sx, sy, 12, 2);
+            ctx.fillStyle = '#0a205a';
+            ctx.fillRect(sx, sy + 10, 12, 2);
+            // LEDs blinking
+            const blink = (Math.floor(this.time / 8) + n.x) & 1;
+            ctx.fillStyle = blink ? '#50ff70' : '#206030';
+            ctx.fillRect(sx + 2, sy + 4, 2, 2);
+            ctx.fillRect(sx + 8, sy + 6, 2, 2);
+        }
+    }
+
+    drawCloudNearClouds(ctx, camera) {
+        // Closer chunky cloud platforms-as-decor (these are visual; the
+        // playable platforms come from the tile layer).
+        const off = (camera.x * 0.55 + this.time * 0.6) | 0;
+        const cs = [
+            { x: 0,   y: 144, w: 60, h: 14 },
+            { x: 100, y: 138, w: 70, h: 16 },
+            { x: 200, y: 150, w: 80, h: 14 }
+        ];
+        for (const c of cs) {
+            const sx = (((c.x - off) % 320) + 320) % 320 - 40;
+            if (sx < -c.w || sx > GAME.WIDTH) continue;
+            ctx.fillStyle = '#e0f0f8';
+            ctx.fillRect(sx, c.y, c.w, c.h);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sx + 4, c.y - 2, c.w - 8, 2);
+            ctx.fillRect(sx + 8, c.y - 4, c.w - 16, 2);
+            ctx.fillStyle = '#a8c8d8';
+            ctx.fillRect(sx, c.y + c.h - 2, c.w, 2);
+            // Subtle blue underlight (shadow)
+            ctx.fillStyle = '#80a8c0';
+            ctx.fillRect(sx + 2, c.y + c.h, c.w - 4, 1);
+        }
+    }
+
+    drawCloudColumns(ctx, camera) {
+        // Greek-style marble columns in the very foreground for parallax depth
+        const off = (camera.x * 0.85) | 0;
+        const cols = [-40, 60, 140, 220, 300];
+        for (const cx of cols) {
+            const sx = (((cx - off) % 320) + 320) % 320 - 40;
+            if (sx < -30 || sx > GAME.WIDTH + 30) continue;
+            // Capital (top)
+            ctx.fillStyle = '#e0e0e8';
+            ctx.fillRect(sx - 14, 168, 28, 4);
+            ctx.fillStyle = '#a8a8b8';
+            ctx.fillRect(sx - 14, 172, 28, 1);
+            // Shaft (with fluting lines)
+            ctx.fillStyle = '#f0f0f8';
+            ctx.fillRect(sx - 10, 172, 20, 20);
+            ctx.fillStyle = '#c0c0c8';
+            for (let f = -8; f <= 8; f += 4) ctx.fillRect(sx + f, 172, 1, 20);
         }
     }
 

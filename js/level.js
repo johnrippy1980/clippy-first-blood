@@ -704,6 +704,57 @@ class Level {
         ];
     }
 
+    // ---- Stage 8: THE CLOUD - hidden ascended boss vs THE ALGORITHM ----
+    loadStage8() {
+        this.theme = 'cloud';
+        this.width = 60;
+        this.height = 14;
+        this.bossArenaX = 12 * GAME.TILE_SIZE;
+        this.endX = 59 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+        this.checkpoints = [{ x: 50, y: 160 }];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++)
+                for (let x = x1; x <= x2; x++)
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width)
+                        this.tiles[y][x] = t;
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Marble floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+        // Floating cloud-platform stepping stones
+        fill(6,  10, 8,  10, TILE.PLATFORM);
+        fill(14, 8,  17, 8,  TILE.PLATFORM);
+        fill(22, 6,  25, 6,  TILE.PLATFORM);
+        fill(32, 8,  35, 8,  TILE.PLATFORM);
+        fill(40, 6,  43, 6,  TILE.PLATFORM);
+        fill(48, 10, 50, 10, TILE.PLATFORM);
+        cover(20);
+        cover(38);
+
+        // Reward pickups - the two new weapons are introduced here
+        this.pickups.push({ x: 10 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'HOMING',  taken: false });
+        this.pickups.push({ x: 24 * GAME.TILE_SIZE, y: 4  * GAME.TILE_SIZE, type: 'THUNDER', taken: false });
+        this.pickups.push({ x: 44 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER',   taken: false });
+
+        // THE ALGORITHM hovers in the center of the arena
+        this.spawnPoints = [
+            { x: 30 * 16, y: 4 * 16, type: 'ALGORITHM' }
+        ];
+    }
+
     // ---- Boss Rush: three arenas in a row, fight all three bosses ----
     loadBossRush() {
         this.theme = 'serverroom';
@@ -908,6 +959,14 @@ class Level {
                 this.drawNeonFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             } else {
                 this.drawVoidTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            }
+            return;
+        }
+        if (this.theme === 'cloud') {
+            if (isSurface) {
+                this.drawCloudFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
+            } else {
+                this.drawCloudCoreTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge);
             }
             return;
         }
@@ -1164,6 +1223,54 @@ class Level {
         if (rightEdge) { ctx.fillStyle = GOLD; ctx.fillRect(x + 15, y, 1, 16); }
     }
 
+    // Cloud surface tile (Stage 8) - bright white marble with gold seam
+    drawCloudFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        ctx.fillStyle = '#f8f8ff';
+        ctx.fillRect(x, y, 16, 16);
+        // Top highlight
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, 16, 2);
+        // Veins of pale blue
+        const veinSeed = (tileX * 31 + tileY * 17) & 0xff;
+        if (veinSeed < 90) {
+            ctx.fillStyle = '#c0d8e8';
+            for (let i = 0; i < 14; i++) {
+                const vx = x + 1 + i;
+                const vy = y + 4 + Math.floor(Math.sin(i * 0.5 + veinSeed) * 3) + 3;
+                ctx.fillRect(vx, vy, 1, 1);
+            }
+        }
+        // Pale shadow on bottom
+        ctx.fillStyle = '#a8c0d0';
+        ctx.fillRect(x, y + 14, 16, 2);
+        // Gold seam line
+        ctx.fillStyle = '#ffd460';
+        ctx.fillRect(x, y + 15, 16, 1);
+        // Edges
+        if (leftEdge)  { ctx.fillStyle = '#c0d8e8'; ctx.fillRect(x,      y, 1, 16); }
+        if (rightEdge) { ctx.fillStyle = '#c0d8e8'; ctx.fillRect(x + 15, y, 1, 16); }
+    }
+
+    // Cloud-core under-tile (Stage 8) - light blue cloud substance with sparkles
+    drawCloudCoreTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
+        ctx.fillStyle = '#c8d8e8';
+        ctx.fillRect(x, y, 16, 16);
+        // Wispy gradients
+        for (let py = 0; py < 16; py++) {
+            for (let px = 0; px < 16; px++) {
+                const n = (tileX * 41 + tileY * 71 + px * 13 + py * 17) & 0xff;
+                if (n < 70) { ctx.fillStyle = '#a8c0d0'; ctx.fillRect(x + px, y + py, 1, 1); }
+                else if (n > 230) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + px, y + py, 1, 1); }
+            }
+        }
+        // Occasional bright sparkle
+        const seed = (tileX * 19 + tileY * 23 + Math.floor(Date.now() / 200)) & 31;
+        if (seed === 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + ((tileX * 7) % 14) + 1, y + ((tileY * 11) % 14) + 1, 1, 1);
+        }
+    }
+
     // Neon-grid surface tile (Stage 6 founder lair) - dark with green grid
     drawNeonFloorTile(ctx, x, y, tileX, tileY, leftEdge, rightEdge) {
         // Body
@@ -1304,6 +1411,7 @@ class Level {
         if (this.theme === 'boardroom') return this.drawMarblePlatformTile(ctx, x, y);
         if (this.theme === 'keynote') return this.drawStagePlatformTile(ctx, x, y);
         if (this.theme === 'founder') return this.drawNeonPlatformTile(ctx, x, y);
+        if (this.theme === 'cloud') return this.drawCloudPlatformTile(ctx, x, y);
         const TOP_LIT = '#d09050';
         const TOP     = '#a87040';
         const MID_LIT = '#8a5830';
@@ -1338,6 +1446,23 @@ class Level {
         ctx.fillStyle = TOP_LIT;
         ctx.fillRect(x + 1, y, 1, 1);
         ctx.fillRect(x + 14, y, 1, 1);
+    }
+
+    // Floating cloud platform (Stage 8 cloud) - white fluff with gold trim
+    drawCloudPlatformTile(ctx, x, y) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, 16, 5);
+        ctx.fillStyle = '#e0e0f0';
+        ctx.fillRect(x, y + 4, 16, 1);
+        ctx.fillStyle = '#ffd460';
+        ctx.fillRect(x, y + 5, 16, 1);
+        // Underbelly fade
+        ctx.fillStyle = 'rgba(160,200,224,0.6)';
+        ctx.fillRect(x, y + 6, 16, 2);
+        // Tiny cloud bumps poking above the platform
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 2, y - 1, 4, 1);
+        ctx.fillRect(x + 10, y - 1, 3, 1);
     }
 
     // Floating neon-edge data slab (Stage 6 founder lair)

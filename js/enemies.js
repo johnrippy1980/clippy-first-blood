@@ -87,6 +87,9 @@ class Enemy {
             case 'clippy2_boss':
                 this.updateClippy2Boss(level, player);
                 break;
+            case 'algorithm_boss':
+                this.updateAlgorithmBoss(level, player);
+                break;
         }
 
         // Update projectiles
@@ -345,6 +348,107 @@ class Enemy {
             }
         } else {
             this.sniperTelegraph = undefined;
+        }
+    }
+
+    // ---------- THE ALGORITHM (Stage 8 final-final boss) ----------
+    // A disembodied AI eye floating in the clouds. Patterns:
+    //   0 RADIAL DATA  - 16-shot starburst
+    //   1 LIGHTNING    - 3 vertical lightning columns
+    //   2 EYE LASER    - giant scanner beam in the player's direction
+    //   3 RECOMMENDATION ENGINE - 5 homing-ish targeted shots
+    //   4 (phase 2) SINGULARITY - inward-collapsing then exploding burst
+    updateAlgorithmBoss(level, player) {
+        const phase2 = this.health / this.maxHealth <= 0.5;
+        const cycleLen = phase2 ? 75 : 100;
+        const step = this.behaviorTimer % cycleLen;
+        const pattern = Math.floor(this.behaviorTimer / cycleLen) % (phase2 ? 5 : 4);
+
+        // Floats in place with a slow bob - no gravity
+        if (this.hoverY === undefined) this.hoverY = this.y;
+        this.y = this.hoverY + Math.sin(this.behaviorTimer * 0.04) * 8;
+
+        const fireFrame = cycleLen - 1;
+        if (step === fireFrame - 20) this.attackTelegraph = pattern;
+
+        if (step !== fireFrame) return;
+        this.attackTelegraph = -1;
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        this.facingRight = dx > 0;
+
+        switch (pattern) {
+            case 0: {
+                // RADIAL DATA - 16-shot starburst
+                for (let i = 0; i < 16; i++) {
+                    const a = (i / 16) * Math.PI * 2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2, y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 3, vy: Math.sin(a) * 3,
+                        damage: this.damage * 0.6, life: 110, type: 'data'
+                    });
+                }
+                break;
+            }
+            case 1: {
+                // LIGHTNING - 3 vertical columns from above
+                for (let col = 0; col < 3; col++) {
+                    const px = 40 + col * 90;
+                    for (let i = 0; i < 5; i++) {
+                        this.bullets.push({
+                            x: px + (Math.random() - 0.5) * 6, y: -10 - i * 12,
+                            vx: 0, vy: 5,
+                            damage: this.damage * 0.7, life: 100,
+                            type: 'scanner', delay: i * 4
+                        });
+                    }
+                }
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                break;
+            }
+            case 2: {
+                // EYE LASER - long horizontal beam toward player
+                const dir = dx > 0 ? 1 : -1;
+                for (let i = 0; i < 8; i++) {
+                    this.bullets.push({
+                        x: this.x + this.width / 2, y: this.y + this.height / 2,
+                        vx: dir * 5, vy: 0,
+                        damage: this.damage, life: 90, type: 'scanner',
+                        delay: i * 3
+                    });
+                }
+                if (typeof game !== 'undefined' && game.shake) game.shake(4, 8);
+                break;
+            }
+            case 3: {
+                // RECOMMENDATION - 5 homing-ish shots aimed in a tight fan
+                const a0 = Math.atan2(dy, dx);
+                for (let i = -2; i <= 2; i++) {
+                    const a = a0 + i * 0.18;
+                    this.bullets.push({
+                        x: this.x + this.width / 2, y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 3.4, vy: Math.sin(a) * 3.4,
+                        damage: this.damage * 0.8, life: 100, type: 'data'
+                    });
+                }
+                break;
+            }
+            case 4: {
+                // SINGULARITY (phase 2) - 24-shot starburst, faster
+                this.yellText = 'SINGULARITY';
+                this.yellTimer = 60;
+                for (let i = 0; i < 24; i++) {
+                    const a = (i / 24) * Math.PI * 2;
+                    this.bullets.push({
+                        x: this.x + this.width / 2, y: this.y + this.height / 2,
+                        vx: Math.cos(a) * 4, vy: Math.sin(a) * 4,
+                        damage: this.damage * 0.7, life: 130, type: 'data'
+                    });
+                }
+                if (typeof audio !== 'undefined') audio.sfxExplosion();
+                if (typeof game !== 'undefined' && game.shake) game.shake(6, 12);
+                break;
+            }
         }
     }
 
@@ -1167,6 +1271,7 @@ class Enemy {
             case 'ballmer_boss':     return '#ff5050';   // ballmer
             case 'bill_gates_boss':  return '#50ff70';   // bill gates
             case 'clippy2_boss':     return '#ff60ff';   // clippy 2.0 magenta
+            case 'algorithm_boss':   return '#80c0ff';   // the algorithm cyan
             default:                 return '#ffffff';
         }
     }
@@ -1221,7 +1326,8 @@ class Enemy {
                this.behavior === 'ctrl_alt_del_boss' ||
                this.behavior === 'ballmer_boss' ||
                this.behavior === 'bill_gates_boss' ||
-               this.behavior === 'clippy2_boss';
+               this.behavior === 'clippy2_boss' ||
+               this.behavior === 'algorithm_boss';
     }
 
     takeDamage(amount) {
@@ -1376,6 +1482,7 @@ class Enemy {
             case 'ballmer_boss':     this.drawBallmerSNES(ctx, screenX, screenY, flash); break;
             case 'bill_gates_boss':  this.drawBillGatesSNES(ctx, screenX, screenY, flash); break;
             case 'clippy2_boss':     this.drawClippy2SNES(ctx, screenX, screenY, flash); break;
+            case 'algorithm_boss':   this.drawAlgorithmSNES(ctx, screenX, screenY, flash); break;
             default:                 this.drawStaplerSNES(ctx, screenX, screenY, flash);
         }
         ctx.restore();
@@ -1990,6 +2097,125 @@ class Enemy {
             case 'update': return '#5aa8e0';
             case 'corporate': return '#c8c8d8';
             default: return '#f00';
+        }
+    }
+
+    // THE ALGORITHM - giant floating eye in the clouds. Stage 8 boss.
+    drawAlgorithmSNES(ctx, x, y, flash) {
+        const W = this.width, H = this.height;
+        const tele = this.attackTelegraph !== undefined && this.attackTelegraph >= 0;
+        if (tele) x += (Math.floor(this.behaviorTimer / 2) % 2);
+        const phase2 = this.health / this.maxHealth <= 0.5;
+
+        const cx = x + W / 2, cy = y + H / 2;
+        const C = flash ? {
+            outline:'#fff', ring:'#fff', iris:'#000', pupil:'#000',
+            glow:'#000', spark:'#000'
+        } : {
+            outline:'#0a205a',
+            ring:'#3a78b8',
+            ringlit:'#a8d8ff',
+            iris: phase2 ? '#ff3030' : '#80c0ff',
+            pupil:'#0a0612',
+            glow:'#a8d8ff',
+            spark:'#ffffff'
+        };
+
+        // Outer aura - pulsing ring of soft glow
+        const pulse = Math.sin(this.behaviorTimer * 0.1) * 2 + 4;
+        ctx.fillStyle = 'rgba(168,216,255,0.18)';
+        for (let i = 0; i < 4; i++) {
+            const r = (W / 2 + 4 + pulse) + i * 3;
+            this._fillRing(ctx, cx, cy, r, 1);
+        }
+
+        // Ring body (the "frame" of the eye)
+        ctx.fillStyle = C.outline;
+        this._fillRing(ctx, cx, cy, W / 2 + 1, 3);
+        ctx.fillStyle = C.ring;
+        this._fillRing(ctx, cx, cy, W / 2 - 2, 4);
+        ctx.fillStyle = C.ringlit;
+        this._fillRing(ctx, cx, cy, W / 2 - 2, 1);
+
+        // Sclera (white of eye)
+        ctx.fillStyle = '#f0f8ff';
+        this._fillDisc(ctx, cx, cy, W / 2 - 6);
+        ctx.fillStyle = '#c0d8e8';
+        this._fillDisc(ctx, cx, cy, W / 2 - 8);
+
+        // Iris (tracks player direction approximately)
+        const playerOff = this.facingRight ? 2 : -2;
+        ctx.fillStyle = C.iris;
+        this._fillDisc(ctx, cx + playerOff, cy, 7);
+        ctx.fillStyle = '#1a508a';
+        this._fillDisc(ctx, cx + playerOff, cy, 5);
+        ctx.fillStyle = C.pupil;
+        this._fillDisc(ctx, cx + playerOff, cy, 3);
+
+        // Eye highlight
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx + playerOff - 2, cy - 2, 2, 2);
+
+        // Orbital data fragments - rotating glyphs around the eye
+        const orbits = 6;
+        for (let i = 0; i < orbits; i++) {
+            const a = (this.behaviorTimer * 0.04) + (i / orbits) * Math.PI * 2;
+            const r = W / 2 + 8;
+            const ox = Math.floor(cx + Math.cos(a) * r);
+            const oy = Math.floor(cy + Math.sin(a) * r);
+            ctx.fillStyle = C.spark;
+            ctx.fillRect(ox, oy, 2, 2);
+            ctx.fillStyle = C.glow;
+            ctx.fillRect(ox - 1, oy, 1, 1);
+            ctx.fillRect(ox + 2, oy, 1, 1);
+        }
+
+        // Telegraph flash on the iris
+        if (tele) {
+            ctx.fillStyle = '#fff';
+            this._fillRing(ctx, cx + playerOff, cy, 6, 1);
+        }
+
+        // Phase 2 - cracks visible on the ring
+        if (phase2 && !flash) {
+            ctx.fillStyle = '#ff3030';
+            ctx.fillRect(cx - W / 2 + 2, cy - 6, 1, 4);
+            ctx.fillRect(cx - W / 2 + 3, cy - 4, 1, 2);
+            ctx.fillRect(cx + W / 2 - 4, cy + 2, 1, 4);
+            ctx.fillRect(cx + W / 2 - 3, cy + 4, 1, 2);
+        }
+
+        // Yell-text
+        if (this.yellTimer && this.yellTimer > 0) {
+            drawPixelTextOutlined(ctx, this.yellText || 'ALGORITHM',
+                cx, y - 12, '#80c0ff', '#0a205a', 1, 'center', 1);
+            this.yellTimer--;
+        }
+    }
+
+    // Pixel-perfect ring helper - draws an annulus of given outer radius
+    // and ring thickness using fillRects.
+    _fillRing(ctx, cx, cy, r, thickness) {
+        const r2 = r * r;
+        const ir = Math.max(0, r - thickness);
+        const ir2 = ir * ir;
+        for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+                const d = dx * dx + dy * dy;
+                if (d <= r2 && d >= ir2) {
+                    ctx.fillRect(Math.floor(cx + dx), Math.floor(cy + dy), 1, 1);
+                }
+            }
+        }
+    }
+    _fillDisc(ctx, cx, cy, r) {
+        const r2 = r * r;
+        for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+                if (dx * dx + dy * dy <= r2) {
+                    ctx.fillRect(Math.floor(cx + dx), Math.floor(cy + dy), 1, 1);
+                }
+            }
         }
     }
 
@@ -3264,6 +3490,44 @@ class EnemyManager {
                 if (bullet.x > enemy.x && bullet.x < enemy.x + enemy.width &&
                     bullet.y > enemy.y && bullet.y < enemy.y + enemy.height) {
                     enemy.takeDamage(bullet.damage);
+                    // Thunder chains: jump to nearest other enemy within range
+                    if (bullet.chain && bullet.chainsLeft > 0) {
+                        let nearest = null, bestDist = 80 * 80;
+                        for (const other of this.enemies) {
+                            if (other === enemy || !other.active || other.dying) continue;
+                            const dx = (other.x + other.width / 2) - (enemy.x + enemy.width / 2);
+                            const dy = (other.y + other.height / 2) - (enemy.y + enemy.height / 2);
+                            const d2 = dx * dx + dy * dy;
+                            if (d2 < bestDist) { bestDist = d2; nearest = other; }
+                        }
+                        if (nearest) {
+                            // Visual arc as a particle line
+                            if (typeof particles !== 'undefined') {
+                                const steps = 10;
+                                const fx = enemy.x + enemy.width / 2;
+                                const fy = enemy.y + enemy.height / 2;
+                                const tx = nearest.x + nearest.width / 2;
+                                const ty = nearest.y + nearest.height / 2;
+                                for (let s = 0; s <= steps; s++) {
+                                    const t = s / steps;
+                                    const jitter = (Math.random() - 0.5) * 4;
+                                    particles.spawn({
+                                        x: fx + (tx - fx) * t + jitter,
+                                        y: fy + (ty - fy) * t + jitter,
+                                        vx: 0, vy: 0, life: 8, size: 1,
+                                        colors: ['#ffffff', '#80c0ff', '#3a78b8']
+                                    });
+                                }
+                            }
+                            // Reposition bullet at the new target so the next
+                            // collision frame can apply the chain hit.
+                            bullet.x = nearest.x + nearest.width / 2;
+                            bullet.y = nearest.y + nearest.height / 2;
+                            bullet.chainsLeft--;
+                            // Don't consume the bullet yet - let it tick onto the next
+                            continue;
+                        }
+                    }
                     if (!bullet.piercing) {
                         if (player.detonateBullet) player.detonateBullet(bullet);
                         player.bullets.splice(i, 1);

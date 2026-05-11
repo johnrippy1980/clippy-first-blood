@@ -82,6 +82,24 @@ const WEAPON = {
         spread: 0,
         explosive: true,
         color: '#0ff'
+    },
+    HOMING: {
+        name: 'Homing',
+        damage: 2,
+        fireRate: 12,
+        bulletSpeed: 3.2,
+        spread: 0,
+        homing: true,
+        color: '#80ff60'
+    },
+    THUNDER: {
+        name: 'Thunder',
+        damage: 3,
+        fireRate: 22,
+        bulletSpeed: 11,
+        spread: 0,
+        chain: true,        // chains to nearby enemies on hit
+        color: '#80c0ff'
     }
 };
 
@@ -292,6 +310,17 @@ const ENEMY_TYPE = {
         behavior: 'clippy2_boss',
         projectile: 'corporate',
         score: 50000
+    },
+    ALGORITHM: {
+        name: 'The Algorithm',
+        width: 48,
+        height: 48,
+        health: 140,
+        damage: 32,
+        speed: 0,
+        behavior: 'algorithm_boss',
+        projectile: 'data',
+        score: 75000
     }
 };
 

@@ -401,6 +401,8 @@ class Player {
             else if (this.weapon === WEAPON.LASER)          audio.sfxShootLaser();
             else if (this.weapon === WEAPON.FLAME)          audio.sfxShootFlame();
             else if (this.weapon === WEAPON.STAPLE_REMOVER) audio.sfxShootHeavy();
+            else if (this.weapon === WEAPON.HOMING)         audio.sfxShootHoming();
+            else if (this.weapon === WEAPON.THUNDER)        audio.sfxShootThunder();
             else                                            audio.sfxShoot();
         }
 
@@ -444,6 +446,21 @@ class Player {
         else if (w === WEAPON.SPREAD) {
             bullet.kind = 'spread';
             bullet.life = 45;
+        }
+        // Homing: starts slow + curves toward nearest enemy each frame
+        else if (w === WEAPON.HOMING) {
+            bullet.kind = 'homing';
+            bullet.life = 110;
+            bullet.homing = true;
+            bullet.turnRate = 0.12;
+        }
+        // Thunder: fast piercing-style shot that chains to nearby enemies
+        else if (w === WEAPON.THUNDER) {
+            bullet.kind = 'thunder';
+            bullet.life = 70;
+            bullet.chain = true;
+            bullet.chainHits = 0;
+            bullet.chainsLeft = 2;        // hits up to 1 initial + 2 chained
         }
 
         this.bullets.push(bullet);
@@ -490,10 +507,56 @@ class Player {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
 
+            // Homing: steer toward the nearest active enemy each frame
+            if (bullet.homing && typeof game !== 'undefined' && game.enemies) {
+                let best = null, bestDist = 1e9;
+                for (const e of game.enemies.enemies) {
+                    if (!e.active || e.dying) continue;
+                    const dx = (e.x + e.width / 2) - bullet.x;
+                    const dy = (e.y + e.height / 2) - bullet.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < bestDist) { bestDist = d2; best = e; }
+                }
+                if (best && bestDist < 200 * 200) {
+                    const dx = (best.x + best.width / 2) - bullet.x;
+                    const dy = (best.y + best.height / 2) - bullet.y;
+                    const desired = Math.atan2(dy, dx);
+                    const current = Math.atan2(bullet.vy, bullet.vx);
+                    // Shortest-angle blend
+                    let diff = desired - current;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    const newAng = current + diff * (bullet.turnRate || 0.1);
+                    const speed = Math.hypot(bullet.vx, bullet.vy);
+                    bullet.vx = Math.cos(newAng) * speed;
+                    bullet.vy = Math.sin(newAng) * speed;
+                }
+            }
+
             bullet.x += bullet.vx;
             bullet.y += bullet.vy;
             if (bullet.gravity) bullet.vy += bullet.gravity;
             bullet.life--;
+
+            // Trail for homing
+            if (bullet.kind === 'homing' && typeof particles !== 'undefined' && Math.random() < 0.7) {
+                particles.spawn({
+                    x: bullet.x, y: bullet.y,
+                    vx: 0, vy: 0,
+                    life: 8, size: 1,
+                    colors: ['#80ff60', '#208a30', '#0a3a14']
+                });
+            }
+            // Crackle for thunder
+            if (bullet.kind === 'thunder' && typeof particles !== 'undefined' && Math.random() < 0.5) {
+                particles.spawn({
+                    x: bullet.x + (Math.random() - 0.5) * 4,
+                    y: bullet.y + (Math.random() - 0.5) * 4,
+                    vx: 0, vy: 0,
+                    life: 5, size: 1,
+                    colors: ['#ffffff', '#80c0ff', '#3a78b8']
+                });
+            }
 
             // Trail particles for flame
             if (bullet.kind === 'flame' && typeof particles !== 'undefined' && Math.random() < 0.6) {
@@ -686,6 +749,17 @@ class Player {
         const spriteOffsetX = -16; // (48 - 16) / 2 = 16px offset to center
         const spriteOffsetY = -16; // 48 - 32 = 16px offset to align feet
 
+        // Apply skin filter (PNG sprite) or palette (procedural fallback)
+        let skin = null;
+        if (typeof game !== 'undefined' && game.skinId && typeof getSkinById === 'function') {
+            skin = getSkinById(game.skinId);
+        }
+        const usingPng = (typeof spriteAtlas !== 'undefined') &&
+            spriteAtlas.frames.has(proceduralSprites.getClippyFrameName(this.state, animFrame, this.deathPhase || 0));
+        if (skin && skin.filter && usingPng) {
+            ctx.save();
+            ctx.filter = skin.filter;
+        }
         proceduralSprites.drawClippy(
             ctx,
             screenX + spriteOffsetX,
@@ -693,8 +767,12 @@ class Player {
             this.state,
             animFrame,
             this.facingRight,
-            this.deathPhase || 0
+            this.deathPhase || 0,
+            (!usingPng && skin) ? skin.palette : null
         );
+        if (skin && skin.filter && usingPng) {
+            ctx.restore();
+        }
 
         // Bullets - each weapon has a distinct look
         this.bullets.forEach(bullet => {
@@ -760,6 +838,41 @@ class Player {
                     ctx.fillRect(bx - 2, by - 1, 3, 2);
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(bx - 1, by, 1, 1);
+                    break;
+                }
+                case 'homing': {
+                    // Green-tinted seeker missile with cross fins
+                    ctx.fillStyle = '#0a3a14';
+                    ctx.fillRect(bx - 3, by - 2, 6, 4);
+                    ctx.fillStyle = '#208a30';
+                    ctx.fillRect(bx - 2, by - 1, 4, 2);
+                    ctx.fillStyle = '#80ff60';
+                    ctx.fillRect(bx - 1, by, 2, 1);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(bx, by, 1, 1);
+                    // Fin trail
+                    ctx.fillStyle = '#80ff60';
+                    const tx = -Math.sign(bullet.vx) * 2;
+                    ctx.fillRect(bx + tx, by - 1, 1, 1);
+                    ctx.fillRect(bx + tx, by + 1, 1, 1);
+                    break;
+                }
+                case 'thunder': {
+                    // Cyan zigzag bolt
+                    ctx.fillStyle = '#80c0ff';
+                    const dirX = Math.sign(bullet.vx) || 1;
+                    for (let s = -3; s <= 3; s++) {
+                        const off = (s & 1) ? 1 : -1;
+                        ctx.fillRect(bx + s * dirX, by + off, 1, 1);
+                    }
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(bx, by, 1, 1);
+                    // Outer flicker
+                    if ((bullet.life & 1) === 0) {
+                        ctx.fillStyle = '#3a78b8';
+                        ctx.fillRect(bx - 4, by, 1, 1);
+                        ctx.fillRect(bx + 4, by, 1, 1);
+                    }
                     break;
                 }
                 default: {

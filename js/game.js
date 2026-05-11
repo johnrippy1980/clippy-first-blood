@@ -40,6 +40,8 @@ class Game {
         this.bossRushUnlocked = false;
         // NewGame+ toggle (only meaningful when the player has cleared once)
         this.newGamePlus = false;
+        // Currently selected Clippy skin (id)
+        this.skinId = 'classic';
         // Pause menu slider state (0 = music, 1 = sfx)
         this.pauseMenuCursor = 0;
         // Stage-select grid cursor (0..stages.length-1)
@@ -140,7 +142,8 @@ class Game {
             { number: 4, name: 'THE BOARDROOM',         loader: 'loadStage4', theme: 'boardroom' },
             { number: 5, name: 'THE KEYNOTE',          loader: 'loadStage5', theme: 'keynote'   },
             { number: 6, name: 'THE FOUNDER',          loader: 'loadStage6', theme: 'founder'   },
-            { number: 7, name: 'THE USURPER',          loader: 'loadStage7', theme: 'founder',  hidden: true }
+            { number: 7, name: 'THE USURPER',          loader: 'loadStage7', theme: 'founder',  hidden: true },
+            { number: 8, name: 'THE CLOUD',            loader: 'loadStage8', theme: 'cloud',    hidden: true }
         ];
         this.bossRushStage = { number: 'X', name: 'BOSS RUSH', loader: 'loadBossRush', theme: 'serverroom' };
         this.bossRushMode = false;
@@ -346,6 +349,10 @@ class Game {
             }
             // NewGame+ is a soft toggle - only respected while bossRushUnlocked
             this.newGamePlus = localStorage.getItem('clippy_first_blood_ngplus') === '1';
+            const savedSkin = localStorage.getItem('clippy_first_blood_skin');
+            if (savedSkin) this.skinId = savedSkin;
+            // Track best combo so the Blood Moon skin can unlock
+            this._loadedMaxCombo = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
         } catch (e) {
             this.highScore = 0;
             this.bossRushUnlocked = false;
@@ -520,6 +527,8 @@ class Game {
                 this.updateAchievementsScreen();
             } else if (this.screen === 'help') {
                 this.updateHelpScreen();
+            } else if (this.screen === 'skins') {
+                this.updateSkinsScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -554,6 +563,8 @@ class Game {
             this.renderAchievementsScreen();
         } else if (this.screen === 'help') {
             this.renderHelpScreen();
+        } else if (this.screen === 'skins') {
+            this.renderSkinsScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -1029,6 +1040,132 @@ class Game {
             GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
     }
 
+    // ---- Skin select screen ----
+    updateSkinsScreen() {
+        this.skinsTimer = (this.skinsTimer || 0) + 1;
+        input.update();
+        const all = SKINS;
+        if (input.keysJustPressed['ArrowLeft'])  this.skinsCursor = (this.skinsCursor + all.length - 1) % all.length;
+        if (input.keysJustPressed['ArrowRight']) this.skinsCursor = (this.skinsCursor + 1) % all.length;
+        if (input.shoot) {
+            // Confirm - only equip if unlocked
+            const target = all[this.skinsCursor];
+            const ctxObj = { game: this, achievements: typeof achievements !== 'undefined' ? achievements : null };
+            if (target && target.unlock(ctxObj)) {
+                this.skinId = target.id;
+                try { localStorage.setItem('clippy_first_blood_skin', target.id); } catch (e) {}
+            }
+        }
+        if (input.pausePressed || input.jumpPressed) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+        }
+    }
+
+    renderSkinsScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Background sparkle
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 18; i++) {
+            const x = (i * 17 + this.skinsTimer * 1) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        drawPixelTextOutlined(ctx, 'CHOOSE YOUR SKIN', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const all = SKINS;
+        const ctxObj = { game: this, achievements: typeof achievements !== 'undefined' ? achievements : null };
+        const skin = all[this.skinsCursor];
+        const unlocked = skin.unlock(ctxObj);
+        const equipped = skin.id === this.skinId;
+
+        // Big Clippy preview in the center
+        const previewX = GAME.WIDTH / 2 - 24;
+        const previewY = 36;
+        // Frame
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(previewX - 4, previewY - 4, 56, 64);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(previewX - 2, previewY - 2, 52, 60);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(previewX - 2, previewY - 2, 52, 2);
+        // Floor line
+        ctx.fillStyle = '#a8a8c0';
+        ctx.fillRect(previewX - 2, previewY + 52, 52, 2);
+        // Draw the Clippy in the preview using the chosen skin
+        if (typeof proceduralSprites !== 'undefined') {
+            const frame = Math.floor(this.skinsTimer / 12) & 1;
+            // Use a still IDLE pose for the preview
+            const usePng = !skin.palette && spriteAtlas.frames.has(
+                proceduralSprites.getClippyFrameName(PLAYER_STATE.IDLE, frame, 0));
+            if (skin.filter && usePng) {
+                ctx.save();
+                ctx.filter = skin.filter;
+            }
+            proceduralSprites.drawClippy(ctx, previewX, previewY, PLAYER_STATE.IDLE,
+                frame, true, 0, skin.palette);
+            if (skin.filter && usePng) ctx.restore();
+            // Lock overlay
+            if (!unlocked) {
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(previewX - 2, previewY - 2, 52, 60);
+                drawPixelTextOutlined(ctx, 'LOCKED', previewX + 24, previewY + 22,
+                    '#ff5050', '#1a0000', 2, 'center', 1);
+            }
+        }
+
+        // Name + description
+        const ny = 112;
+        drawPixelTextOutlined(ctx, skin.name, GAME.WIDTH / 2, ny, unlocked ? '#ffe070' : '#7a6090', '#1a0e1e', 2, 'center', 1);
+        drawPixelText(ctx, skin.desc, GAME.WIDTH / 2, ny + 22, unlocked ? '#c0a0d0' : '#5a5070', 1, 'center', 1);
+
+        // Equipped indicator
+        if (equipped) {
+            drawPixelTextOutlined(ctx, 'EQUIPPED', GAME.WIDTH / 2, ny + 38, '#50ff70', '#0a3a14', 1, 'center', 1);
+        } else if (unlocked) {
+            const blink = (this.skinsTimer & 16) < 8;
+            if (blink) drawPixelText(ctx, 'SHOOT TO EQUIP', GAME.WIDTH / 2, ny + 38, '#ffffff', 1, 'center', 1);
+        }
+
+        // Thumbnail row at the bottom
+        const thumbY = GAME.HEIGHT - 38;
+        const thumbW = 18;
+        const totalW = all.length * (thumbW + 4);
+        const startX = (GAME.WIDTH - totalW) / 2;
+        for (let i = 0; i < all.length; i++) {
+            const tx = startX + i * (thumbW + 4);
+            const s = all[i];
+            const isSelected = i === this.skinsCursor;
+            const isUnlocked = s.unlock(ctxObj);
+            ctx.fillStyle = isSelected ? '#ffe070' : '#3a2855';
+            ctx.fillRect(tx - 1, thumbY - 1, thumbW + 2, thumbW + 2);
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(tx, thumbY, thumbW, thumbW);
+            if (isUnlocked) {
+                // Tiny color swatch using the bandana color from the skin
+                const swatch = s.palette ? s.palette[13] : '#ff6b6b';
+                ctx.fillStyle = swatch || '#ff6b6b';
+                ctx.fillRect(tx + 3, thumbY + 3, thumbW - 6, thumbW - 6);
+                if (s.id === this.skinId) {
+                    ctx.fillStyle = '#50ff70';
+                    ctx.fillRect(tx + thumbW - 5, thumbY + 1, 4, 4);
+                }
+            } else {
+                // Lock dot
+                ctx.fillStyle = '#5a5070';
+                ctx.fillRect(tx + 7, thumbY + 6, 4, 4);
+                ctx.fillRect(tx + 8, thumbY + 4, 2, 2);
+            }
+        }
+
+        // Hints
+        drawPixelText(ctx, 'LEFT RIGHT  PICK    SHOOT  EQUIP    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+    }
+
     beginCutscene(panels) {
         this.screen = 'cutscene';
         this.cutsceneActive = panels;
@@ -1117,6 +1254,19 @@ class Game {
                 this.difficultyKeys[this.difficultyIndex],
                 this.runDeaths
             );
+        }
+        // Record NG+ clear for the Clippetta skin unlock
+        if (this.newGamePlus) {
+            try { localStorage.setItem('clippy_first_blood_ngplus_clear', '1'); } catch (e) {}
+        }
+        // Record best combo for the Blood Moon skin unlock
+        if (this.comboBest > 0) {
+            try {
+                const prev = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
+                if (this.comboBest > prev) {
+                    localStorage.setItem('clippy_first_blood_max_combo', String(this.comboBest));
+                }
+            } catch (e) {}
         }
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
@@ -1567,6 +1717,14 @@ class Game {
             this.screen = 'help';
             this.helpTimer = 0;
             this.helpPage = 0;
+        }
+        // K opens the Clippy skin select screen
+        if (input.keysJustPressed['KeyK']) {
+            this.screen = 'skins';
+            this.skinsTimer = 0;
+            // Start cursor on the currently selected skin
+            const all = SKINS;
+            this.skinsCursor = Math.max(0, all.findIndex(s => s.id === this.skinId));
         }
         // N toggles NewGame+ (only meaningful once unlocked)
         if (this.bossRushUnlocked && input.keysJustPressed['KeyN']) {
@@ -2623,7 +2781,7 @@ class Game {
 
         // Controls hint at bottom (line 1: gameplay, line 2: title menu)
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'LR DIFFICULTY  DN BOARD  T TROPHIES  H HELP' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
+        drawPixelText(ctx, 'LR DIFF  DN BOARD  T TROPHIES  H HELP  K SKINS' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
@@ -2935,6 +3093,15 @@ class Game {
         // Persist per-stage best time + score for the Stage Select hub
         if (!this.bossRushMode) {
             this.saveStageBest(this.stageIndex, this.stageClearTime, this.score);
+        }
+        // Persist max combo so the Blood Moon skin unlock check passes
+        if (this.comboBest > 0) {
+            try {
+                const prev = parseInt(localStorage.getItem('clippy_first_blood_max_combo') || '0', 10);
+                if (this.comboBest > prev) {
+                    localStorage.setItem('clippy_first_blood_max_combo', String(this.comboBest));
+                }
+            } catch (e) {}
         }
         // Achievements
         if (typeof achievements !== 'undefined') {

@@ -271,11 +271,12 @@ class ProceduralSprites {
         this.cache = new Map();
     }
 
-    // Draw Clippy (fallback)
-    drawClippy(ctx, x, y, state, animFrame, facingRight = true, deathPhase = 0) {
-        // Check if we have image sprites loaded
+    // Draw Clippy (fallback). When a paletteOverride is supplied, the
+    // procedural sprite renders with that palette - lets skin variants
+    // recolor the paperclip per pixel without re-rendering the PNG sheet.
+    drawClippy(ctx, x, y, state, animFrame, facingRight = true, deathPhase = 0, paletteOverride = null) {
         const frameName = this.getClippyFrameName(state, animFrame, deathPhase);
-        if (spriteAtlas.frames.has(frameName)) {
+        if (!paletteOverride && spriteAtlas.frames.has(frameName)) {
             spriteAtlas.drawFrame(ctx, frameName, x, y, !facingRight);
             return;
         }
@@ -283,7 +284,7 @@ class ProceduralSprites {
         // Procedural fallback - simplified pixel art
         const sprite = CLIPPY_SPRITES[this.getClippySpriteKey(state, animFrame)];
         if (sprite) {
-            this.drawPixelSprite(ctx, x, y, sprite, CLIPPY_PALETTE, !facingRight);
+            this.drawPixelSprite(ctx, x, y, sprite, paletteOverride || CLIPPY_PALETTE, !facingRight);
         }
     }
 

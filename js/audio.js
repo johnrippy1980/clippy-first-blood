@@ -101,6 +101,7 @@ class Audio {
         else if (theme === 'serverroom') pat = this.buildServerRoomPattern();
         else if (theme === 'keynote') pat = this.buildKeynotePattern();
         else if (theme === 'founder') pat = this.buildFounderPattern();
+        else if (theme === 'cloud') pat = this.buildCloudPattern();
         else if (theme === 'boardroom') pat = this.buildPattern();   // reuse the jungle theme - stately
         else pat = this.buildPattern();
         this.patterns[theme] = pat;
@@ -182,6 +183,43 @@ class Audio {
             if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
         });
         return { events, length: 32, bpm: 102, name: 'breakroom' };
+    }
+
+    // Stage 8: THE CLOUD - bright ascending theme in C major, 138 BPM.
+    // Soaring melody with airy triangle harmony and minimal drums.
+    buildCloudPattern() {
+        const compile = (channel, line) => {
+            const tokens = line.trim().split(/\s+/);
+            const events = [];
+            let lastNote = null;
+            let runStart = -1;
+            for (let i = 0; i <= tokens.length; i++) {
+                const tok = tokens[i];
+                if (lastNote && (i === tokens.length || tok !== '_')) {
+                    events.push({ step: runStart, channel, midi: lastNote, dur: i - runStart });
+                    lastNote = null;
+                }
+                if (i === tokens.length) break;
+                if (tok === '.' || tok === '_') continue;
+                lastNote = this.noteToMidi(tok);
+                runStart = i;
+            }
+            return events;
+        };
+        const lead    = 'C5 _ E5 _ G5 _ E5 _  D5 _ F5 _ A5 _ F5 _  C5 _ E5 _ G5 _ C6 _  B5 _ A5 _ G5 _ E5 _ ';
+        const harmony = 'G4 _ _  _ G4 _ _  _  A4 _ _  _ A4 _ _  _  G4 _ _  _ E5 _ _  _  D5 _ C5 _ B4 _ _  _ ';
+        const bass    = 'C3 _ _  _ G3 _ _  _  F3 _ _  _ C4 _ _  _  C3 _ _  _ G3 _ _  _  F3 _ _  _ G3 _ _  _ ';
+        const drum    = 'K . . . S . . . K . . . S . . . K . H . S . H . K . H . S . H K';
+
+        const events = [];
+        events.push(...compile(0, lead));
+        events.push(...compile(1, harmony));
+        events.push(...compile(2, bass));
+        const drumTokens = drum.trim().split(/\s+/);
+        drumTokens.forEach((tok, i) => {
+            if (tok !== '.') events.push({ step: i, channel: 3, drum: tok, dur: 1 });
+        });
+        return { events, length: 32, bpm: 138, name: 'cloud' };
     }
 
     // Stage 6: THE FOUNDER - dark sinister theme in F minor, 90 BPM.
@@ -514,6 +552,51 @@ class Audio {
         src.connect(filter).connect(gain).connect(this.sfxGain);
         src.start(t);
         src.stop(t + 0.13);
+    }
+
+    // Homing - quiet warble that sounds like it's locking on
+    sfxShootHoming() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(820, t);
+        osc.frequency.linearRampToValueAtTime(420, t + 0.05);
+        osc.frequency.linearRampToValueAtTime(640, t + 0.12);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.connect(gain).connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.16);
+    }
+
+    // Thunder - sharp electric crack
+    sfxShootThunder() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const buf = this.getNoiseBuffer();
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const hp = this.ctx.createBiquadFilter();
+        hp.type = 'highpass'; hp.frequency.value = 2200;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.32, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        src.connect(hp).connect(gain).connect(this.sfxGain);
+        src.start(t);
+        src.stop(t + 0.12);
+        // Bright sine ping on top
+        const osc = this.ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(2400, t);
+        osc.frequency.exponentialRampToValueAtTime(800, t + 0.08);
+        const og = this.ctx.createGain();
+        og.gain.setValueAtTime(0.18, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        osc.connect(og).connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.12);
     }
 
     // Staple remover - heavy mortar thump

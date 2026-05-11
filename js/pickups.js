@@ -177,6 +177,36 @@ class PickupManager {
                 ctx.fillStyle = '#888';
                 ctx.fillRect(x + 7, cy - 4, 2, 8);
                 break;
+            case 'HOMING':
+                // Green seeker missile silhouette
+                ctx.fillStyle = '#208a30';
+                ctx.fillRect(x + 3, cy - 1, 9, 3);
+                ctx.fillStyle = '#80ff60';
+                ctx.fillRect(x + 3, cy, 9, 1);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 11, cy, 2, 1);
+                // Tail fins
+                ctx.fillStyle = '#208a30';
+                ctx.fillRect(x + 2, cy - 2, 1, 1);
+                ctx.fillRect(x + 2, cy + 2, 1, 1);
+                // Target reticle behind it
+                ctx.fillStyle = '#80ff60';
+                ctx.fillRect(x + 4, cy - 4, 1, 1);
+                ctx.fillRect(x + 4, cy + 4, 1, 1);
+                break;
+            case 'THUNDER':
+                // Lightning bolt
+                ctx.fillStyle = '#3a78b8';
+                ctx.fillRect(x + 6, cy - 4, 4, 8);
+                ctx.fillStyle = '#80c0ff';
+                ctx.fillRect(x + 7, cy - 4, 2, 4);
+                ctx.fillRect(x + 5, cy,     3, 2);
+                ctx.fillRect(x + 8, cy + 2, 3, 2);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 8, cy - 3, 1, 2);
+                ctx.fillRect(x + 7, cy + 1, 1, 1);
+                ctx.fillRect(x + 9, cy + 3, 1, 1);
+                break;
             default:
                 // Machine gun icon
                 ctx.fillStyle = '#ffe070';
