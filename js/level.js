@@ -10,6 +10,12 @@ class Level {
         this.coverSpots = [];
         this.ladders = [];
         this.spawnPoints = [];
+        // Defaults so callers that touch these before a stage is loaded
+        // (early HUD draws, mod-stage preview) don't see undefined.
+        this.checkpoints = [{ x: 50, y: 160 }];
+        this.pickups = [];
+        this.bossArenaX = 0;
+        this.endX = 0;
         this.theme = 'jungle';        // 'jungle' | 'breakroom'
     }
 
@@ -31,7 +37,7 @@ class Level {
         this.checkpoints = [
             { x: 50,             y: 160 },
             { x: 30 * 16,        y: 160 },
-            { x: 56 * 16,        y: 7 * 16 },   // top of high plateau
+            { x: 56 * 16,        y: 6 * 16 },   // standing on top of high plateau (rows 8-11)
             { x: 78 * 16,        y: 160 }       // just before boss arena
         ];
 
@@ -196,7 +202,7 @@ class Level {
         this.checkpoints = [
             { x: 50,             y: 160 },
             { x: 30 * 16,        y: 160 },
-            { x: 57 * 16,        y: 7 * 16 },
+            { x: 57 * 16,        y: 6 * 16 },   // standing on top of plateau (rows 8-11)
             { x: 80 * 16,        y: 160 }
         ];
 
@@ -332,8 +338,8 @@ class Level {
         this.pickups = [];
         this.checkpoints = [
             { x: 50,             y: 160 },
-            { x: 28 * 16,        y: 4 * 16 },
-            { x: 60 * 16,        y: 7 * 16 },
+            { x: 28 * 16,        y: 3 * 16 },   // landing on the row-5 overhang (player feet=80)
+            { x: 60 * 16,        y: 6 * 16 },   // standing on top of plateau (rows 8-11)
             { x: 84 * 16,        y: 160 }
         ];
 
@@ -471,7 +477,7 @@ class Level {
         this.checkpoints = [
             { x: 50,             y: 160 },
             { x: 32 * 16,        y: 160 },
-            { x: 60 * 16,        y: 7 * 16 },
+            { x: 60 * 16,        y: 6 * 16 },   // standing on top of plateau (rows 8-11)
             { x: 86 * 16,        y: 160 }
         ];
 
@@ -814,6 +820,14 @@ class Level {
         this.coverSpots = [];
         this.ladders = [];
         this.pickups = [];
+        // One checkpoint per arena, on the floor in front of each boss spawn.
+        // Without this, a death in boss-rush would respawn against whatever
+        // checkpoints the previous stage left behind.
+        this.checkpoints = [
+            { x: 50,             y: 160 },
+            { x: 28 * 16,        y: 160 },
+            { x: 56 * 16,        y: 160 }
+        ];
 
         this.tiles = [];
         for (let y = 0; y < this.height; y++) {
@@ -836,8 +850,11 @@ class Level {
         // Dividing walls between arenas at x=24 and x=52
         fill(24, 3, 24, 11, TILE.SOLID);
         fill(52, 3, 52, 11, TILE.SOLID);
-        // Walls have a doorway one tile high near the floor
+        // Walls have a 2-tile-high doorway near the floor so a 32-px standing
+        // player can walk through (one row would only fit a prone player).
+        this.tiles[10][24] = TILE.EMPTY;
         this.tiles[11][24] = TILE.EMPTY;
+        this.tiles[10][52] = TILE.EMPTY;
         this.tiles[11][52] = TILE.EMPTY;
         // Cover in each arena
         cover(10);
