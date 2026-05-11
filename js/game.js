@@ -681,6 +681,8 @@ class Game {
                 this.updatePasswordScreen();
             } else if (this.screen === 'daily') {
                 this.updateDailyScreen();
+            } else if (this.screen === 'menu') {
+                this.updateMenuScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -721,6 +723,8 @@ class Game {
             this.renderPasswordScreen();
         } else if (this.screen === 'daily') {
             this.renderDailyScreen();
+        } else if (this.screen === 'menu') {
+            this.renderMenuScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -1335,6 +1339,104 @@ class Game {
             GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
     }
 
+    // ---- Main menu (consolidated entry point) ----
+    getMenuItems() {
+        // Build the list of items the player can choose from. Items that
+        // are conditional get filtered out.
+        const items = [
+            { label: 'START GAME',       run: () => { this.bossRushMode = false; this.newGamePlus = false; this.screen = 'story'; this.storyTimer = 0; this.storyPanel = 0; this.score = 0; this.lives = this.difficulty.livesStart; this.continues = this.difficulty.continuesStart; this.loadStageByIndex(0); this.player = new Player(50, 160); if (typeof audio !== 'undefined') audio.resume(); } },
+            { label: 'DAILY CHALLENGE',  run: () => { this.screen = 'daily'; this.dailyTimer = 0; } }
+        ];
+        if (this.bossRushUnlocked) {
+            items.push({ label: 'STAGE SELECT', run: () => { this.screen = 'stageSelect'; this.stageSelectTimer = 0; this.stageSelectCursor = 0; } });
+        }
+        items.push({ label: 'SKINS',         run: () => { this.screen = 'skins'; this.skinsTimer = 0; const all = SKINS; this.skinsCursor = Math.max(0, all.findIndex(s => s.id === this.skinId)); } });
+        items.push({ label: 'TROPHIES',      run: () => { this.screen = 'achievements'; this.achievementsTimer = 0; this.achievementsScroll = 0; } });
+        items.push({ label: 'LEADERBOARD',   run: () => { this.screen = 'leaderboard'; this.leaderboardTimer = 0; } });
+        items.push({ label: 'PASSWORD',      run: () => { this.screen = 'password'; this.passwordTimer = 0; this.passwordMode = 'view'; this.passwordInput = ''; this.passwordMessage = ''; } });
+        items.push({ label: 'HELP',          run: () => { this.screen = 'help'; this.helpTimer = 0; this.helpPage = 0; } });
+        // Difficulty + co-op + NG+ inline toggles
+        items.push({
+            label: 'DIFFICULTY  <  ' + this.difficulty.name + '  >',
+            color: this.difficulty.color,
+            run: () => { this.setDifficulty(this.difficultyIndex + 1); }
+        });
+        items.push({
+            label: 'CO-OP  ' + (this.coopEnabled ? 'ON' : 'OFF'),
+            color: this.coopEnabled ? '#ff60ff' : null,
+            run: () => { this.coopEnabled = !this.coopEnabled; }
+        });
+        if (this.bossRushUnlocked) {
+            items.push({
+                label: 'NEW GAME+  ' + (this.newGamePlus ? 'ON' : 'OFF'),
+                color: this.newGamePlus ? '#ff60ff' : null,
+                run: () => { this.toggleNewGamePlus(); }
+            });
+        }
+        items.push({ label: 'BACK TO TITLE', run: () => { this.screen = 'title'; this.titleTimer = 0; } });
+        return items;
+    }
+
+    updateMenuScreen() {
+        this.menuTimer = (this.menuTimer || 0) + 1;
+        input.update();
+        const items = this.getMenuItems();
+        if (input.keysJustPressed['ArrowUp'])    this.menuCursor = (this.menuCursor + items.length - 1) % items.length;
+        if (input.keysJustPressed['ArrowDown'])  this.menuCursor = (this.menuCursor + 1) % items.length;
+        if (input.pausePressed) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+            return;
+        }
+        if (input.shoot || input.jumpPressed || input.keysJustPressed['Enter']) {
+            const item = items[this.menuCursor];
+            if (item && item.run) item.run();
+        }
+    }
+
+    renderMenuScreen() {
+        const ctx = this.ctx;
+        // Reuse the title parallax behind a dim overlay
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        this.background.update();
+        this.background.draw(ctx, { x: 0, y: 0 });
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+
+        drawPixelTextOutlined(ctx, 'MAIN MENU', GAME.WIDTH / 2, 16, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const items = this.getMenuItems();
+        const startY = 44;
+        const rowH = 14;
+        for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            const y = startY + i * rowH;
+            const sel = i === this.menuCursor;
+            // Selection bar
+            if (sel) {
+                ctx.fillStyle = 'rgba(86,68,104,0.55)';
+                ctx.fillRect(28, y - 3, GAME.WIDTH - 56, 10);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(28, y - 3, GAME.WIDTH - 56, 1);
+                ctx.fillRect(28, y + 6, GAME.WIDTH - 56, 1);
+                // Blinking arrow
+                const blink = (this.menuTimer & 16) < 8;
+                if (blink) {
+                    ctx.fillStyle = '#ffe070';
+                    ctx.fillRect(38, y + 1, 4, 1);
+                    ctx.fillRect(39, y, 3, 1);
+                    ctx.fillRect(40, y + 2, 2, 1);
+                }
+            }
+            const color = sel ? (it.color || '#ffffff') : (it.color || '#c0a0d0');
+            drawPixelText(ctx, it.label, GAME.WIDTH / 2, y, color, 1, 'center', 1);
+        }
+
+        drawPixelText(ctx, 'UP DOWN  PICK    SHOOT  CONFIRM    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+    }
+
     // ---- Daily challenge ----
     startDailyChallenge() {
         const dateStr = dailyDateString();
@@ -1754,10 +1856,28 @@ class Game {
         // LEFT/RIGHT cycles the difficulty tab
         if (input.keysJustPressed['ArrowLeft']) {
             this.leaderboardTab = (this.leaderboardTab + 2) % 3;
+            this.onlineTop = null;
         }
         if (input.keysJustPressed['ArrowRight']) {
             this.leaderboardTab = (this.leaderboardTab + 1) % 3;
+            this.onlineTop = null;
         }
+        // S triggers a SHARE for the most recent entry (if any)
+        if (input.keysJustPressed['KeyS'] && this.lastEntry && typeof OnlineLeaderboard !== 'undefined') {
+            const url = OnlineLeaderboard.shareUrl(this.lastEntry);
+            OnlineLeaderboard.copyToClipboard(url).then((ok) => {
+                this.leaderboardMessage = ok ? 'LINK COPIED!' : url;
+                this.leaderboardMessageTimer = 180;
+            });
+        }
+        // Lazy-fetch global top scores when an endpoint is configured
+        if (this.onlineTop === undefined &&
+            typeof OnlineLeaderboard !== 'undefined' &&
+            OnlineLeaderboard.isOnline()) {
+            this.onlineTop = null;
+            OnlineLeaderboard.fetchTop().then(rows => { this.onlineTop = rows || []; });
+        }
+        if (this.leaderboardMessageTimer && this.leaderboardMessageTimer > 0) this.leaderboardMessageTimer--;
         // Shoot/jump returns to title
         if (this.leaderboardTimer > 30 && (input.shoot || input.jumpPressed)) {
             this.screen = 'title';
@@ -1836,6 +1956,25 @@ class Game {
         }
 
         const blink = (this.leaderboardTimer & 16) < 8;
+
+        // SHARE hint for the most recent entry
+        if (this.lastEntry) {
+            drawPixelText(ctx, 'S  SHARE LAST RUN', GAME.WIDTH / 2, GAME.HEIGHT - 24,
+                '#80c0ff', 1, 'center', 1);
+        }
+        if (this.leaderboardMessage && this.leaderboardMessageTimer > 0) {
+            drawPixelTextOutlined(ctx, this.leaderboardMessage,
+                GAME.WIDTH / 2, GAME.HEIGHT - 34, '#50ff70', '#0a3a14', 1, 'center', 1);
+        }
+        if (this.sharedImportNotice && this.sharedImportTimer > 0) {
+            drawPixelTextOutlined(ctx, this.sharedImportNotice,
+                GAME.WIDTH / 2, 20, '#ffe070', '#1a0e1e', 1, 'center', 1);
+            this.sharedImportTimer--;
+        }
+        // Online indicator
+        if (typeof OnlineLeaderboard !== 'undefined' && OnlineLeaderboard.isOnline()) {
+            drawPixelText(ctx, 'ONLINE', GAME.WIDTH - 6, 4, '#50ff70', 1, 'right', 1);
+        }
         if (blink && this.leaderboardTimer > 30) {
             drawPixelText(ctx, 'SHOOT TO RETURN', GAME.WIDTH / 2, GAME.HEIGHT - 14, '#ffffff', 1, 'center', 1);
         }
@@ -2129,6 +2268,12 @@ class Game {
         // 2 toggles co-op P2 mode
         if (input.keysJustPressed['Digit2']) {
             this.coopEnabled = !this.coopEnabled;
+        }
+        // ENTER opens the consolidated main menu (alternative to hotkeys)
+        if (input.keysJustPressed['Enter']) {
+            this.screen = 'menu';
+            this.menuTimer = 0;
+            this.menuCursor = 0;
         }
         // N toggles NewGame+ (only meaningful once unlocked)
         if (this.bossRushUnlocked && input.keysJustPressed['KeyN']) {
@@ -3205,10 +3350,13 @@ class Game {
 
         drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
 
-        // Controls hint at bottom (line 1: gameplay, line 2: title menu)
+        // Controls hint at bottom - keep it short and obvious
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'T TROPH  H HELP  K SKINS  B PASS  D DAILY' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
-            GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
+        const menuBlink = (this.titleTimer & 32) < 16;
+        if (menuBlink) {
+            drawPixelTextOutlined(ctx, 'PRESS ENTER FOR MENU',
+                GAME.WIDTH / 2, 215, '#ffe070', '#1a0e1e', 1, 'center', 1);
+        }
     }
 
     // ---- Leaderboard (split by difficulty) ----
@@ -3238,14 +3386,42 @@ class Game {
     addToLeaderboard(name, score, runTime) {
         const diffKey = this.difficultyKeys[this.difficultyIndex];
         const entries = this.loadLeaderboard(diffKey);
-        entries.push({
+        const entry = {
             name, score, time: runTime, date: Date.now(),
-            difficulty: diffKey
-        });
+            difficulty: diffKey,
+            ngplus: !!this.newGamePlus
+        };
+        entries.push(entry);
         entries.sort((a, b) => b.score - a.score);
         const trimmed = entries.slice(0, 10);
         this.saveLeaderboard(trimmed, diffKey);
+        // Stash the most-recent entry so the SHARE row in the leaderboard
+        // can build a URL even after we leave the initials screen.
+        this.lastEntry = entry;
+        // Fire off an async POST to the configured endpoint (no-op if none)
+        if (typeof OnlineLeaderboard !== 'undefined' && OnlineLeaderboard.isOnline()) {
+            OnlineLeaderboard.submit(entry);
+        }
         return trimmed;
+    }
+
+    // Merge an incoming shared entry into the local board.
+    importSharedEntry(entry) {
+        if (!entry || !entry.name || !entry.score) return false;
+        const diff = entry.difficulty || 'NORMAL';
+        const entries = this.loadLeaderboard(diff);
+        entries.push({
+            name: entry.name,
+            score: entry.score,
+            time: entry.time,
+            date: Date.now(),
+            difficulty: diff,
+            ngplus: !!entry.ngplus,
+            imported: true
+        });
+        entries.sort((a, b) => b.score - a.score);
+        this.saveLeaderboard(entries.slice(0, 10), diff);
+        return true;
     }
 
     qualifiesForLeaderboard(score) {
@@ -4195,6 +4371,19 @@ window.addEventListener('load', async () => {
 
     game = new Game();
     game.init();
+
+    // If we were opened with a shared score in the URL hash, import it
+    // and flash a notification so the receiving player knows.
+    try {
+        if (typeof OnlineLeaderboard !== 'undefined') {
+            const shared = OnlineLeaderboard.consumeIncomingShare();
+            if (shared && game.importSharedEntry) {
+                game.importSharedEntry(shared);
+                game.sharedImportNotice = `IMPORTED: ${shared.name} ${shared.score}`;
+                game.sharedImportTimer = 240;
+            }
+        }
+    } catch (e) {}
 
     // Mute / unmute on M
     window.addEventListener('keydown', (e) => {

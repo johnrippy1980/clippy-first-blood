@@ -272,6 +272,17 @@ class Level {
         this.pickups.push({ x: 69 * GAME.TILE_SIZE, y: 2 * GAME.TILE_SIZE + 8, type: 'FLAME', taken: false });
         fill(68, 3, 70, 3, TILE.SOLID);
 
+        // ===== SECRET ROOM (above the wall-jump chasm, mirrors Stage 1) =====
+        // Wall-jump past the spread-shot platform into a hidden 4x3 vault.
+        fill(68, 0, 70, 2, TILE.EMPTY);
+        fill(67, 0, 67, 2, TILE.SOLID);
+        fill(71, 0, 71, 2, TILE.SOLID);
+        fill(68, 0, 70, 0, TILE.SOLID);
+        this.tiles[3][68] = TILE.EMPTY;
+        this.tiles[3][69] = TILE.EMPTY;
+        this.pickups.push({ x: 68 * GAME.TILE_SIZE,     y: 1 * GAME.TILE_SIZE + 8, type: '1UP',     taken: false, secret: true });
+        this.pickups.push({ x: 69 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: 'HOMING',  taken: false, secret: true });
+
         // Vending machine perch for the tape dispenser
         fill(74, 9, 77, 9, TILE.SOLID);
 
@@ -375,6 +386,16 @@ class Level {
         // Reward at the top: laser pickup
         this.pickups.push({ x: 55 * GAME.TILE_SIZE, y: 2 * GAME.TILE_SIZE + 8, type: 'LASER', taken: false });
 
+        // ===== SECRET CONDUIT (above the climb top) =====
+        // After climbing the vertical core, jump from the top platform onto
+        // a stealth ledge tucked above row 0. Reward: 1UP + Thunder weapon.
+        fill(53, 0, 58, 0, TILE.SOLID);
+        fill(53, 1, 53, 2, TILE.SOLID);
+        fill(58, 1, 58, 2, TILE.SOLID);
+        fill(54, 2, 57, 2, TILE.PLATFORM);
+        this.pickups.push({ x: 55 * GAME.TILE_SIZE,     y: 1 * GAME.TILE_SIZE + 8, type: '1UP',     taken: false, secret: true });
+        this.pickups.push({ x: 56 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: 'THUNDER', taken: false, secret: true });
+
         // Coolant pit (water tile re-skinned)
         fill(38, 12, 42, 13, TILE.EMPTY);
         fill(38, 13, 42, 13, TILE.WATER);
@@ -384,7 +405,12 @@ class Level {
         cover(63);
         ladder(59, 8, 11);
 
-        // Suspended catwalk over a void
+        // ===== COOLING TUNNEL (after plateau, before catwalk) =====
+        // Low ceiling forces the player to crouch / prone past steaming pipes
+        // (visual is the existing tiles; gameplay is a tight corridor).
+        fill(68, 9, 69, 9, TILE.SOLID);     // overhang from the right side
+        // Destructible stack inside the tunnel
+        fill(68, 10, 69, 11, TILE.DESTRUCTIBLE);
         fill(70, 6, 74, 6, TILE.PLATFORM);
         fill(76, 6, 80, 6, TILE.PLATFORM);
         // Drop the floor for a hazard pit
@@ -503,6 +529,24 @@ class Level {
         fill(64, 4, 64, 11, TILE.SOLID);
         fill(61, 3, 63, 3, TILE.SOLID);   // top landing
         this.pickups.push({ x: 62 * GAME.TILE_SIZE, y: 1 * GAME.TILE_SIZE + 8, type: 'STAPLE_REMOVER', taken: false });
+
+        // ===== SECRET BOARDROOM VAULT (above the elevator) =====
+        // A hidden gold-trimmed vault holding the executive lounge.
+        // Reach it by continuing to wall-jump past the top landing.
+        fill(61, 0, 63, 2, TILE.EMPTY);
+        fill(60, 0, 60, 2, TILE.SOLID);
+        fill(64, 0, 64, 2, TILE.SOLID);
+        fill(61, 0, 63, 0, TILE.SOLID);
+        this.tiles[3][62] = TILE.EMPTY;     // soft opening through the landing
+        this.pickups.push({ x: 61 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: '1UP',    taken: false, secret: true });
+        this.pickups.push({ x: 62 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: 'HOMING', taken: false, secret: true });
+
+        // ===== CUBICLE MAZE (extension between approach + boss arena) =====
+        // Three short floor-mounted cubicle pillars adding cover the player
+        // can shoot around. Adds a tactical layer right before the boss.
+        fill(68, 10, 68, 11, TILE.SOLID);
+        fill(72, 10, 72, 11, TILE.SOLID);
+        fill(76, 11, 76, 11, TILE.DESTRUCTIBLE);
 
         // ===== Section 4: APPROACH (66-88) =====
         // Tiered floor leading to the boss arena
