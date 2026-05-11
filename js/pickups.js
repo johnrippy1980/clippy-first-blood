@@ -70,14 +70,22 @@ class PickupManager {
                     if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup('1UP! EXTRA LIFE');
                 } else {
                     const nextWeapon = WEAPON[p.type];
-                    if (player.weapon === nextWeapon && (player.weaponLevel || 1) < 2) {
-                        // Stacking the same pickup upgrades the weapon
-                        player.weaponLevel = 2;
-                        if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup(WEAPON[p.type].name + ' +');
+                    const sameWeapon = player.weapon === nextWeapon;
+                    if (sameWeapon) {
+                        if ((player.weaponLevel || 1) < 2) {
+                            // First repeat = upgrade
+                            player.weaponLevel = 2;
+                            if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup(nextWeapon.name + ' +');
+                        } else {
+                            // Already maxed - keep level, give a small score bonus
+                            // instead of silently consuming the pickup.
+                            if (typeof game !== 'undefined') game.score += 500;
+                            if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup('+500');
+                        }
                     } else {
                         player.weapon = nextWeapon;
                         player.weaponLevel = 1;
-                        if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup(WEAPON[p.type].name);
+                        if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup(nextWeapon.name);
                     }
                 }
                 if (typeof audio !== 'undefined') audio.sfxPickup();

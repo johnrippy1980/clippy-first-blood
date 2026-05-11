@@ -574,6 +574,11 @@ class Player {
                     const dy = (e.y + e.height / 2) - bullet.y;
                     if (dx * dx + dy * dy < 28 * 28) {
                         e.takeDamage(bullet.damage);
+                        // Credit the AOE damage to the affinity badge tracker
+                        if (bullet.weaponName && game.runWeaponDamage) {
+                            game.runWeaponDamage[bullet.weaponName] =
+                                (game.runWeaponDamage[bullet.weaponName] || 0) + bullet.damage;
+                        }
                     }
                 }
             }
