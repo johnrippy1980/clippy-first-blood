@@ -349,11 +349,15 @@ class Audio {
 
     startMusic(theme) {
         if (!this.ctx) return;
-        // If a different theme is requested while playing, swap patterns.
+        // If a different theme is requested while playing, swap patterns and
+        // restart from step 0 - otherwise the new theme starts mid-measure at
+        // whatever step the old pattern was on.
         if (theme && theme !== this.currentTheme) {
             this.currentTheme = theme;
             this.pattern = this.getPattern(theme);
             this.bpm = this.pattern.bpm || 132;
+            this.currentStep = 0;
+            if (this.ctx) this.nextNoteTime = this.ctx.currentTime + 0.05;
         }
         if (!this.pattern) {
             this.currentTheme = theme || this.currentTheme;

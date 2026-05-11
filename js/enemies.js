@@ -43,8 +43,15 @@ class Enemy {
 
         this.behaviorTimer++;
 
-        // Face player
-        this.facingRight = player.x > this.x;
+        // Face player. Behaviors that need a locked facing through a
+        // commit (charge windup/charge/recover, fly_sine which uses
+        // facingRight as its movement direction and bounces at level
+        // edges) opt out and manage facingRight themselves.
+        const chargeLocked = this.behavior === 'charge'
+            && this.chargeState && this.chargeState !== 'idle';
+        if (!chargeLocked && this.behavior !== 'fly_sine') {
+            this.facingRight = player.x > this.x;
+        }
 
         // Update behavior
         switch (this.behavior) {
@@ -161,7 +168,9 @@ class Enemy {
         // Bounce off floor/ceiling
         if (level.isSolid(this.x + this.width / 2, this.y + this.height)) {
             this.y = Math.floor((this.y + this.height) / GAME.TILE_SIZE) * GAME.TILE_SIZE - this.height;
-            this.vy = this.bounceVy;
+            // Erratic bounce height - some short, some tall, so the rubber-band
+            // ball doesn't lock into a predictable rhythm.
+            this.vy = this.bounceVy - Math.random() * 2;
             // Random horizontal movement
             this.vx = (Math.random() - 0.5) * this.speed * 4;
         }
@@ -330,7 +339,7 @@ class Enemy {
         // Fire beam when roughly above the player
         if (Math.abs(dx) < 18 && this.fireTimer === 0) {
             // Telegraph: brief delay before firing
-            if (this.sniperTelegraph === undefined) this.sniperTelegraph = 30;
+            if (this.sniperTelegraph == null) this.sniperTelegraph = 30;
             if (this.sniperTelegraph > 0) {
                 this.sniperTelegraph--;
                 if (this.sniperTelegraph === 0) {
@@ -343,11 +352,12 @@ class Enemy {
                         type: 'beam'
                     });
                     this.fireTimer = 80;
+                    this.sniperTelegraph = null;     // re-arm next pass
                     if (typeof audio !== 'undefined') audio.sfxShoot();
                 }
             }
         } else {
-            this.sniperTelegraph = undefined;
+            this.sniperTelegraph = null;
         }
     }
 
@@ -391,9 +401,9 @@ class Enemy {
                 break;
             }
             case 1: {
-                // LIGHTNING - 3 vertical columns from above
+                // LIGHTNING - 3 vertical columns from above, spread around the boss
                 for (let col = 0; col < 3; col++) {
-                    const px = 40 + col * 90;
+                    const px = this.x + (col - 1) * 90;
                     for (let i = 0; i < 5; i++) {
                         this.bullets.push({
                             x: px + (Math.random() - 0.5) * 6, y: -10 - i * 12,
@@ -514,7 +524,7 @@ class Enemy {
                 // SHAREHOLDER VALUE - falling stock-certificate projectiles
                 for (let i = 0; i < 6; i++) {
                     this.bullets.push({
-                        x: 30 + i * 32 + (Math.random() - 0.5) * 8,
+                        x: this.x + (i - 2.5) * 32 + (Math.random() - 0.5) * 8,
                         y: -10,
                         vx: 0,
                         vy: 2.5,
@@ -615,7 +625,7 @@ class Enemy {
                 this.yellText = 'CHA-CHING';
                 this.yellTimer = 50;
                 for (let col = 0; col < 3; col++) {
-                    const baseX = 40 + col * 90;
+                    const baseX = this.x + (col - 1) * 90;
                     for (let i = 0; i < 4; i++) {
                         this.bullets.push({
                             x: baseX + (Math.random() - 0.5) * 12,
@@ -709,7 +719,7 @@ class Enemy {
                 this.yellTimer = 70;
                 for (let i = 0; i < 6; i++) {
                     this.bullets.push({
-                        x: 30 + i * 36 + (Math.random() - 0.5) * 6,
+                        x: this.x + (i - 2.5) * 36 + (Math.random() - 0.5) * 6,
                         y: -10,
                         vx: 0,
                         vy: 2.5,
@@ -771,11 +781,11 @@ class Enemy {
         }
 
         // Constant bouncy hopping to harass the player
-        if (this.onGround && this.behaviorTimer % 36 === 0 && !this.lockMove) {
+        if (this.onGround && this.behaviorTimer % 36 === 0) {
             this.vy = -4.5;
             this.vx = (player.x > this.x ? 1 : -1) * this.speed;
             this.facingRight = player.x > this.x;
-        } else if (this.onGround && !this.lockMove) {
+        } else if (this.onGround) {
             this.vx *= 0.8;
         }
 
@@ -1236,7 +1246,10 @@ class Enemy {
     fireAtPlayer(player, projectileType = null) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        // Guard against zero-distance: enemy overlapping player would otherwise
+        // produce NaN velocities that never expire (NaN bullets sail forever
+        // without ever colliding with tiles).
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
         const speed = 3;
         const bullet = {
@@ -3435,6 +3448,9 @@ class Enemy {
     checkBulletCollision(player) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
+            // Delayed bullets are stacked at the boss origin until their timer
+            // expires - they shouldn't damage on contact during the wind-up.
+            if (bullet.delay > 0) continue;
             if (bullet.x > player.x && bullet.x < player.x + player.width &&
                 bullet.y > player.y && bullet.y < player.y + player.height) {
                 this.bullets.splice(i, 1);
