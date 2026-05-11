@@ -177,54 +177,144 @@ class Game {
     }
 
     drawHUD() {
-        const padding = 4;
+        const ctx = this.ctx;
+        const W = GAME.WIDTH;
+        const BAR_H = 22;
 
-        // Health bar background
-        this.ctx.fillStyle = COLORS.HUD_BG;
-        this.ctx.fillRect(padding, padding, 52, 10);
-
-        // Health bar
-        const healthPercent = this.player.health / PLAYER.MAX_HEALTH;
-        const healthColor = healthPercent > 0.3 ? COLORS.HUD_HEALTH : COLORS.HUD_HEALTH_LOW;
-        this.ctx.fillStyle = healthColor;
-        this.ctx.fillRect(padding + 1, padding + 1, 50 * healthPercent, 8);
-
-        // Health bar border
-        this.ctx.strokeStyle = '#fff';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(padding, padding, 52, 10);
-
-        // Score
-        this.ctx.fillStyle = COLORS.HUD_TEXT;
-        this.ctx.font = this.hudFont;
-        this.ctx.fillText(`SCORE:${String(this.score).padStart(6, '0')}`, padding, padding + 22);
-
-        // Lives (show Clippy icons)
-        this.ctx.fillText(`CLIPPY`, GAME.WIDTH - 70, padding + 8);
-        this.ctx.fillText(`LIVES:${this.lives}`, GAME.WIDTH - 70, padding + 18);
-
-        // Current weapon
-        this.ctx.fillText(this.player.weapon.name.toUpperCase(), padding, GAME.HEIGHT - padding - 2);
-
-        // Cover indicator
-        if (this.player.inCover) {
-            this.ctx.fillStyle = '#0f0';
-            this.ctx.fillText('IN COVER - HEALING', GAME.WIDTH / 2 - 50, padding + 8);
+        // ---- Top status bar: layered metal bevel ----
+        // Outer dark frame
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, W, BAR_H);
+        // Inner metal body (banded gradient)
+        ctx.fillStyle = '#3a3050';
+        ctx.fillRect(0, 1, W, BAR_H - 2);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(0, 2, W, 4);
+        ctx.fillStyle = '#7a608c';
+        ctx.fillRect(0, 3, W, 1);
+        ctx.fillStyle = '#2a2240';
+        ctx.fillRect(0, BAR_H - 4, W, 2);
+        // Top bevel highlight
+        ctx.fillStyle = '#b09cc0';
+        ctx.fillRect(0, 1, W, 1);
+        // Bottom bevel shadow
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, BAR_H - 1, W, 1);
+        // Rivets along the bar
+        ctx.fillStyle = '#0a0612';
+        for (let rx = 3; rx < W; rx += 32) {
+            ctx.fillRect(rx, 4, 2, 2);
+            ctx.fillRect(rx, BAR_H - 6, 2, 2);
+        }
+        ctx.fillStyle = '#c0a8d0';
+        for (let rx = 3; rx < W; rx += 32) {
+            ctx.fillRect(rx, 4, 1, 1);
+            ctx.fillRect(rx, BAR_H - 6, 1, 1);
         }
 
-        // Health regen indicator
+        // ---- Clippy life icon + count (left) ----
+        this.drawClippyIcon(ctx, 4, 7);
+        ctx.fillStyle = '#ffe070';
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText(`x${this.lives}`, 16, 14);
+
+        // ---- Health bar (center-left) ----
+        const hbX = 32, hbY = 6, hbW = 80, hbH = 8;
+        // Frame
+        ctx.fillStyle = '#000';
+        ctx.fillRect(hbX - 1, hbY - 1, hbW + 2, hbH + 2);
+        ctx.fillStyle = '#1a0e1e';
+        ctx.fillRect(hbX, hbY, hbW, hbH);
+        // Health segments
+        const segs = 20;
+        const pct = Math.max(0, this.player.health / PLAYER.MAX_HEALTH);
+        const litSegs = Math.ceil(pct * segs);
+        const segW = (hbW - 2) / segs;
+        for (let i = 0; i < litSegs; i++) {
+            const segPct = i / segs;
+            let top, bot;
+            if (segPct < 0.3)      { top = '#ff5050'; bot = '#a82020'; }
+            else if (segPct < 0.6) { top = '#ffd040'; bot = '#a87020'; }
+            else                   { top = '#50ff70'; bot = '#208a30'; }
+            const sx = hbX + 1 + i * segW;
+            ctx.fillStyle = bot;
+            ctx.fillRect(sx, hbY + 1, Math.ceil(segW) - 1, hbH - 2);
+            ctx.fillStyle = top;
+            ctx.fillRect(sx, hbY + 1, Math.ceil(segW) - 1, 2);
+        }
+        // Bar label
+        ctx.fillStyle = '#ffe070';
+        ctx.fillText('HP', hbX - 14, hbY + 7);
+
+        // ---- Score panel (right of health bar) ----
+        const sX = hbX + hbW + 6;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sX, 5, 56, 11);
+        ctx.fillStyle = '#1a0e1e';
+        ctx.fillRect(sX + 1, 6, 54, 9);
+        ctx.fillStyle = '#7af0ff';
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText(String(this.score).padStart(6, '0'), sX + 4, 14);
+
+        // ---- Weapon panel (far right) ----
+        const wX = W - 56;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(wX, 5, 54, 11);
+        ctx.fillStyle = '#2a1838';
+        ctx.fillRect(wX + 1, 6, 52, 9);
+        ctx.fillStyle = this.player.weapon.color || '#ffd040';
+        ctx.fillRect(wX + 2, 8, 6, 5);
+        ctx.fillStyle = '#ffe070';
+        ctx.font = '8px monospace';
+        const wname = this.player.weapon.name.substring(0, 6).toUpperCase();
+        ctx.fillText(wname, wX + 10, 14);
+
+        // ---- Status overlays (under the bar) ----
+        if (this.player.inCover) {
+            this.flashText(ctx, 'IN COVER', W / 2 - 18, BAR_H + 8, '#50ff70');
+        }
         if (this.player.timeSinceDamage >= PLAYER.HEALTH_REGEN_DELAY &&
             this.player.health < PLAYER.MAX_HEALTH) {
-            this.ctx.fillStyle = '#0f0';
-            this.ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 100) * 0.5;
-            this.ctx.fillText('REGENERATING', padding + 56, padding + 8);
-            this.ctx.globalAlpha = 1;
+            this.flashText(ctx, 'RECOVERING', 4, BAR_H + 8, '#7af0ff');
         }
+    }
 
-        // Aim direction indicator
-        const aimNames = ['RIGHT', 'UP-R', 'UP', 'UP-L', 'LEFT', 'DN-L', 'DOWN', 'DN-R'];
-        this.ctx.fillStyle = '#888';
-        this.ctx.fillText(`AIM:${aimNames[this.player.aimDirection]}`, GAME.WIDTH - 60, GAME.HEIGHT - padding - 2);
+    drawClippyIcon(ctx, x, y) {
+        // Tiny 10x10 Clippy paperclip mascot
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x, y, 10, 10);
+        // Bandana
+        ctx.fillStyle = '#cc4444';
+        ctx.fillRect(x + 2, y + 1, 6, 1);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fillRect(x + 2, y, 6, 1);
+        // Body (metal paperclip)
+        ctx.fillStyle = '#a8a8b8';
+        ctx.fillRect(x + 1, y + 2, 8, 7);
+        ctx.fillStyle = '#d4d4e0';
+        ctx.fillRect(x + 1, y + 2, 1, 6);
+        ctx.fillRect(x + 2, y + 2, 6, 1);
+        // Eyes
+        ctx.fillStyle = '#2a5298';
+        ctx.fillRect(x + 3, y + 4, 1, 2);
+        ctx.fillRect(x + 6, y + 4, 1, 2);
+        ctx.fillStyle = '#6ab2f8';
+        ctx.fillRect(x + 3, y + 4, 1, 1);
+        ctx.fillRect(x + 6, y + 4, 1, 1);
+        // Outline shadow
+        ctx.fillStyle = '#5a5060';
+        ctx.fillRect(x + 8, y + 3, 1, 5);
+        ctx.fillRect(x + 1, y + 8, 8, 1);
+    }
+
+    flashText(ctx, text, x, y, color) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x - 1, y - 7, text.length * 6 + 2, 9);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6 + Math.sin(Date.now() / 100) * 0.4;
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText(text, x, y);
+        ctx.globalAlpha = 1;
     }
 
     drawGameOver() {

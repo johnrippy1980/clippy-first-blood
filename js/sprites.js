@@ -255,48 +255,8 @@ async function loadAllSprites() {
         console.warn('Could not load all clippy sprites, using procedural fallback');
     }
 
-    try {
-        // Load enemy sprites
-        await spriteAtlas.loadSheet('enemies', 'images/sprites/enemies.png', 'images/sprites/enemies.json');
-
-        spriteAtlas.defineFrames('enemies', 32, 32, [
-            'stapler_idle',
-            'stapler_hop',
-            'stapler_shoot',
-            'folder_fly_01',
-            'folder_fly_02',
-            'rubber_ball_01',
-            'rubber_ball_02',
-            'tape_dispenser',
-            'file_cabinet_01',
-            'file_cabinet_02',
-            'file_cabinet_03'
-        ]);
-
-    } catch (e) {
-        console.warn('Could not load enemies.png, using procedural fallback');
-    }
-
-    try {
-        // Load tile sprites
-        await spriteAtlas.loadSheet('tiles', 'images/sprites/tiles.png', 'images/sprites/tiles.json');
-
-        spriteAtlas.defineFrames('tiles', 16, 16, [
-            'grass_top',
-            'dirt',
-            'platform',
-            'ladder',
-            'vine',
-            'water_01',
-            'water_02',
-            'destructible',
-            'cover_spot'
-        ]);
-
-    } catch (e) {
-        console.warn('Could not load tiles.png, using procedural fallback');
-    }
-
+    // Tile and enemy art is rendered procedurally in level.js / enemies.js
+    // (the bundled tile PNGs were unusable - kept on disk for reference only).
     spriteAtlas.finishLoading();
     console.log('Sprite loading complete!');
 }

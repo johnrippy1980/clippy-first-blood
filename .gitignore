@@ -16,3 +16,8 @@ LEONARDO_PROMPTS.md
 
 # Node
 node_modules/
+package.json
+package-lock.json
+
+# Dev/test artifacts
+screenshot.png
