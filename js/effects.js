@@ -27,7 +27,10 @@ class Particle {
 
     draw(ctx, camera) {
         if (this.life <= 0) return;
-        const t = 1 - this.life / this.maxLife;  // 0..1 over lifetime
+        // Clamp t to [0,1] so a caller bumping life past maxLife doesn't
+        // produce a negative palette index (which would read `undefined`
+        // and leave the previous fillStyle in place).
+        const t = Math.max(0, Math.min(1, 1 - this.life / this.maxLife));
         const idx = Math.min(this.colors.length - 1, Math.floor(t * this.colors.length));
         ctx.fillStyle = this.colors[idx];
         const sx = Math.floor(this.x - camera.x);

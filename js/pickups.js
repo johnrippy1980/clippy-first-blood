@@ -54,9 +54,9 @@ class PickupManager {
                 p.blink = p.life < 90 && (p.life & 4);
             }
 
-            // Collision with player (AABB)
-            if (player.x < p.x + 14 && player.x + player.width > p.x &&
-                player.y < p.y + 14 && player.y + player.height > p.y) {
+            // Collision with player (AABB) - matches the 16x16 drawn icon
+            if (player.x < p.x + 16 && player.x + player.width > p.x &&
+                player.y < p.y + 16 && player.y + player.height > p.y) {
                 p.taken = true;
                 if (p.secret && typeof game !== 'undefined' && game.runSecretsFound !== undefined) {
                     game.runSecretsFound++;

@@ -33,7 +33,12 @@ class Achievements {
         this.weaponsUsed = new Set();
         try {
             const raw = localStorage.getItem('clippy_first_blood_achievements');
-            if (raw) raw.split(',').forEach(id => { if (id) this.unlocked.add(id); });
+            if (raw) {
+                // Only accept IDs we recognize so a malformed / stale
+                // localStorage entry can't poison the unlock set.
+                const known = new Set(ACHIEVEMENT_LIST.map(a => a.id));
+                raw.split(',').forEach(id => { if (id && known.has(id)) this.unlocked.add(id); });
+            }
         } catch (e) { /* ignore */ }
     }
 
