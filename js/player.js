@@ -22,8 +22,8 @@ class Player {
         // Health system (Halo-style regen).
         // maxHealth allows the difficulty system to inflate the player's pool.
         const baseHealth = (typeof game !== 'undefined' && game.difficulty)
-            ? Math.floor(this.maxHealth * game.difficulty.healthMul)
-            : this.maxHealth;
+            ? Math.floor(PLAYER.MAX_HEALTH * game.difficulty.healthMul)
+            : PLAYER.MAX_HEALTH;
         this.maxHealth = baseHealth;
         this.health = baseHealth;
         this.timeSinceDamage = 0;
@@ -135,11 +135,16 @@ class Player {
 
         // Handle crouching
         if (this.state === PLAYER_STATE.PRONE) {
-            // Exit prone
-            if (!this.controls.down || this.controls.jumpPressed) {
+            // Exit prone (but only if there's clearance above - otherwise we'd
+            // clip into the ceiling).
+            const proneDelta = PLAYER.HEIGHT - PLAYER.PRONE_HEIGHT;
+            const wantsExit = !this.controls.down || this.controls.jumpPressed;
+            if (wantsExit && this.hasHeadroom(level, proneDelta)) {
                 this.state = PLAYER_STATE.IDLE;
                 this.height = PLAYER.HEIGHT;
-                this.y -= PLAYER.HEIGHT - PLAYER.PRONE_HEIGHT;
+                this.y -= proneDelta;
+                this.downTapCount = 0;
+                this.downTapTimer = 0;
             } else {
                 // Can still shoot and aim while prone
                 this.updateAiming();
@@ -153,9 +158,12 @@ class Player {
             this.state = PLAYER_STATE.CROUCHING;
             this.height = PLAYER.CROUCH_HEIGHT;
         } else if (this.state === PLAYER_STATE.CROUCHING && !this.controls.down) {
-            this.state = PLAYER_STATE.IDLE;
-            this.height = PLAYER.HEIGHT;
-            this.y -= PLAYER.HEIGHT - PLAYER.CROUCH_HEIGHT;
+            const crouchDelta = PLAYER.HEIGHT - PLAYER.CROUCH_HEIGHT;
+            if (this.hasHeadroom(level, crouchDelta)) {
+                this.state = PLAYER_STATE.IDLE;
+                this.height = PLAYER.HEIGHT;
+                this.y -= crouchDelta;
+            }
         }
 
         // Horizontal movement
@@ -197,6 +205,7 @@ class Player {
                 this.onGround = false;
                 this.coyoteTime = 0;
                 this.jumpBufferTime = 0;
+                this.jumpCut = false;
                 this.state = PLAYER_STATE.JUMPING;
             } else if (this.touchingWallLeft || this.touchingWallRight) {
                 // Wall jump (Earthworm Jim style)
@@ -206,6 +215,7 @@ class Player {
                     this.facingRight = this.touchingWallLeft;
                     this.wallJumpCooldown = 10;
                     this.jumpBufferTime = 0;
+                    this.jumpCut = false;
                     this.state = PLAYER_STATE.JUMPING;
                 }
             } else if (this.canDoubleJump) {
@@ -213,6 +223,7 @@ class Player {
                 this.vy = PLAYER.DOUBLE_JUMP_FORCE;
                 this.canDoubleJump = false;
                 this.jumpBufferTime = 0;
+                this.jumpCut = false;
                 this.state = PLAYER_STATE.JUMPING;
             }
         }
@@ -411,12 +422,15 @@ class Player {
 
         // Weapon-specific bullet properties
         const w = this.weapon;
+        // Difficulty's playerDamageMul scales outgoing damage (HARD = 0.8).
+        const dmgMul = (typeof game !== 'undefined' && game.difficulty)
+            ? game.difficulty.playerDamageMul : 1;
         const bullet = {
             x: muzzleX,
             y: muzzleY,
             vx: Math.cos(angle) * w.bulletSpeed,
             vy: Math.sin(angle) * w.bulletSpeed,
-            damage: w.damage,
+            damage: w.damage * dmgMul,
             color: w.color,
             piercing: w.piercing || false,
             life: 60,
@@ -597,6 +611,14 @@ class Player {
         }
     }
 
+    // True if there's `delta` pixels of clear space directly above the player -
+    // used to gate prone/crouch exits so we don't pop through ceilings.
+    hasHeadroom(level, delta) {
+        const top = this.y - delta;
+        return !level.isSolid(this.x + 2, top)
+            && !level.isSolid(this.x + this.width - 2, top);
+    }
+
     moveAndCollide(level) {
         // Reset wall touching
         this.touchingWallLeft = false;
@@ -659,8 +681,11 @@ class Player {
         this.timeSinceDamage++;
 
         if (this.timeSinceDamage >= PLAYER.HEALTH_REGEN_DELAY && this.health < this.maxHealth) {
-            // Regen faster in cover
-            const regenRate = this.inCover ? PLAYER.HEALTH_REGEN_RATE * 2 : PLAYER.HEALTH_REGEN_RATE;
+            // Regen faster in cover; difficulty scales the base rate
+            // (EASY = 1.5x, HARD = 0.5x).
+            const diffMul = (typeof game !== 'undefined' && game.difficulty)
+                ? game.difficulty.regenSpeed : 1;
+            const regenRate = (this.inCover ? PLAYER.HEALTH_REGEN_RATE * 2 : PLAYER.HEALTH_REGEN_RATE) * diffMul;
             this.health = Math.min(this.maxHealth, this.health + regenRate);
         }
     }
