@@ -592,6 +592,7 @@ class Enemy {
                 game.shake(isBoss ? 8 : 3, isBoss ? 18 : 6);
             }
             if (this.score > 0) game.score += this.score;
+            if (game.runEnemiesDefeated !== undefined) game.runEnemiesDefeated++;
         }
         // Random 1UP drop - bosses always drop, otherwise small chance
         const dropChance = this.isBoss() ? 1.0 : 0.04;

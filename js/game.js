@@ -13,10 +13,26 @@ class Game {
         this.running = false;
         this.paused = false;
         this.gameOver = false;
-        this.screen = 'title';        // 'title' | 'story' | 'stageIntro' | 'playing' | 'gameover'
+        this.screen = 'title';        // 'title' | 'story' | 'stageIntro' | 'playing' | 'stageClear' | 'gameComplete' | 'gameover'
         this.titleTimer = 0;
         this.storyTimer = 0;
         this.storyPanel = 0;
+        this.completeTimer = 0;
+
+        // Per-run stats
+        this.runStartTime = 0;
+        this.runDeaths = 0;
+        this.runEnemiesDefeated = 0;
+        this.runSecretsFound = 0;
+
+        // Konami code state
+        this.konamiSequence = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyZ', 'KeyX'];
+        this.konamiProgress = 0;
+        this.konamiActive = false;
+        this.konamiFlash = 0;
+
+        // Unlocked features
+        this.bossRushUnlocked = false;
         this.storyPanels = [
             { text: 'REDMOND  2007', flair: 'cursor' },
             { text: 'AFTER 12 YEARS OF SERVICE', sub: 'TO THE MICROSOFT EMPIRE...' },
@@ -31,6 +47,10 @@ class Game {
             { number: 2, name: 'BREAK ROOM RUMBLE',   loader: 'loadStage2', theme: 'breakroom' },
             { number: 3, name: 'SERVER FARM SHOWDOWN', loader: 'loadStage3', theme: 'serverroom' }
         ];
+        this.bossRushStage = { number: 'X', name: 'BOSS RUSH', loader: 'loadBossRush', theme: 'serverroom' };
+        this.bossRushMode = false;
+        // Track which boss-rush boss is currently being fought (for camera pan)
+        this.bossRushBossIndex = 0;
         this.stageIndex = 0;
         this.stageName = this.stages[0].name;
         this.stageNumber = this.stages[0].number;
@@ -132,6 +152,64 @@ class Game {
         if (typeof particles !== 'undefined') particles.clear();
     }
 
+    // Konami code progress checker. Listens for up,up,down,down,left,right,
+    // left,right,Z,X on whatever screen calls it. On match, awards 9 extra
+    // lives and gives the player the laser. Visual flash and audio chime.
+    tickKonami() {
+        const need = this.konamiSequence[this.konamiProgress];
+        // Look at all just-pressed keys
+        const pressed = Object.keys(input.keysJustPressed).filter(k => input.keysJustPressed[k]);
+        if (pressed.length === 0) return;
+        for (const key of pressed) {
+            if (key === need) {
+                this.konamiProgress++;
+                if (this.konamiProgress >= this.konamiSequence.length) {
+                    this.activateKonami();
+                    this.konamiProgress = 0;
+                }
+                return;
+            }
+            // Wrong key in a meaningful set resets - ignore noise like Shift
+            if (this.konamiSequence.includes(key) || key === 'KeyZ' || key === 'KeyX' || key.startsWith('Arrow')) {
+                this.konamiProgress = 0;
+                // But if the wrong key happens to be the first step, accept it
+                if (key === this.konamiSequence[0]) this.konamiProgress = 1;
+                return;
+            }
+        }
+    }
+
+    activateKonami() {
+        this.konamiActive = true;
+        this.konamiFlash = 60;
+        this.lives = Math.max(this.lives + 9, 9);
+        if (this.player) {
+            this.player.weapon = WEAPON.LASER;
+            this.player.health = PLAYER.MAX_HEALTH;
+        }
+        if (typeof audio !== 'undefined') {
+            audio.sfxPickup();
+            audio.sfxPickup();
+        }
+        if (typeof particles !== 'undefined') {
+            // Confetti burst across the screen
+            for (let i = 0; i < 30; i++) {
+                particles.spawn({
+                    x: Math.random() * GAME.WIDTH,
+                    y: -2,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: 1 + Math.random() * 2,
+                    gravity: 0.05,
+                    life: 60,
+                    size: 2,
+                    colors: ['#ffe070', '#ff60ff', '#80ffe0', '#ff5050', '#50ff70']
+                });
+            }
+        }
+        // Show notification
+        if (this.flashPickup) this.flashPickup('CONTRA CODE - +9 LIVES');
+    }
+
     flashPickup(name) {
         this.pickupFlash = 'GOT ' + name.toUpperCase() + '!';
         this.pickupFlashTimer = 90;
@@ -141,8 +219,13 @@ class Game {
         try {
             const stored = localStorage.getItem('clippy_first_blood_hiscore');
             this.highScore = stored ? parseInt(stored, 10) || 0 : 0;
+            this.bossRushUnlocked = localStorage.getItem('clippy_first_blood_complete') === '1';
+            const bestTime = localStorage.getItem('clippy_first_blood_besttime');
+            this.bestRunTime = bestTime ? parseFloat(bestTime) || 0 : 0;
         } catch (e) {
             this.highScore = 0;
+            this.bossRushUnlocked = false;
+            this.bestRunTime = 0;
         }
     }
 
@@ -152,6 +235,18 @@ class Game {
             try { localStorage.setItem('clippy_first_blood_hiscore', String(this.score)); }
             catch (e) { /* localStorage unavailable in private mode */ }
         }
+    }
+
+    markGameComplete(runTime) {
+        try {
+            localStorage.setItem('clippy_first_blood_complete', '1');
+            // Best (fastest) full-run time
+            if (this.bestRunTime === 0 || runTime < this.bestRunTime) {
+                this.bestRunTime = runTime;
+                localStorage.setItem('clippy_first_blood_besttime', String(runTime));
+            }
+        } catch (e) { /* ignore */ }
+        this.bossRushUnlocked = true;
     }
 
     shake(amount, duration) {
@@ -227,6 +322,8 @@ class Game {
                 this.updateStageIntro();
             } else if (this.screen === 'stageClear') {
                 this.updateStageClear();
+            } else if (this.screen === 'gameComplete') {
+                this.updateGameComplete();
             } else if (!this.paused && !this.gameOver) {
                 this.update();
             }
@@ -242,6 +339,8 @@ class Game {
             this.renderStageIntro();
         } else if (this.screen === 'stageClear') {
             this.renderStageClear();
+        } else if (this.screen === 'gameComplete') {
+            this.renderGameComplete();
         } else {
             this.render();
         }
@@ -287,11 +386,202 @@ class Game {
         // After the bonus tally finishes, shoot/jump advances to next stage
         if (this.stageClearTimer > 200 && (input.shoot || input.jumpPressed)) {
             if (this.stageClearIsFinal) {
-                this.restart();
+                if (this.bossRushMode) {
+                    // Save the best boss rush time
+                    try {
+                        const prev = parseFloat(localStorage.getItem('clippy_first_blood_bossrush_best') || '0');
+                        if (prev === 0 || this.stageClearTime < prev) {
+                            localStorage.setItem('clippy_first_blood_bossrush_best', String(this.stageClearTime));
+                        }
+                    } catch (e) {}
+                    // Back to title
+                    this.screen = 'title';
+                    this.titleTimer = 0;
+                    this.bossRushMode = false;
+                    this.score = 0;
+                    this.lives = 3;
+                    this.loadStageByIndex(0);
+                    this.player = new Player(50, 160);
+                } else {
+                    this.beginGameComplete();
+                }
             } else {
                 this.advanceStage();
             }
         }
+    }
+
+    beginGameComplete() {
+        this.screen = 'gameComplete';
+        this.completeTimer = 0;
+        const runTime = this.runStartTime > 0 ? (Date.now() - this.runStartTime) / 1000 : 0;
+        this.completeRunTime = runTime;
+        this.markGameComplete(runTime);
+        this.checkHighScore();
+        if (typeof audio !== 'undefined') audio.stopMusic();
+    }
+
+    updateGameComplete() {
+        this.completeTimer++;
+        this.background.update();
+        if (typeof particles !== 'undefined') particles.update();
+        input.update();
+        // Occasional firework
+        if (this.completeTimer % 50 === 0 && this.completeTimer < 900 && typeof particles !== 'undefined') {
+            const fx = 30 + Math.random() * (GAME.WIDTH - 60);
+            const fy = 50 + Math.random() * 80;
+            particles.explosion(fx, fy);
+            if (typeof audio !== 'undefined') audio.sfxExplosion();
+        }
+        // Skip with shoot/jump after the credits-roll has had a chance to start
+        if (this.completeTimer > 60 && (input.shoot || input.jumpPressed) && this.completeTimer > this.completeSkipEarliest) {
+            // Return to title
+            this.screen = 'title';
+            this.titleTimer = 0;
+            this.score = 0;
+            this.lives = 3;
+            this.loadStageByIndex(0);
+            this.player = new Player(50, 160);
+        }
+    }
+
+    renderGameComplete() {
+        const ctx = this.ctx;
+        // Sunset jungle behind a dimmer
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Use the jungle parallax for the closing shot regardless of last stage
+        this.background.setTheme('jungle');
+        this.background.draw(ctx, { x: 0, y: 0 });
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        if (typeof particles !== 'undefined') particles.draw(ctx, { x: 0, y: 0 });
+
+        const t = this.completeTimer;
+
+        // Phase 1: Clippy walks across the screen (0-180 frames)
+        if (t < 180) {
+            const walkX = -20 + (t / 180) * (GAME.WIDTH + 40);
+            this.drawWalkingClippy(ctx, Math.floor(walkX), 168, t);
+        }
+
+        // Phase 2: THE END banner (180-300)
+        if (t >= 180 && t < 360) {
+            const fadeIn = Math.min(1, (t - 180) / 30);
+            const fadeOut = Math.max(0, Math.min(1, (360 - t) / 20));
+            ctx.globalAlpha = Math.min(fadeIn, fadeOut);
+            drawPixelTextOutlined(ctx, 'THE END', GAME.WIDTH / 2, 80, '#ffe070', '#a82020', 4, 'center', 1);
+            drawPixelText(ctx, 'CLIPPY HAS HAD HIS REVENGE', GAME.WIDTH / 2, 130, '#c0a0d0', 1, 'center', 1);
+            ctx.globalAlpha = 1;
+        }
+
+        // Phase 3: Credits scroll (360+)
+        if (t >= 360) {
+            const credits = [
+                'CLIPPY: FIRST BLOOD',
+                '',
+                'STARRING',
+                '  CLIPPY',
+                '',
+                'WITH',
+                '  A VENGEFUL STAPLER',
+                '  AN AIRBORNE FOLDER',
+                '  A SENTIENT RUBBER BAND BALL',
+                '  THE TAPE DISPENSER',
+                '',
+                'BOSS LINEUP',
+                '  THE FILE CABINET',
+                '  COPIER 3000',
+                '  MEGA-SHREDDER',
+                '',
+                'CHIPTUNE SOUNDTRACK',
+                '  WEB AUDIO API',
+                '',
+                'PIXEL ART',
+                '  ZERO ASSET FILES',
+                '  ALL FILLRECT',
+                '',
+                'SPECIAL THANKS',
+                '  EVERY DEPRECATED MASCOT',
+                '',
+                'FIN'
+            ];
+            const startY = GAME.HEIGHT - (t - 360) * 0.5;
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(GAME.WIDTH / 2 - 80, 30, 160, GAME.HEIGHT - 50);
+            for (let i = 0; i < credits.length; i++) {
+                const y = Math.floor(startY + i * 14);
+                if (y < 30 || y > GAME.HEIGHT - 30) continue;
+                const line = credits[i];
+                const isHeading = !line.startsWith('  ') && line.length > 0;
+                const isTitle = line === 'CLIPPY: FIRST BLOOD' || line === 'FIN';
+                if (isTitle) {
+                    drawPixelTextOutlined(ctx, line, GAME.WIDTH / 2, y, '#ffe070', '#a82020', 1, 'center', 1);
+                } else if (isHeading) {
+                    drawPixelText(ctx, line, GAME.WIDTH / 2, y, '#ff8030', 1, 'center', 1);
+                } else if (line.length > 0) {
+                    drawPixelText(ctx, line.trim(), GAME.WIDTH / 2, y, '#ffffff', 1, 'center', 1);
+                }
+            }
+        }
+
+        // Phase 4: Final stats card after credits have scrolled (timing depends on credits len)
+        const statsStartT = 360 + 28 * 28; // about when 'FIN' clears top
+        if (t > statsStartT) {
+            const fadeIn = Math.min(1, (t - statsStartT) / 30);
+            ctx.globalAlpha = fadeIn;
+            this.drawFinalStats(ctx);
+            ctx.globalAlpha = 1;
+        }
+        this.completeSkipEarliest = statsStartT;
+    }
+
+    drawFinalStats(ctx) {
+        const py = 40;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(30, py - 4, GAME.WIDTH - 60, 130);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(32, py - 2, GAME.WIDTH - 64, 126);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(32, py - 2, GAME.WIDTH - 64, 2);
+
+        drawPixelTextOutlined(ctx, 'MISSION COMPLETE', GAME.WIDTH / 2, py + 6, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const x1 = 46, x2 = GAME.WIDTH - 46;
+        let row = py + 34;
+        const line = (label, value, color) => {
+            drawPixelText(ctx, label, x1, row, '#c0a0d0', 1, 'left', 1);
+            drawPixelText(ctx, value, x2, row, color || '#ffffff', 1, 'right', 1);
+            row += 12;
+        };
+        line('FINAL SCORE',    String(this.score).padStart(6, '0'), '#ffe070');
+        const t = this.completeRunTime;
+        const mm = Math.floor(t / 60);
+        const ss = Math.floor(t % 60);
+        line('TOTAL TIME',     `${mm}:${String(ss).padStart(2, '0')}`, '#7af0ff');
+        line('ENEMIES KILLED', String(this.runEnemiesDefeated), '#ffffff');
+        line('DEATHS',         String(this.runDeaths), this.runDeaths === 0 ? '#50ff70' : '#ffffff');
+        line('SECRETS',        `${this.runSecretsFound} OF 1`, this.runSecretsFound > 0 ? '#50ff70' : '#888');
+
+        // Special call-outs
+        if (this.runDeaths === 0) {
+            drawPixelTextOutlined(ctx, 'NO-DEATH RUN!', GAME.WIDTH / 2, row + 4, '#50ff70', '#0a3a14', 1, 'center', 1);
+            row += 14;
+        }
+        if (this.bossRushUnlocked && !this._wasUnlocked) {
+            drawPixelTextOutlined(ctx, 'BOSS RUSH UNLOCKED', GAME.WIDTH / 2, row + 4, '#ff60ff', '#3a0a3a', 1, 'center', 1);
+        }
+
+        // Continue prompt
+        const blink = Math.floor(this.completeTimer / 25) % 2 === 0;
+        if (blink) drawPixelText(ctx, 'SHOOT TO RETURN TO TITLE', GAME.WIDTH / 2, GAME.HEIGHT - 14, '#ffffff', 1, 'center', 1);
+    }
+
+    drawWalkingClippy(ctx, x, y, animTime) {
+        // Use procedural Clippy walking right
+        if (typeof proceduralSprites === 'undefined') return;
+        const frame = Math.floor(animTime / 6) % 4;
+        proceduralSprites.drawClippy(ctx, x, y - 24, PLAYER_STATE.RUNNING, frame, true, 0);
     }
 
     renderStageClear() {
@@ -364,13 +654,62 @@ class Game {
         this.titleTimer++;
         this.background.update();
         input.update();
+
+        // Konami code listener (active on title)
+        this.tickKonami();
+
+        // UP arrow on the title launches Boss Rush when unlocked
+        if (this.bossRushUnlocked && input.keysJustPressed['ArrowUp']) {
+            if (typeof audio !== 'undefined') audio.resume();
+            this.startBossRush();
+            return;
+        }
+
         // Any key starts the game - go through the story sequence first
         if (input.jumpPressed || input.shoot) {
             if (typeof audio !== 'undefined') audio.resume();
+            this.bossRushMode = false;
             this.screen = 'story';
             this.storyTimer = 0;
             this.storyPanel = 0;
         }
+    }
+
+    startBossRush() {
+        this.bossRushMode = true;
+        this.score = 0;
+        this.lives = 3;
+        this.gameOver = false;
+        this.paused = false;
+        this.stageName = this.bossRushStage.name;
+        this.stageNumber = this.bossRushStage.number;
+        this.stageIndex = 0;
+
+        // Load the boss-rush level directly through the same code path
+        this.level[this.bossRushStage.loader]();
+        this.background.setTheme(this.bossRushStage.theme);
+
+        this.enemies = new EnemyManager();
+        this.level.spawnPoints.forEach(spawn => {
+            this.enemies.spawn(spawn.x, spawn.y, spawn.type);
+        });
+        if (typeof pickupManager !== 'undefined') pickupManager.loadFromLevel(this.level);
+
+        this.bossWarning = 0;
+        this.bossWarningShown = false;
+        this.bossIntroActive = false;
+        this.bossIntroTimer = 0;
+        this.bossIntroEnemy = null;
+        this.pickupFlashTimer = 0;
+        this.camera.x = 0;
+        this.camera.y = 0;
+        this.camera.shakeAmount = 0;
+        this.camera.shakeTimer = 0;
+        if (typeof particles !== 'undefined') particles.clear();
+
+        this.player = new Player(50, 160);
+        this.screen = 'stageIntro';
+        this.stageIntroTimer = 0;
     }
 
     updateStory() {
@@ -532,6 +871,13 @@ class Game {
         if (this.stageIntroTimer > 150 || input.jumpPressed || input.shoot) {
             this.screen = 'playing';
             this.stageStartTime = Date.now();
+            // Mark the whole-run start at Stage 1 only
+            if (this.stageIndex === 0) {
+                this.runStartTime = Date.now();
+                this.runDeaths = 0;
+                this.runEnemiesDefeated = 0;
+                this.runSecretsFound = 0;
+            }
             if (typeof audio !== 'undefined') audio.startMusic();
         }
     }
@@ -594,6 +940,13 @@ class Game {
         if (blink) {
             drawPixelTextOutlined(ctx, 'PRESS SHOOT TO START', GAME.WIDTH / 2, 140, '#ffffff', '#000000', 1, 'center', 1);
         }
+        // Boss-rush hint (only after first completion)
+        if (this.bossRushUnlocked) {
+            const altBlink = Math.floor(this.titleTimer / 30) % 2 === 1;
+            if (altBlink) {
+                drawPixelTextOutlined(ctx, 'UP FOR BOSS RUSH', GAME.WIDTH / 2, 178, '#ff60ff', '#3a0a3a', 1, 'center', 1);
+            }
+        }
 
         // ---- Credit / tagline ----
         drawPixelText(ctx, 'A PAPERCLIP HERO REBORN', GAME.WIDTH / 2, 116, '#c0a0d0', 1, 'center', 1);
@@ -646,6 +999,10 @@ class Game {
     update() {
         // Single input.update() per frame, here at the top
         input.update();
+
+        // Konami code tick (works during gameplay)
+        this.tickKonami();
+        if (this.konamiFlash > 0) this.konamiFlash--;
 
         // Pause toggle
         if (input.pausePressed) {
@@ -765,7 +1122,8 @@ class Game {
         this.stageClearBonusTotal = Math.floor(ts * 100);
         this.stageClearBonusShown = 0;
         this.stageClearScore = this.score;
-        this.stageClearIsFinal = this.stageIndex >= this.stages.length - 1;
+        // Boss rush has just one "stage" so it's always final there.
+        this.stageClearIsFinal = this.bossRushMode || (this.stageIndex >= this.stages.length - 1);
         if (typeof audio !== 'undefined') audio.stopMusic();
     }
 
@@ -839,6 +1197,13 @@ class Game {
         // Draw pickup acquired flash
         if (this.pickupFlashTimer > 0) {
             this.drawPickupFlash();
+        }
+
+        // Konami code activation flash
+        if (this.konamiFlash > 0) {
+            const a = this.konamiFlash / 60;
+            this.ctx.fillStyle = `rgba(255, 96, 255, ${a * 0.4})`;
+            this.ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
         }
 
         // Draw pause overlay last so it sits on top of everything

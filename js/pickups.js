@@ -14,9 +14,10 @@ class PickupManager {
         for (const p of level.pickups) {
             this.items.push({
                 x: p.x, y: p.y,
-                type: p.type,        // 'MACHINE_GUN' | 'SPREAD' | 'LASER' | 'FLAME' | 'STAPLE_REMOVER'
+                type: p.type,        // 'MACHINE_GUN' | 'SPREAD' | 'LASER' | 'FLAME' | 'STAPLE_REMOVER' | '1UP'
                 bob: 0,
-                taken: false
+                taken: false,
+                secret: !!p.secret
             });
         }
     }
@@ -55,6 +56,9 @@ class PickupManager {
             if (player.x < p.x + 14 && player.x + player.width > p.x &&
                 player.y < p.y + 14 && player.y + player.height > p.y) {
                 p.taken = true;
+                if (p.secret && typeof game !== 'undefined' && game.runSecretsFound !== undefined) {
+                    game.runSecretsFound++;
+                }
                 if (p.type === '1UP') {
                     if (typeof game !== 'undefined') game.lives++;
                     if (typeof game !== 'undefined' && game.flashPickup) game.flashPickup('1UP! EXTRA LIFE');

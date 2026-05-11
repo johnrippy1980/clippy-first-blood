@@ -601,6 +601,7 @@ class Player {
         this.state = PLAYER_STATE.DYING;
         this.deathTimer = 0;
         this.deathPhase = 0;
+        if (typeof game !== 'undefined' && game.runDeaths !== undefined) game.runDeaths++;
         // Launch the body upward for a SNES death pop
         this.vx = 0;
         this.vy = -4;

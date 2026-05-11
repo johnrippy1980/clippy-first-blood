@@ -126,9 +126,9 @@ class Level {
         fill(67, 0, 70, 0, TILE.SOLID);          // ceiling
         fill(66, 0, 66, 2, TILE.SOLID);          // left wall (continuation)
         fill(71, 0, 71, 2, TILE.SOLID);          // right wall (continuation)
-        // Reward pickups - a 1UP and a heavy weapon
-        this.pickups.push({ x: 68 * GAME.TILE_SIZE,     y: 1 * GAME.TILE_SIZE + 8, type: '1UP',            taken: false });
-        this.pickups.push({ x: 69 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: 'STAPLE_REMOVER', taken: false });
+        // Reward pickups - a 1UP and a heavy weapon (flagged as secret-room)
+        this.pickups.push({ x: 68 * GAME.TILE_SIZE,     y: 1 * GAME.TILE_SIZE + 8, type: '1UP',            taken: false, secret: true });
+        this.pickups.push({ x: 69 * GAME.TILE_SIZE + 8, y: 1 * GAME.TILE_SIZE + 8, type: 'STAPLE_REMOVER', taken: false, secret: true });
         // Mark the secret entrance gap (between the two walls at rows 0-2)
         // by removing the small piece of "ceiling" that would otherwise seal it
         this.tiles[3][68] = TILE.EMPTY;
@@ -410,6 +410,57 @@ class Level {
             { x: 84 * 16, y: 11 * 16, type: 'RUBBER_BAND_BALL' },
             // Section 3: boss arena
             { x: 95 * 16, y: 7  * 16, type: 'SHREDDER' }
+        ];
+    }
+
+    // ---- Boss Rush: three arenas in a row, fight all three bosses ----
+    loadBossRush() {
+        this.theme = 'serverroom';
+        this.width = 80;
+        this.height = 14;
+        this.bossArenaX = 12 * GAME.TILE_SIZE;      // boss intro fires at arena 1
+        this.endX = 79 * GAME.TILE_SIZE;
+        this.coverSpots = [];
+        this.ladders = [];
+        this.pickups = [];
+
+        this.tiles = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = new Array(this.width).fill(TILE.EMPTY);
+        }
+        const fill = (x1, y1, x2, y2, t) => {
+            for (let y = y1; y <= y2; y++)
+                for (let x = x1; x <= x2; x++)
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width)
+                        this.tiles[y][x] = t;
+        };
+        const cover = (x) => {
+            this.tiles[10][x] = TILE.COVER_SPOT;
+            this.tiles[11][x] = TILE.COVER_SPOT;
+            this.coverSpots.push({ x: x * GAME.TILE_SIZE, y: 10 * GAME.TILE_SIZE });
+        };
+
+        // Floor
+        fill(0, 12, this.width - 1, 13, TILE.SOLID);
+        // Dividing walls between arenas at x=24 and x=52
+        fill(24, 3, 24, 11, TILE.SOLID);
+        fill(52, 3, 52, 11, TILE.SOLID);
+        // Walls have a doorway one tile high near the floor
+        this.tiles[11][24] = TILE.EMPTY;
+        this.tiles[11][52] = TILE.EMPTY;
+        // Cover in each arena
+        cover(10);
+        cover(38);
+        cover(66);
+        // Reward pickups between arenas - laser/staple remover
+        this.pickups.push({ x: 27 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'LASER',          taken: false });
+        this.pickups.push({ x: 55 * GAME.TILE_SIZE, y: 11 * GAME.TILE_SIZE, type: 'STAPLE_REMOVER', taken: false });
+
+        // One boss in each arena
+        this.spawnPoints = [
+            { x: 16 * 16, y: 8 * 16, type: 'FILE_CABINET' },
+            { x: 44 * 16, y: 8 * 16, type: 'PHOTOCOPIER' },
+            { x: 72 * 16, y: 8 * 16, type: 'SHREDDER' }
         ];
     }
 

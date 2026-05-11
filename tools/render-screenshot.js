@@ -129,6 +129,31 @@ if (mode === 'title') {
   drawPixelTextOutlined(ctx, 'STAGE 1', GAME.WIDTH / 2, panelTop + 14, '#ffe070', '#a82020', 2, 'center', 1);
   drawPixelTextOutlined(ctx, 'OFFICE JUNGLE', GAME.WIDTH / 2, panelTop + 42, '#ff5050', '#1a0000', 3, 'center', 1);
   drawPixelText(ctx, 'READY?', GAME.WIDTH / 2, 200, '#ffffff', 2, 'center', 1);
+} else if (mode === 'ending') {
+  // Mock the final stats card from gameComplete
+  bg.draw(ctx, { x: 0, y: 0 });
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+  const py = 40;
+  ctx.fillStyle = '#0a0612'; ctx.fillRect(30, py - 4, GAME.WIDTH - 60, 130);
+  ctx.fillStyle = '#3a2855'; ctx.fillRect(32, py - 2, GAME.WIDTH - 64, 126);
+  ctx.fillStyle = '#564468'; ctx.fillRect(32, py - 2, GAME.WIDTH - 64, 2);
+  drawPixelTextOutlined(ctx, 'MISSION COMPLETE', GAME.WIDTH / 2, py + 6, '#ffe070', '#a82020', 2, 'center', 1);
+  const x1 = 46, x2 = GAME.WIDTH - 46;
+  let row = py + 34;
+  const line = (label, value, color) => {
+    drawPixelText(ctx, label, x1, row, '#c0a0d0', 1, 'left', 1);
+    drawPixelText(ctx, value, x2, row, color || '#ffffff', 1, 'right', 1);
+    row += 12;
+  };
+  line('FINAL SCORE',    '124500', '#ffe070');
+  line('TOTAL TIME',     '4:32', '#7af0ff');
+  line('ENEMIES KILLED', '47',   '#ffffff');
+  line('DEATHS',         '0',    '#50ff70');
+  line('SECRETS',        '1 / 1','#50ff70');
+  drawPixelTextOutlined(ctx, 'NO-DEATH RUN!', GAME.WIDTH / 2, row + 4, '#50ff70', '#0a3a14', 1, 'center', 1);
+  drawPixelTextOutlined(ctx, 'BOSS RUSH UNLOCKED', GAME.WIDTH / 2, row + 18, '#ff60ff', '#3a0a3a', 1, 'center', 1);
+  drawPixelText(ctx, 'SHOOT TO RETURN TO TITLE', GAME.WIDTH / 2, GAME.HEIGHT - 14, '#ffffff', 1, 'center', 1);
 } else if (mode === 'clear') {
   // Stage clear celebration mock
   bg.draw(ctx, camera);
