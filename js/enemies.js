@@ -3228,7 +3228,18 @@ class EnemyManager {
     spawn(x, y, typeName) {
         const type = ENEMY_TYPE[typeName];
         if (type) {
-            this.enemies.push(new Enemy(x, y, type));
+            const e = new Enemy(x, y, type);
+            // NewGame+ buffs: +50% HP, +30% damage, +20% bullet speed when
+            // applicable. Bosses already feel meaty so apply the same scale.
+            if (typeof game !== 'undefined' && game.newGamePlus && game.bossRushUnlocked) {
+                e.health = Math.ceil(e.health * 1.5);
+                e.maxHealth = e.health;
+                e.damage = Math.ceil(e.damage * 1.3);
+                e.speed = e.speed * 1.15;
+                e.fireRate = Math.max(20, Math.floor((e.fireRate || 60) * 0.8));
+                e.isNGPlus = true;
+            }
+            this.enemies.push(e);
         }
     }
 

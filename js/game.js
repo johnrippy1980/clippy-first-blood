@@ -38,6 +38,8 @@ class Game {
 
         // Unlocked features
         this.bossRushUnlocked = false;
+        // NewGame+ toggle (only meaningful when the player has cleared once)
+        this.newGamePlus = false;
         // Pause menu slider state (0 = music, 1 = sfx)
         this.pauseMenuCursor = 0;
         // Stage-select grid cursor (0..stages.length-1)
@@ -342,11 +344,20 @@ class Game {
                 this.difficultyIndex = dIdx;
                 this.difficulty = DIFFICULTY[diff];
             }
+            // NewGame+ is a soft toggle - only respected while bossRushUnlocked
+            this.newGamePlus = localStorage.getItem('clippy_first_blood_ngplus') === '1';
         } catch (e) {
             this.highScore = 0;
             this.bossRushUnlocked = false;
             this.bestRunTime = 0;
+            this.newGamePlus = false;
         }
+    }
+
+    toggleNewGamePlus() {
+        this.newGamePlus = !this.newGamePlus;
+        try { localStorage.setItem('clippy_first_blood_ngplus', this.newGamePlus ? '1' : '0'); }
+        catch (e) {}
     }
 
     setDifficulty(idx) {
@@ -507,6 +518,8 @@ class Game {
                 this.updateStageSelect();
             } else if (this.screen === 'achievements') {
                 this.updateAchievementsScreen();
+            } else if (this.screen === 'help') {
+                this.updateHelpScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -539,6 +552,8 @@ class Game {
             this.renderStageSelect();
         } else if (this.screen === 'achievements') {
             this.renderAchievementsScreen();
+        } else if (this.screen === 'help') {
+            this.renderHelpScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -893,6 +908,125 @@ class Game {
         // Hint
         drawPixelText(ctx, 'UP DOWN  SCROLL    SHOOT  BACK',
             GAME.WIDTH / 2, GAME.HEIGHT - 10, '#a890c0', 1, 'center', 1);
+    }
+
+    // ---- Help / controls screen ----
+    getHelpPages() {
+        // Each page is { title, lines: [{label, value}], notes: [...] }
+        return [
+            {
+                title: 'CONTROLS',
+                lines: [
+                    { label: 'MOVE',       value: 'ARROWS / WASD' },
+                    { label: 'JUMP',       value: 'Z / SPACE' },
+                    { label: 'SHOOT',      value: 'X / CTRL' },
+                    { label: 'AIM LOCK',   value: 'HOLD SHIFT' },
+                    { label: 'COVER',      value: 'C  (near doorway)' },
+                    { label: 'PRONE',      value: 'DOWN x2' },
+                    { label: 'PAUSE',      value: 'P / ESC' },
+                    { label: 'MUTE',       value: 'M' }
+                ],
+                notes: [
+                    'GAMEPAD AND TOUCH ARE AUTO-DETECTED.'
+                ]
+            },
+            {
+                title: 'WEAPONS',
+                lines: [
+                    { label: 'MACHINE GUN',    value: 'BASE - FAST AUTOFIRE' },
+                    { label: 'SPREAD',         value: '5-SHOT FAN' },
+                    { label: 'LASER',          value: 'PIERCES ENEMIES' },
+                    { label: 'FLAME',          value: 'SHORT BUT RAPID' },
+                    { label: 'STAPLE REMOVER', value: 'EXPLOSIVE AOE' }
+                ],
+                notes: [
+                    'PICK UP NEW WEAPONS TO SWAP.',
+                    'CURRENT WEAPON SHOWS IN HUD.'
+                ]
+            },
+            {
+                title: 'TIPS',
+                lines: [
+                    { label: 'COVER',  value: 'HIDE TO REGEN HP' },
+                    { label: 'JUMP',   value: 'HOLD FOR HIGHER ARC' },
+                    { label: 'WALL',   value: 'WALL JUMP IN CHASMS' },
+                    { label: 'COMBO',  value: 'CHAIN KILLS FOR x5' },
+                    { label: 'SECRET', value: 'SOME ROOMS ARE HIDDEN' },
+                    { label: 'KONAMI', value: 'UP UP DN DN L R L R Z X' }
+                ],
+                notes: [
+                    'BOSSES TELEGRAPH ATTACKS - WATCH FOR FLASHES.',
+                    'THE BOARD WANTS YOU GONE. PROVE THEM WRONG.'
+                ]
+            }
+        ];
+    }
+
+    updateHelpScreen() {
+        this.helpTimer = (this.helpTimer || 0) + 1;
+        input.update();
+        const pages = this.getHelpPages();
+        if (this.helpPage === undefined) this.helpPage = 0;
+        if (input.keysJustPressed['ArrowLeft'])  this.helpPage = (this.helpPage + pages.length - 1) % pages.length;
+        if (input.keysJustPressed['ArrowRight']) this.helpPage = (this.helpPage + 1) % pages.length;
+        if (input.pausePressed || input.shoot || input.jumpPressed) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+        }
+    }
+
+    renderHelpScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        // Background sparkle
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 18; i++) {
+            const x = (i * 17 + this.helpTimer * 1) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        const pages = this.getHelpPages();
+        const page = pages[this.helpPage];
+
+        // Page title
+        drawPixelTextOutlined(ctx, page.title, GAME.WIDTH / 2, 10, '#ffe070', '#a82020', 2, 'center', 1);
+
+        // Page tabs (small dots showing which of N pages we're on)
+        for (let i = 0; i < pages.length; i++) {
+            const dx = GAME.WIDTH / 2 - (pages.length * 8) / 2 + i * 8;
+            ctx.fillStyle = i === this.helpPage ? '#ffe070' : '#3a2855';
+            ctx.fillRect(dx, 28, 5, 2);
+        }
+
+        // Two-column key/value listing
+        const startY = 44;
+        const rowH = 12;
+        const labelX = 24;
+        const valueX = GAME.WIDTH - 24;
+        for (let i = 0; i < page.lines.length; i++) {
+            const r = page.lines[i];
+            const y = startY + i * rowH;
+            drawPixelText(ctx, r.label, labelX, y, '#ffe070', 1, 'left', 1);
+            drawPixelText(ctx, r.value, valueX, y, '#ffffff', 1, 'right', 1);
+            // Divider
+            ctx.fillStyle = '#1a1140';
+            ctx.fillRect(labelX, y + 8, GAME.WIDTH - labelX * 2, 1);
+        }
+
+        // Notes block
+        if (page.notes && page.notes.length > 0) {
+            const ny = startY + page.lines.length * rowH + 4;
+            for (let i = 0; i < page.notes.length; i++) {
+                drawPixelText(ctx, page.notes[i], GAME.WIDTH / 2, ny + i * 10,
+                    '#a890c0', 1, 'center', 1);
+            }
+        }
+
+        // Footer hints
+        drawPixelText(ctx, 'LEFT RIGHT  PAGES    SHOOT  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
     }
 
     beginCutscene(panels) {
@@ -1427,6 +1561,16 @@ class Game {
             this.screen = 'achievements';
             this.achievementsTimer = 0;
             this.achievementsScroll = 0;
+        }
+        // H opens the help / controls screen
+        if (input.keysJustPressed['KeyH']) {
+            this.screen = 'help';
+            this.helpTimer = 0;
+            this.helpPage = 0;
+        }
+        // N toggles NewGame+ (only meaningful once unlocked)
+        if (this.bossRushUnlocked && input.keysJustPressed['KeyN']) {
+            this.toggleNewGamePlus();
         }
 
         // Any key starts the game - go through the story sequence first
@@ -2465,12 +2609,21 @@ class Game {
         const diffY = 168;
         drawPixelText(ctx, '<  DIFFICULTY  >', GAME.WIDTH / 2, diffY - 8, '#7a6090', 1, 'center', 1);
         drawPixelTextOutlined(ctx, this.difficulty.name, GAME.WIDTH / 2, diffY, this.difficulty.color, '#1a0e1e', 1, 'center', 1);
+        // NewGame+ indicator next to the difficulty when unlocked
+        if (this.bossRushUnlocked) {
+            const blink = (this.titleTimer & 16) < 8;
+            if (this.newGamePlus) {
+                drawPixelTextOutlined(ctx, 'NG+', GAME.WIDTH / 2 + 56, diffY, '#ff60ff', '#3a0a3a', 1, 'center', 1);
+            } else if (blink) {
+                drawPixelText(ctx, 'N NG+', GAME.WIDTH / 2 + 56, diffY, '#7a6090', 1, 'center', 1);
+            }
+        }
 
         drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
 
         // Controls hint at bottom (line 1: gameplay, line 2: title menu)
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'LR DIFFICULTY  DN BOARD  T TROPHIES' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
+        drawPixelText(ctx, 'LR DIFFICULTY  DN BOARD  T TROPHIES  H HELP' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
@@ -2565,23 +2718,47 @@ class Game {
             return;
         }
         if (this.paused) {
-            // While paused, drive the audio mixer with arrow keys
-            if (input.keysJustPressed['ArrowUp']) this.pauseMenuCursor = (this.pauseMenuCursor + 1) % 2;
-            if (input.keysJustPressed['ArrowDown']) this.pauseMenuCursor = (this.pauseMenuCursor + 1) % 2;
+            // Pause menu rows: 0 = music, 1 = sfx, 2 = quit to title
+            const rows = 3;
+            if (input.keysJustPressed['ArrowUp'])   this.pauseMenuCursor = (this.pauseMenuCursor + rows - 1) % rows;
+            if (input.keysJustPressed['ArrowDown']) this.pauseMenuCursor = (this.pauseMenuCursor + 1) % rows;
             if (typeof audio !== 'undefined') {
-                // Hold-down support so the sliders feel smooth
                 const step = 0.04;
                 if (input.left) {
                     if (this.pauseMenuCursor === 0) audio.setMusicVolume(audio.musicVolume - step);
-                    else                            audio.setSfxVolume(audio.sfxVolume - step);
+                    if (this.pauseMenuCursor === 1) audio.setSfxVolume(audio.sfxVolume - step);
                 }
                 if (input.right) {
                     if (this.pauseMenuCursor === 0) audio.setMusicVolume(audio.musicVolume + step);
-                    else                            audio.setSfxVolume(audio.sfxVolume + step);
+                    if (this.pauseMenuCursor === 1) audio.setSfxVolume(audio.sfxVolume + step);
+                }
+            }
+            // SHOOT on the QUIT row returns to title (after a confirm step)
+            if (this.pauseMenuCursor === 2 && (input.shoot || input.jumpPressed)) {
+                if (this.quitConfirm) {
+                    // Confirmed - quit to title
+                    this.paused = false;
+                    this.quitConfirm = false;
+                    if (typeof audio !== 'undefined') audio.stopMusic();
+                    this.checkHighScore();
+                    this.screen = 'title';
+                    this.titleTimer = 0;
+                    return;
+                }
+                this.quitConfirm = true;
+                this.quitConfirmTimer = 90;
+            }
+            // Cancel the pending confirm after a short timeout
+            if (this.quitConfirm) {
+                this.quitConfirmTimer--;
+                if (this.quitConfirmTimer <= 0 || input.keysJustPressed['Escape']) {
+                    this.quitConfirm = false;
                 }
             }
             return;
         }
+        // Resuming from pause should clear any pending quit confirm
+        this.quitConfirm = false;
 
         // During boss intro the player stops moving but enemies + bg still animate
         if (!this.bossIntroActive) {
@@ -3022,6 +3199,12 @@ class Game {
         if (this.ghostFrames && this.ghostFrames.length > 0) {
             drawPixelText(ctx, 'GHOST', 4, BAR_H + 3, '#7ad8ff', 1, 'left', 1);
         }
+        // NG+ chip if a NewGame+ run is in progress
+        if (this.newGamePlus && !this.bossRushMode) {
+            drawPixelTextOutlined(ctx, 'NG+',
+                this.ghostFrames ? 30 : 4, BAR_H + 3,
+                '#ff60ff', '#3a0a3a', 1, 'left', 1);
+        }
 
         // Combo readout - centered, pulses with the timer and grows on chain
         if (this.combo >= 2) {
@@ -3249,9 +3432,9 @@ class Game {
         // Dimmer overlay
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
-        // Center panel - taller now that it holds the mixer
+        // Center panel - now holds three rows (music, sfx, quit)
         const px = 48, pw = GAME.WIDTH - 96;
-        const py = GAME.HEIGHT / 2 - 50, ph = 100;
+        const py = GAME.HEIGHT / 2 - 60, ph = 120;
         ctx.fillStyle = '#0a0612';
         ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
         ctx.fillStyle = '#3a2855';
@@ -3303,10 +3486,28 @@ class Game {
                 sliderX + sliderW + 18, sy - 4, '#a890c0', 1, 'right', 1);
         }
 
+        // ---- Quit to Title row (row index 2) ----
+        const qRowY = py + 30 + 2 * 18;
+        const qSelected = this.pauseMenuCursor === 2;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sliderX - 4, qRowY - 4, sliderW + 16, 14);
+        ctx.fillStyle = qSelected ? '#a82020' : '#1a1140';
+        ctx.fillRect(sliderX - 2, qRowY - 2, sliderW + 12, 10);
+        const qText = this.quitConfirm ? 'PRESS AGAIN TO CONFIRM' : 'QUIT TO TITLE';
+        drawPixelText(ctx, qText,
+            sliderX + (sliderW + 8) / 2 - 6, qRowY,
+            qSelected ? '#ffffff' : '#c0a0d0', 1, 'center', 1);
+        if (qSelected) {
+            const blink = (Math.floor(Date.now() / 200) & 1) === 0;
+            ctx.fillStyle = blink ? '#ffe070' : '#ffa030';
+            ctx.fillRect(sliderX + sliderW + 4, qRowY, 4, 4);
+            ctx.fillRect(sliderX + sliderW + 5, qRowY - 1, 2, 6);
+        }
+
         // Hints at the bottom
         drawPixelText(ctx, 'UP DOWN  SELECT    LEFT RIGHT  ADJUST',
             GAME.WIDTH / 2, py + ph - 22, '#a890c0', 1, 'center', 1);
-        drawPixelText(ctx, 'P RESUME    M FULL MUTE',
+        drawPixelText(ctx, 'P RESUME    M FULL MUTE    SHOOT  QUIT',
             GAME.WIDTH / 2, py + ph - 10, '#a890c0', 1, 'center', 1);
     }
 
