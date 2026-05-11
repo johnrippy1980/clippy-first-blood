@@ -3465,7 +3465,18 @@ class EnemyManager {
                 e.fireRate = Math.max(20, Math.floor((e.fireRate || 60) * 0.8));
                 e.isNGPlus = true;
             }
+            // Daily-challenge speed buff
+            if (typeof game !== 'undefined' && game.dailyMode && game.dailySpeedMul > 1) {
+                e.speed *= game.dailySpeedMul;
+                if (e.fireRate) e.fireRate = Math.max(8, Math.floor(e.fireRate / game.dailySpeedMul));
+            }
             this.enemies.push(e);
+            // Daily: spawn a second copy offset for the double-enemies modifier
+            if (typeof game !== 'undefined' && game.dailyMode && game.dailyDoubleEnemies && !e.isBoss()) {
+                const e2 = new Enemy(x + 24, y, type);
+                if (game.dailySpeedMul > 1) e2.speed *= game.dailySpeedMul;
+                this.enemies.push(e2);
+            }
         }
     }
 
@@ -3489,7 +3500,11 @@ class EnemyManager {
                 const bullet = player.bullets[i];
                 if (bullet.x > enemy.x && bullet.x < enemy.x + enemy.width &&
                     bullet.y > enemy.y && bullet.y < enemy.y + enemy.height) {
-                    enemy.takeDamage(bullet.damage);
+                    let dmg = bullet.damage;
+                    if (typeof game !== 'undefined' && game.dailyMode && game.dailyPlayerDmg) {
+                        dmg *= game.dailyPlayerDmg;
+                    }
+                    enemy.takeDamage(dmg);
                     // Thunder chains: jump to nearest other enemy within range
                     if (bullet.chain && bullet.chainsLeft > 0) {
                         let nearest = null, bestDist = 80 * 80;

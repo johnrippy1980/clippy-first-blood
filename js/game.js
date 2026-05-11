@@ -42,6 +42,20 @@ class Game {
         this.newGamePlus = false;
         // Currently selected Clippy skin (id)
         this.skinId = 'classic';
+        // Co-op P2 toggle (numpad-controlled second player)
+        this.coopEnabled = false;
+        this.player2 = null;
+        // Daily-challenge state
+        this.dailyMode = false;
+        this.dailyDateString = '';
+        this.dailyModifier = null;
+        this.dailyDamageMul = 1;        // enemy-on-player damage multiplier
+        this.dailyPlayerDmg = 1;        // player-on-enemy damage multiplier
+        this.dailySpeedMul = 1;
+        this.dailyHpMul = 1;
+        this.dailyChaos = false;
+        this.dailyDoubleEnemies = false;
+        this.dailyNoPickups = false;
         // First-time tutorial hints (only show on Stage 1 the first time)
         this.tutorialDone = false;
         this.tutorialStep = 0;
@@ -416,6 +430,36 @@ class Game {
         drawPixelText(ctx, text, GAME.WIDTH / 2, y - 2, '#ffe070', 1, 'center', 1);
     }
 
+    // Apply enemy + enemy-bullet damage to an extra player (P2) without
+    // re-running the full enemy update.
+    applyEnemyHitsTo(target) {
+        if (!this.enemies || !target) return;
+        if (target.state === PLAYER_STATE.DYING) return;
+        for (const e of this.enemies.enemies) {
+            if (e.checkCollision && e.checkCollision(target)) {
+                target.takeDamage(e.damage);
+            }
+            const bd = e.checkBulletCollision && e.checkBulletCollision(target);
+            if (bd && bd > 0) target.takeDamage(bd);
+        }
+        // P2's own bullets hit enemies same as P1
+        for (let i = target.bullets.length - 1; i >= 0; i--) {
+            const bullet = target.bullets[i];
+            for (const e of this.enemies.enemies) {
+                if (!e.active || e.dying) continue;
+                if (bullet.x > e.x && bullet.x < e.x + e.width &&
+                    bullet.y > e.y && bullet.y < e.y + e.height) {
+                    e.takeDamage(bullet.damage);
+                    if (!bullet.piercing) {
+                        if (target.detonateBullet) target.detonateBullet(bullet);
+                        target.bullets.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     capturePhoto() {
         try {
             const src = this.canvas;
@@ -635,6 +679,8 @@ class Game {
                 this.updateSkinsScreen();
             } else if (this.screen === 'password') {
                 this.updatePasswordScreen();
+            } else if (this.screen === 'daily') {
+                this.updateDailyScreen();
             } else if (this.screen === 'initials') {
                 this.updateInitials();
             } else if (this.screen === 'leaderboard') {
@@ -673,6 +719,8 @@ class Game {
             this.renderSkinsScreen();
         } else if (this.screen === 'password') {
             this.renderPasswordScreen();
+        } else if (this.screen === 'daily') {
+            this.renderDailyScreen();
         } else if (this.screen === 'initials') {
             this.renderInitials();
         } else if (this.screen === 'leaderboard') {
@@ -729,6 +777,19 @@ class Game {
                 return;
             }
             if (this.stageClearIsFinal) {
+                if (this.dailyMode) {
+                    // Daily challenge: save best and bounce to title
+                    dailySaveBest(this.dailyDateString, this.score);
+                    this.dailyMode = false;
+                    this.screen = 'title';
+                    this.titleTimer = 0;
+                    this.score = 0;
+                    this.lives = this.difficulty.livesStart;
+                    this.continues = this.difficulty.continuesStart;
+                    this.loadStageByIndex(0);
+                    this.player = new Player(50, 160);
+                    return;
+                }
                 if (this.bossRushMode) {
                     // Save the best boss rush time
                     try {
@@ -1271,6 +1332,101 @@ class Game {
 
         // Hints
         drawPixelText(ctx, 'LEFT RIGHT  PICK    SHOOT  EQUIP    ESC  BACK',
+            GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
+    }
+
+    // ---- Daily challenge ----
+    startDailyChallenge() {
+        const dateStr = dailyDateString();
+        const mod = dailyModifierFor(dateStr);
+        this.dailyMode = true;
+        this.dailyDateString = dateStr;
+        this.dailyModifier = mod;
+        // Reset modifiers so a fresh daily run starts clean
+        this.dailyDamageMul = 1;
+        this.dailyPlayerDmg = 1;
+        this.dailySpeedMul = 1;
+        this.dailyHpMul = 1;
+        this.dailyChaos = false;
+        this.dailyDoubleEnemies = false;
+        this.dailyNoPickups = false;
+        if (mod && mod.apply) mod.apply(this);
+        // Daily challenge is always Stage 1 only - the modifier provides
+        // the variety. Score is the only currency.
+        this.score = 0;
+        this.lives = this.difficulty.livesStart;
+        this.continues = this.difficulty.continuesStart;
+        this.gameOver = false;
+        this.paused = false;
+        this.bossRushMode = false;
+        this.newGamePlus = false;
+        this.loadStageByIndex(0);
+        // Apply Daily HP buff after creating the player
+        this.player = new Player(50, 160);
+        this.player.maxHealth = Math.floor((this.player.maxHealth || PLAYER.MAX_HEALTH) * this.dailyHpMul);
+        this.player.health = this.player.maxHealth;
+        this.screen = 'stageIntro';
+        this.stageIntroTimer = 0;
+        if (typeof audio !== 'undefined') audio.resume();
+    }
+
+    updateDailyScreen() {
+        this.dailyTimer = (this.dailyTimer || 0) + 1;
+        input.update();
+        if (input.pausePressed) {
+            this.screen = 'title';
+            this.titleTimer = 0;
+            return;
+        }
+        if (input.shoot || input.jumpPressed) {
+            this.startDailyChallenge();
+        }
+    }
+
+    renderDailyScreen() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        ctx.fillStyle = '#2a1838';
+        for (let i = 0; i < 18; i++) {
+            const x = (i * 17 + this.dailyTimer * 1) % GAME.WIDTH;
+            const y = (i * 31) % GAME.HEIGHT;
+            ctx.fillRect(x, y, 1, 1);
+        }
+        drawPixelTextOutlined(ctx, 'DAILY CHALLENGE', GAME.WIDTH / 2, 8, '#ffe070', '#a82020', 2, 'center', 1);
+
+        const dateStr = dailyDateString();
+        const mod = dailyModifierFor(dateStr);
+        drawPixelText(ctx, dateStr, GAME.WIDTH / 2, 32, '#a890c0', 1, 'center', 1);
+
+        // Modifier banner
+        const banY = 50;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(20, banY - 2, GAME.WIDTH - 40, 36);
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(22, banY, GAME.WIDTH - 44, 32);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(22, banY, GAME.WIDTH - 44, 1);
+
+        drawPixelText(ctx, 'TODAY\'S MODIFIER', GAME.WIDTH / 2, banY + 4, '#a890c0', 1, 'center', 1);
+        drawPixelTextOutlined(ctx, mod.name, GAME.WIDTH / 2, banY + 14, '#ffe070', '#a82020', 1, 'center', 1);
+        drawPixelText(ctx, mod.desc, GAME.WIDTH / 2, banY + 24, '#c0a0d0', 1, 'center', 1);
+
+        // Best score for today
+        const best = dailyBestScore(dateStr);
+        drawPixelText(ctx, 'TODAY BEST', GAME.WIDTH / 2 - 30, 110, '#a890c0', 1, 'right', 1);
+        drawPixelTextOutlined(ctx, String(best).padStart(6, '0'),
+            GAME.WIDTH / 2 + 30, 110, best > 0 ? '#50ff70' : '#7a6090', '#0a0612', 1, 'left', 1);
+
+        // Rules note
+        drawPixelText(ctx, 'STAGE 1 ONLY - SCORE IS THE PRIZE', GAME.WIDTH / 2, 132, '#7a6090', 1, 'center', 1);
+        drawPixelText(ctx, 'CHECK BACK TOMORROW FOR A NEW SEED', GAME.WIDTH / 2, 144, '#5a5070', 1, 'center', 1);
+
+        const blink = (this.dailyTimer & 16) < 8;
+        if (blink) {
+            drawPixelTextOutlined(ctx, 'SHOOT TO START', GAME.WIDTH / 2, 180, '#ffffff', '#000000', 1, 'center', 1);
+        }
+        drawPixelText(ctx, 'ESC  BACK TO TITLE',
             GAME.WIDTH / 2, GAME.HEIGHT - 10, '#7a6090', 1, 'center', 1);
     }
 
@@ -1964,6 +2120,15 @@ class Game {
             this.passwordMode = 'view';     // 'view' or 'enter'
             this.passwordInput = '';
             this.passwordMessage = '';
+        }
+        // D opens the daily challenge screen
+        if (input.keysJustPressed['KeyD']) {
+            this.screen = 'daily';
+            this.dailyTimer = 0;
+        }
+        // 2 toggles co-op P2 mode
+        if (input.keysJustPressed['Digit2']) {
+            this.coopEnabled = !this.coopEnabled;
         }
         // N toggles NewGame+ (only meaningful once unlocked)
         if (this.bossRushUnlocked && input.keysJustPressed['KeyN']) {
@@ -2931,6 +3096,13 @@ class Game {
                 const theme = this.level.theme || 'jungle';
                 audio.startMusic(theme);
             }
+            // Spawn / refresh Player 2 if co-op is enabled
+            if (this.coopEnabled) {
+                this.player2 = new Player(this.player.x + 20, this.player.y, p2View);
+                this.player2.facingRight = false;
+            } else {
+                this.player2 = null;
+            }
         }
     }
 
@@ -3013,6 +3185,14 @@ class Game {
         const diffY = 168;
         drawPixelText(ctx, '<  DIFFICULTY  >', GAME.WIDTH / 2, diffY - 8, '#7a6090', 1, 'center', 1);
         drawPixelTextOutlined(ctx, this.difficulty.name, GAME.WIDTH / 2, diffY, this.difficulty.color, '#1a0e1e', 1, 'center', 1);
+        // Co-op P2 indicator (always available)
+        if (this.coopEnabled) {
+            drawPixelTextOutlined(ctx, '2P ON', GAME.WIDTH / 2 - 80, diffY,
+                '#ff60ff', '#3a0a3a', 1, 'center', 1);
+        } else {
+            const blink = (this.titleTimer & 16) < 8;
+            if (blink) drawPixelText(ctx, '2 CO-OP', GAME.WIDTH / 2 - 80, diffY, '#7a6090', 1, 'center', 1);
+        }
         // NewGame+ indicator next to the difficulty when unlocked
         if (this.bossRushUnlocked) {
             const blink = (this.titleTimer & 16) < 8;
@@ -3027,7 +3207,7 @@ class Game {
 
         // Controls hint at bottom (line 1: gameplay, line 2: title menu)
         drawPixelText(ctx, 'Z JUMP   X SHOOT   P PAUSE   M MUTE', GAME.WIDTH / 2, 205, '#a8a0c0', 1, 'center', 1);
-        drawPixelText(ctx, 'LR DIFF  DN BOARD  T TROPH  H HELP  K SKINS  B PASS' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
+        drawPixelText(ctx, 'T TROPH  H HELP  K SKINS  B PASS  D DAILY' + (this.bossRushUnlocked ? '  UP STAGES' : ''),
             GAME.WIDTH / 2, 215, '#7a6090', 1, 'center', 1);
     }
 
@@ -3172,10 +3352,19 @@ class Game {
         // During boss intro the player stops moving but enemies + bg still animate
         if (!this.bossIntroActive) {
             this.player.update(this.level);
+            if (this.player2 && this.player2.state !== PLAYER_STATE.DYING) {
+                this.player2.update(this.level);
+            }
         }
 
-        // Update enemies
+        // Update enemies vs both players (P1 is the primary; P2 takes hits too)
         this.enemies.update(this.level, this.player);
+        if (this.player2) {
+            // Run enemy collision against P2 by passing them as the target
+            // for collision-only purposes - reuse the manager's pass since
+            // its main loop already iterates enemies once.
+            this.applyEnemyHitsTo(this.player2);
+        }
 
         // Update pickups
         if (typeof pickupManager !== 'undefined') pickupManager.update(this.player);
@@ -3224,6 +3413,27 @@ class Game {
 
         // Drive the first-run tutorial state machine.
         this.tickTutorial();
+
+        // P2 respawn loop - if they've died, give them 60 frames then revive
+        // next to P1 (lives are not consumed - co-op is forgiving).
+        if (this.player2 && this.player2.state === PLAYER_STATE.DYING) {
+            this.player2.deathTimer = (this.player2.deathTimer || 0) + 1;
+            if (this.player2.deathTimer > 60) {
+                this.player2 = new Player(this.player.x + 16, this.player.y - 8, p2View);
+            }
+        }
+
+        // Daily-challenge: chaos modifier swaps the weapon every 10s
+        if (this.dailyMode && this.dailyChaos && this.player) {
+            this._dailyChaosTick = (this._dailyChaosTick || 0) + 1;
+            if (this._dailyChaosTick % 600 === 0) {
+                const weapons = [WEAPON.MACHINE_GUN, WEAPON.SPREAD, WEAPON.LASER,
+                                 WEAPON.FLAME, WEAPON.STAPLE_REMOVER,
+                                 WEAPON.HOMING, WEAPON.THUNDER];
+                this.player.weapon = weapons[Math.floor(Math.random() * weapons.length)];
+                if (this.flashPickup) this.flashPickup('CHAOS - ' + this.player.weapon.name);
+            }
+        }
 
         // Replay ghost: record player snapshot every Nth frame
         if (this.recordingFrames && this.player) {
@@ -3328,6 +3538,11 @@ class Game {
         this.stageClearBonusTotal = Math.floor(ts * 100);
         this.stageClearBonusShown = 0;
         this.stageClearScore = this.score;
+        // Daily challenge is single-stage: this clear IS the end of the run.
+        if (this.dailyMode) {
+            this.stageClearIsFinal = true;
+            dailySaveBest(this.dailyDateString, this.score);
+        }
         // Boss rush has just one "stage" so it's always final there.
         // Stage is final if it is the boss-rush, or if every later stage is hidden.
         let isFinal = this.bossRushMode || (this.stageIndex >= this.stages.length - 1);
@@ -3447,7 +3662,14 @@ class Game {
             }
         }
 
-        // Draw player
+        // Draw player(s) - P2 first so P1 reads on top in overlap
+        if (this.player2) {
+            // Tint P2 magenta so they're visually distinct from P1
+            const prevSkin = this.skinId;
+            this.skinId = 'rage';     // reuses BLOOD MOON palette for P2
+            this.player2.draw(this.ctx, shakeCam);
+            this.skinId = prevSkin;
+        }
         this.player.draw(this.ctx, shakeCam);
 
         // Draw particle effects (over world, under HUD)

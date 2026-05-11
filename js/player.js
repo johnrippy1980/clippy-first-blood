@@ -3,7 +3,10 @@
 // ============================================
 
 class Player {
-    constructor(x, y) {
+    constructor(x, y, controls) {
+        // controls = an input-shaped object. Defaults to the global keyboard
+        // this.controls. Co-op P2 passes a p2View proxy that forwards to numpad keys.
+        this.controls = controls || input;
         this.x = x;
         this.y = y;
         this.vx = 0;
@@ -60,7 +63,7 @@ class Player {
     }
 
     update(level) {
-        // input.update() is now called once per frame by Game.update()
+        // this.controls.update() is now called once per frame by Game.update()
 
         // Handle invincibility frames
         if (this.invincibilityTimer > 0) {
@@ -108,10 +111,10 @@ class Player {
     }
 
     updateNormal(level) {
-        const move = input.getMovement();
+        const move = this.controls.getMovement();
 
         // Prone double-tap detection
-        if (input.downPressed) {
+        if (this.controls.downPressed) {
             if (this.downTapTimer > 0) {
                 this.downTapCount++;
                 if (this.downTapCount >= 2 && this.onGround) {
@@ -133,7 +136,7 @@ class Player {
         // Handle crouching
         if (this.state === PLAYER_STATE.PRONE) {
             // Exit prone
-            if (!input.down || input.jumpPressed) {
+            if (!this.controls.down || this.controls.jumpPressed) {
                 this.state = PLAYER_STATE.IDLE;
                 this.height = PLAYER.HEIGHT;
                 this.y -= PLAYER.HEIGHT - PLAYER.PRONE_HEIGHT;
@@ -146,17 +149,17 @@ class Player {
         }
 
         // Crouching
-        if (input.down && this.onGround && this.state !== PLAYER_STATE.PRONE) {
+        if (this.controls.down && this.onGround && this.state !== PLAYER_STATE.PRONE) {
             this.state = PLAYER_STATE.CROUCHING;
             this.height = PLAYER.CROUCH_HEIGHT;
-        } else if (this.state === PLAYER_STATE.CROUCHING && !input.down) {
+        } else if (this.state === PLAYER_STATE.CROUCHING && !this.controls.down) {
             this.state = PLAYER_STATE.IDLE;
             this.height = PLAYER.HEIGHT;
             this.y -= PLAYER.HEIGHT - PLAYER.CROUCH_HEIGHT;
         }
 
         // Horizontal movement
-        if (!input.lockAim) {
+        if (!this.controls.lockAim) {
             if (move.x !== 0) {
                 this.vx += move.x * PLAYER.RUN_ACCEL;
                 this.vx = Math.max(-PLAYER.RUN_SPEED, Math.min(PLAYER.RUN_SPEED, this.vx));
@@ -176,7 +179,7 @@ class Player {
         }
 
         // Jump buffer (allows pressing jump slightly before landing)
-        if (input.jumpPressed) {
+        if (this.controls.jumpPressed) {
             this.jumpBufferTime = 6;
         } else if (this.jumpBufferTime > 0) {
             this.jumpBufferTime--;
@@ -218,7 +221,7 @@ class Player {
         // ascending we cap upward velocity once. Held = full jump, tap =
         // short hop. The per-frame multiplier the old code used compounded
         // and made tap-jumps feel inconsistent.
-        if (!input.jump && this.vy < -2 && !this.jumpCut) {
+        if (!this.controls.jump && this.vy < -2 && !this.jumpCut) {
             this.vy = -2;
             this.jumpCut = true;
         }
@@ -243,7 +246,7 @@ class Player {
         this.moveAndCollide(level);
 
         // Check for cover spots
-        if (input.cover) {
+        if (this.controls.cover) {
             const coverSpot = level.getCoverSpotAt(this.x + this.width / 2, this.y + this.height / 2);
             if (coverSpot) {
                 this.enterCover(coverSpot);
@@ -251,7 +254,7 @@ class Player {
         }
 
         // Check for ladders/vines
-        if (input.up || input.down) {
+        if (this.controls.up || this.controls.down) {
             const ladder = level.getLadderAt(this.x + this.width / 2, this.y + this.height / 2);
             if (ladder) {
                 this.state = PLAYER_STATE.CLIMBING;
@@ -280,7 +283,7 @@ class Player {
     }
 
     updateClimbing(level) {
-        const move = input.getMovement();
+        const move = this.controls.getMovement();
 
         // Snap to ladder center
         this.x = this.ladderX;
@@ -304,12 +307,12 @@ class Player {
         }
 
         // Jump off ladder
-        if (input.jumpPressed) {
+        if (this.controls.jumpPressed) {
             this.state = PLAYER_STATE.JUMPING;
             this.onLadder = false;
             this.vy = PLAYER.JUMP_FORCE * 0.7;
-            if (input.left) this.vx = -PLAYER.RUN_SPEED;
-            if (input.right) this.vx = PLAYER.RUN_SPEED;
+            if (this.controls.left) this.vx = -PLAYER.RUN_SPEED;
+            if (this.controls.right) this.vx = PLAYER.RUN_SPEED;
         }
 
         // Can still shoot while climbing
@@ -322,14 +325,14 @@ class Player {
         this.timeSinceDamage = PLAYER.HEALTH_REGEN_DELAY; // Instant regen in cover
 
         // Peek out and shoot
-        if (input.left || input.right) {
-            this.facingRight = input.right;
+        if (this.controls.left || this.controls.right) {
+            this.facingRight = this.controls.right;
             this.updateAiming();
             this.updateShooting();
         }
 
         // Exit cover
-        if (input.cover || input.jumpPressed) {
+        if (this.controls.cover || this.controls.jumpPressed) {
             this.exitCover();
         }
     }
@@ -352,16 +355,16 @@ class Player {
     }
 
     updateAiming() {
-        if (input.lockAim) {
+        if (this.controls.lockAim) {
             // Lock current aim direction
             return;
         }
 
-        this.aimDirection = input.getAimDirection(this.facingRight);
+        this.aimDirection = this.controls.getAimDirection(this.facingRight);
     }
 
     updateShooting() {
-        if (input.shoot && this.fireTimer === 0) {
+        if (this.controls.shoot && this.fireTimer === 0) {
             this.fire();
             this.fireTimer = this.weapon.fireRate;
         }
@@ -668,6 +671,10 @@ class Player {
         // Apply difficulty modifier
         if (typeof game !== 'undefined' && game.difficulty) {
             amount = amount * game.difficulty.enemyDamageMul;
+        }
+        // Apply daily-challenge incoming-damage multiplier
+        if (typeof game !== 'undefined' && game.dailyMode && game.dailyDamageMul) {
+            amount = amount * game.dailyDamageMul;
         }
         this.health -= amount;
         this.timeSinceDamage = 0;

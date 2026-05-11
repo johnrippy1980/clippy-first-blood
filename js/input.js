@@ -49,6 +49,7 @@ class InputHandler {
             'KeyG', 'KeyJ', 'KeyL',
             'KeyV', 'KeyM', 'KeyQ',
             'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7',
+            'Numpad8', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad9',
             'Backspace', 'Enter',
             'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight',
             'Escape'
@@ -270,6 +271,17 @@ class InputHandler {
         return this.keysJustPressed['KeyP'] || this.keysJustPressed['Escape'];
     }
 
+    // --- Player 2 input set: numpad + Y/O/N
+    //   8/4/5/6 d-pad   7 jump   9 shoot   N cover   Y aim-lock
+    get p2Left()  { return this.keys['Numpad4']; }
+    get p2Right() { return this.keys['Numpad6']; }
+    get p2Up()    { return this.keys['Numpad8']; }
+    get p2Down()  { return this.keys['Numpad5']; }
+    get p2Jump()  { return this.keys['Numpad7']; }
+    get p2JumpPressed() { return this.keysJustPressed['Numpad7']; }
+    get p2Shoot() { return this.keys['Numpad9']; }
+    get p2DownPressed() { return this.keysJustPressed['Numpad5']; }
+
     // Get aim direction based on input (8-way)
     getAimDirection(facingRight = true) {
         const up = this.up;
@@ -306,3 +318,40 @@ class InputHandler {
 
 // Global input instance
 const input = new InputHandler();
+
+// Player 2 view: a controls-shaped proxy that exposes the same getter
+// names as `input` but reads the numpad keys instead. Passed into the
+// Player constructor so the same gameplay code drives both players.
+const p2View = {
+    get left()        { return input.p2Left; },
+    get right()       { return input.p2Right; },
+    get up()          { return input.p2Up; },
+    get down()        { return input.p2Down; },
+    get jump()        { return input.p2Jump; },
+    get jumpPressed() { return input.p2JumpPressed; },
+    get shoot()       { return input.p2Shoot; },
+    get shootPressed() { return false; },        // no per-press meaning
+    get lockAim()     { return false; },
+    get cover()       { return false; },
+    get downPressed() { return input.p2DownPressed; },
+    update() {},
+    getMovement() {
+        let dx = 0, dy = 0;
+        if (this.left)  dx -= 1;
+        if (this.right) dx += 1;
+        if (this.up)    dy -= 1;
+        if (this.down)  dy += 1;
+        return { x: dx, y: dy };
+    },
+    getAimDirection(facing) {
+        if (this.up && this.right) return AIM_DIR.UP_RIGHT;
+        if (this.up && this.left)  return AIM_DIR.UP_LEFT;
+        if (this.down && this.right) return AIM_DIR.DOWN_RIGHT;
+        if (this.down && this.left)  return AIM_DIR.DOWN_LEFT;
+        if (this.up)    return AIM_DIR.UP;
+        if (this.down)  return AIM_DIR.DOWN;
+        if (this.right) return AIM_DIR.RIGHT;
+        if (this.left)  return AIM_DIR.LEFT;
+        return facing ? AIM_DIR.RIGHT : AIM_DIR.LEFT;
+    }
+};

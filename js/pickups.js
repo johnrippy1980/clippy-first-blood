@@ -11,6 +11,8 @@ class PickupManager {
     loadFromLevel(level) {
         this.items = [];
         if (!level.pickups) return;
+        // Daily challenge - NO_PICKUPS modifier scrubs the list entirely
+        if (typeof game !== 'undefined' && game.dailyMode && game.dailyNoPickups) return;
         for (const p of level.pickups) {
             this.items.push({
                 x: p.x, y: p.y,
