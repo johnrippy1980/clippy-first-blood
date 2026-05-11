@@ -272,9 +272,9 @@ class ProceduralSprites {
     }
 
     // Draw Clippy (fallback)
-    drawClippy(ctx, x, y, state, animFrame, facingRight = true) {
+    drawClippy(ctx, x, y, state, animFrame, facingRight = true, deathPhase = 0) {
         // Check if we have image sprites loaded
-        const frameName = this.getClippyFrameName(state, animFrame);
+        const frameName = this.getClippyFrameName(state, animFrame, deathPhase);
         if (spriteAtlas.frames.has(frameName)) {
             spriteAtlas.drawFrame(ctx, frameName, x, y, !facingRight);
             return;
@@ -287,7 +287,7 @@ class ProceduralSprites {
         }
     }
 
-    getClippyFrameName(state, animFrame) {
+    getClippyFrameName(state, animFrame, deathPhase) {
         switch (state) {
             case PLAYER_STATE.RUNNING:
                 // 3-frame run cycle: 1 -> 2 -> 3 -> 2 -> 1... (ping-pong for smooth motion)
@@ -306,6 +306,12 @@ class ProceduralSprites {
                 return `clippy_climb_0${(animFrame % 2) + 1}`;
             case PLAYER_STATE.COVER:
                 return 'clippy_cover_01';
+            case PLAYER_STATE.HURT:
+                return 'clippy_hurt_01';
+            case PLAYER_STATE.DYING:
+                // Cycle through hit -> explode -> burning over the death animation
+                const phase = Math.min(2, deathPhase || 0);
+                return `clippy_death_0${phase + 1}`;
             default:
                 return `clippy_idle_0${(animFrame % 2) + 1}`;
         }

@@ -83,6 +83,9 @@ class Player {
             case PLAYER_STATE.CLIMBING:
                 this.updateClimbing(level);
                 break;
+            case PLAYER_STATE.DYING:
+                this.updateDying(level);
+                break;
             default:
                 this.updateNormal(level);
                 break;
@@ -181,6 +184,7 @@ class Player {
                 if (typeof particles !== 'undefined') {
                     particles.jumpPuff(this.x + this.width / 2, this.y + this.height);
                 }
+                if (typeof audio !== 'undefined') audio.sfxJump();
                 this.vy = PLAYER.JUMP_FORCE;
                 this.onGround = false;
                 this.coyoteTime = 0;
@@ -380,6 +384,7 @@ class Player {
         if (typeof particles !== 'undefined') {
             particles.muzzleFlash(muzzleX, muzzleY, angle, this.weapon.color);
         }
+        if (typeof audio !== 'undefined') audio.sfxShoot();
 
         this.bullets.push({
             x: muzzleX,
@@ -509,14 +514,60 @@ class Player {
         this.timeSinceDamage = 0;
         this.invincibilityTimer = PLAYER.INVINCIBILITY_FRAMES;
 
+        if (typeof audio !== 'undefined') audio.sfxHurt();
+        if (typeof game !== 'undefined' && game.shake) game.shake(4, 8);
+
         if (this.health <= 0) {
             this.die();
         }
     }
 
     die() {
+        if (this.state === PLAYER_STATE.DYING) return;
         this.state = PLAYER_STATE.DYING;
-        // Game over logic handled in main game
+        this.deathTimer = 0;
+        this.deathPhase = 0;
+        // Launch the body upward for a SNES death pop
+        this.vx = 0;
+        this.vy = -4;
+        if (typeof audio !== 'undefined') audio.sfxExplosion();
+        if (typeof particles !== 'undefined') {
+            particles.explosion(this.x + this.width / 2, this.y + this.height / 2);
+        }
+        if (typeof game !== 'undefined' && game.shake) game.shake(8, 24);
+    }
+
+    updateDying(level) {
+        this.deathTimer = (this.deathTimer || 0) + 1;
+        // Phase progression: hit (0-20) -> explode (20-50) -> burning (50+)
+        if (this.deathTimer < 20) this.deathPhase = 0;
+        else if (this.deathTimer < 50) this.deathPhase = 1;
+        else this.deathPhase = 2;
+        // Brief upward arc then fall
+        this.vy += GAME.GRAVITY * 0.7;
+        this.y += this.vy;
+        // Stop at ground
+        if (level.isSolid(this.x + this.width / 2, this.y + this.height)) {
+            this.y = Math.floor((this.y + this.height) / GAME.TILE_SIZE) * GAME.TILE_SIZE - this.height;
+            this.vy = 0;
+        }
+        // Burst extra particles at explosion phase
+        if (this.deathTimer === 20 && typeof particles !== 'undefined') {
+            particles.explosion(this.x + this.width / 2, this.y + this.height / 2);
+        }
+        // Embers while burning
+        if (this.deathPhase === 2 && this.deathTimer % 4 === 0 && typeof particles !== 'undefined') {
+            particles.spawn({
+                x: this.x + this.width / 2 + (Math.random() - 0.5) * 8,
+                y: this.y + this.height - Math.random() * 8,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: -0.4 - Math.random() * 0.6,
+                gravity: -0.02,
+                life: 14,
+                size: 1,
+                colors: ['#ffe070', '#ff8030', '#a82020', '#3a0808']
+            });
+        }
     }
 
     draw(ctx, camera) {
@@ -544,7 +595,8 @@ class Player {
             screenY + spriteOffsetY,
             this.state,
             animFrame,
-            this.facingRight
+            this.facingRight,
+            this.deathPhase || 0
         );
 
         // Bullets with glow trail

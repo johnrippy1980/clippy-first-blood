@@ -13,19 +13,26 @@ class Game {
         this.running = false;
         this.paused = false;
         this.gameOver = false;
-        this.screen = 'title';        // 'title' | 'playing' | 'gameover'
+        this.screen = 'title';        // 'title' | 'stageIntro' | 'playing' | 'gameover'
         this.titleTimer = 0;
+        this.stageIntroTimer = 0;
+        this.stageName = 'OFFICE JUNGLE';
+        this.stageNumber = 1;
 
         this.score = 0;
         this.lives = 3;
 
-        // Camera
+        // Camera (with screen shake)
         this.camera = {
             x: 0,
             y: 0,
             targetX: 0,
             targetY: 0,
-            smoothing: 0.1
+            smoothing: 0.1,
+            shakeAmount: 0,
+            shakeTimer: 0,
+            shakeOffsetX: 0,
+            shakeOffsetY: 0
         };
 
         // Game objects
@@ -64,6 +71,28 @@ class Game {
         requestAnimationFrame((time) => this.gameLoop(time));
     }
 
+    shake(amount, duration) {
+        // Take the larger of the new shake and any in-progress shake
+        if (amount > this.camera.shakeAmount) {
+            this.camera.shakeAmount = amount;
+            this.camera.shakeTimer = duration;
+        }
+    }
+
+    updateShake() {
+        if (this.camera.shakeTimer > 0) {
+            this.camera.shakeTimer--;
+            const fade = this.camera.shakeTimer / 30;
+            const mag = this.camera.shakeAmount * Math.min(1, fade + 0.3);
+            this.camera.shakeOffsetX = (Math.random() - 0.5) * 2 * mag;
+            this.camera.shakeOffsetY = (Math.random() - 0.5) * 2 * mag;
+        } else {
+            this.camera.shakeAmount = 0;
+            this.camera.shakeOffsetX = 0;
+            this.camera.shakeOffsetY = 0;
+        }
+    }
+
     gameLoop(currentTime) {
         if (!this.running) return;
 
@@ -75,6 +104,8 @@ class Game {
         while (this.accumulator >= this.timestep) {
             if (this.screen === 'title') {
                 this.updateTitle();
+            } else if (this.screen === 'stageIntro') {
+                this.updateStageIntro();
             } else if (!this.paused && !this.gameOver) {
                 this.update();
             }
@@ -84,6 +115,8 @@ class Game {
         // Render
         if (this.screen === 'title') {
             this.renderTitle();
+        } else if (this.screen === 'stageIntro') {
+            this.renderStageIntro();
         } else {
             this.render();
         }
@@ -97,7 +130,52 @@ class Game {
         input.update();
         // Any key starts the game
         if (input.jumpPressed || input.shoot) {
+            if (typeof audio !== 'undefined') audio.resume();
+            this.screen = 'stageIntro';
+            this.stageIntroTimer = 0;
+        }
+    }
+
+    updateStageIntro() {
+        this.stageIntroTimer++;
+        this.background.update();
+        input.update();
+        // Auto-advance after 2.5 seconds, or shoot/jump to skip
+        if (this.stageIntroTimer > 150 || input.jumpPressed || input.shoot) {
             this.screen = 'playing';
+            if (typeof audio !== 'undefined') audio.startMusic();
+        }
+    }
+
+    renderStageIntro() {
+        const ctx = this.ctx;
+        // Solid black background for dramatic effect
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+
+        // Slide-in panel from top + bottom
+        const t = Math.min(1, this.stageIntroTimer / 30);
+        const panelTop = -40 + t * 80;
+        const panelBot = GAME.HEIGHT + 20 - t * 60;
+
+        ctx.fillStyle = '#3a2855';
+        ctx.fillRect(0, panelTop - 4, GAME.WIDTH, 80);
+        ctx.fillStyle = '#1a1140';
+        ctx.fillRect(0, panelTop, GAME.WIDTH, 72);
+        ctx.fillStyle = '#564468';
+        ctx.fillRect(0, panelTop, GAME.WIDTH, 2);
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, panelTop + 72, GAME.WIDTH, 2);
+
+        // Stage header
+        drawPixelTextOutlined(ctx, `STAGE ${this.stageNumber}`, GAME.WIDTH / 2, panelTop + 14, '#ffe070', '#a82020', 2, 'center', 1);
+        // Stage name
+        drawPixelTextOutlined(ctx, this.stageName, GAME.WIDTH / 2, panelTop + 42, '#ff5050', '#1a0000', 3, 'center', 1);
+
+        // Bottom hint line
+        const blink = Math.floor(this.stageIntroTimer / 18) % 2 === 0;
+        if (blink && this.stageIntroTimer > 60) {
+            drawPixelText(ctx, 'READY?', GAME.WIDTH / 2, panelBot, '#ffffff', 2, 'center', 1);
         }
     }
 
@@ -179,6 +257,7 @@ class Game {
         // Update background and effects
         this.background.update();
         if (typeof particles !== 'undefined') particles.update();
+        this.updateShake();
 
         // Update camera to follow player
         this.updateCamera();
@@ -216,11 +295,12 @@ class Game {
     }
 
     checkGameState() {
-        // Player death
-        if (this.player.state === PLAYER_STATE.DYING) {
+        // Player death - wait for full death animation before respawning
+        if (this.player.state === PLAYER_STATE.DYING && (this.player.deathTimer || 0) >= 90) {
             this.lives--;
             if (this.lives <= 0) {
                 this.gameOver = true;
+                if (typeof audio !== 'undefined') audio.stopMusic();
             } else {
                 // Respawn
                 this.player = new Player(50, 160);
@@ -231,6 +311,7 @@ class Game {
         if (this.player.x > this.level.width * GAME.TILE_SIZE - 100) {
             // Level complete!
             this.paused = true;
+            if (typeof audio !== 'undefined') audio.stopMusic();
             // Could load next level here
         }
     }
@@ -240,22 +321,33 @@ class Game {
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
 
+        // Shift everything by the shake offset (HUD is drawn after restore)
+        const shakeX = this.camera.shakeOffsetX;
+        const shakeY = this.camera.shakeOffsetY;
+        this.ctx.save();
+        this.ctx.translate(shakeX, shakeY);
+
+        // Use a shake-adjusted camera for draw calls so world stays consistent
+        const shakeCam = { x: this.camera.x, y: this.camera.y };
+
         // Draw parallax background
-        this.background.draw(this.ctx, this.camera);
+        this.background.draw(this.ctx, shakeCam);
 
         // Draw level
-        this.level.draw(this.ctx, this.camera);
+        this.level.draw(this.ctx, shakeCam);
 
         // Draw enemies
-        this.enemies.draw(this.ctx, this.camera);
+        this.enemies.draw(this.ctx, shakeCam);
 
         // Draw player
-        this.player.draw(this.ctx, this.camera);
+        this.player.draw(this.ctx, shakeCam);
 
         // Draw particle effects (over world, under HUD)
-        if (typeof particles !== 'undefined') particles.draw(this.ctx, this.camera);
+        if (typeof particles !== 'undefined') particles.draw(this.ctx, shakeCam);
 
-        // Draw HUD
+        this.ctx.restore();
+
+        // Draw HUD (unaffected by shake)
         this.drawHUD();
 
         // Draw game over / pause screens
@@ -408,20 +500,17 @@ class Game {
     }
 
     drawGameOver() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+        drawPixelTextOutlined(this.ctx, 'GAME OVER', GAME.WIDTH / 2, GAME.HEIGHT / 2 - 22, '#ff5050', '#1a0000', 3, 'center', 1);
+        drawPixelText(this.ctx, `FINAL SCORE  ${String(this.score).padStart(6, '0')}`, GAME.WIDTH / 2, GAME.HEIGHT / 2 + 14, '#ffe070', 1, 'center', 1);
+        const blink = Math.floor(Date.now() / 400) % 2 === 0;
+        if (blink) {
+            drawPixelText(this.ctx, 'PRESS SHOOT TO RESTART', GAME.WIDTH / 2, GAME.HEIGHT / 2 + 32, '#ffffff', 1, 'center', 1);
+        }
 
-        this.ctx.fillStyle = '#f00';
-        this.ctx.font = '16px monospace';
-        this.ctx.fillText('GAME OVER', GAME.WIDTH / 2 - 50, GAME.HEIGHT / 2 - 20);
-
-        this.ctx.fillStyle = '#fff';
-        this.ctx.font = '8px monospace';
-        this.ctx.fillText(`FINAL SCORE: ${this.score}`, GAME.WIDTH / 2 - 45, GAME.HEIGHT / 2 + 10);
-        this.ctx.fillText('PRESS SPACE TO RESTART', GAME.WIDTH / 2 - 65, GAME.HEIGHT / 2 + 30);
-
-        // Restart on space
-        if (input.jumpPressed) {
+        // Restart on shoot
+        if (input.shoot || input.jumpPressed) {
             this.restart();
         }
     }
@@ -444,6 +533,8 @@ class Game {
         this.lives = 3;
         this.gameOver = false;
         this.paused = false;
+        this.screen = 'stageIntro';
+        this.stageIntroTimer = 0;
 
         this.level.loadTestLevel();
         this.player = new Player(50, 160);
@@ -455,10 +546,14 @@ class Game {
 
         this.camera.x = 0;
         this.camera.y = 0;
+        this.camera.shakeAmount = 0;
+        this.camera.shakeTimer = 0;
+        if (typeof particles !== 'undefined') particles.clear();
     }
 }
 
 // Start game when page loads
+let game;
 window.addEventListener('load', async () => {
     // Try to load sprite sheets (will gracefully fall back to procedural if not found)
     try {
@@ -467,6 +562,14 @@ window.addEventListener('load', async () => {
         console.log('Using procedural sprites (PNG sprites not yet generated)');
     }
 
-    const game = new Game();
+    game = new Game();
     game.init();
+
+    // Mute / unmute on M
+    window.addEventListener('keydown', (e) => {
+        if (typeof audio === 'undefined') return;
+        if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+        // First keypress unlocks the audio context
+        audio.resume();
+    }, { once: false });
 });

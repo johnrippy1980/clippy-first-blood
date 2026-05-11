@@ -203,6 +203,7 @@ class Enemy {
         if (typeof particles !== 'undefined') {
             particles.hitSpark(this.x + this.width / 2, this.y + this.height / 2, '#ffd040');
         }
+        if (typeof audio !== 'undefined') audio.sfxEnemyHit();
         if (this.health <= 0) {
             this.die();
         }
@@ -212,6 +213,10 @@ class Enemy {
         this.active = false;
         if (typeof particles !== 'undefined') {
             particles.explosion(this.x + this.width / 2, this.y + this.height / 2);
+        }
+        if (typeof audio !== 'undefined') audio.sfxExplosion();
+        if (typeof game !== 'undefined' && game.shake) {
+            game.shake(this.behavior === 'miniboss' ? 8 : 3, this.behavior === 'miniboss' ? 18 : 6);
         }
     }
 

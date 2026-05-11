@@ -15,7 +15,10 @@ global.input = { update() {}, jumpPressed: false };
 // Use indirect eval so `const`/`class` go into global scope
 const indirectEval = eval;
 const loadInto = {};
-const files = ['js/constants.js','js/pixelfont.js','js/sprites.js','js/input.js','js/effects.js','js/player.js','js/enemies.js','js/level.js','js/parallax.js'];
+// Stub Web Audio so audio.js can load without erroring (it inits lazily anyway)
+global.AudioContext = class { constructor(){ this.state='suspended'; this.currentTime=0; this.sampleRate=44100; } resume(){} createGain(){ return { gain:{ value:0, setValueAtTime(){}, linearRampToValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){return this;} }; } createOscillator(){ return { type:'', frequency:{ value:0, setValueAtTime(){}, linearRampToValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){return this;}, start(){}, stop(){} }; } createBuffer(){ return { getChannelData(){return new Float32Array(1);} }; } createBufferSource(){ return { connect(){return this;}, start(){}, stop(){} }; } createBiquadFilter(){ return { type:'', Q:{value:0}, frequency:{ value:0, setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){return this;} }; } };
+global.setTimeout = setTimeout;
+const files = ['js/constants.js','js/pixelfont.js','js/audio.js','js/sprites.js','js/input.js','js/effects.js','js/player.js','js/enemies.js','js/level.js','js/parallax.js'];
 const combined = files.map(p => fs.readFileSync(path.join(__dirname, '..', p), 'utf-8')).join('\n');
 // Strip `const`/`class` declarations to `var`/global so they reach the global object.
 // Easier: wrap with a `with(globalThis){}`-equivalent by assigning module locals to globalThis after eval.
@@ -104,6 +107,34 @@ if (mode === 'title') {
   drawPixelText(ctx, 'C 2026 OFFICE WARFARE LTD.', GAME.WIDTH / 2, 200, '#7a6090', 1, 'center', 1);
   drawPixelText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT', GAME.WIDTH / 2, 212, '#a8a0c0', 1, 'center', 1);
   // Skip play-mode renderers
+} else if (mode === 'intro') {
+  // Stage intro card
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+  const panelTop = 40;
+  ctx.fillStyle = '#3a2855';
+  ctx.fillRect(0, panelTop - 4, GAME.WIDTH, 80);
+  ctx.fillStyle = '#1a1140';
+  ctx.fillRect(0, panelTop, GAME.WIDTH, 72);
+  ctx.fillStyle = '#564468';
+  ctx.fillRect(0, panelTop, GAME.WIDTH, 2);
+  ctx.fillStyle = '#0a0612';
+  ctx.fillRect(0, panelTop + 72, GAME.WIDTH, 2);
+  drawPixelTextOutlined(ctx, 'STAGE 1', GAME.WIDTH / 2, panelTop + 14, '#ffe070', '#a82020', 2, 'center', 1);
+  drawPixelTextOutlined(ctx, 'OFFICE JUNGLE', GAME.WIDTH / 2, panelTop + 42, '#ff5050', '#1a0000', 3, 'center', 1);
+  drawPixelText(ctx, 'READY?', GAME.WIDTH / 2, 200, '#ffffff', 2, 'center', 1);
+} else if (mode === 'death') {
+  // Render gameplay then overlay a dying clippy
+  bg.draw(ctx, camera);
+  level.draw(ctx, camera);
+  enemies.draw(ctx, camera);
+  player.state = PLAYER_STATE.DYING;
+  player.deathPhase = 1;
+  player.draw(ctx, camera);
+  // Some explosion particles
+  particles.explosion(player.x + player.width/2, player.y + player.height/2);
+  particles.update();
+  particles.draw(ctx, camera);
 } else {
 bg.draw(ctx, camera);
 level.draw(ctx, camera);
