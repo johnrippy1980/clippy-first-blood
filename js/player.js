@@ -141,7 +141,7 @@ class Player {
             if (typeof particles !== 'undefined' && particles.landDust) {
                 particles.landDust(this.x + this.width / 2, this.y + this.height);
             }
-            if (typeof audio !== 'undefined' && audio.sfxJump) audio.sfxJump();
+            if (typeof audio !== 'undefined' && audio.sfxSlide) audio.sfxSlide();
             return;
         }
 
@@ -333,6 +333,21 @@ class Player {
         this.vy += GAME.GRAVITY;
         if (this.vy > GAME.MAX_FALL_SPEED) this.vy = GAME.MAX_FALL_SPEED;
         this.moveAndCollide(level);
+
+        // Speed-line trail particles: short-lived dust streaks behind the
+        // slide direction, every other frame so they don't choke the system.
+        if (typeof particles !== 'undefined' && (this.slideTimer & 1) && this.onGround) {
+            const trailX = this.facingRight ? this.x : this.x + this.width;
+            particles.spawn({
+                x: trailX,
+                y: this.y + this.height - 2,
+                vx: -this.vx * 0.25 + (Math.random() - 0.5) * 0.4,
+                vy: -0.3 - Math.random() * 0.4,
+                life: 8 + Math.floor(Math.random() * 4),
+                size: 1,
+                colors: ['#ffffff', '#c0a8d0', '#564468']
+            });
+        }
 
         this.updateAiming();
         this.updateShooting();

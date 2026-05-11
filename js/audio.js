@@ -648,6 +648,28 @@ class Audio {
         osc.stop(t + 0.16);
     }
 
+    // Slide whoosh: filtered noise that drops in pitch quickly, like fabric
+    // sliding on concrete. Distinct from the jump square chirp.
+    sfxSlide() {
+        if (!this.sfxEnabled || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const buffer = this.getNoiseBuffer();
+        const src = this.ctx.createBufferSource();
+        src.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.Q.value = 4;
+        filter.frequency.setValueAtTime(1800, t);
+        filter.frequency.exponentialRampToValueAtTime(400, t + 0.22);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.exponentialRampToValueAtTime(0.28, t + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        src.connect(filter).connect(gain).connect(this.sfxGain);
+        src.start(t);
+        src.stop(t + 0.26);
+    }
+
     sfxHurt() {
         if (!this.sfxEnabled || !this.ctx) return;
         const t = this.ctx.currentTime;
