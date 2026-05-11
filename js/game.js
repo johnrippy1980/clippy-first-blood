@@ -1366,7 +1366,7 @@ class Game {
         // Build the list of items the player can choose from. Items that
         // are conditional get filtered out.
         const items = [
-            { label: 'START GAME',       run: () => { this.bossRushMode = false; this.newGamePlus = false; this.screen = 'story'; this.storyTimer = 0; this.storyPanel = 0; this.score = 0; this.lives = this.difficulty.livesStart; this.continues = this.difficulty.continuesStart; this.loadStageByIndex(0); this.player = new Player(50, 160); if (typeof audio !== 'undefined') audio.resume(); } },
+            { label: 'START GAME',       run: () => { this.resetRunFlags(); this.newGamePlus = false; this.screen = 'story'; this.storyTimer = 0; this.storyPanel = 0; this.score = 0; this.lives = this.difficulty.livesStart; this.continues = this.difficulty.continuesStart; this.loadStageByIndex(0); this.player = new Player(50, 160); if (typeof audio !== 'undefined') audio.resume(); } },
             { label: 'DAILY CHALLENGE',  run: () => { this.screen = 'daily'; this.dailyTimer = 0; } }
         ];
         if (this.bossRushUnlocked) {
@@ -1662,14 +1662,13 @@ class Game {
     // Run a mod stage as a one-off free-play
     startModStage(modStage) {
         if (typeof audio !== 'undefined') audio.resume();
+        this.resetRunFlags();
+        this.newGamePlus = false;
         this.score = 0;
         this.lives = this.difficulty.livesStart;
         this.continues = this.difficulty.continuesStart;
         this.gameOver = false;
         this.paused = false;
-        this.bossRushMode = false;
-        this.dailyMode = false;
-        this.newGamePlus = false;
         this.level = this.level || new Level();
         this.level.loadModStage(modStage);
         this.background.setTheme(modStage.theme);
@@ -1775,17 +1774,12 @@ class Game {
     startDailyChallenge() {
         const dateStr = dailyDateString();
         const mod = dailyModifierFor(dateStr);
+        // Reset all per-run flags (including any leftover boss-rush mode)
+        // before applying today's daily modifier.
+        this.resetRunFlags();
         this.dailyMode = true;
         this.dailyDateString = dateStr;
         this.dailyModifier = mod;
-        // Reset modifiers so a fresh daily run starts clean
-        this.dailyDamageMul = 1;
-        this.dailyPlayerDmg = 1;
-        this.dailySpeedMul = 1;
-        this.dailyHpMul = 1;
-        this.dailyChaos = false;
-        this.dailyDoubleEnemies = false;
-        this.dailyNoPickups = false;
         if (mod && mod.apply) mod.apply(this);
         // Daily challenge is always Stage 1 only - the modifier provides
         // the variety. Score is the only currency.
@@ -2609,17 +2603,35 @@ class Game {
             this.toggleNewGamePlus();
         }
 
-        // Any key starts the game - go through the story sequence first
+        // Any key starts the game - go through the story sequence first.
+        // Clear any leftover dailyMode / bossRushMode from a prior run
+        // (quit-to-title doesn't reset them, so they could leak in here).
         if (input.jumpPressed || input.shoot) {
             if (typeof audio !== 'undefined') audio.resume();
-            this.bossRushMode = false;
+            this.resetRunFlags();
             this.screen = 'story';
             this.storyTimer = 0;
             this.storyPanel = 0;
         }
     }
 
+    // Clear all per-run mode flags so a fresh run doesn't inherit dailyMode
+    // or bossRushMode from the previous one. Each start-of-run function
+    // calls this before setting its own flags.
+    resetRunFlags() {
+        this.dailyMode = false;
+        this.dailyDamageMul = 1;
+        this.dailyPlayerDmg = 1;
+        this.dailySpeedMul = 1;
+        this.dailyHpMul = 1;
+        this.dailyChaos = false;
+        this.dailyDoubleEnemies = false;
+        this.dailyNoPickups = false;
+        this.bossRushMode = false;
+    }
+
     startBossRush() {
+        this.resetRunFlags();
         this.bossRushMode = true;
         this.score = 0;
         this.lives = 3;
