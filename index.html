@@ -3,180 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- Primary Meta Tags -->
-    <title>Clippy: First Blood - SNES Style Run & Gun Browser Game</title>
-    <meta name="title" content="Clippy: First Blood - SNES Style Run & Gun Browser Game">
-    <meta name="description" content="Play Clippy: First Blood - a retro SNES-style run and gun browser game. Control the iconic Microsoft Office assistant turned action hero in this nostalgic pixel art shooter. Free to play, no download required.">
-    <meta name="keywords" content="clippy game, browser game, retro game, SNES game, run and gun, pixel art game, free browser game, action game, nostalgic game, Microsoft Clippy">
-    <meta name="author" content="Clippy First Blood Team">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://clippy-first-blood.vercel.app/">
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
-    <link rel="apple-touch-icon" href="images/favicon.ico">
-
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://clippy-first-blood.vercel.app/">
-    <meta property="og:title" content="Clippy: First Blood - SNES Style Run & Gun Browser Game">
-    <meta property="og:description" content="Play Clippy: First Blood - a retro SNES-style run and gun browser game. Control the iconic Microsoft Office assistant turned action hero in this nostalgic pixel art shooter.">
-    <meta property="og:image" content="https://clippy-first-blood.vercel.app/images/og-image.png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Clippy: First Blood game screenshot showing pixel art Clippy with a gun">
-    <meta property="og:site_name" content="Clippy: First Blood">
-    <meta property="og:locale" content="en_US">
-
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://clippy-first-blood.vercel.app/">
-    <meta name="twitter:title" content="Clippy: First Blood - SNES Style Run & Gun Browser Game">
-    <meta name="twitter:description" content="Play Clippy: First Blood - a retro SNES-style run and gun browser game. Control the iconic Microsoft Office assistant turned action hero!">
-    <meta name="twitter:image" content="https://clippy-first-blood.vercel.app/images/og-image.png">
-    <meta name="twitter:image:alt" content="Clippy: First Blood game screenshot showing pixel art Clippy with a gun">
-
-    <!-- Additional Meta -->
-    <meta name="theme-color" content="#1a1a2e">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-    <!-- Schema.org Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "VideoGame",
-        "name": "Clippy: First Blood",
-        "description": "A retro SNES-style run and gun browser game featuring the iconic Microsoft Office assistant Clippy as an action hero.",
-        "url": "https://clippy-first-blood.vercel.app/",
-        "image": "https://clippy-first-blood.vercel.app/images/og-image.png",
-        "genre": ["Run and Gun", "Action", "Retro", "Platformer"],
-        "gamePlatform": ["Web Browser", "Desktop", "Mobile"],
-        "applicationCategory": "Game",
-        "operatingSystem": "Any",
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD",
-            "availability": "https://schema.org/InStock"
-        },
-        "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": "4.8",
-            "ratingCount": "150",
-            "bestRating": "5",
-            "worstRating": "1"
-        },
-        "author": {
-            "@type": "Organization",
-            "name": "Clippy First Blood Team"
-        },
-        "datePublished": "2026-01-10",
-        "inLanguage": "en",
-        "playMode": "SinglePlayer",
-        "numberOfPlayers": {
-            "@type": "QuantitativeValue",
-            "value": 1
-        }
-    }
-    </script>
-
-    <!-- BreadcrumbList Schema -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-            {
-                "@type": "ListItem",
-                "position": 1,
-                "name": "Home",
-                "item": "https://clippy-first-blood.vercel.app/"
-            }
-        ]
-    }
-    </script>
-
-    <!-- WebApplication Schema -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "Clippy: First Blood",
-        "applicationCategory": "GameApplication",
-        "browserRequirements": "Requires JavaScript. Requires HTML5 Canvas support.",
-        "operatingSystem": "Any",
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-        }
-    }
-    </script>
-
-    <link rel="stylesheet" href="css/game.css">
+    <title>Clippy: First Blood</title>
+    <meta name="description" content="A dark, Contra-style run-and-gun starring Clippy on a revenge tour through Microsoft's history. Free browser game.">
+    <meta name="theme-color" content="#0a0612">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23000'/><path d='M5 3v8a2 2 0 002 2h2a2 2 0 002-2V7H8' stroke='%23ddd' stroke-width='1.2' fill='none'/><path d='M5 3v10' stroke='%23c00' stroke-width='1.2'/></svg>">
+    <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
-    <header>
-        <h1 class="visually-hidden">Clippy: First Blood - SNES Style Run & Gun Browser Game</h1>
-    </header>
-
-    <main>
-        <article class="game-wrapper" itemscope itemtype="https://schema.org/VideoGame">
-            <meta itemprop="name" content="Clippy: First Blood">
-            <meta itemprop="description" content="A retro SNES-style run and gun browser game">
-
-            <section class="crt-container" aria-label="Game Canvas">
-                <canvas id="gameCanvas" width="256" height="224" role="img" aria-label="Clippy: First Blood game screen - SNES style pixel art run and gun gameplay"></canvas>
-                <div class="crt-overlay" aria-hidden="true"></div>
-                <div class="scanlines" aria-hidden="true"></div>
-            </section>
-
-            <aside class="game-controls" aria-labelledby="controls-heading">
-                <h2 id="controls-heading">CONTROLS</h2>
-                <dl class="control-list">
-                    <div class="control-group">
-                        <dt><strong>Movement:</strong></dt>
-                        <dd>Arrow Keys / WASD</dd>
-                    </div>
-                    <div class="control-group">
-                        <dt><strong>Jump:</strong></dt>
-                        <dd>Space / Z</dd>
-                    </div>
-                    <div class="control-group">
-                        <dt><strong>Shoot:</strong></dt>
-                        <dd>X / Ctrl</dd>
-                    </div>
-                    <div class="control-group">
-                        <dt><strong>Lock Aim:</strong></dt>
-                        <dd>Shift (hold)</dd>
-                    </div>
-                    <div class="control-group">
-                        <dt><strong>Take Cover:</strong></dt>
-                        <dd>C (near cover spot)</dd>
-                    </div>
-                    <div class="control-group">
-                        <dt><strong>Prone:</strong></dt>
-                        <dd>Down + Down (double tap)</dd>
-                    </div>
-                </dl>
-            </aside>
-        </article>
-    </main>
-
-    <footer>
-        <p class="visually-hidden">Clippy: First Blood is a fan-made tribute game. Play free in your browser.</p>
-    </footer>
-
-    <script src="js/constants.js"></script>
-    <script src="js/sprites.js"></script>
-    <script src="js/input.js"></script>
-    <script src="js/player.js"></script>
-    <script src="js/enemies.js"></script>
-    <script src="js/level.js"></script>
-    <script src="js/parallax.js"></script>
-    <script src="js/game.js"></script>
+    <div id="crt">
+        <canvas id="screen" width="256" height="224"></canvas>
+        <div id="scanlines"></div>
+        <div id="vignette"></div>
+    </div>
+    <div id="hint">Z jump · X shoot · C special · arrows move · hold ↓+Z slide · P pause · M mute</div>
+    <noscript>
+        <p style="color:#fff;text-align:center;padding:2rem">This game needs JavaScript. Sorry.</p>
+    </noscript>
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>

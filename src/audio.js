@@ -1,0 +1,638 @@
+// Dark-synth Web Audio engine. Not chiptune — actual layered subtractive synth
+// with detuned saw bass, sidechained kick, noise hats, lowpass filter sweeps,
+// reverb send (convolver-free schroeder fake), and a master limiter.
+//
+// Music is sequenced as patterns of {step, length, voice, note} events.
+// Voices: BASS (detuned saws → LP filter env), LEAD (square + sub),
+//         PAD (triangle + slow LP), DRUM (kick, snare, hat, clap).
+
+const NOTE_HZ = {};
+(function buildNotes() {
+    const base = 'C C# D D# E F F# G G# A A# B'.split(' ');
+    for (let oct = 0; oct <= 8; oct++) {
+        for (let i = 0; i < 12; i++) {
+            const hz = 440 * Math.pow(2, (oct - 4) + (i - 9) / 12);
+            NOTE_HZ[`${base[i]}${oct}`] = hz;
+        }
+    }
+})();
+function hz(n) {
+    if (!n || n === '-' || n === '.') return 0;
+    return NOTE_HZ[n] || 0;
+}
+
+class Audio {
+    constructor() {
+        this.ctx = null;
+        this.master = null;
+        this.musicBus = null;
+        this.sfxBus = null;
+        this.reverbSend = null;
+        this.muted = false;
+        this.currentTrack = null;
+        this._timer = null;
+        this.beat = 0;
+        this.bpm = 128;
+    }
+
+    init() {
+        if (this.ctx) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.65;
+        this.musicBus = this.ctx.createGain();
+        this.musicBus.gain.value = 0.55;
+        this.sfxBus = this.ctx.createGain();
+        this.sfxBus.gain.value = 0.85;
+
+        // Sidechain envelope on music bus (modulated by kick)
+        this.sidechainBase = 0.55;
+        this.musicBus.connect(this.master);
+        this.sfxBus.connect(this.master);
+
+        // Soft limiter via WaveShaper
+        const lim = this.ctx.createWaveShaper();
+        const curve = new Float32Array(1024);
+        for (let i = 0; i < 1024; i++) {
+            const x = (i / 512) - 1;
+            curve[i] = Math.tanh(x * 1.4);
+        }
+        lim.curve = curve;
+        this.master.disconnect();
+        this.master.connect(lim);
+        lim.connect(this.ctx.destination);
+    }
+
+    toggleMute() {
+        this.muted = !this.muted;
+        if (this.master) this.master.gain.value = this.muted ? 0 : 0.65;
+    }
+
+    // ============= SFX =============
+    sfx(name) {
+        if (!this.ctx || this.muted) return;
+        const t = this.ctx.currentTime;
+        switch (name) {
+            case 'mg':       return this._gunShot(t, 0.07, 0.32, 'square', 800, 200);
+            case 'spread':   return this._gunShot(t, 0.12, 0.34, 'sawtooth', 600, 180);
+            case 'laser':    return this._laserBeam(t);
+            case 'flame':    return this._flameLick(t);
+            case 'homing':   return this._homingWoosh(t);
+            case 'thunder':  return this._thunderHit(t);
+            case 'jump':     return this._tonal(t, 'square', 280, 720, 0.13, 0.18);
+            case 'hurt':     return this._hurtGrunt(t);
+            case 'die':      return this._deathStinger(t);
+            case 'pickup':   return this._pickupChime(t);
+            case 'powerup':  return this._powerupChime(t);
+            case 'explode':  return this._explode(t);
+            case 'slide':    return this._noise(t, 0.22, 0.4, 1800, 'bp', 2.4);
+            case 'bossHit':  return this._bossHit(t);
+            case 'bossExplode': return this._bossExplode(t);
+            case 'comboBreak': return this._tonal(t, 'sawtooth', 220, 110, 0.22, 0.30);
+            case 'combo':    return this._comboTick(t);
+            case 'select':   return this._tonal(t, 'square', 880, 1100, 0.06, 0.18);
+            case 'menu':     return this._tonal(t, 'square', 660, 880, 0.08, 0.20);
+            case 'pause':    return this._tonal(t, 'square', 440, 220, 0.10, 0.24);
+        }
+    }
+
+    _tonal(t, type, f1, f2, dur, vol) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(f1, t);
+        o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), t + dur);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + dur + 0.02);
+    }
+
+    _noise(t, dur, vol, filterFreq, type = 'bp', q = 1.4) {
+        const buf = this.ctx.createBuffer(1, Math.max(1, (this.ctx.sampleRate * dur) | 0), this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = type === 'bp' ? 'bandpass' : (type === 'lp' ? 'lowpass' : 'highpass');
+        filt.frequency.value = filterFreq; filt.Q.value = q;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.05);
+        return g;
+    }
+
+    _gunShot(t, dur, vol, type, fStart, fEnd) {
+        // Layered: noise burst + thump + tonal click
+        this._noise(t, dur, vol * 0.7, fStart, 'bp', 0.6);
+        // Thump (sub kick)
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(120, t);
+        o.frequency.exponentialRampToValueAtTime(40, t + dur);
+        g.gain.setValueAtTime(vol * 0.55, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + dur + 0.05);
+        // Click
+        this._tonal(t, type, fStart * 1.2, fEnd * 0.5, dur * 0.4, vol * 0.5);
+    }
+
+    _laserBeam(t) {
+        // Detuned square pair sweeping down — sci-fi pew
+        for (let i = 0; i < 2; i++) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'sawtooth';
+            o.detune.value = i === 0 ? -7 : 7;
+            o.frequency.setValueAtTime(1800, t);
+            o.frequency.exponentialRampToValueAtTime(320, t + 0.18);
+            g.gain.setValueAtTime(0.18, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t); o.stop(t + 0.2);
+        }
+        // High noise sizzle
+        this._noise(t, 0.18, 0.10, 4000, 'hp', 1);
+    }
+
+    _flameLick(t) {
+        this._noise(t, 0.10, 0.28, 600, 'lp', 1);
+    }
+
+    _homingWoosh(t) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(440, t);
+        o.frequency.exponentialRampToValueAtTime(1320, t + 0.18);
+        g.gain.setValueAtTime(0.18, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.2);
+        this._noise(t, 0.16, 0.10, 2200, 'bp', 4);
+    }
+
+    _thunderHit(t) {
+        this._noise(t, 0.45, 0.5, 220, 'lp', 1.6);
+        // Bright crack on top
+        for (let i = 0; i < 3; i++) {
+            this._noise(t + i * 0.04, 0.08, 0.18, 3600 + i * 800, 'bp', 4);
+        }
+        // Sub thump
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(60, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.4);
+        g.gain.setValueAtTime(0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.45);
+    }
+
+    _hurtGrunt(t) {
+        // Pitched-down growl noise + tonal whimper
+        this._noise(t, 0.18, 0.32, 800, 'bp', 1.8);
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(220, t);
+        o.frequency.exponentialRampToValueAtTime(110, t + 0.25);
+        g.gain.setValueAtTime(0.28, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 900;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.3);
+    }
+
+    _deathStinger(t) {
+        // Long descending sub-saw with noise tail
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(280, t);
+        o.frequency.exponentialRampToValueAtTime(40, t + 0.8);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.setValueAtTime(1200, t);
+        filt.frequency.exponentialRampToValueAtTime(220, t + 0.8);
+        g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.9);
+        this._noise(t + 0.1, 0.4, 0.18, 400, 'lp', 1.2);
+    }
+
+    _explode(t) {
+        // Multi-layered: low rumble, mid noise burst, high crack
+        this._noise(t, 0.5, 0.55, 200, 'lp', 1);
+        this._noise(t, 0.25, 0.35, 900, 'bp', 1.2);
+        this._noise(t + 0.02, 0.08, 0.18, 4000, 'hp', 1);
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(80, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.5);
+        g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.55);
+    }
+
+    _bossHit(t) {
+        // Hi metallic clang + noise crunch
+        this._tonal(t, 'square', 880, 480, 0.10, 0.26);
+        this._noise(t, 0.10, 0.20, 1800, 'bp', 4);
+    }
+
+    _bossExplode(t) {
+        for (let i = 0; i < 6; i++) {
+            this._noise(t + i * 0.08, 0.25, 0.40, 200 + i * 200, 'bp', 1.4);
+        }
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.8);
+        g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.95);
+    }
+
+    _pickupChime(t) {
+        this._tonal(t,        'square', 880, 1320, 0.06, 0.22);
+        this._tonal(t + 0.06, 'square', 1320, 1760, 0.06, 0.20);
+    }
+    _powerupChime(t) {
+        this._tonal(t,        'square',  660,  990, 0.07, 0.20);
+        this._tonal(t + 0.07, 'square',  880, 1320, 0.07, 0.22);
+        this._tonal(t + 0.14, 'square', 1320, 1760, 0.10, 0.26);
+        this._tonal(t + 0.24, 'triangle', 1760, 2640, 0.10, 0.18);
+    }
+    _comboTick(t) {
+        this._tonal(t, 'square', 1320, 1760, 0.05, 0.20);
+    }
+
+    // ============= MUSIC =============
+    // Pattern format: rows of [kick, snare, hat, bassNote, padNote, leadNote].
+    // 1/16 step grid. Patterns repeat seamlessly.
+    playTrack(name) {
+        if (this.currentTrack === name) return;
+        this.stopTrack();
+        const t = TRACKS[name];
+        if (!t) return;
+        this.currentTrack = name;
+        this.bpm = t.bpm;
+        this.beat = 0;
+        this._scheduleBeat(t);
+    }
+    stopTrack() {
+        if (this._timer) clearTimeout(this._timer);
+        this._timer = null;
+        this.currentTrack = null;
+    }
+    _scheduleBeat(track) {
+        const stepMs = 60000 / this.bpm / 4;
+        if (!this.ctx || this.muted) {
+            this.beat = (this.beat + 1) % track.pattern.length;
+            this._timer = setTimeout(() => this._scheduleBeat(track), stepMs);
+            return;
+        }
+        const i = this.beat % track.pattern.length;
+        const row = track.pattern[i];
+        const now = this.ctx.currentTime;
+        const stepSec = stepMs / 1000;
+        const [kick, snare, hat, bassNote, padNote, leadNote] = row;
+
+        // Sidechain pump if kick present
+        if (kick) this._pumpMusic(now, stepSec * 1.2);
+
+        if (kick) this._kick(now);
+        if (snare) this._snare(now);
+        if (hat) this._hat(now, hat === 'O' ? 1.3 : 1);
+        if (bassNote && bassNote !== '-') this._bassNote(now, hz(bassNote), stepSec * (track.bassLen || 0.7));
+        if (padNote && padNote !== '-') this._padNote(now, hz(padNote), stepSec * (track.padLen || 4));
+        if (leadNote && leadNote !== '-') this._leadNote(now, hz(leadNote), stepSec * (track.leadLen || 0.9));
+
+        this.beat++;
+        this._timer = setTimeout(() => this._scheduleBeat(track), stepMs);
+    }
+
+    _pumpMusic(t, dur) {
+        const base = this.sidechainBase;
+        const g = this.musicBus.gain;
+        g.cancelScheduledValues(t);
+        g.setValueAtTime(base * 0.35, t);
+        g.linearRampToValueAtTime(base, t + dur);
+    }
+
+    _kick(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(36, t + 0.12);
+        g.gain.setValueAtTime(0.0, t);
+        g.gain.linearRampToValueAtTime(0.6, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.connect(g).connect(this.musicBus);
+        o.start(t); o.stop(t + 0.22);
+        // Click layer
+        this._noise(t, 0.02, 0.22, 4000, 'hp', 1);
+    }
+
+    _snare(t) {
+        // Noise body + tonal layer
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.18) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 1.2;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.42, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        src.connect(filt).connect(g).connect(this.musicBus);
+        src.start(t); src.stop(t + 0.2);
+        // Tonal
+        const o = this.ctx.createOscillator(); const og = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(220, t);
+        o.frequency.exponentialRampToValueAtTime(120, t + 0.1);
+        og.gain.setValueAtTime(0.18, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        o.connect(og).connect(this.musicBus);
+        o.start(t); o.stop(t + 0.12);
+    }
+
+    _hat(t, vel = 1) {
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.04) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'highpass'; filt.frequency.value = 7000;
+        const g = this.ctx.createGain();
+        g.gain.value = 0.10 * vel;
+        src.connect(filt).connect(g).connect(this.musicBus);
+        src.start(t); src.stop(t + 0.05);
+    }
+
+    _bassNote(t, hz, dur) {
+        if (!hz) return;
+        // Detuned saw pair → lowpass envelope
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.setValueAtTime(900, t);
+        filt.frequency.exponentialRampToValueAtTime(220, t + dur);
+        filt.Q.value = 4;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0, t);
+        g.gain.linearRampToValueAtTime(0.32, t + 0.01);
+        g.gain.setValueAtTime(0.32, t + dur * 0.6);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        for (let i = -1; i <= 1; i += 2) {
+            const o = this.ctx.createOscillator();
+            o.type = 'sawtooth';
+            o.frequency.value = hz / 2; // octave down
+            o.detune.value = i * 9;
+            o.connect(filt);
+            o.start(t); o.stop(t + dur + 0.05);
+        }
+        filt.connect(g).connect(this.musicBus);
+    }
+
+    _padNote(t, hz, dur) {
+        if (!hz) return;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1400; filt.Q.value = 1;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0, t);
+        g.gain.linearRampToValueAtTime(0.10, t + dur * 0.3);
+        g.gain.linearRampToValueAtTime(0.0, t + dur);
+        for (let i = 0; i < 2; i++) {
+            const o = this.ctx.createOscillator();
+            o.type = 'triangle';
+            o.frequency.value = hz * (i === 0 ? 1 : 1.5);
+            o.detune.value = i === 0 ? -3 : 3;
+            o.connect(filt);
+            o.start(t); o.stop(t + dur + 0.05);
+        }
+        filt.connect(g).connect(this.musicBus);
+    }
+
+    _leadNote(t, hz, dur) {
+        if (!hz) return;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.setValueAtTime(2400, t);
+        filt.frequency.exponentialRampToValueAtTime(800, t + dur);
+        filt.Q.value = 6;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0, t);
+        g.gain.linearRampToValueAtTime(0.16, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        for (let i = -1; i <= 1; i += 2) {
+            const o = this.ctx.createOscillator();
+            o.type = 'square';
+            o.frequency.value = hz;
+            o.detune.value = i * 5;
+            o.connect(filt);
+            o.start(t); o.stop(t + dur + 0.05);
+        }
+        filt.connect(g).connect(this.musicBus);
+    }
+}
+
+// ============= TRACKS =============
+// Each row = [kick, snare, hat('o'|'O'|0), bass, pad, lead] at 1/16 steps.
+// 16 steps = 1 bar. 4 bars per pattern is plenty.
+
+const _ = 0;   // empty
+const k = 1; const s = 1; const h = 'o'; const H = 'O';
+
+function pat(rows) { return rows; }
+
+const TRACKS = {
+    title: {
+        bpm: 92, bassLen: 1.6, padLen: 8, leadLen: 1.2,
+        pattern: pat([
+            // 16 steps, ambient slow track
+            [k,_,_,_, _,_,_,_, _,_,_,_, _,_,_,_].slice(0,4).concat([k,_,_,_]),
+        ]).flat ? [] :
+        [
+            [k,_,_,_,'A1','A3',_],
+            [_,_,h,_,'-','-',_],
+            [_,_,_,_,'-','-','E5'],
+            [_,_,h,_,'-','-',_],
+            [_,s,_,_,'-','-','D5'],
+            [_,_,h,_,'-','-',_],
+            [_,_,_,_,'-','-','C5'],
+            [_,_,h,_,'-','-',_],
+            [k,_,_,_,'F1','F3',_],
+            [_,_,h,_,'-','-',_],
+            [_,_,_,_,'-','-','C5'],
+            [_,_,h,_,'-','-',_],
+            [_,s,_,_,'-','-','A4'],
+            [_,_,h,_,'-','-',_],
+            [_,_,_,_,'-','-','G4'],
+            [_,_,h,_,'-','-',_],
+        ]
+    },
+    jungle: {
+        bpm: 138, bassLen: 0.5, padLen: 4, leadLen: 0.7,
+        pattern: [
+            [k,_,_,_,'A1','A3','A4'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'A1','-','C5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'A1','-','E5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'A1','-','D5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'F1','F3','C5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'F1','-','A4'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'F1','-','C5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'F1','-','E5'],
+            [_,_,H,_,'-','-','-'],
+        ]
+    },
+    breakroom: {
+        bpm: 124, bassLen: 0.6, padLen: 4, leadLen: 0.9,
+        pattern: [
+            [k,_,_,_,'D1','D3','D5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'D1','-','F5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'D1','-','A5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'D1','-','F5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'A1','A3','C5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'A1','-','E5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'A1','-','D5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'A1','-','C5'],
+            [_,_,H,_,'-','-','-'],
+        ]
+    },
+    serverroom: {
+        bpm: 152, bassLen: 0.5, padLen: 4, leadLen: 0.6,
+        pattern: [
+            [k,_,_,_,'E1','E3','E5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'E1','-','B5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'E1','-','G5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'E1','-','D5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'A1','A3','E5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'A1','-','B5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'A1','-','C5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'A1','-','D5'],
+            [_,_,H,_,'-','-','-'],
+        ]
+    },
+    boardroom: {
+        bpm: 116, bassLen: 0.6, padLen: 4, leadLen: 0.8,
+        pattern: [
+            [k,_,_,_,'F1','F3','C5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'-','-','F5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'-','-','C5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'-','-','F5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'D1','D3','A4'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'-','-','D5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'-','-','A4'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'-','-','F5'],
+            [_,_,H,_,'-','-','-'],
+        ]
+    },
+    keynote: {
+        bpm: 108, bassLen: 0.7, padLen: 4, leadLen: 1.0,
+        pattern: [
+            [k,_,_,_,'G1','G3','D5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'-','-','G5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'-','-','B5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'-','-','G5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'E1','E3','B4'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'-','-','E5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'-','-','G5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'-','-','B5'],
+            [_,_,H,_,'-','-','-'],
+        ]
+    },
+    founder: {
+        bpm: 168, bassLen: 0.4, padLen: 4, leadLen: 0.6,
+        pattern: [
+            [k,_,_,_,'F#1','F#3','F#5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'F#1','-','C#5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'F#1','-','A5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'F#1','-','C#6'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'D1','D3','D5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'D1','-','A5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'D1','-','F5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'D1','-','A5'],
+            [_,_,h,_,'-','-','-'],
+        ]
+    },
+    cloud: {
+        bpm: 176, bassLen: 0.4, padLen: 4, leadLen: 0.5,
+        pattern: [
+            [k,_,_,_,'C1','C3','C5'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'C1','-','G5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'C1','-','E5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'C1','-','G5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'A#0','A#2','A#4'],
+            [_,_,h,_,'-','-','-'],
+            [_,_,_,_,'A#0','-','F5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'A#0','-','D5'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'A#0','-','F5'],
+            [_,_,H,_,'-','-','-'],
+        ]
+    },
+    bossBattle: {
+        bpm: 160, bassLen: 0.4, padLen: 4, leadLen: 0.5,
+        pattern: [
+            [k,_,_,_,'E1','E3','E5'],
+            [k,_,h,_,'-','-','-'],
+            [_,_,_,_,'E1','-','G5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'E1','-','B5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'E1','-','C6'],
+            [_,_,h,_,'-','-','-'],
+            [k,_,_,_,'D1','D3','D5'],
+            [k,_,h,_,'-','-','-'],
+            [_,_,_,_,'D1','-','F5'],
+            [_,_,h,_,'-','-','-'],
+            [_,s,_,_,'D1','-','A5'],
+            [_,_,H,_,'-','-','-'],
+            [k,_,_,_,'D1','-','C6'],
+            [k,_,h,_,'-','-','-'],
+        ]
+    },
+};
+
+export const audio = new Audio();

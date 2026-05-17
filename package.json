@@ -1,0 +1,24 @@
+{
+  "name": "clippy-first-blood",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnrippy1980/clippy-first-blood.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/johnrippy1980/clippy-first-blood/issues"
+  },
+  "homepage": "https://github.com/johnrippy1980/clippy-first-blood#readme",
+  "dependencies": {
+    "canvas": "^3.2.3"
+  },
+  "type": "module"
+}
