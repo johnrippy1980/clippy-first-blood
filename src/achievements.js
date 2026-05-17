@@ -1,0 +1,107 @@
+// Achievement system. 16 entries, persisted to localStorage.
+// Each definition has: id (string), name, description, icon (1-char emoji or
+// glyph), gate(stats) -> bool. Stats are updated after each stage; on every
+// update we re-check unlock predicates against the stats object.
+
+const STORAGE_KEY = 'clippy_achievements';
+
+export const ACHIEVEMENT_LIST = [
+    { id: 'first_blood',   name: 'FIRST BLOOD',     desc: 'KILL YOUR FIRST ENEMY',                 icon: '!',  gate: s => s.totalKills >= 1 },
+    { id: 'clear_stage_1', name: 'OFFICE EXIT',     desc: 'CLEAR STAGE 1',                          icon: '1',  gate: s => s.stagesCleared.has(1) },
+    { id: 'clear_stage_4', name: 'BOARDROOM BLOOD', desc: 'CLEAR STAGE 4',                          icon: '4',  gate: s => s.stagesCleared.has(4) },
+    { id: 'clear_game',    name: 'THE LIST IS DONE',desc: 'COMPLETE THE GAME',                      icon: '*',  gate: s => s.stagesCleared.has(8) },
+    { id: 'no_death_run',  name: 'UNTOUCHABLE',     desc: 'BEAT THE GAME WITH ZERO DEATHS',         icon: 'O',  gate: s => s.stagesCleared.has(8) && s.totalDeaths === 0 },
+    { id: 'no_dmg_stage',  name: 'GHOST',           desc: 'CLEAR A STAGE WITHOUT TAKING DAMAGE',    icon: 'G',  gate: s => s.noDamageStages >= 1 },
+    { id: 'combo_5',       name: 'STREAK',          desc: 'CHAIN 5 KILLS',                          icon: '5',  gate: s => s.maxCombo >= 5 },
+    { id: 'combo_10',      name: 'RAMPAGE',         desc: 'CHAIN 10 KILLS',                         icon: 'X',  gate: s => s.maxCombo >= 10 },
+    { id: 'combo_20',      name: 'CARNAGE',         desc: 'CHAIN 20 KILLS',                         icon: 'C',  gate: s => s.maxCombo >= 20 },
+    { id: 'combo_30',      name: 'GOD-LIKE',        desc: 'CHAIN 30 KILLS',                         icon: '+',  gate: s => s.maxCombo >= 30 },
+    { id: 'all_weapons',   name: 'ARSENAL',         desc: 'FIRE EVERY WEAPON TYPE',                 icon: 'W',  gate: s => Object.keys(s.weaponDamage || {}).filter(k => s.weaponDamage[k] > 0).length >= 6 },
+    { id: 'speed_run',     name: 'SPEEDRUNNER',     desc: 'BEAT GAME UNDER 12 MINUTES',             icon: 'T',  gate: s => s.stagesCleared.has(8) && s.totalTime < 12 * 60 * 60 },
+    { id: 'boss_rush',     name: 'GAUNTLET',        desc: 'BEAT THE BOSS RUSH STAGE',               icon: 'R',  gate: s => s.stagesCleared.has(7) },
+    { id: 'secret_room',   name: 'OFF THE GRID',    desc: 'DISCOVER THE SECRET STAGE',              icon: 'S',  gate: s => s.secretStageDiscovered === true },
+    { id: 'second_chance', name: 'CLOSE CALL',      desc: 'TRIGGER BULLET-TIME RESCUE',             icon: 'B',  gate: s => s.bulletTimeUses >= 1 },
+    { id: 'high_score',    name: 'TOP TIER',        desc: 'SCORE OVER 100,000',                     icon: '$',  gate: s => s.bestScore >= 100000 },
+];
+
+class Achievements {
+    constructor() {
+        this.unlocked = new Set();
+        this.banner = [];   // queue of {id, age} for popup display
+        this.stats = {
+            totalKills: 0,
+            stagesCleared: new Set(),
+            totalDeaths: 0,
+            noDamageStages: 0,
+            maxCombo: 0,
+            weaponDamage: {},
+            totalTime: 0,
+            secretStageDiscovered: false,
+            bulletTimeUses: 0,
+            bestScore: 0,
+        };
+        this._load();
+    }
+
+    _load() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (Array.isArray(data.unlocked)) {
+                for (const id of data.unlocked) {
+                    if (ACHIEVEMENT_LIST.some(a => a.id === id)) this.unlocked.add(id);
+                }
+            }
+            if (data.stats) {
+                this.stats.bestScore = data.stats.bestScore || 0;
+                this.stats.secretStageDiscovered = data.stats.secretStageDiscovered === true;
+            }
+        } catch (e) {
+            console.warn('Achievement load failed:', e);
+        }
+    }
+
+    _save() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                unlocked: Array.from(this.unlocked),
+                stats: { bestScore: this.stats.bestScore, secretStageDiscovered: this.stats.secretStageDiscovered },
+            }));
+        } catch (e) {}
+    }
+
+    // Update stats and check unlocks. Returns array of newly unlocked entries.
+    update(snapshot) {
+        Object.assign(this.stats, snapshot);
+        if (snapshot.stagesCleared) this.stats.stagesCleared = snapshot.stagesCleared;
+        const newly = [];
+        for (const a of ACHIEVEMENT_LIST) {
+            if (this.unlocked.has(a.id)) continue;
+            try {
+                if (a.gate(this.stats)) {
+                    this.unlocked.add(a.id);
+                    this.banner.push({ id: a.id, age: 0 });
+                    newly.push(a);
+                }
+            } catch (e) {}
+        }
+        if (newly.length) this._save();
+        return newly;
+    }
+
+    tickBanner() {
+        for (const b of this.banner) b.age++;
+        // Drop banners older than 180 frames
+        this.banner = this.banner.filter(b => b.age < 180);
+    }
+
+    activeBanner() {
+        return this.banner[0] || null;
+    }
+
+    get(id) { return ACHIEVEMENT_LIST.find(a => a.id === id); }
+    isUnlocked(id) { return this.unlocked.has(id); }
+}
+
+export const achievements = new Achievements();

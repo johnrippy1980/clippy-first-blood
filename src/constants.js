@@ -89,6 +89,8 @@ export const STAGES = [
     { id: 6, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
     { id: 7, name: 'BOSS RUSH',              theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'serverroom', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
     { id: 8, name: 'THE CLOUD',              theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
+    // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
+    { id: 9, name: 'THE RECYCLE BIN',        theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
 ];
 
 // Damage flash colors per source.

@@ -13,6 +13,8 @@ import { Parallax } from './parallax.js';
 import { drawHUD, drawClippyIcon } from './hud.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST } from './sprites.js';
+import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
+import { options } from './options.js';
 
 const SCENE = {
     BOOT: 'boot',
@@ -21,10 +23,14 @@ const SCENE = {
     STAGE_INTRO: 'stageIntro',
     PLAY: 'play',
     PAUSE: 'pause',
+    OPTIONS: 'options',
+    ACHIEVEMENTS: 'achievements',
     STAGE_CLEAR: 'stageClear',
     GAME_OVER: 'gameOver',
     GAME_COMPLETE: 'gameComplete',
 };
+
+const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'QUIT TO TITLE'];
 
 const STORY_PAGES = [
     [
@@ -79,6 +85,14 @@ export class Game {
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
+        // Per-stage stats (resets on _startStage)
+        this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
+        // Run-level achievement progress (built up across stages)
+        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0 };
+        // Pause sub-state
+        this.pauseIndex = 0;
+        this.optionsIndex = 0;
+        this.achievementsScroll = 0;
 
         // Story / title progression
         this.storyPage = 0;
@@ -108,6 +122,8 @@ export class Game {
             case SCENE.STAGE_INTRO:  this._tickStageIntro(); break;
             case SCENE.PLAY:         this._tickPlay(); break;
             case SCENE.PAUSE:        this._tickPause(); break;
+            case SCENE.OPTIONS:      this._tickOptions(); break;
+            case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
             case SCENE.STAGE_CLEAR:  this._tickStageClear(); break;
             case SCENE.GAME_OVER:    this._tickGameOver(); break;
             case SCENE.GAME_COMPLETE:this._tickGameComplete(); break;
@@ -141,6 +157,8 @@ export class Game {
             case SCENE.STAGE_INTRO:  this._drawStageIntro(); break;
             case SCENE.PLAY:         this._drawPlay(); break;
             case SCENE.PAUSE:        this._drawPlay(); this._drawPauseOverlay(); break;
+            case SCENE.OPTIONS:      this._drawPlay(); this._drawOptions(); break;
+            case SCENE.ACHIEVEMENTS: this._drawPlay(); this._drawAchievements(); break;
             case SCENE.STAGE_CLEAR:  this._drawPlay(); this._drawStageClear(); break;
             case SCENE.GAME_OVER:    this._drawGameOver(); break;
             case SCENE.GAME_COMPLETE:this._drawGameComplete(); break;
@@ -370,9 +388,13 @@ export class Game {
     _tickPlay() {
         if (input.isPressed('pause')) {
             audio.sfx('pause');
+            this.pauseIndex = 0;
             this.scene = SCENE.PAUSE;
             return;
         }
+        const prevHp = this.player.hp;
+        const prevKills = this.player.kills;
+        const prevBullet = this.player.secondChanceUsed;
         this.stageTime++;
         this.totalTime++;
         this.level.update();
@@ -381,6 +403,11 @@ export class Game {
         this.pickups.update(this.level, this.player);
         this.camera.follow(this.player, this.player.facing);
         this.camera.update();
+        achievements.tickBanner();
+        // Track damage taken + new kills
+        if (this.player.hp < prevHp) this.stageStats.damageTaken += (prevHp - this.player.hp);
+        if (this.player.kills > prevKills) this.stageStats.kills += (this.player.kills - prevKills);
+        if (this.player.secondChanceUsed && !prevBullet) this.runStats.bulletTimeUses++;
 
         // Boss trigger
         if (!this.bossSpawned && this.player.x > this.level.data.bossTrigger.x) {
@@ -434,17 +461,127 @@ export class Game {
 
     _drawPauseOverlay() {
         const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillStyle = 'rgba(0,0,0,0.78)';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
-        drawTextOutlined(ctx, 'PAUSED', GAME.W / 2, GAME.H / 2 - 12, '#fff', '#000', 2, 'center');
-        drawText(ctx, 'P RESUME  M MUTE', GAME.W / 2, GAME.H / 2 + 12, '#c0a0d0', 1, 'center');
+        drawTextOutlined(ctx, 'PAUSED', GAME.W / 2, 24, '#fff', '#000', 2, 'center');
+        const startY = 70;
+        for (let i = 0; i < PAUSE_OPTIONS.length; i++) {
+            const y = startY + i * 18;
+            if (i === this.pauseIndex) {
+                ctx.fillStyle = '#a01020';
+                ctx.fillRect(40, y - 2, GAME.W - 80, 12);
+                drawText(ctx, '>', 46, y, '#ffe070', 1, 'left');
+            }
+            drawText(ctx, PAUSE_OPTIONS[i], GAME.W / 2, y, i === this.pauseIndex ? '#fff' : '#c0a0d0', 1, 'center');
+        }
+        drawText(ctx, 'UP/DOWN SELECT   X CONFIRM   P CLOSE', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
     }
 
     _tickPause() {
-        if (input.isPressed('pause') || input.isPressed('shoot')) {
+        if (input.isPressed('pause')) {
             audio.sfx('pause');
             this.scene = SCENE.PLAY;
+            return;
         }
+        if (input.isPressed('up'))   { this.pauseIndex = (this.pauseIndex + PAUSE_OPTIONS.length - 1) % PAUSE_OPTIONS.length; audio.sfx('select'); }
+        if (input.isPressed('down')) { this.pauseIndex = (this.pauseIndex + 1) % PAUSE_OPTIONS.length; audio.sfx('select'); }
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            audio.sfx('menu');
+            const sel = PAUSE_OPTIONS[this.pauseIndex];
+            if (sel === 'RESUME') this.scene = SCENE.PLAY;
+            else if (sel === 'OPTIONS') { this.scene = SCENE.OPTIONS; this.optionsIndex = 0; }
+            else if (sel === 'ACHIEVEMENTS') { this.scene = SCENE.ACHIEVEMENTS; this.achievementsScroll = 0; }
+            else if (sel === 'QUIT TO TITLE') { audio.stopTrack(); this._restartRun(); }
+        }
+    }
+
+    // ============== Options menu ==============
+    _tickOptions() {
+        if (input.isPressed('pause') || input.isReleased('shoot')) {
+            // No-op on shoot release; close on pause
+        }
+        if (input.isPressed('pause')) { this.scene = SCENE.PAUSE; audio.sfx('pause'); return; }
+        const OPTS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
+        if (input.isPressed('up'))   { this.optionsIndex = (this.optionsIndex + OPTS.length - 1) % OPTS.length; audio.sfx('select'); }
+        if (input.isPressed('down')) { this.optionsIndex = (this.optionsIndex + 1) % OPTS.length; audio.sfx('select'); }
+        const dir = (input.isPressed('left') ? -1 : 0) + (input.isPressed('right') ? 1 : 0);
+        if (dir !== 0) {
+            const k = ['musicVol','sfxVol','scanlines','shakeScale','BACK'][this.optionsIndex];
+            if (k === 'musicVol' || k === 'sfxVol') {
+                options.set(k, Math.max(0, Math.min(1, options.get(k) + dir * 0.1)));
+                if (audio.musicBus && k === 'musicVol') audio.musicBus.gain.value = options.get('musicVol');
+                if (audio.sfxBus && k === 'sfxVol')     audio.sfxBus.gain.value   = options.get('sfxVol');
+            } else if (k === 'scanlines') {
+                options.set(k, !options.get(k));
+                document.getElementById('scanlines')?.style.setProperty('display', options.get(k) ? 'block' : 'none');
+            } else if (k === 'shakeScale') {
+                options.set(k, Math.max(0, Math.min(2, options.get('shakeScale') + dir * 0.25)));
+            }
+            audio.sfx('menu');
+        }
+        if (input.isPressed('shoot') || input.isPressed('jump')) {
+            if (OPTS[this.optionsIndex] === 'BACK') { this.scene = SCENE.PAUSE; audio.sfx('pause'); }
+        }
+    }
+    _drawOptions() {
+        const ctx = this.ctx;
+        ctx.fillStyle = 'rgba(0,0,0,0.82)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        drawTextOutlined(ctx, 'OPTIONS', GAME.W / 2, 22, '#ffe070', '#a82020', 2, 'center');
+        const OPTS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
+        const startY = 60;
+        for (let i = 0; i < OPTS.length; i++) {
+            const y = startY + i * 18;
+            const sel = i === this.optionsIndex;
+            if (sel) {
+                ctx.fillStyle = '#a01020';
+                ctx.fillRect(20, y - 2, GAME.W - 40, 12);
+            }
+            drawText(ctx, OPTS[i], 30, y, sel ? '#fff' : '#c0a0d0', 1, 'left');
+            // Value display
+            let val = '';
+            if (i === 0) val = Math.round(options.get('musicVol') * 100) + '%';
+            else if (i === 1) val = Math.round(options.get('sfxVol') * 100) + '%';
+            else if (i === 2) val = options.get('scanlines') ? 'ON' : 'OFF';
+            else if (i === 3) val = options.get('shakeScale').toFixed(2);
+            if (val) drawText(ctx, val, GAME.W - 30, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
+        }
+        drawText(ctx, 'LEFT/RIGHT CHANGE  X CONFIRM  P BACK', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
+    }
+
+    // ============== Achievements panel ==============
+    _tickAchievements() {
+        if (input.isPressed('pause') || input.isPressed('jump')) { this.scene = SCENE.PAUSE; audio.sfx('pause'); return; }
+        const max = Math.max(0, ACHIEVEMENT_LIST.length - 8);
+        if (input.isPressed('up'))   { this.achievementsScroll = Math.max(0, this.achievementsScroll - 1); audio.sfx('select'); }
+        if (input.isPressed('down')) { this.achievementsScroll = Math.min(max, this.achievementsScroll + 1); audio.sfx('select'); }
+    }
+    _drawAchievements() {
+        const ctx = this.ctx;
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        drawTextOutlined(ctx, 'ACHIEVEMENTS', GAME.W / 2, 16, '#ffe070', '#a82020', 1, 'center');
+        const visible = 8;
+        const startY = 32;
+        for (let i = 0; i < visible; i++) {
+            const idx = this.achievementsScroll + i;
+            if (idx >= ACHIEVEMENT_LIST.length) break;
+            const a = ACHIEVEMENT_LIST[idx];
+            const unlocked = achievements.isUnlocked(a.id);
+            const y = startY + i * 22;
+            // Icon box
+            ctx.fillStyle = unlocked ? '#ffe070' : '#3a2a4a';
+            ctx.fillRect(10, y, 14, 14);
+            ctx.fillStyle = unlocked ? '#1a0000' : '#1a1018';
+            ctx.fillRect(11, y + 1, 12, 12);
+            drawText(ctx, a.icon, 17, y + 4, unlocked ? '#ffe070' : '#604068', 1, 'center');
+            // Text
+            drawText(ctx, a.name, 30, y + 1, unlocked ? '#fff' : '#604068', 1, 'left');
+            drawText(ctx, unlocked ? a.desc : '?', 30, y + 11, unlocked ? '#a0c0e0' : '#403048', 1, 'left');
+        }
+        // Counter
+        drawText(ctx, achievements.unlocked.size + ' / ' + ACHIEVEMENT_LIST.length, GAME.W - 4, 16, '#80a0c0', 1, 'right');
+        drawText(ctx, 'UP/DOWN SCROLL   P CLOSE', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
     }
 
     _spawnBoss() {
@@ -485,6 +622,9 @@ export class Game {
     _startStage(n) {
         this.currentStage = n;
         this.unlockedStage = Math.max(this.unlockedStage, n);
+        // Reset per-stage counters
+        this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
+        this._newlyUnlocked = null;
         const data = STAGE_LOADERS[n]();
         this.level = new Level(data);
         this.parallax.setTheme(data.theme);
@@ -516,13 +656,49 @@ export class Game {
         audio.sfx('powerup');
         this.scene = SCENE.STAGE_CLEAR;
         this.storyTimer = 0;
+
+        // Roll stage stats up to run + achievement system
+        this.runStats.stagesCleared.add(this.currentStage);
+        this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player.maxCombo);
+        for (const [k, v] of Object.entries(this.player.dmgDealt || {})) {
+            this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
+        }
+        if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
+        // Update achievement snapshot
+        const newlyUnlocked = achievements.update({
+            totalKills: this.player.kills,
+            stagesCleared: this.runStats.stagesCleared,
+            totalDeaths: this.totalDeaths,
+            noDamageStages: this.runStats.noDamageStages,
+            maxCombo: this.runStats.maxCombo,
+            weaponDamage: this.runStats.weaponDamage,
+            totalTime: this.totalTime,
+            secretStageDiscovered: this.runStats.stagesCleared.has(9),
+            bulletTimeUses: this.runStats.bulletTimeUses,
+            bestScore: this.player.score,
+        });
+        this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
+
+        // Save high score
+        if (this.player.score > achievements.stats.bestScore) {
+            achievements.stats.bestScore = this.player.score;
+            achievements._save();
+        }
     }
     _tickStageClear() {
         this.storyTimer++;
         if (this.storyTimer > 60 && (input.isPressed('shoot') || input.isPressed('jump'))) {
             this._clearScheduled = false;
             audio.sfx('select');
-            if (this.currentStage >= 8) {
+            // Secret stage gate: stage 1 cleared with no damage routes to 9 once
+            if (this.currentStage === 1 && this.stageStats.damageTaken === 0 && !achievements.stats.secretStageDiscovered) {
+                achievements.stats.secretStageDiscovered = true;
+                achievements._save();
+                this._startStage(9);
+            } else if (this.currentStage === 9) {
+                // After secret, drop back to stage 2
+                this._startStage(2);
+            } else if (this.currentStage >= 8) {
                 this._fadeTo(SCENE.GAME_COMPLETE);
             } else {
                 this._startStage(this.currentStage + 1);
@@ -531,15 +707,64 @@ export class Game {
     }
     _drawStageClear() {
         const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillStyle = 'rgba(0,0,0,0.78)';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
-        drawTextOutlined(ctx, 'STAGE CLEAR', GAME.W / 2, 50, '#ffe070', '#a82020', 3, 'center');
-        const sec = Math.floor(this.stageTime / 60);
-        drawText(ctx, 'TIME ' + sec + 'S', GAME.W / 2, 100, '#c0a0d0', 1, 'center');
-        drawText(ctx, 'SCORE ' + ('000000' + this.player.score).slice(-6), GAME.W / 2, 116, '#ffe070', 1, 'center');
-        if (this.storyTimer > 60 && (this.storyTimer % 60 < 40)) {
-            drawText(ctx, 'X TO CONTINUE', GAME.W / 2, 170, '#fff', 1, 'center');
+        drawTextOutlined(ctx, 'STAGE CLEAR', GAME.W / 2, 22, '#ffe070', '#a82020', 2, 'center');
+
+        // Results panel
+        const panelTop = 42;
+        ctx.fillStyle = '#1a0a20'; ctx.fillRect(20, panelTop, GAME.W - 40, 100);
+        ctx.fillStyle = '#3a2a4a'; ctx.fillRect(20, panelTop, GAME.W - 40, 1);
+        ctx.fillStyle = '#3a2a4a'; ctx.fillRect(20, panelTop + 99, GAME.W - 40, 1);
+
+        const min = Math.floor(this.stageTime / 3600);
+        const sec = Math.floor((this.stageTime / 60) % 60);
+        const time = `${min}:${String(sec).padStart(2,'0')}`;
+        const accuracy = this.player.shotsFired > 0
+            ? Math.round((this.stageStats.kills / this.player.shotsFired) * 100)
+            : 0;
+        const favWeapon = this._favoriteWeapon();
+        const noDmg = this.stageStats.damageTaken === 0;
+
+        const stats = [
+            ['TIME',       time, '#7af0ff'],
+            ['KILLS',      String(this.stageStats.kills), '#fff'],
+            ['MAX COMBO',  String(this.player.maxCombo) + 'x', '#ffe070'],
+            ['SCORE',      ('000000' + this.player.score).slice(-6), '#ffe070'],
+            ['ACCURACY',   accuracy + '%', '#fff'],
+            ['FAVORITE',   favWeapon, '#a0c0e0'],
+        ];
+        for (let i = 0; i < stats.length; i++) {
+            const [k, v, c] = stats[i];
+            const y = panelTop + 8 + i * 14;
+            drawText(ctx, k,        30,             y, '#c0a0d0', 1, 'left');
+            drawText(ctx, v,        GAME.W - 30,    y, c,         1, 'right');
         }
+
+        if (noDmg) drawTextOutlined(ctx, 'NO DAMAGE BONUS', GAME.W / 2, 152, '#50ff70', '#0a3a14', 1, 'center');
+
+        // Newly unlocked banner
+        if (this._newlyUnlocked?.length) {
+            const a = this._newlyUnlocked[0];
+            ctx.fillStyle = '#1a0a00';
+            ctx.fillRect(20, 168, GAME.W - 40, 20);
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(20, 168, GAME.W - 40, 1);
+            ctx.fillRect(20, 187, GAME.W - 40, 1);
+            drawText(ctx, 'NEW: ' + a.name, GAME.W / 2, 172, '#ffe070', 1, 'center');
+            drawText(ctx, a.desc,           GAME.W / 2, 181, '#fff', 1, 'center');
+        }
+
+        if (this.storyTimer > 60 && (this.storyTimer % 60 < 40)) {
+            drawText(ctx, 'X TO CONTINUE', GAME.W / 2, GAME.H - 12, '#fff', 1, 'center');
+        }
+    }
+
+    _favoriteWeapon() {
+        const dmg = this.player.dmgDealt || {};
+        let best = 'MG', bestV = -1;
+        for (const [k, v] of Object.entries(dmg)) if (v > bestV) { best = k; bestV = v; }
+        return best;
     }
 
     _tickGameOver() {

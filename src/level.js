@@ -516,6 +516,43 @@ function makeStage8() {
     };
 }
 
+// Stage 9 — Secret Recycle Bin. Short brutal arena. Unlocked by no-damage stage-1 clear.
+function makeStage9() {
+    const w = 60, h = 14;
+    const { g } = blankStage(w, h, THEME.SERVERROOM);
+    // Tight corridor with thicket of spikes + tough enemies
+    rectT(g, 0, 0, 1, h, W);
+    rectT(g, 0, w - 1, 1, h, W);
+    platT(g, 10, 6, 4);
+    platT(g, 7, 12, 4);
+    platT(g, 10, 18, 4);
+    platT(g, 7, 24, 4);
+    spikeRow(g, h - 3, 14, 3);
+    spikeRow(g, h - 3, 28, 3);
+    rectT(g, 8, 36, 2, 4, W);
+    platT(g, 6, 42, 5);
+    setT(g, h - 3, w - 4, X);
+    return {
+        tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
+        playerStart: { x: 48, y: (h - 4) * GAME.TILE },
+        bossTrigger: { x: 50 * GAME.TILE },
+        enemySpawns: [
+            { x: 14 * GAME.TILE, y: (h-3) * GAME.TILE, type: 'cabinet' },
+            { x: 22 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'holepunch' },
+            { x: 32 * GAME.TILE, y: (h-3) * GAME.TILE, type: 'cabinet' },
+            { x: 40 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+        ],
+        pickupSpawns: [
+            { x: 18 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+            { x: 36 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+        ],
+        crateSpawns: [
+            { x: 24 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'HOMING' },
+            { x: 44 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'THUNDER' },
+        ]
+    };
+}
+
 export const STAGE_LOADERS = [
     null,
     () => makeStage1(),
@@ -526,6 +563,7 @@ export const STAGE_LOADERS = [
     () => makeStage6(),
     () => makeStage7(),
     () => makeStage8(),
+    () => makeStage9(),  // Secret
 ];
 
 // Tile palette per theme. Each theme has [solid, solid_top, platform].
