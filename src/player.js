@@ -733,10 +733,14 @@ export class Player {
 
         switch (this.state) {
             case STATE.RUN: {
-                if (shooting) return 'run_shoot_1';
-                const phase = Math.floor(this.animFrame) % 4;
-                const seq = ['run_1', 'run_2', 'run_3', 'run_2'];
-                return seq[phase];
+                if (shooting) {
+                    // Cycle through run-shoot frames
+                    const phase = Math.floor(this.animFrame / 2) % 3;
+                    return ['run_shoot_1', 'run_shoot_2', 'run_shoot_3'][phase];
+                }
+                // 5-frame run cycle
+                const phase = Math.floor(this.animFrame) % 5;
+                return ['run_1', 'run_2', 'run_3', 'run_4', 'run_5'][phase];
             }
             case STATE.JUMP:
             case STATE.FALL: return 'jump';

@@ -66,11 +66,21 @@ class Input {
         });
         canvas.addEventListener('mouseup', e => {
             if (e.button === 0) this._up('shoot');
+            if (e.button === 2) this._up('special');
         });
-        // Right-click to back-dash / special
+        canvas.addEventListener('mousedown', e => {
+            // Right-click triggers special (back-dash)
+            if (e.button === 2) { this._down('special'); }
+        });
+        // Suppress right-click menu so back-dash works
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
         });
+        // Middle-click = aim-lock toggle (alternate to Shift)
+        canvas.addEventListener('mousedown', e => { if (e.button === 1) this._down('aimlock'); });
+        canvas.addEventListener('mouseup',   e => { if (e.button === 1) this._up('aimlock'); });
+        // Hide cursor over canvas — we draw our own reticule
+        canvas.style.cursor = 'none';
     }
 
     // Compute aim relative to a player position. Returns { x, y, angle }.

@@ -3,6 +3,7 @@
 import { GAME, WEAPON } from './constants.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { drawClippyFrame } from './sprites.js';
+import { input } from './input.js';
 
 export function drawHUD(ctx, state) {
     const { player, score, time, boss } = state;
@@ -51,6 +52,17 @@ export function drawHUD(ctx, state) {
     const sec = Math.floor((time / 60) % 60);
     const t = `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
     drawText(ctx, t, GAME.W - 4, 18, '#7af0ff', 1, 'right');
+
+    // Controller icon (small) when gamepad connected
+    if (input.gamepadIndex != null) {
+        const ix = GAME.W - 42, iy = 18;
+        ctx.fillStyle = '#50ff70';
+        ctx.fillRect(ix, iy, 8, 4);
+        ctx.fillRect(ix - 2, iy + 1, 2, 2);
+        ctx.fillRect(ix + 8, iy + 1, 2, 2);
+        ctx.fillRect(ix + 2, iy - 1, 1, 1);
+        ctx.fillRect(ix + 5, iy - 1, 1, 1);
+    }
 
     // Boss HP bar
     if (boss && boss.alive) {

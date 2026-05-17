@@ -195,17 +195,33 @@ class Enemy {
     }
 
     draw(ctx, camera) {
-        // Anchor sprite to bottom-center of hitbox
-        const dims = getSpriteDims(this.sprite);
+        // Pick frame: attack (charge wind-up / hop / sniper telegraph),
+        // hurt (recent damage), or base. Falls back gracefully if variant missing.
+        const dyingShortly = this.hp <= 1 && this.maxHp > 2;
+        const attackPose = (this.behavior === 'charge' && this.subState === 1)
+                        || (this.behavior === 'hover_sniper' && this.subTimer > 0)
+                        || (this.behavior === 'hop' && this.vy < -1);
+        let useSprite = this.sprite;
+        if (this.hitFlash > 4 || dyingShortly) {
+            const v = this.sprite + '_hurt';
+            if (sprites.has(v)) useSprite = v;
+        } else if (attackPose) {
+            const v = this.sprite + '_attack';
+            if (sprites.has(v)) useSprite = v;
+        } else if (this.behavior === 'charge') {
+            const v = this.sprite + '_walk';
+            if (sprites.has(v)) useSprite = v;
+        }
+        const dims = getSpriteDims(useSprite);
         const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
         const dy = Math.round(this.y + this.h - dims.h - camera.viewY);
         if (this.hitFlash > 0 && this.hitFlash % 2 === 0) {
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
-            drawEnemyFrame(ctx, this.sprite, dx, dy, this.facing > 0);
+            drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
             ctx.restore();
         } else {
-            drawEnemyFrame(ctx, this.sprite, dx, dy, this.facing > 0);
+            drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
         }
         // Charge tell: red flash on cabinet wind-up
         if (this.behavior === 'charge' && this.subState === 1) {
