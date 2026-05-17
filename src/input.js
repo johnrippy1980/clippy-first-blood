@@ -26,6 +26,12 @@ class Input {
         this.pressTimes = new Map();  // action -> ms timestamp of last press
         this.gamepadIndex = null;
         this.touchPad = null;
+        // 360-degree aim. Mouse position relative to player, OR right-stick.
+        // Stored as unit vector (ax, ay) and computed angle (radians).
+        this.aimVec = { x: 1, y: 0 };
+        this.aimAngle = 0;
+        this.aimActive = false;       // true when mouse moved or stick non-zero
+        this.mouseX = 0; this.mouseY = 0;
 
         window.addEventListener('keydown', e => this._down(KEYMAP[e.key]));
         window.addEventListener('keyup', e => this._up(KEYMAP[e.key]));
@@ -40,6 +46,47 @@ class Input {
         });
 
         this._setupTouch();
+        this._setupMouse();
+    }
+
+    _setupMouse() {
+        const canvas = (typeof document !== 'undefined') ? document.getElementById('screen') : null;
+        if (!canvas || typeof canvas.addEventListener !== 'function') return;
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            // Scale mouse to canvas-internal coords (256x224 internal)
+            const sx = (e.clientX - rect.left) / rect.width * 256;
+            const sy = (e.clientY - rect.top) / rect.height * 224;
+            this.mouseX = sx;
+            this.mouseY = sy;
+            this.aimActive = true;
+        });
+        canvas.addEventListener('mousedown', e => {
+            if (e.button === 0) this._down('shoot');
+        });
+        canvas.addEventListener('mouseup', e => {
+            if (e.button === 0) this._up('shoot');
+        });
+        // Right-click to back-dash / special
+        canvas.addEventListener('contextmenu', e => {
+            e.preventDefault();
+        });
+    }
+
+    // Compute aim relative to a player position. Returns { x, y, angle }.
+    aimFor(playerScreenX, playerScreenY) {
+        if (this.aimActive) {
+            const dx = this.mouseX - playerScreenX;
+            const dy = this.mouseY - playerScreenY;
+            const d = Math.hypot(dx, dy) || 1;
+            return { x: dx / d, y: dy / d, angle: Math.atan2(dy, dx) };
+        }
+        // Fall back to keyboard direction axes
+        const x = (this.isHeld('right') ? 1 : 0) - (this.isHeld('left') ? 1 : 0);
+        const y = (this.isHeld('down')  ? 1 : 0) - (this.isHeld('up')   ? 1 : 0);
+        if (x === 0 && y === 0) return { x: 1, y: 0, angle: 0 };
+        const d = Math.hypot(x, y);
+        return { x: x / d, y: y / d, angle: Math.atan2(y, x) };
     }
 
     _down(action) {
@@ -107,6 +154,16 @@ class Input {
         this._set('aimlock', gp.buttons[5]?.pressed);   // RB
         this._set('start', gp.buttons[9]?.pressed);
         this._set('pause', gp.buttons[9]?.pressed);
+        // Right stick for 360 aim
+        const rx = gp.axes[2] || 0;
+        const ry = gp.axes[3] || 0;
+        if (Math.hypot(rx, ry) > dz) {
+            const d = Math.hypot(rx, ry);
+            this.aimVec.x = rx / d;
+            this.aimVec.y = ry / d;
+            this.aimAngle = Math.atan2(ry, rx);
+            this.aimActive = true;
+        }
     }
 
     _set(action, pressed) {

@@ -60,8 +60,9 @@ export class Player {
         this.bullets = [];
         this.shotsFired = 0;
 
-        // Aim
-        this.aim = AIM.RIGHT;
+        // Aim — continuous angle in radians. 0 = right, -PI/2 = up, +PI/2 = down.
+        this.aim = AIM.RIGHT;        // legacy 8-way pointer (kept for compat)
+        this.aimAngle = 0;           // 360-degree aim angle
         this.aimLocked = false;
 
         // Slide / roll / backdash
@@ -89,6 +90,9 @@ export class Player {
         this.comboTimer = 0;
         this.maxCombo = 0;
 
+        // Recoil visual offset
+        this.recoilTimer = 0;
+
         // Score/stats
         this.score = 0;
         this.kills = 0;
@@ -107,7 +111,10 @@ export class Player {
     }
 
     // ---------- update ----------
-    update(level) {
+    update(level, camera = null) {
+        // Cache camera origin for aim-relative-to-screen calculation
+        if (camera) { this._cameraX = camera.viewX; this._cameraY = camera.viewY; }
+        else { this._cameraX = this._cameraX || 0; this._cameraY = this._cameraY || 0; }
         // Bullet-time slows everything else; player still moves normally.
         if (this.bulletTimeFrames > 0) this.bulletTimeFrames--;
 
@@ -270,19 +277,22 @@ export class Player {
             return;
         }
 
-        // 8-way aim. Lock with Shift to fire while standing.
+        // 360-degree aim from mouse / right-stick / keyboard axes.
+        // Camera-space position of the player so mouse aim works correctly.
+        const playerScreenX = this.x + this.w / 2 - this._cameraX;
+        const playerScreenY = this.y + this.h / 2 - this._cameraY;
+        const aimInfo = input.aimFor(playerScreenX, playerScreenY);
+        this.aim = { x: aimInfo.x, y: aimInfo.y };
+        this.aimAngle = aimInfo.angle;
+        // Facing auto-follows horizontal aim component (so you turn toward your target)
+        if (!input.isHeld('aimlock') && Math.abs(aimInfo.x) > 0.2) {
+            this.facing = aimInfo.x > 0 ? 1 : -1;
+        }
         if (input.isHeld('aimlock')) {
             this.aimLocked = true;
-            this.aim = this._axisToAim(lookX || this.facing, lookY);
             this.vx *= GAME.FRICTION;
         } else {
             this.aimLocked = false;
-            // Air aim: full 8-way during spin-jump
-            if (this.state === STATE.SPIN_JUMP || this.state === STATE.JUMP || this.state === STATE.FALL) {
-                this.aim = this._axisToAim(lookX || this.facing, lookY);
-            } else {
-                this.aim = this._axisToAim(this.facing, lookY);
-            }
         }
 
         // Horizontal movement
@@ -312,17 +322,14 @@ export class Player {
             this._exitCrouch();
         }
 
-        // Jump (with buffer + coyote). In-air spin-jump is automatic.
+        // Jump (with buffer + coyote). Super Contra style: ALWAYS spin in air.
         if ((input.isPressed('jump') || input.isBuffered('jump')) && this.coyote > 0 && this.state !== STATE.SLIDE) {
             input.consume('jump');
             this.vy = JUMP_V;
             this.onGround = false;
             this.coyote = 0;
-            // Holding a direction while jumping = spin jump (Super Contra)
-            if (lookX !== 0 || lookY !== 0) {
-                this.state = STATE.SPIN_JUMP;
-                this.spinAngle = 0;
-            }
+            this.state = STATE.SPIN_JUMP;
+            this.spinAngle = 0;
             audio.sfx('jump');
         }
 
@@ -470,8 +477,10 @@ export class Player {
         const rate = Math.max(2, w.fireRate - this.weaponLevel * 1.5);
         this.fireCooldown = rate;
 
-        const baseX = this.x + this.w / 2 + this.aim.x * 6;
-        const baseY = this.y + 6 + (this.state === STATE.PRONE || this.state === STATE.SLIDE ? 6 : 0);
+        // Bullet emerges from the rifle tip — radius 10 from center body.
+        const muzzleR = 12;
+        const baseX = this.x + this.w / 2 + this.aim.x * muzzleR;
+        const baseY = this.y + this.h / 2 + this.aim.y * muzzleR;
 
         const fire = (vx, vy) => {
             const b = {
@@ -512,10 +521,12 @@ export class Player {
             fire(ndx * sp + (Math.abs(ndy) < 0.1 ? 0 : j), ndy * sp + (Math.abs(ndx) < 0.1 ? 0 : j));
         }
 
-        // Muzzle effects
+        // Muzzle effects + recoil + shell ejection
         particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color);
+        particles.shellEject(this.x + this.w / 2 - this.facing * 2, this.y + 8, this.facing);
         audio.sfx(w.sound);
         this.shotsFired++;
+        this.recoilTimer = 4;   // frames; offsets the sprite slightly back
     }
 
     _updateBullets(level) {
@@ -654,13 +665,35 @@ export class Player {
         if (this.iFrames > 0 && this.iFrames % 4 < 2) return;
 
         const frame = this._frameForState();
-        // Anchor sprite to bottom-center of hitbox. PNG size varies per pose
-        // (idle ~44h, prone ~32h). drawClippyFrame internally falls back to a
-        // 24-wide procedural sprite when the PNG isn't loaded.
         const dims = spriteDims(frame);
-        const drawX = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
-        const drawY = Math.round(this.y + this.h - dims.h - camera.viewY + 1);
-        drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+        const recoilDX = this.recoilTimer > 0 ? -this.facing * (this.recoilTimer > 2 ? 1 : 0) : 0;
+        const cx = this.x + this.w / 2 - camera.viewX + recoilDX;
+        const cy = this.y + this.h - dims.h / 2 - camera.viewY + 1;
+
+        // Spin-jump rotates the whole sprite around its center
+        if (this.state === STATE.SPIN_JUMP) {
+            ctx.save();
+            ctx.translate(Math.round(cx), Math.round(cy));
+            ctx.rotate(this.spinAngle * (this.facing > 0 ? 1 : -1));
+            drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
+            ctx.restore();
+        } else {
+            const drawX = Math.round(cx - dims.w / 2);
+            const drawY = Math.round(cy - dims.h / 2);
+            drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+        }
+
+        // Aim indicator: draw a small targeting reticule line from chest to aim
+        if (input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
+            const reticleX = this.x + this.w / 2 + this.aim.x * 24 - camera.viewX;
+            const reticleY = this.y + this.h / 2 + this.aim.y * 24 - camera.viewY;
+            ctx.fillStyle = '#ff5050';
+            ctx.fillRect(Math.round(reticleX) - 1, Math.round(reticleY) - 1, 2, 2);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(Math.round(reticleX), Math.round(reticleY), 1, 1);
+        }
+
+        if (this.recoilTimer > 0) this.recoilTimer--;
 
         // Bullets
         for (const b of this.bullets) {
@@ -683,8 +716,24 @@ export class Player {
     }
 
     _frameForState() {
+        // Are we shooting (or just shot)? Use shoot-pose variants
+        const shooting = this.fireCooldown > 0 && this.fireCooldown >= (WEAPON[this.weapon].fireRate - 4);
+        // Aim band: convert aimAngle to up / diag / forward / diag-down / down
+        // angles measured from horizontal; up = -PI/2, down = +PI/2
+        const a = this.aimAngle;
+        let aimBand = 'forward';
+        // Use absolute angle relative to facing
+        const angleAbs = Math.abs(a);
+        const angleNorm = (a < 0 ? -a : a);  // 0=right, PI/2=down, PI=left
+        // We care about: up (close to -PI/2), diag-up (-PI/2..-PI/4), forward, diag-down, down
+        if (a < -1.2) aimBand = 'up';
+        else if (a < -0.4) aimBand = 'diag-up';
+        else if (a > 1.2) aimBand = 'down';
+        else if (a > 0.4) aimBand = 'diag-down';
+
         switch (this.state) {
             case STATE.RUN: {
+                if (shooting) return 'run_shoot_1';
                 const phase = Math.floor(this.animFrame) % 4;
                 const seq = ['run_1', 'run_2', 'run_3', 'run_2'];
                 return seq[phase];
@@ -692,9 +741,9 @@ export class Player {
             case STATE.JUMP:
             case STATE.FALL: return 'jump';
             case STATE.SPIN_JUMP: {
-                // Rotate through 4 frames during spin
+                // 4-frame spin: jump → spin_1 (90°) → spin_2 (180°) → spin_1 mirrored (270°)
                 const phase = Math.floor(this.spinAngle / (Math.PI / 2)) % 4;
-                const seq = ['jump', 'crouch', 'prone', 'crouch'];
+                const seq = ['jump', 'spin_1', 'spin_2', 'spin_1'];
                 return seq[phase];
             }
             case STATE.CROUCH: return 'crouch';
@@ -702,16 +751,22 @@ export class Player {
             case STATE.SLIDE:
             case STATE.CRAWL:
             case STATE.ROLL: return 'prone';
-            case STATE.BACKDASH: return 'crouch';
+            case STATE.BACKDASH: return 'backdash';
             case STATE.CLIMB: return Math.floor(this.animFrame) % 2 === 0 ? 'run_1' : 'run_2';
             case STATE.COVER: return 'crouch';
-            case STATE.HURT: return 'death_hit';
+            case STATE.HURT: return 'hurt';
             case STATE.DIE: {
                 if (this.deathTimer < 30) return 'death_hit';
                 if (this.deathTimer < 60) return 'death_explode';
                 return 'death_burning';
             }
-            default: return 'idle';
+            default: {
+                // Idle picks aim-up / aim-diag / shoot variants
+                if (aimBand === 'up') return 'aim_up';
+                if (aimBand === 'diag-up') return 'aim_diag';
+                if (shooting) return 'shoot';
+                return 'idle';
+            }
         }
     }
 }

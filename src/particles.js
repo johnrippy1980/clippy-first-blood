@@ -107,15 +107,32 @@ class ParticleSystem {
     }
 
     muzzleFlash(x, y, dx, dy, color = '#ffe070') {
-        for (let i = 0; i < 4; i++) {
-            this.spawn(
-                x, y,
-                dx * (1 + Math.random()) + (Math.random() - 0.5) * 0.4,
-                dy * (1 + Math.random()) + (Math.random() - 0.5) * 0.4,
-                4 + Math.random() * 3,
-                color, 1, 0
-            );
+        // Bright core sparkle
+        for (let i = 0; i < 3; i++) {
+            this.spawn(x, y, 0, 0, 3 + i, '#fff', 3 - i, 0);
         }
+        // Forward cone of bright particles
+        for (let i = 0; i < 8; i++) {
+            const spread = 0.6;
+            const vx = dx * (1.4 + Math.random() * 1.2) + (Math.random() - 0.5) * spread;
+            const vy = dy * (1.4 + Math.random() * 1.2) + (Math.random() - 0.5) * spread;
+            this.spawn(x, y, vx, vy, 5 + Math.random() * 4, color, 1 + (Math.random() < 0.5 ? 1 : 0), 0);
+        }
+        // Smoke trail puff
+        for (let i = 0; i < 4; i++) {
+            this.spawn(x, y, -dx * 0.4 + (Math.random() - 0.5) * 0.5, -dy * 0.4 + (Math.random() - 0.5) * 0.5,
+                       14 + Math.random() * 4, '#605060', 1, -0.02);
+        }
+    }
+
+    shellEject(x, y, dx) {
+        // Brass casing ejecting sideways + falling
+        this.spawn(
+            x, y,
+            -dx * 0.8 + (Math.random() - 0.5) * 0.3,
+            -1.4 - Math.random() * 0.4,
+            34, '#ffd040', 1, 0.18
+        );
     }
 
     dust(x, y) {

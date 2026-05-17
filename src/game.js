@@ -376,7 +376,7 @@ export class Game {
         this.stageTime++;
         this.totalTime++;
         this.level.update();
-        this.player.update(this.level);
+        this.player.update(this.level, this.camera);
         this.enemies.update(this.level, this.player);
         this.pickups.update(this.level, this.player);
         this.camera.follow(this.player, this.player.facing);

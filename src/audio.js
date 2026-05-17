@@ -21,11 +21,13 @@ function hz(n) {
     return NOTE_HZ[n] || 0;
 }
 
-// File-backed tracks override the synth. revenge = intense (title, gameplay, boss).
-// dream = atmospheric (story cutscenes, game-complete).
+// dream = atmospheric (title → story → ending, audio continuity)
+// revenge = driving (gameplay + boss)
 const FILE_TRACKS = {
-    // Title screen + all gameplay + boss = the driving track
-    title:      'assets/audio/revenge.mp3',
+    title:      'assets/audio/dream.mp3',  // continues into story without a gap
+    story:      'assets/audio/dream.mp3',
+    gameComplete: 'assets/audio/dream.mp3',
+    // Gameplay + boss
     jungle:     'assets/audio/revenge.mp3',
     breakroom:  'assets/audio/revenge.mp3',
     serverroom: 'assets/audio/revenge.mp3',
@@ -34,9 +36,6 @@ const FILE_TRACKS = {
     founder:    'assets/audio/revenge.mp3',
     cloud:      'assets/audio/revenge.mp3',
     bossBattle: 'assets/audio/revenge.mp3',
-    // Story scenes + ending = the atmospheric track
-    story:        'assets/audio/dream.mp3',
-    gameComplete: 'assets/audio/dream.mp3',
 };
 
 class Audio {
@@ -92,31 +91,176 @@ class Audio {
     }
 
     // ============= SFX =============
+    // No more Atari beeps. Each shot = layered: low thump (sub kick), mid
+    // body (filtered noise burst), high crack (HPF noise), and a tonal
+    // click. Total ~120-200ms with proper envelope, not 50ms square waves.
     sfx(name) {
         if (!this.ctx || this.muted) return;
         const t = this.ctx.currentTime;
         switch (name) {
-            case 'mg':       return this._gunShot(t, 0.07, 0.32, 'square', 800, 200);
-            case 'spread':   return this._gunShot(t, 0.12, 0.34, 'sawtooth', 600, 180);
+            case 'mg':       return this._gunshot(t, { thump: 80, body: 1400, bodyDur: 0.10, crack: 5000 });
+            case 'spread':   return this._gunshot(t, { thump: 70, body: 900,  bodyDur: 0.16, crack: 4200, layers: 2 });
             case 'laser':    return this._laserBeam(t);
             case 'flame':    return this._flameLick(t);
             case 'homing':   return this._homingWoosh(t);
             case 'thunder':  return this._thunderHit(t);
-            case 'jump':     return this._tonal(t, 'square', 280, 720, 0.13, 0.18);
+            case 'jump':     return this._jumpWoosh(t);
             case 'hurt':     return this._hurtGrunt(t);
             case 'die':      return this._deathStinger(t);
             case 'pickup':   return this._pickupChime(t);
             case 'powerup':  return this._powerupChime(t);
             case 'explode':  return this._explode(t);
-            case 'slide':    return this._noise(t, 0.22, 0.4, 1800, 'bp', 2.4);
+            case 'slide':    return this._slideRush(t);
+            case 'backdash': return this._backdashWhoosh(t);
             case 'bossHit':  return this._bossHit(t);
             case 'bossExplode': return this._bossExplode(t);
-            case 'comboBreak': return this._tonal(t, 'sawtooth', 220, 110, 0.22, 0.30);
-            case 'combo':    return this._comboTick(t);
-            case 'select':   return this._tonal(t, 'square', 880, 1100, 0.06, 0.18);
-            case 'menu':     return this._tonal(t, 'square', 660, 880, 0.08, 0.20);
-            case 'pause':    return this._tonal(t, 'square', 440, 220, 0.10, 0.24);
+            case 'comboBreak': return this._comboBreakRoar(t);
+            case 'combo':    return this._comboHit(t);
+            case 'select':   return this._uiClick(t, 880);
+            case 'menu':     return this._uiClick(t, 660);
+            case 'pause':    return this._uiClick(t, 440);
         }
+    }
+
+    // Real-feeling gunshot. Sub kick + filtered noise body + HPF crack.
+    _gunshot(t, { thump = 80, body = 1400, bodyDur = 0.12, crack = 5000, layers = 1 }) {
+        for (let layer = 0; layer < layers; layer++) {
+            const start = t + layer * 0.025;
+            // Sub-bass thump: kick-drum-style sine pitch sweep
+            const o = this.ctx.createOscillator();
+            const og = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(thump * 2, start);
+            o.frequency.exponentialRampToValueAtTime(thump * 0.5, start + 0.10);
+            og.gain.setValueAtTime(0.0, start);
+            og.gain.linearRampToValueAtTime(0.55, start + 0.005);
+            og.gain.exponentialRampToValueAtTime(0.001, start + 0.14);
+            o.connect(og).connect(this.sfxBus);
+            o.start(start); o.stop(start + 0.16);
+
+            // Body: bandpass noise, longer tail than the beep version
+            const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * bodyDur) | 0, this.ctx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+            const src = this.ctx.createBufferSource(); src.buffer = buf;
+            const filt = this.ctx.createBiquadFilter();
+            filt.type = 'bandpass';
+            filt.frequency.setValueAtTime(body, start);
+            filt.frequency.exponentialRampToValueAtTime(body * 0.4, start + bodyDur);
+            filt.Q.value = 1.2;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.42, start);
+            g.gain.exponentialRampToValueAtTime(0.001, start + bodyDur);
+            src.connect(filt).connect(g).connect(this.sfxBus);
+            src.start(start); src.stop(start + bodyDur + 0.02);
+
+            // High crack at attack
+            const crackBuf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.025) | 0, this.ctx.sampleRate);
+            const cd = crackBuf.getChannelData(0);
+            for (let i = 0; i < cd.length; i++) cd[i] = Math.random() * 2 - 1;
+            const csrc = this.ctx.createBufferSource(); csrc.buffer = crackBuf;
+            const cfilt = this.ctx.createBiquadFilter();
+            cfilt.type = 'highpass';
+            cfilt.frequency.value = crack;
+            const cg = this.ctx.createGain();
+            cg.gain.setValueAtTime(0.32, start);
+            cg.gain.exponentialRampToValueAtTime(0.001, start + 0.025);
+            csrc.connect(cfilt).connect(cg).connect(this.sfxBus);
+            csrc.start(start); csrc.stop(start + 0.03);
+        }
+    }
+
+    _jumpWoosh(t) {
+        // Air-rush sound, not a beep. Filtered noise sweep upward.
+        const dur = 0.20;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(800, t);
+        filt.frequency.exponentialRampToValueAtTime(3000, t + dur);
+        filt.Q.value = 3.5;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0, t);
+        g.gain.linearRampToValueAtTime(0.22, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    _slideRush(t) {
+        // Long sustained noise rush like a body sliding on concrete
+        const dur = 0.40;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(2400, t);
+        filt.frequency.exponentialRampToValueAtTime(600, t + dur);
+        filt.Q.value = 1.6;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.28, t);
+        g.gain.linearRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    _backdashWhoosh(t) {
+        // Short reverse-flagged woosh — pitch drops on hi end, sub thump too
+        this._slideRush(t);
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(80, t + 0.15);
+        g.gain.setValueAtTime(0.35, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.2);
+    }
+
+    _comboHit(t) {
+        // Short bright two-tone, not a square blip
+        const o1 = this.ctx.createOscillator(); const g1 = this.ctx.createGain();
+        o1.type = 'triangle';
+        o1.frequency.setValueAtTime(1100, t);
+        o1.frequency.exponentialRampToValueAtTime(1760, t + 0.08);
+        g1.gain.setValueAtTime(0.18, t);
+        g1.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        o1.connect(g1).connect(this.sfxBus);
+        o1.start(t); o1.stop(t + 0.12);
+    }
+
+    _comboBreakRoar(t) {
+        // Sub pitch drop + filtered noise — sounds disappointing
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(280, t);
+        o.frequency.exponentialRampToValueAtTime(80, t + 0.28);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.setValueAtTime(1200, t);
+        filt.frequency.exponentialRampToValueAtTime(300, t + 0.28);
+        g.gain.setValueAtTime(0.30, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.32);
+    }
+
+    _uiClick(t, pitch) {
+        // Click + tail, not a square beep
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(pitch * 1.6, t);
+        o.frequency.exponentialRampToValueAtTime(pitch, t + 0.04);
+        g.gain.setValueAtTime(0.16, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.08);
+        this._noise(t, 0.015, 0.10, 5000, 'hp', 1);
     }
 
     _tonal(t, type, f1, f2, dur, vol) {
