@@ -112,11 +112,13 @@ class Player {
         // Update bullets
         this.updateBullets(level);
 
-        // Animation timer - 4-frame ping-pong cycle (1-2-3-2) with fast speed
+        // Animation timer - cycles 0..15 so we can drive long animation
+        // strips (the player run cycle is 9 frames; smaller animations
+        // just modulo this down).
         this.animTimer++;
         if (this.animTimer >= 4) {
             this.animTimer = 0;
-            this.animFrame = (this.animFrame + 1) % 4;
+            this.animFrame = (this.animFrame + 1) % 16;
         }
     }
 

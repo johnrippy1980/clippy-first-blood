@@ -1,0 +1,69 @@
+{
+  "_comment": "Each sheet defines its frame grid. Set frameW/frameH to the per-cell pixel size of the SOURCE PNG. Set drawW/drawH to the desired IN-GAME size (the game uses 48x48 for player sprites, ~32x32 for enemies). List frames row-major; null for empty cells.",
+  "sheets": {
+    "player": {
+      "path": "images/sprites/sheets/player.png",
+      "frameW": 192,
+      "frameH": 170,
+      "cols": 6,
+      "drawW": 48,
+      "drawH": 48,
+      "frames": [
+        "clippy_idle_01", "clippy_idle_02", "clippy_run_01", "clippy_run_02", "clippy_run_03", "clippy_run_04",
+        "clippy_run_05", "clippy_run_06", "clippy_run_07", "clippy_run_08", "clippy_run_09", null,
+        "clippy_shoot_01", "clippy_shoot_02", "clippy_shoot_03", "clippy_shoot_04", null, null,
+        "clippy_crouch_01", "clippy_crouch_02", "clippy_crouch_03", null, null, null,
+        "clippy_prone_01", "clippy_prone_shoot_01", "clippy_prone_shoot_heavy_01", null, null, null,
+        "clippy_jump_01", "clippy_fall_01", "clippy_air_03", "clippy_climb_01", "clippy_climb_02", null,
+        "clippy_cover_01", "clippy_cover_shoot_01", "clippy_shoot_down_01", null, null, null,
+        "clippy_death_01", "clippy_death_02", "clippy_death_03", null, null, null
+      ]
+    },
+    "cabinet": {
+      "path": "images/sprites/sheets/cabinet.png",
+      "frameW": 220,
+      "frameH": 260,
+      "cols": 2,
+      "drawW": 38,
+      "drawH": 44,
+      "frames": [
+        "cabinet_idle_01", "cabinet_idle_02",
+        "cabinet_walk_01", "cabinet_walk_02",
+        "cabinet_walk_03", "cabinet_walk_04",
+        "cabinet_shoot_01", "cabinet_shoot_02",
+        "cabinet_hurt_01", null,
+        "cabinet_dying_01", "cabinet_death_01"
+      ]
+    },
+    "folder": {
+      "path": "images/sprites/sheets/folder.png",
+      "frameW": 290,
+      "frameH": 310,
+      "cols": 2,
+      "drawW": 32,
+      "drawH": 32,
+      "frames": [
+        "folder_idle_01", "folder_idle_02",
+        "folder_walk_01", "folder_walk_02",
+        "folder_walk_03", "folder_walk_04",
+        "folder_hurt_01", "folder_dying_01",
+        "folder_death_01", "folder_death_02"
+      ]
+    },
+    "stapler": {
+      "path": "images/sprites/sheets/stapler.png",
+      "frameW": 220,
+      "frameH": 250,
+      "cols": 2,
+      "drawW": 24,
+      "drawH": 18,
+      "frames": [
+        "stapler_idle_01", "stapler_idle_02",
+        "stapler_walk_01", "stapler_walk_02",
+        "stapler_shoot_01", "stapler_shoot_02",
+        "stapler_hurt_01", null,
+        "stapler_death_01", "stapler_death_02"
+      ]
+    }
+  }
+}

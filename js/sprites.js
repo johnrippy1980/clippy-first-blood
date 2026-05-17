@@ -52,23 +52,28 @@ class SpriteAtlas {
         }
     }
 
-    // Define frames manually (grid-based layout)
-    defineFrames(sheetName, frameWidth, frameHeight, frameNames) {
+    // Define frames manually (grid-based layout). `cols` and `drawW/drawH`
+    // are optional - `cols` overrides the inferred grid (useful when the
+    // sheet has empty trailing cells); `drawW/drawH` are the in-game render
+    // size, defaulting to the frame's natural size.
+    defineFrames(sheetName, frameWidth, frameHeight, frameNames, cols = null, drawW = null, drawH = null) {
         const sheet = this.sheets.get(sheetName);
         if (!sheet) return;
 
-        const cols = Math.floor(sheet.width / frameWidth);
+        const actualCols = cols || Math.floor(sheet.width / frameWidth);
 
         frameNames.forEach((name, index) => {
             if (name) {
-                const col = index % cols;
-                const row = Math.floor(index / cols);
+                const col = index % actualCols;
+                const row = Math.floor(index / actualCols);
                 this.frames.set(name, {
                     sheet: sheetName,
                     x: col * frameWidth,
                     y: row * frameHeight,
                     w: frameWidth,
-                    h: frameHeight
+                    h: frameHeight,
+                    drawW: drawW || frameWidth,
+                    drawH: drawH || frameHeight
                 });
             }
         });
@@ -107,15 +112,19 @@ class SpriteAtlas {
             return;
         }
 
-        // Handle sprite sheet frames
+        // Handle sprite sheet frames - drawW/drawH let us downscale from
+        // a large source frame (e.g. 192x170) to the in-game sprite size
+        // (e.g. 48x48). Default to source size if unset.
         const sheet = this.sheets.get(frame.sheet);
         if (!sheet) {
             ctx.restore();
             return;
         }
+        const dw = (frame.drawW || frame.w) * scale;
+        const dh = (frame.drawH || frame.h) * scale;
 
         if (flipH) {
-            ctx.translate(x + frame.w * scale, y);
+            ctx.translate(x + dw, y);
             ctx.scale(-1, 1);
             x = 0;
             y = 0;
@@ -124,7 +133,7 @@ class SpriteAtlas {
         ctx.drawImage(
             sheet,
             frame.x, frame.y, frame.w, frame.h,
-            x, y, frame.w * scale, frame.h * scale
+            x, y, dw, dh
         );
 
         ctx.restore();
@@ -255,6 +264,36 @@ async function loadAllSprites() {
         console.warn('Could not load all clippy sprites, using procedural fallback');
     }
 
+    // Load sprite SHEETS (multi-frame PNGs) from the manifest. Each sheet
+    // is a grid of frames; the manifest names each cell so they can be
+    // looked up by `clippy_run_01`, `cabinet_walk_02`, etc. Failure to
+    // load a sheet is non-fatal - the procedural renderer takes over.
+    try {
+        const res = await fetch('images/sprites/sheets/manifest.json');
+        if (res.ok) {
+            const manifest = await res.json();
+            const sheetPromises = [];
+            for (const [name, def] of Object.entries(manifest.sheets || {})) {
+                sheetPromises.push(
+                    spriteAtlas.loadSheet(name, def.path).then(() => {
+                        spriteAtlas.defineFrames(
+                            name,
+                            def.frameW, def.frameH,
+                            def.frames || [],
+                            def.cols || null,
+                            def.drawW || null,
+                            def.drawH || null
+                        );
+                    }).catch(err => console.warn(`Sheet ${name} skipped:`, err))
+                );
+            }
+            await Promise.all(sheetPromises);
+            console.log('Loaded sprite sheets from manifest');
+        }
+    } catch (e) {
+        console.warn('No sprite-sheet manifest found, using procedural enemies/tiles');
+    }
+
     // Tile and enemy art is rendered procedurally in level.js / enemies.js
     // (the bundled tile PNGs were unusable - kept on disk for reference only).
     spriteAtlas.finishLoading();
@@ -362,30 +401,51 @@ class ProceduralSprites {
 
     // Draw enemy (with image fallback)
     drawEnemy(ctx, x, y, behavior, animFrame, facingRight = true) {
-        let frameName;
+        const af = ((animFrame | 0) % 1024 + 1024) % 1024;
+
+        // Per-behavior frame candidates - tries newer sheet names first
+        // (cabinet_walk_01, stapler_shoot_01, etc.) then falls through to
+        // the legacy frame names, then to the procedural ENEMY_SPRITES.
+        const candidates = [];
         switch (behavior) {
-            case 'hop':
-                frameName = animFrame % 2 === 0 ? 'stapler_idle' : 'stapler_hop';
+            case 'hop': {
+                const v = (af % 2) + 1;
+                candidates.push(`stapler_walk_0${v}`, `stapler_idle_0${v}`, `stapler_idle`, `stapler_hop`);
                 break;
-            case 'fly_sine':
-                frameName = animFrame % 2 === 0 ? 'folder_fly_01' : 'folder_fly_02';
+            }
+            case 'fly_sine': {
+                const v = (af % 2) + 1;
+                candidates.push(`folder_walk_0${v}`, `folder_idle_0${v}`, `folder_fly_01`, `folder_fly_02`);
                 break;
+            }
             case 'bounce':
-                frameName = animFrame % 2 === 0 ? 'rubber_ball_01' : 'rubber_ball_02';
+                candidates.push((af % 2 === 0) ? 'rubber_ball_01' : 'rubber_ball_02');
                 break;
             case 'stationary':
-                frameName = 'tape_dispenser';
+                candidates.push('tape_dispenser');
                 break;
-            case 'miniboss':
-                frameName = `file_cabinet_0${(animFrame % 3) + 1}`;
+            case 'charge': {
+                const v = (af % 4) + 1;
+                candidates.push(`cabinet_walk_0${v}`, `cabinet_idle_0${(af % 2) + 1}`);
                 break;
+            }
+            case 'hover_sniper':
+                candidates.push('stapler_shoot_01', 'stapler_idle_01');
+                break;
+            case 'miniboss': {
+                const v = (af % 3) + 1;
+                candidates.push(`cabinet_walk_0${v}`, `file_cabinet_0${v}`);
+                break;
+            }
             default:
-                frameName = 'stapler_idle';
+                candidates.push('stapler_idle_01', 'stapler_idle');
         }
 
-        if (spriteAtlas.frames.has(frameName)) {
-            spriteAtlas.drawFrame(ctx, frameName, x, y, !facingRight);
-            return;
+        for (const name of candidates) {
+            if (spriteAtlas.frames.has(name)) {
+                spriteAtlas.drawFrame(ctx, name, x, y, !facingRight);
+                return;
+            }
         }
 
         // Procedural fallback
