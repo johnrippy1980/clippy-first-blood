@@ -34,17 +34,22 @@ const { drawHUD } = await import(path.join(ROOT, 'src/hud.js'));
 const { drawText, drawTextOutlined } = await import(path.join(ROOT, 'src/pixelfont.js'));
 
 // Manually load sprite PNGs via node-canvas loadImage
+const { SCENE_MANIFEST } = await import(path.join(ROOT, 'src/sprites.js'));
 const loadAssets = async () => {
-    const all = { ...CLIPPY_MANIFEST, ...ENEMY_MANIFEST };
-    for (const [name, file] of Object.entries(all)) {
-        const src = path.join(ROOT, 'assets/sprites', file);
-        if (!fs.existsSync(src)) continue;
-        try {
-            const img = await loadImage(src);
-            sprites.images.set(name, img);
-            sprites.dims.set(name, { w: img.width, h: img.height });
-        } catch (e) {
-            // skip
+    const cases = [
+        [CLIPPY_MANIFEST, 'assets/sprites'],
+        [ENEMY_MANIFEST,  'assets/sprites'],
+        [SCENE_MANIFEST,  'assets/scenes'],
+    ];
+    for (const [manifest, dir] of cases) {
+        for (const [name, file] of Object.entries(manifest)) {
+            const src = path.join(ROOT, dir, file);
+            if (!fs.existsSync(src)) continue;
+            try {
+                const img = await loadImage(src);
+                sprites.images.set(name, img);
+                sprites.dims.set(name, { w: img.width, h: img.height });
+            } catch (e) {}
         }
     }
 };
@@ -58,10 +63,19 @@ await loadAssets();
 
 function renderTitle() {
     ctx.fillStyle = '#000408'; ctx.fillRect(0, 0, GAME.W, GAME.H);
-    drawTextOutlined(ctx, 'CLIPPY', GAME.W / 2, 38, '#ff5050', '#1a0000', 4, 'center');
-    drawTextOutlined(ctx, 'FIRST BLOOD', GAME.W / 2, 78, '#ffe070', '#a82020', 2, 'center');
-    drawText(ctx, 'A PAPERCLIP HERO REBORN', GAME.W / 2, 142, '#c0a0d0', 1, 'center');
-    drawText(ctx, 'PRESS X TO START', GAME.W / 2, 168, '#fff', 1, 'center');
+    if (sprites.images.has('title_bg')) {
+        const img = sprites.images.get('title_bg');
+        const scale = GAME.W / img.width;
+        const dh = img.height * scale;
+        const dy = (GAME.H - dh) / 2;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, dy, GAME.W, dh);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+    }
+    drawTextOutlined(ctx, 'CLIPPY', GAME.W / 2, 28, '#ff5050', '#1a0000', 4, 'center');
+    drawTextOutlined(ctx, 'FIRST BLOOD', GAME.W / 2, 68, '#ffe070', '#a82020', 2, 'center');
+    drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, GAME.H - 30, '#fff', '#000', 1, 'center');
 }
 
 function renderStage(n) {
@@ -91,7 +105,27 @@ function renderStage(n) {
     drawText(ctx, 'STAGE ' + n + ' ' + STAGES[n].name, 4, 18, '#fff', 1);
 }
 
+function renderStory(page) {
+    const keys = ['story_home', 'story_bomb', 'story_hill', 'story_list'];
+    const key = keys[page] || 'story_home';
+    if (sprites.images.has(key)) {
+        const img = sprites.images.get(key);
+        const scale = GAME.W / img.width;
+        const dh = img.height * scale;
+        const maxH = GAME.H - 90;
+        const finalH = Math.min(dh, maxH);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, GAME.W, finalH);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, finalH, GAME.W, GAME.H - finalH);
+        drawText(ctx, 'STORY PAGE ' + (page + 1), GAME.W / 2, GAME.H - 40, '#d8c8e0', 1, 'center');
+    } else {
+        drawText(ctx, 'MISSING: ' + key, GAME.W / 2, GAME.H / 2, '#ff5050', 1, 'center');
+    }
+}
+
 if (arg === 'title') renderTitle();
+else if (arg.startsWith('story')) renderStory(parseInt(arg.slice(5)) || 0);
 else if (arg.startsWith('stage')) renderStage(parseInt(arg.slice(5)));
 else renderStage(1);
 

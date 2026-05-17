@@ -21,6 +21,24 @@ function hz(n) {
     return NOTE_HZ[n] || 0;
 }
 
+// File-backed tracks override the synth. revenge = intense (title, gameplay, boss).
+// dream = atmospheric (story cutscenes, game-complete).
+const FILE_TRACKS = {
+    // Title screen + all gameplay + boss = the driving track
+    title:      'assets/audio/revenge.mp3',
+    jungle:     'assets/audio/revenge.mp3',
+    breakroom:  'assets/audio/revenge.mp3',
+    serverroom: 'assets/audio/revenge.mp3',
+    boardroom:  'assets/audio/revenge.mp3',
+    keynote:    'assets/audio/revenge.mp3',
+    founder:    'assets/audio/revenge.mp3',
+    cloud:      'assets/audio/revenge.mp3',
+    bossBattle: 'assets/audio/revenge.mp3',
+    // Story scenes + ending = the atmospheric track
+    story:        'assets/audio/dream.mp3',
+    gameComplete: 'assets/audio/dream.mp3',
+};
+
 class Audio {
     constructor() {
         this.ctx = null;
@@ -33,6 +51,10 @@ class Audio {
         this._timer = null;
         this.beat = 0;
         this.bpm = 128;
+        // HTML5 audio elements for file-backed music
+        this._fileEl = null;
+        this._fileGainNode = null;
+        this._fileSource = null;
     }
 
     init() {
@@ -268,9 +290,14 @@ class Audio {
     playTrack(name) {
         if (this.currentTrack === name) return;
         this.stopTrack();
+        this.currentTrack = name;
+        // Prefer real file if mapped
+        if (FILE_TRACKS[name] && this.ctx) {
+            this._playFile(FILE_TRACKS[name]);
+            return;
+        }
         const t = TRACKS[name];
         if (!t) return;
-        this.currentTrack = name;
         this.bpm = t.bpm;
         this.beat = 0;
         this._scheduleBeat(t);
@@ -279,6 +306,34 @@ class Audio {
         if (this._timer) clearTimeout(this._timer);
         this._timer = null;
         this.currentTrack = null;
+        if (this._fileEl) {
+            try { this._fileEl.pause(); } catch (e) {}
+            this._fileEl = null;
+        }
+    }
+
+    _playFile(path) {
+        const el = new window.Audio(path);
+        el.loop = true;
+        el.volume = 0.7;
+        el.preload = 'auto';
+        // Pipe through Web Audio so we still get the limiter
+        try {
+            if (!this._fileGainNode) {
+                this._fileGainNode = this.ctx.createGain();
+                this._fileGainNode.gain.value = 0.85;
+                this._fileGainNode.connect(this.musicBus);
+            }
+            const src = this.ctx.createMediaElementSource(el);
+            src.connect(this._fileGainNode);
+            this._fileSource = src;
+        } catch (e) {
+            // Browsers throw if the element is reused; fall back to direct play
+        }
+        el.play().catch(err => {
+            console.warn('Music file blocked by autoplay policy:', err);
+        });
+        this._fileEl = el;
     }
     _scheduleBeat(track) {
         const stepMs = 60000 / this.bpm / 4;

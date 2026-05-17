@@ -12,7 +12,7 @@ import { PickupManager } from './pickups.js';
 import { Parallax } from './parallax.js';
 import { drawHUD, drawClippyIcon } from './hud.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
-import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST } from './sprites.js';
+import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST } from './sprites.js';
 
 const SCENE = {
     BOOT: 'boot',
@@ -94,6 +94,7 @@ export class Game {
     async preload() {
         await sprites.loadAll(CLIPPY_MANIFEST, 'assets/sprites');
         await sprites.loadAll(ENEMY_MANIFEST, 'assets/sprites');
+        await sprites.loadAll(SCENE_MANIFEST, 'assets/scenes');
         this.assetsReady = true;
     }
 
@@ -179,49 +180,55 @@ export class Game {
     }
     _drawTitle() {
         const ctx = this.ctx;
-        // Background — burning city silhouette
-        for (let y = 0; y < GAME.H; y++) {
-            const t = y / GAME.H;
-            ctx.fillStyle = t < 0.4 ? '#000408' :
-                            t < 0.65 ? '#180814' :
-                            t < 0.85 ? '#401020' : '#180810';
-            ctx.fillRect(0, y, GAME.W, 1);
-        }
-        // Skyline
-        ctx.fillStyle = '#000';
-        for (let i = 0; i < 24; i++) {
-            const x = i * 11;
-            const h = 30 + ((i * 17) % 20);
-            ctx.fillRect(x, GAME.H - 50 - h, 10, h);
-        }
-        for (let i = 0; i < 14; i++) {
-            const fx = (i * 17 + this.titleBlink) % GAME.W;
-            ctx.fillStyle = i % 2 ? '#a02018' : '#601008';
-            ctx.fillRect(fx, GAME.H - 52 - (Math.sin(this.titleBlink / 20 + i) * 4 + 4), 1, 5);
+        // Painted scene background if available, else procedural fallback
+        if (sprites.has('title_bg')) {
+            const img = sprites.images.get('title_bg');
+            // Fit width, center vertically
+            const scale = GAME.W / img.width;
+            const dh = img.height * scale;
+            const dy = (GAME.H - dh) / 2;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, dy, GAME.W, dh);
+            // Darken slightly for title readability
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+        } else {
+            // Procedural fallback
+            for (let y = 0; y < GAME.H; y++) {
+                const t = y / GAME.H;
+                ctx.fillStyle = t < 0.4 ? '#000408' :
+                                t < 0.65 ? '#180814' :
+                                t < 0.85 ? '#401020' : '#180810';
+                ctx.fillRect(0, y, GAME.W, 1);
+            }
+            ctx.fillStyle = '#000';
+            for (let i = 0; i < 24; i++) {
+                const x = i * 11;
+                const h = 30 + ((i * 17) % 20);
+                ctx.fillRect(x, GAME.H - 50 - h, 10, h);
+            }
+            for (let i = 0; i < 14; i++) {
+                const fx = (i * 17 + this.titleBlink) % GAME.W;
+                ctx.fillStyle = i % 2 ? '#a02018' : '#601008';
+                ctx.fillRect(fx, GAME.H - 52 - (Math.sin(this.titleBlink / 20 + i) * 4 + 4), 1, 5);
+            }
         }
 
         // Title text
         ctx.globalAlpha = 1;
-        drawTextOutlined(ctx, 'CLIPPY', GAME.W / 2, 38, '#ff5050', '#1a0000', 4, 'center');
-        drawTextOutlined(ctx, 'FIRST BLOOD', GAME.W / 2, 78, '#ffe070', '#a82020', 2, 'center');
-
-        // Big clippy icon centered
-        drawClippyIcon(ctx, GAME.W / 2 - 8, 104);
-
-        // Subtitle
-        drawText(ctx, 'A PAPERCLIP HERO REBORN', GAME.W / 2, 142, '#c0a0d0', 1, 'center');
+        drawTextOutlined(ctx, 'CLIPPY', GAME.W / 2, 28, '#ff5050', '#1a0000', 4, 'center');
+        drawTextOutlined(ctx, 'FIRST BLOOD', GAME.W / 2, 68, '#ffe070', '#a82020', 2, 'center');
 
         // Press to start (blinking)
         if (this.titleBlink % 60 < 40) {
-            drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, 168, '#fff', '#000', 1, 'center');
+            drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, GAME.H - 30, '#fff', '#000', 1, 'center');
         }
-
-        drawText(ctx, '(C) 2026 OFFICE WARFARE LTD', GAME.W / 2, 198, '#604068', 1, 'center');
-        drawText(ctx, 'ARROWS MOVE  Z JUMP  X SHOOT', GAME.W / 2, 210, '#806090', 1, 'center');
+        drawText(ctx, '(C) 2026 OFFICE WARFARE LTD', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
     }
 
     // ============== story ==============
     _tickStory() {
+        audio.playTrack('story');
         this.storyTimer++;
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
             audio.sfx('select');
@@ -237,6 +244,36 @@ export class Game {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
 
+        // Try painted scene first
+        const sceneKeys = ['story_home', 'story_bomb', 'story_hill', 'story_list'];
+        const key = sceneKeys[this.storyPage];
+        if (key && sprites.has(key)) {
+            const img = sprites.images.get(key);
+            // Letterbox: fit width, leave space at bottom for text
+            const scale = GAME.W / img.width;
+            const dh = img.height * scale;
+            // Reserve bottom 90px for text
+            const maxH = GAME.H - 90;
+            const finalH = Math.min(dh, maxH);
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, GAME.W, finalH);
+            // Letterbox bars
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, finalH, GAME.W, GAME.H - finalH);
+
+            // Text block at bottom over the black panel
+            const lines = STORY_PAGES[this.storyPage] || [];
+            const startY = GAME.H - lines.length * 10 - 22;
+            for (let i = 0; i < lines.length; i++) {
+                drawText(this.ctx, lines[i], GAME.W / 2, startY + i * 10, '#d8c8e0', 1, 'center');
+            }
+            if (this.storyTimer > 30 && this.storyTimer % 60 < 40) {
+                drawText(this.ctx, 'X TO CONTINUE', GAME.W - 4, GAME.H - 8, '#a08090', 1, 'right');
+            }
+            return;
+        }
+
+        // ---- Fallback procedural illustrations ----
         // Page-specific atmospheric drawings
         if (this.storyPage === 0) {
             // Happy family silhouette at home
@@ -501,6 +538,7 @@ export class Game {
     }
 
     _tickGameComplete() {
+        audio.playTrack('gameComplete');
         this.storyTimer++;
         if (this.storyTimer > 90 && (input.isPressed('shoot') || input.isPressed('jump'))) {
             this._restartRun();

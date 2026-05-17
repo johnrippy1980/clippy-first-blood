@@ -56,6 +56,16 @@ class SpriteSet {
 
 export const sprites = new SpriteSet();
 
+// Scene backgrounds — big painted scenes (256x144 region) for the title screen
+// and story pages. Loaded lazily, drawn full-width with letterboxing.
+export const SCENE_MANIFEST = {
+    'title_bg':     'scene_title.png',
+    'story_home':   'scene_story_1_home.png',
+    'story_bomb':   'scene_story_2_bomb.png',
+    'story_hill':   'scene_story_3_hill.png',
+    'story_list':   'scene_story_4_list.png',
+};
+
 // Manifest: what we expect on disk. Missing files are non-fatal.
 export const CLIPPY_MANIFEST = {
     'idle':            'stand.png',
@@ -364,6 +374,15 @@ export function drawClippyFrame(ctx, frameName, x, y, flipH = false, scale = 1) 
     if (sprites.has(frameName) && sprites.draw(ctx, frameName, x, y, flipH, scale)) return;
     const frame = CLIPPY_FRAMES[frameName] || CLIPPY_FRAMES.idle;
     drawPixelString(ctx, frame, x, y, flipH);
+}
+
+// Tell callers how big a frame is so they can anchor the sprite to the
+// hitbox correctly. Returns rendered (drawn) dimensions, not source size.
+export function getSpriteDims(frameName) {
+    const d = sprites.dims.get(frameName);
+    if (d) return { w: d.w, h: d.h };
+    const frame = CLIPPY_FRAMES[frameName] || CLIPPY_FRAMES.idle;
+    return { w: frame[0]?.length || 24, h: frame.length || 32 };
 }
 
 // Enemy procedural sprites — designed to feel hostile, not cute.

@@ -5,7 +5,10 @@ import { GAME, STATE, AIM, WEAPON, HURT_FLASH } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
-import { drawClippyFrame } from './sprites.js';
+import { drawClippyFrame, getSpriteDims } from './sprites.js';
+
+// Quick alias so the call site reads cleanly.
+const spriteDims = getSpriteDims;
 
 const COYOTE_FRAMES = 6;     // jump-after-edge grace
 const JUMP_BUFFER_MS = 110;  // matched to input buffer
@@ -650,10 +653,13 @@ export class Player {
         // Flicker on i-frames
         if (this.iFrames > 0 && this.iFrames % 4 < 2) return;
 
-        const drawX = Math.round(this.x - camera.viewX - 2);
-        const drawY = Math.round(this.y - camera.viewY - 8);
-
         const frame = this._frameForState();
+        // Anchor sprite to bottom-center of hitbox. PNG size varies per pose
+        // (idle ~44h, prone ~32h). drawClippyFrame internally falls back to a
+        // 24-wide procedural sprite when the PNG isn't loaded.
+        const dims = spriteDims(frame);
+        const drawX = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
+        const drawY = Math.round(this.y + this.h - dims.h - camera.viewY + 1);
         drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
 
         // Bullets
