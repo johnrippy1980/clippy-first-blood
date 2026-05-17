@@ -86,9 +86,17 @@ export const CLIPPY_MANIFEST = {
 };
 
 export const ENEMY_MANIFEST = {
-    'folder':       'folder.png',
-    'folder_alt':   'folder_yellow.png',
-    'cabinet':      'file_cabinet.png',
+    'folder':           'folder.png',
+    'stapler':          'stapler.png',
+    'cabinet':          'cabinet.png',
+    'holepunch':        'holepunch.png',
+    'boss_COPIER_3000': 'boss_copier.png',
+    'boss_SHREDDER':    'boss_shredder.png',
+    'boss_CTRL_ALT_DEL':'boss_bsod.png',
+    'boss_BALLMER':     'boss_ballmer.png',
+    'boss_GATES':       'boss_founder.png',
+    'boss_CLIPPY_2':    'boss_clippy2.png',
+    'boss_ALGORITHM':   'boss_algorithm.png',
 };
 
 // ============================================================

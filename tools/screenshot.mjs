@@ -22,7 +22,8 @@ global.setTimeout = setTimeout;
 global.clearTimeout = clearTimeout;
 Object.defineProperty(global, 'navigator', { value: { getGamepads: () => [] }, configurable: true });
 
-const { GAME, STAGES } = await import(path.join(ROOT, 'src/constants.js'));
+const constants = await import(path.join(ROOT, 'src/constants.js'));
+const { GAME, STAGES } = constants;
 const { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST } = await import(path.join(ROOT, 'src/sprites.js'));
 const { Camera } = await import(path.join(ROOT, 'src/camera.js'));
 const { Level, STAGE_LOADERS } = await import(path.join(ROOT, 'src/level.js'));
@@ -78,7 +79,7 @@ function renderTitle() {
     drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, GAME.H - 30, '#fff', '#000', 1, 'center');
 }
 
-function renderStage(n) {
+function renderStage(n, mode = 'play') {
     const data = STAGE_LOADERS[n]();
     const level = new Level(data);
     const player = new Player(data.playerStart.x, data.playerStart.y);
@@ -90,6 +91,13 @@ function renderStage(n) {
     camera.setBounds(level.width, level.height);
     for (const s of data.enemySpawns) enemies.spawn(s.x, s.y, s.type);
     pickups.loadFromLevel(data);
+    if (mode === 'boss') {
+        const stg = STAGES[n];
+        player.x = data.bossTrigger.x + 20;
+        player.y = (data.tiles.length - 4) * 16;
+        const kind = stg.boss === 'GAUNTLET' ? 'COPIER_3000' : stg.boss;
+        enemies.spawnBoss(player.x + 100, level.height - 32, kind);
+    }
     // Warm up
     for (let i = 0; i < 30; i++) {
         level.update(); enemies.update(level, player); pickups.update(level, player);
@@ -126,6 +134,7 @@ function renderStory(page) {
 
 if (arg === 'title') renderTitle();
 else if (arg.startsWith('story')) renderStory(parseInt(arg.slice(5)) || 0);
+else if (arg.startsWith('boss')) renderStage(parseInt(arg.slice(4)) || 1, 'boss');
 else if (arg.startsWith('stage')) renderStage(parseInt(arg.slice(5)));
 else renderStage(1);
 

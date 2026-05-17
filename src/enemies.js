@@ -4,7 +4,7 @@
 import { GAME } from './constants.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
-import { drawEnemyFrame } from './sprites.js';
+import { drawEnemyFrame, sprites, getSpriteDims } from './sprites.js';
 
 // Grunt templates.
 const TYPES = {
@@ -30,8 +30,8 @@ const TYPES = {
         chargeSpeed: 1.8, chargeWindup: 40,
     },
     holepunch: {
-        sprite: 'folder', // reuses sprite until generated
-        w: 12, h: 12,
+        sprite: 'holepunch',
+        w: 14, h: 14,
         hp: 3, contactDmg: 1, score: 150,
         speed: 0, behavior: 'hover_sniper',
         hoverY: -2, shootInterval: 80, projectileSpeed: 2.4, beamCharge: 30,
@@ -195,8 +195,10 @@ class Enemy {
     }
 
     draw(ctx, camera) {
-        const dx = Math.round(this.x - camera.viewX);
-        const dy = Math.round(this.y - camera.viewY);
+        // Anchor sprite to bottom-center of hitbox
+        const dims = getSpriteDims(this.sprite);
+        const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
+        const dy = Math.round(this.y + this.h - dims.h - camera.viewY);
         if (this.hitFlash > 0 && this.hitFlash % 2 === 0) {
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
@@ -378,17 +380,32 @@ class Boss extends Enemy {
     }
 
     draw(ctx, camera) {
+        const spriteKey = 'boss_' + this.kind;
+        if (sprites.has(spriteKey)) {
+            // Use PNG, anchored to bottom-center of hitbox
+            const dims = getSpriteDims(spriteKey);
+            const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
+            const dy = Math.round(this.y + this.h - dims.h - camera.viewY);
+            if (this.hitFlash > 0 && this.hitFlash % 2 === 0) {
+                // White flash on hit
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.5;
+                sprites.draw(ctx, spriteKey, dx, dy, false);
+                ctx.restore();
+            }
+            sprites.draw(ctx, spriteKey, dx, dy, false);
+            return;
+        }
+        // Procedural fallback for any boss without art
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY);
-        // Body — simple, themed shape so each boss reads as distinct even before bespoke sprites.
         const flash = this.hitFlash > 0 && this.hitFlash % 2 === 0;
         ctx.fillStyle = flash ? '#fff' : this.color;
         ctx.fillRect(dx, dy, this.w, this.h);
-        // Highlights / silhouette decoration per kind
         const tpl = BOSS_TEMPLATES[this.kind];
         ctx.fillStyle = flash ? '#fff' : tpl.detail;
         tpl.draw?.(ctx, dx, dy, this.w, this.h, this.timer, this.phase);
-        // Outline
         ctx.fillStyle = '#000';
         ctx.fillRect(dx, dy, this.w, 1);
         ctx.fillRect(dx, dy + this.h - 1, this.w, 1);

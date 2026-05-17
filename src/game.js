@@ -388,6 +388,12 @@ export class Game {
         }
         this.boss = this.enemies.activeBoss();
 
+        // Boss-rush: spawn next when current is dead and queue isn't empty
+        if (this.bossSpawned && !this.boss && this._gauntletQueue?.length) {
+            this._spawnNextGauntlet();
+            return;
+        }
+
         // Stage clear: boss dead or exit reached (no-boss debug fallback)
         if (this.bossSpawned && !this.boss) {
             this._onStageClear();
@@ -446,9 +452,25 @@ export class Game {
         const stg = STAGES[this.currentStage];
         const bx = this.player.x + 100;
         const by = this.level.height - 32;
-        this.enemies.spawnBoss(bx, by, stg.boss);
+        if (stg.boss === 'GAUNTLET') {
+            // Boss-rush: queue 3 prior bosses. game tick will re-spawn next when one dies.
+            this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
+            this._spawnNextGauntlet();
+        } else {
+            this.enemies.spawnBoss(bx, by, stg.boss);
+        }
         audio.playTrack('bossBattle');
         this.camera.shake(6);
+    }
+
+    _spawnNextGauntlet() {
+        if (!this._gauntletQueue || !this._gauntletQueue.length) return false;
+        const kind = this._gauntletQueue.shift();
+        const bx = this.player.x + 100;
+        const by = this.level.height - 32;
+        this.enemies.spawnBoss(bx, by, kind);
+        this.camera.shake(4);
+        return true;
     }
 
     _respawn() {
