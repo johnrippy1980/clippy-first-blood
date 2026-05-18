@@ -126,6 +126,10 @@ export class Player {
             this.deathTimer++;
             this.vy += GAME.GRAVITY;
             this.vy = Math.min(this.vy, GAME.MAX_FALL);
+            // Light horizontal drift so Clippy arcs sideways instead of
+            // falling straight down. Air friction tapers vx to zero.
+            this.vx *= 0.985;
+            this.x += this.vx;
             this.y += this.vy;
             return;
         }
@@ -861,10 +865,24 @@ export class Player {
         if (this.state === STATE.DIE) return;
         this.state = STATE.DIE;
         this.deathTimer = 0;
-        this.vy = -3.5;
-        this.vx = 0;
+        // Bigger pop-up — Clippy launches dramatically before gravity yanks him
+        // back. Direction biased away from facing so he flies backward.
+        this.vy = -5.5;
+        this.vx = -this.facing * 1.6;
+        // Lock the spin direction at death time so it doesn't oscillate.
+        this._deathSpin = this.facing >= 0 ? -1 : 1;
         audio.sfx('die');
-        particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#a01020', 30);
+        const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+        // Triple-burst explosion — initial red blast, then orange + smoke
+        particles.explosion(cx, cy,         '#a01020', 30);
+        particles.explosion(cx + 4, cy - 4, '#ff5050', 18);
+        particles.explosion(cx - 4, cy + 2, '#ffe070', 14);
+        // Shell-eject burst — Clippy's bullets scatter
+        for (let i = 0; i < 6; i++) {
+            particles.shellEject(cx + (Math.random() - 0.5) * 8, cy, (i & 1) ? 1 : -1);
+        }
+        this.requestShake = Math.max(this.requestShake || 0, 8);
+        this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_HURT_F * 2);
     }
 
     isDead() {
@@ -944,6 +962,32 @@ export class Player {
             ctx.rotate(this.spinAngle * (this.facing > 0 ? 1 : -1));
             drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
             ctx.restore();
+        } else if (this.state === STATE.DIE) {
+            // Death pinwheel — Clippy spins helplessly through the air. Spin
+            // speed eases out so the sprite settles before isDead() returns
+            // true and the run ends.
+            ctx.save();
+            ctx.translate(Math.round(cx), Math.round(cy));
+            const spinDir = this._deathSpin || -1;
+            const spinSpeed = Math.max(0.05, 0.4 * (1 - this.deathTimer / 90));
+            ctx.rotate(spinDir * this.deathTimer * spinSpeed);
+            // Red glow halo while falling — sells the "fatal hit" read
+            const glowAlpha = Math.max(0, 0.5 - this.deathTimer / 180);
+            if (glowAlpha > 0.02) {
+                ctx.globalAlpha = glowAlpha;
+                ctx.fillStyle = '#ff2030';
+                ctx.fillRect(-dims.w / 2 - 3, -dims.h / 2 - 3, dims.w + 6, dims.h + 6);
+                ctx.globalAlpha = 1;
+            }
+            drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
+            ctx.restore();
+            // Periodic spark bursts every 10 frames during the fall, so the
+            // explosion reads as ongoing rather than one big pop at t=0.
+            if (this.deathTimer > 0 && this.deathTimer % 10 === 0 && this.deathTimer < 60) {
+                const sx = this.x + this.w / 2 + (Math.random() - 0.5) * 8;
+                const sy = this.y + this.h / 2 + (Math.random() - 0.5) * 8;
+                particles.hitSpark(sx, sy, '#ffe070');
+            }
         } else {
             const drawX = Math.round(cx - dims.w / 2);
             const drawY = Math.round(cy - dims.h / 2);
