@@ -348,7 +348,19 @@ class Enemy {
         audio.sfx('bossHit');
         if (this.hp <= 0) {
             this.alive = false;
-            particles.explosion(this.x + this.w / 2, this.y + this.h / 2);
+            const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+            // Main explosion
+            particles.explosion(cx, cy);
+            // Dust ring — 8 small puffs radiating outward, lingers behind the
+            // explosion to sell the "thing just popped" beat.
+            for (let i = 0; i < 8; i++) {
+                const a = (Math.PI * 2 * i) / 8;
+                particles.spawn(
+                    cx, cy + this.h / 4,
+                    Math.cos(a) * 1.4, Math.sin(a) * 0.5 - 0.3,
+                    24 + (i & 3), '#604030', 1, 0.03
+                );
+            }
             audio.sfx('explode');
             return true;
         }
@@ -895,8 +907,15 @@ export class EnemyManager {
                         player.kills++;
                         player.combo++;
                         player.maxCombo = Math.max(player.maxCombo, player.combo);
-                        player.score += 150 + player.combo * 10;
+                        const points = 150 + player.combo * 10;
+                        player.score += points;
                         player.requestShake = Math.max(player.requestShake || 0, 2.5);
+                        // Score popup so the dash-attack kill reads — matches
+                        // the bullet-kill popup style.
+                        const tier = player.combo >= 20 ? '#ff60ff'
+                                   : player.combo >= 10 ? '#ff8050'
+                                   : player.combo >= 5  ? '#ffe070' : '#fff';
+                        particles.floatingText(e.x + e.w / 2, e.y - 2, '+' + points, tier, 45, -0.8, 1);
                     }
                 }
             }
