@@ -1634,6 +1634,25 @@ export class Game {
             drawText(ctx, k, 30,          y, '#c0a0d0', 1, 'left');
             drawText(ctx, v, GAME.W - 30, y, c,         1, 'right');
         }
+        // Kill-marker row: "BOSS NAME [DOWN]" with a red strike-through bar
+        // sweeping across the name. Pure payoff beat — confirms the kill in
+        // language instead of just a score number.
+        const killRowT = panelT - (12 + stats.length * 8);
+        if (killRowT > 0) {
+            const stg = STAGES[this.currentStage];
+            const bossName = (stg && stg.boss) ? stg.boss.replace(/_/g, ' ') : 'BOSS';
+            const y = panelTop + 8 + stats.length * 14 + 2;
+            // The "[DOWN]" tag pops in after the name is drawn
+            drawText(ctx, bossName, 30, y, '#ff5050', 1, 'left');
+            const w = bossName.length * 6;
+            // Strike-through sweep — width animates 0 → w over the first 20 frames
+            const sweep = Math.min(1, killRowT / 20);
+            ctx.fillStyle = '#ff3030';
+            ctx.fillRect(28, y + 3, Math.floor((w + 4) * sweep), 1);
+            if (killRowT > 22) {
+                drawText(ctx, '[DOWN]', GAME.W - 30, y, '#ff5050', 1, 'right');
+            }
+        }
     }
 
     // Beat 5: 3-slot medal row. Earned medals show as golden coins with stars,

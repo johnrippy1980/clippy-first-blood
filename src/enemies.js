@@ -72,16 +72,60 @@ class Bullet {
         this.color = '#ff8050';
         // Position history for trail render — 4-step tail in direction of travel.
         this.prevX = x; this.prevY = y;
+        // Stuck-in-wall state: bullet stops moving + dmg disables, but stays
+        // rendered as a fading divot for ~20 frames. Mirrors the player-bullet
+        // impact-stick beat for visual consistency.
+        this.stuck = false;
+        this.stuckLife = 0;
+        this.stuckLifeMax = 20;
     }
     update(level) {
+        if (this.stuck) {
+            this.stuckLife--;
+            if (this.stuckLife <= 0) this.life = 0;
+            return;
+        }
         this.prevX = this.x; this.prevY = this.y;
         this.x += this.vx; this.y += this.vy;
         this.life--;
-        if (level.isSolid(this.x, this.y)) { this.life = 0; particles.hitSpark(this.x, this.y, this.color); }
+        if (level.isSolid(this.x, this.y)) {
+            // Snap to last valid position so the divot sits flush against the wall.
+            this.x = this.prevX; this.y = this.prevY;
+            this.stuck = true;
+            this.stuckLife = this.stuckLifeMax;
+            this.dmg = 0; // can't damage anything once embedded
+            particles.hitSpark(this.x, this.y, this.color);
+            // Tiny debris burst — 3 dark fragments scatter back along the
+            // incoming vector for the "chunk of wall blew off" beat.
+            const back = -1;
+            for (let i = 0; i < 3; i++) {
+                particles.spawn(
+                    this.x, this.y,
+                    this.vx * 0.3 * back + (Math.random() - 0.5) * 0.8,
+                    this.vy * 0.3 * back + (Math.random() - 0.5) * 0.8 - 0.3,
+                    10 + (i & 3) * 2,
+                    '#3a2a1a', 1, 0.08
+                );
+            }
+        }
     }
     draw(ctx, camera) {
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY);
+        // Stuck-in-wall divot: small fading pixel, no trail, no glow. Same
+        // beat as the player-bullet impact-stick — "you hit the wall, here's
+        // the scorch mark" before the bullet vanishes.
+        if (this.stuck) {
+            const fade = this.stuckLife / this.stuckLifeMax;
+            ctx.globalAlpha = fade * 0.9;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(dx - 1, dy - 1, 2, 2);
+            ctx.globalAlpha = fade * 0.5;
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(dx, dy, 1, 1);
+            ctx.globalAlpha = 1;
+            return;
+        }
         // Trail: 4 ghost steps back along the velocity vector, each fainter
         ctx.fillStyle = this.color;
         for (let i = 1; i <= 4; i++) {
@@ -1037,7 +1081,7 @@ export class EnemyManager {
                 || player.state === STATE.SLIDE
                 || player.state === STATE.ROLL;
             const hitTop = ducked ? player.y + player.h - 4 : player.y;
-            if (player.iFrames === 0 &&
+            if (!b.stuck && player.iFrames === 0 &&
                 b.x > player.x && b.x < player.x + player.w &&
                 b.y > hitTop && b.y < player.y + player.h) {
                 // Bullet-impact spark at the strike point. The blood splatter
