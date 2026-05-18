@@ -298,20 +298,25 @@ function makeStage3() {
     const w = 72, h = 16;
     const { g } = blankStage(w, h, THEME.SERVERROOM);
 
-    // Section A (x 0–18): WARMUP — first server rack, ladder beside it.
-    rectT(g, 6, 10, 2, 8, W);
-    ladderT(g, 6, 14, 8);
+    // Section A (x 0–18): WARMUP — short server rack, jumpable.
+    // Original was 8 tiles tall + ladder on the wrong side, which made
+    // it impassable. Drop to 3 tiles so a single jump clears it.
+    rectT(g, 11, 10, 2, 3, W);
+    ladderT(g, 6, 9, 8);
 
     // Section B (x 18–32): ELECTRIC FLOOR — hazard with platform island.
     spikeRow(g, h - 3, 20, 4);
     platT(g, 10, 22, 3);
 
     // Section C (x 32–48): VERTICAL TOWER — climb a multi-tier rack.
-    rectT(g, 4, 32, 2, 9, W);
+    // Wall is short enough to jump on top of (4 tiles), then use the
+    // platforms above as stepping stones; ladder also threads up the
+    // left face for the climb-style route.
+    rectT(g, 10, 32, 2, 4, W);
     platT(g, 12, 35, 3);
     platT(g,  9, 38, 3);
     platT(g,  6, 42, 3);
-    ladderT(g, 5, 41, 8);
+    ladderT(g, 5, 31, 9);
 
     // Section D (x 48–60): SECOND ELECTRIC FLOOR — wider, requires platform hop.
     spikeRow(g, h - 3, 50, 5);
