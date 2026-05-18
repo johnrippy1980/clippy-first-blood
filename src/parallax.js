@@ -269,6 +269,7 @@ export class Parallax {
                 ctx.fillRect(0, 0, GAME.W, GAME.H);
             }
             this._drawMotes(ctx);
+            this._drawSignatureEffect(ctx);
             return;
         }
         switch (this.theme) {
@@ -281,6 +282,91 @@ export class Parallax {
             case THEME.CLOUD:      this._cloudBack(ctx, camera); break;
         }
         this._drawMotes(ctx);
+        this._drawSignatureEffect(ctx);
+    }
+
+    // Signature per-stage atmospheric effects. One distinct lighting/mood
+    // beat per dramatic theme, drawn over the painted bg but before the
+    // tile layer + player so gameplay reads always sit on top.
+    _drawSignatureEffect(ctx) {
+        switch (this.theme) {
+            case THEME.JUNGLE:    this._jungleGodRay(ctx); break;
+            case THEME.FOUNDER:   this._founderEmberGlow(ctx); break;
+            case THEME.KEYNOTE:   this._keynoteSpotBeam(ctx); break;
+            case THEME.SERVERROOM:this._serverFlicker(ctx); break;
+        }
+    }
+
+    // Slow diagonal moonlight god-ray from upper-right corner.
+    // Drawn via 'lighter' so it adds light where the painted bg already
+    // hints at moonlight, instead of overwriting it.
+    _jungleGodRay(ctx) {
+        const drift = Math.sin(this.t * 0.005) * 4;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.10;
+        ctx.fillStyle = '#a0b8ff';
+        // Diagonal band: rotate -30° around upper-right anchor
+        ctx.translate(GAME.W * 0.78 + drift, 0);
+        ctx.rotate(-Math.PI / 5);
+        ctx.fillRect(-20, 0, 40, GAME.H * 2);
+        ctx.restore();
+        // A second thinner inner beam for layered depth
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#d8e8ff';
+        ctx.translate(GAME.W * 0.78 + drift, 0);
+        ctx.rotate(-Math.PI / 5);
+        ctx.fillRect(-8, 0, 16, GAME.H * 2);
+        ctx.restore();
+    }
+
+    // Bottom-band ember glow — a soft pulsing warm wash near the floor,
+    // selling "fire just off-screen" without painting actual flames.
+    _founderEmberGlow(ctx) {
+        const pulse = 0.7 + Math.sin(this.t * 0.04) * 0.3;
+        const grad = ctx.createLinearGradient(0, GAME.H * 0.7, 0, GAME.H);
+        grad.addColorStop(0, 'rgba(255,80,30,0)');
+        grad.addColorStop(1, `rgba(255,80,30,${(0.22 * pulse).toFixed(3)})`);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, GAME.H * 0.7, GAME.W, GAME.H * 0.3);
+        ctx.restore();
+    }
+
+    // Two crossed stage spotlights. Slow oscillation, very low alpha.
+    _keynoteSpotBeam(ctx) {
+        const a = Math.sin(this.t * 0.008);
+        const x1 = GAME.W * 0.3 + a * 12;
+        const x2 = GAME.W * 0.7 - a * 12;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#a070ff';
+        // Triangle from top to wide bottom — fake spotlight cone via 4 stacked rects
+        for (let i = 0; i < 4; i++) {
+            const w = 10 + i * 6;
+            const y = (GAME.H / 4) * i;
+            ctx.fillRect(x1 - w / 2, y, w, GAME.H / 4);
+            ctx.fillRect(x2 - w / 2, y, w, GAME.H / 4);
+        }
+        ctx.restore();
+    }
+
+    // Server room LED flicker — occasional brief column-wide cyan flash
+    // on a pseudo-random column, simulating bad rack power.
+    _serverFlicker(ctx) {
+        // Cheap deterministic pick — flicker every ~30 frames on a varying column
+        if ((this.t % 27) > 2) return;
+        const col = ((this.t * 17) % GAME.W) | 0;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = '#80c0ff';
+        ctx.fillRect(col, 0, 4, GAME.H);
+        ctx.restore();
     }
 
     drawFront(ctx, camera) {
