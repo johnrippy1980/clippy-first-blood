@@ -739,7 +739,14 @@ export class Game {
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
             audio.sfx('menu');
             const sel = PAUSE_OPTIONS[this.pauseIndex];
-            if (sel === 'RESUME') this.scene = SCENE.PLAY;
+            if (sel === 'RESUME') {
+                this.scene = SCENE.PLAY;
+                // Music may be paused after a tab-switch auto-pause; the
+                // playTrack call is idempotent (returns early if already
+                // on this track + playing), so it's safe to always call.
+                const stg = STAGES[this.currentStage];
+                if (stg) audio.playTrack(stg.music);
+            }
             else if (sel === 'OPTIONS') { this.scene = SCENE.OPTIONS; this.optionsIndex = 0; }
             else if (sel === 'ACHIEVEMENTS') { this.scene = SCENE.ACHIEVEMENTS; this.achievementsIndex = 0; }
             else if (sel === 'SOUNDTRACK') {

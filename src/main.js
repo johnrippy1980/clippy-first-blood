@@ -40,9 +40,31 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
-// Pause music when tab hidden
+// Tab/window visibility — auto-pause the game and suspend music when
+// the player switches away. Browsers will throttle the rAF loop on hidden
+// tabs but won't pause the GAME state, so we do it explicitly to avoid
+// the player coming back to a dead Clippy.
 document.addEventListener('visibilitychange', () => {
-    // Audio context auto-suspends; no action needed beyond logging.
+    if (document.hidden) {
+        if (game.scene === 'play') {
+            game.scene = 'pause';
+            game.pauseIndex = 0;
+        }
+        if (audio._fileEl) try { audio._fileEl.pause(); } catch (_) {}
+        if (audio.ctx) try { audio.ctx.suspend(); } catch (_) {}
+    } else {
+        // Resume audio context on return; music re-starts when the player
+        // picks RESUME from the pause menu (which calls audio.playTrack).
+        if (audio.ctx) try { audio.ctx.resume(); } catch (_) {}
+    }
+});
+
+// Window blur also pauses, even if visibilitychange doesn't fire (Safari).
+window.addEventListener('blur', () => {
+    if (game.scene === 'play') {
+        game.scene = 'pause';
+        game.pauseIndex = 0;
+    }
 });
 
 // First user gesture: init audio context + kick the title music.

@@ -1,7 +1,11 @@
 /* SNES-style CRT presentation. The game canvas is 256x224 internal,
-   upscaled 3x via CSS. imageRendering pixelated keeps the pixels crisp. */
+   upscaled to fit the viewport via min(vw,vh) so it never gets clipped
+   by browser chrome on shorter screens. imageRendering pixelated keeps
+   the pixels crisp at any integer-ish multiple. */
 :root {
-    --scale: 3;
+    /* Reserves ~80px for hint text + page padding. min(vw/256, vh/304)
+       picks the smaller axis so we never overflow the viewport. */
+    --scale: max(1, min(calc(96vw / 256), calc((100vh - 80px) / 224)));
     --bg: #050308;
     --fg: #d8c8e8;
 }
@@ -75,11 +79,8 @@ body {
     opacity: 0.7;
 }
 
-/* On small screens, scale down gracefully */
-@media (max-width: 800px) {
-    :root { --scale: 2; }
-    #hint { font-size: 9px; }
-}
+/* Hint text shrinks slightly on very small viewports. The canvas itself
+   scales fluidly via --scale, so no media query needed for sizing. */
 @media (max-width: 560px) {
-    :root { --scale: 1.5; }
+    #hint { font-size: 9px; }
 }
