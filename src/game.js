@@ -229,7 +229,14 @@ export class Game {
 
         // Transition fade overlay
         if (this.transition !== 0) {
-            const a = this.transition > 0 ? this.transition / 30 : (30 + this.transition) / 30;
+            // Scene fade: positive = fading OUT (clear → black) as it counts
+            // down 30→0; negative = fading IN (black → clear) as it counts
+            // up -30→0. Previous formulas were inverted — fade-out started
+            // black and fade-in ended black, producing two black flashes
+            // around each transition instead of a smooth fade-through-black.
+            const a = this.transition > 0
+                ? (30 - this.transition) / 30   // 30→0  ⇒ 0→1
+                : -this.transition / 30;        // -30→0 ⇒ 1→0
             ctx.fillStyle = `rgba(0,0,0,${a})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
         }
@@ -444,11 +451,17 @@ export class Game {
         if (t > 24) {
             const k = Math.min(1, (t - 24) / 22);
             const eased = 1 - Math.pow(1 - k, 3);
-            // Final rest = canvas center (128); start off-screen right (+200).
-            const nameX = GAME.W + 200 - (GAME.W + 200 - GAME.W / 2) * eased;
-            // 7px glyph + 1px gap = 8px per char at size=1; size=2 = 16px each.
+            // 6px glyph + 1px gap = 7px per char at size=1; size=2 ~12px each.
             // Stage names >14 chars at size=2 overflow the 256px viewport.
             const nameSize = stg.name.length > 14 ? 1 : 2;
+            const charW = nameSize === 1 ? 6 : 12;
+            const textW = stg.name.length * charW;
+            // Slide from flush-right (text touching right viewport edge) to
+            // canvas center. Keeps the slide entirely on-screen so the text
+            // doesn't clip past the right edge during the animation.
+            const startX = GAME.W - textW / 2 - 2;
+            const endX = GAME.W / 2;
+            const nameX = startX - (startX - endX) * eased;
             drawTextOutlined(ctx, stg.name, nameX, 94, '#ff5050', '#1a0000', nameSize, 'center');
         }
         // Tagline fades in at t > 48
