@@ -12,12 +12,14 @@ open http://localhost:8765/
 ## Test
 
 ```bash
-npm test                 # smoke: all 8 stages load + draw, 6 menu scenes render, 8 boss spawns
-npm run tour             # capture mid-stage screenshot for each of 8 stages → /tmp/tour-stageN.png
+npm test                 # full pipeline: asset manifest + runtime smoke
+npm run test:assets      # ~50ms: validate every MANIFEST entry resolves to a file on disk
+npm run test:smoke       # ~10s: load all 8 stages, render 6 menu scenes, spawn 8 bosses, kill stage 1
+npm run tour             # capture mid-stage screenshot per stage → /tmp/tour-stageN.png
 npm run audit:traversal  # BFS reachability check — every stage 100% completable
 ```
 
-A passing `npm test` means: no thrown exceptions on cold load, every scene route renders, every boss spawn works.
+A passing `npm test` means: no missing assets on disk, no thrown exceptions on cold load, every scene route renders, every boss spawn works, kill-loop transitions correctly, and 7 invalid-input cases on `_startStage` fall back gracefully.
 
 ## Layout
 
