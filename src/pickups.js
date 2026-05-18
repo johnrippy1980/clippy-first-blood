@@ -83,15 +83,23 @@ class Pickup {
         const dy = (player.y + player.h / 2) - (this.y + this.h / 2);
         const d = Math.hypot(dx, dy);
         if (d > 0.1) {
+            let pull = 0;
             if (d < 28) {
-                // Snappy close-range tug — accelerates as you get closer
-                const pull = 0.7 + (1 - d / 28) * 0.9;
-                this.x += (dx / d) * pull;
-                this.y += (dy / d) * pull;
+                pull = 0.7 + (1 - d / 28) * 0.9;
             } else if (player.hp <= 1 && d < 64) {
-                // Emergency long-range pull at critical HP
-                this.x += (dx / d) * 1.0;
-                this.y += (dy / d) * 1.0;
+                pull = 1.0;
+            }
+            if (pull > 0) {
+                // Probe the target tile before moving — don't drag a pickup
+                // into a wall just because the player is on the other side.
+                const nx = this.x + (dx / d) * pull;
+                const ny = this.y + (dy / d) * pull;
+                const cx = nx + this.w / 2;
+                const cy = ny + this.h / 2;
+                if (!level.isSolid(cx, cy)) {
+                    this.x = nx;
+                    this.y = ny;
+                }
             }
         }
         // Pickup collision

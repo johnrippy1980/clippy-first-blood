@@ -227,10 +227,25 @@ export function drawHUD(ctx, state) {
         const bp = boss.hp / boss.maxHp;
         ctx.fillStyle = '#1a0810';
         ctx.fillRect(bx, by, bw, bh);
-        ctx.fillStyle = bp > 0.5 ? '#a01020' : '#ff5050';
+        // Three-tier color: dark red > 75%, medium red > 25%, bright pulsing
+        // red below 25% (boss is nearly dead — telegraphs the finishing window).
+        let barColor;
+        if (bp > 0.75) {
+            barColor = '#7a1018';
+        } else if (bp > 0.25) {
+            barColor = '#c01a28';
+        } else {
+            // Pulse between bright red and warning orange at low HP
+            const pulse = Math.sin(performance.now() * 0.012);
+            barColor = pulse > 0 ? '#ff5050' : '#ff9030';
+        }
+        ctx.fillStyle = barColor;
         ctx.fillRect(bx, by, Math.floor(bw * Math.max(0, bp)), bh);
-        // tick mark at 50%
+        // tick marks at 75% and 25% — threshold beats
         ctx.fillStyle = '#000';
+        ctx.fillRect(bx + bw * 0.75 - 1, by, 1, bh);
+        ctx.fillRect(bx + bw * 0.25 - 1, by, 1, bh);
+        ctx.fillStyle = '#3a2a4a';
         ctx.fillRect(bx + bw / 2 - 1, by, 1, bh);
         // outline
         ctx.fillStyle = '#3a2a4a';

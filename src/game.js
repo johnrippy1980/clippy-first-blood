@@ -1390,6 +1390,7 @@ export class Game {
         }
         this.scene = SCENE.STAGE_CLEAR;
         this.storyTimer = 0;
+        this._stageClearTallyDone = false;
 
         // Per-stage medals — 3 medals per stage that drive replay value
         const earned = {
@@ -1564,6 +1565,16 @@ export class Game {
             : 0;
         const scoreT = Math.min(1, (panelT - 12) / 60);
         const shownScore = Math.floor(this.player.score * scoreT);
+        // Tick SFX every 4 frames while the score is still climbing — gives
+        // the count-up a slot-machine cadence instead of a silent ramp.
+        if (scoreT > 0 && scoreT < 1 && panelT % 4 === 0) {
+            audio.sfx('select');
+        }
+        // One-shot "ka-ching" when the count-up finishes
+        if (scoreT >= 1 && !this._stageClearTallyDone) {
+            this._stageClearTallyDone = true;
+            audio.sfx('pickup');
+        }
         const stats = [
             ['TIME',       time,                                    '#7af0ff'],
             ['KILLS',      String(this.stageStats.kills),           '#fff'],
@@ -1824,6 +1835,7 @@ export class Game {
         this.miniBossSpawned = false;
         this.boss = null;
         this.player = null;
+        this._stageClearTallyDone = false;
         this.scene = SCENE.TITLE;
     }
 
