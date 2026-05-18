@@ -758,6 +758,15 @@ export class Player {
         }
         particles.hitBurst(bullet.x, bullet.y, bullet.color);
         this.dmgDealt[bullet.weapon] = (this.dmgDealt[bullet.weapon] || 0) + bullet.damage;
+        // Damage numbers on non-kill hits — only for high-HP targets (bosses /
+        // miniboss). Grunts die in 1-2 hits, so a number would just be noise.
+        // Helps players see chip-damage progress on long boss bars.
+        if (!killed && enemy.maxHp >= 8) {
+            const dmgLabel = bullet.damage >= 1 ? '-' + Math.round(bullet.damage) : '-' + bullet.damage.toFixed(1);
+            // Slight horizontal jitter so multi-hit bursts don't stack on one column
+            const jx = (Math.random() - 0.5) * 6;
+            particles.floatingText(bullet.x + jx, bullet.y - 2, dmgLabel, '#ff8050', 28, -0.7, 0);
+        }
         if (killed) {
             this.kills++;
             this.combo++;
