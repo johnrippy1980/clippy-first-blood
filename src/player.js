@@ -1030,9 +1030,14 @@ export class Player {
 
         const frame = this._frameForState();
         const dims = spriteDims(frame);
-        const recoilDX = this.recoilTimer > 0 ? -this.facing * (this.recoilTimer > 3 ? 2 : 1) : 0;
+        // Bump recoil for readable kickback: 3-2-1px back, 1px upward at the peak.
+        // Sells the "feels punchy" feedback that was missing from the static fire pose.
+        const recoilDX = this.recoilTimer > 0
+            ? -this.facing * (this.recoilTimer > 4 ? 3 : this.recoilTimer > 2 ? 2 : 1)
+            : 0;
+        const recoilDY = this.recoilTimer > 3 ? -1 : 0;
         const cx = this.x + this.w / 2 - camera.viewX + recoilDX;
-        const cy = this.y + this.h - dims.h / 2 - camera.viewY + 1;
+        const cy = this.y + this.h - dims.h / 2 - camera.viewY + 1 + recoilDY;
 
         // Ducked in swamp water — replace sprite with surface ripple + tiny periscope head
         if (this.waterHidden) {
