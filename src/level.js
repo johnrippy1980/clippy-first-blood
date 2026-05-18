@@ -720,21 +720,26 @@ export class Level {
         switch (t) {
             case TILE.SOLID: {
                 const topIsAir = r === 0 || this.tiles[r - 1][c] === TILE.EMPTY;
-                // Painted-tile path: sample a 16x16 patch from the theme's
-                // ground bitmap, varied per (r,c) so adjacent tiles aren't identical.
+                // Painted-tile path: sample the theme's ground bitmap by tile
+                // position so adjacent tiles read as CONTIGUOUS material rather
+                // than chaotic random patches. Top-of-stack tiles sample from
+                // the bitmap's top band (with the highlight edge), interior
+                // tiles cycle through the body band.
                 const groundKey = this._groundBitmapKey();
                 const img = groundKey ? sprites.images.get(groundKey) : null;
                 if (img) {
-                    // Body sampled from the lower half of the ground bitmap
-                    const seed = (c * 11 + r * 7) % 64;
-                    const srcX = (seed * 23) % Math.max(1, img.width - T);
+                    const xCells = Math.max(1, Math.floor(img.width / T));
+                    const bodyH = Math.max(T, img.height - T);
+                    const yCells = Math.max(1, Math.floor(bodyH / T));
+                    const srcX = (c % xCells) * T;
                     const srcY = topIsAir
-                        ? Math.max(0, Math.min(img.height - T, 4))            // near-top edge
-                        : Math.max(0, Math.min(img.height - T, (img.height >> 1) + (seed % 32)));
+                        ? 0                                 // top edge — first row of bitmap
+                        : T + ((r % yCells) * T);           // body — cycle through body band
                     ctx.imageSmoothingEnabled = false;
-                    ctx.drawImage(img, srcX, srcY, T, T, x, y, T, T);
+                    ctx.drawImage(img,
+                        srcX, Math.min(srcY, img.height - T),
+                        T, T, x, y, T, T);
                     if (topIsAir) {
-                        // Highlight band where the player walks
                         ctx.fillStyle = pal.solidTop;
                         ctx.fillRect(x, y, T, 1);
                     }
