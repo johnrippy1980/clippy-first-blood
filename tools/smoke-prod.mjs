@@ -7,11 +7,20 @@ const page = await ctx.newPage();
 const errors = [];
 const warnings = [];
 page.on('pageerror', e => errors.push('PAGE ERROR: ' + e.message));
+// Suppress warnings we deliberately trigger (bounds-guard test, autoplay).
+// Anything else lands in `warnings` and prints at the end as signal.
+const EXPECTED_WARN_FRAGMENTS = [
+    'AudioContext',                           // browser autoplay policy
+    'autoplay',                                // music play() before gesture
+    '_startStage: invalid stage',              // bounds-guard test (7 inputs)
+];
 page.on('console', m => {
     const t = m.type();
     const text = m.text();
     if (t === 'error') errors.push('CONSOLE ERROR: ' + text);
-    if (t === 'warning' && !text.includes('AudioContext')) warnings.push('WARN: ' + text);
+    if (t === 'warning' && !EXPECTED_WARN_FRAGMENTS.some(f => text.includes(f))) {
+        warnings.push('WARN: ' + text);
+    }
 });
 await page.goto('http://localhost:8765/?nocache=' + Date.now(), { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
