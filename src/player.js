@@ -521,6 +521,8 @@ export class Player {
     }
 
     _coverAvailable(level) {
+        // Probe at the player's bottom-pixel. Cover tiles sit at the row that
+        // the player's feet occupy (the row just above the solid floor).
         const px = this.x + this.w / 2;
         const py = this.y + this.h - 1;
         return level.tileAt(px, py) === 7 /* TILE.COVER */;
