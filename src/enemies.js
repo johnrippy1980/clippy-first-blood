@@ -927,6 +927,7 @@ export class EnemyManager {
             // Player bullets vs enemy
             for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
                 const b = player.bullets[bi];
+                if (b.stuck) continue; // Wall-stuck bullets are inert decoration
                 if (b.piercing && b.hits.has(e)) continue;
                 if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
                     // Weapon-specific impact opts: knockback / burn DOT

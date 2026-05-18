@@ -696,6 +696,13 @@ export class Player {
             const b = this.bullets[i];
             b.life--;
 
+            // Stuck-in-wall bullets just decay in place, fading out.
+            if (b.stuck) {
+                b.stuckLife--;
+                if (b.stuckLife <= 0) this.bullets.splice(i, 1);
+                continue;
+            }
+
             if (b.homing && b._target) {
                 const tx = b._target.x + b._target.w / 2;
                 const ty = b._target.y + b._target.h / 2;
@@ -713,7 +720,20 @@ export class Player {
             // Wall collision
             if (level.isSolid(b.x, b.y)) {
                 particles.hitSpark(b.x, b.y, b.color);
-                this.bullets.splice(i, 1);
+                // Impact-stick: MG/SPREAD/LASER bury into the wall and fade.
+                // FLAME/THUNDER/HOMING have their own visual death (puff, lightning
+                // dissipation, explosion) so they vanish on contact as before.
+                if (b.weapon === 'MG' || b.weapon === 'SPREAD' || b.weapon === 'LASER') {
+                    // Step back to last clear position so the bullet sits flush
+                    // against the wall surface, not embedded inside the tile.
+                    b.x = b.prevX; b.y = b.prevY;
+                    b.vx = 0; b.vy = 0;
+                    b.stuck = true;
+                    b.stuckLife = b.weapon === 'LASER' ? 8 : 14;
+                    b.stuckLifeMax = b.stuckLife;
+                } else {
+                    this.bullets.splice(i, 1);
+                }
                 continue;
             }
             if (b.life <= 0) {
@@ -1054,6 +1074,20 @@ export class Player {
         for (const b of this.bullets) {
             const bx = Math.round(b.x - camera.viewX);
             const by = Math.round(b.y - camera.viewY);
+            // Stuck-in-wall bullets fade out as a tiny embedded pixel — no glow,
+            // no hot center. Adds a beat of "you hit the wall, here's the divot"
+            // before vanishing, rather than the bullet disappearing on contact.
+            if (b.stuck) {
+                const fade = b.stuckLife / b.stuckLifeMax;
+                ctx.globalAlpha = fade * 0.85;
+                ctx.fillStyle = b.color;
+                ctx.fillRect(bx, by, 2, 2);
+                ctx.fillStyle = '#fff';
+                ctx.globalAlpha = fade * 0.4;
+                ctx.fillRect(bx, by, 1, 1);
+                ctx.globalAlpha = 1;
+                continue;
+            }
             if (b.weapon === 'LASER') {
                 // Short cyan dart — outer glow + bright core. Previous render
                 // drew a continuous prev→current beam that read as a hard
