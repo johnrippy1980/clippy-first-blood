@@ -940,8 +940,20 @@ export class Player {
                 const x2 = px + (mx - px) * t2, y2 = py + (my - py) * t2;
                 ctx.fillRect(Math.round((x1 + x2) / 2), Math.round((y1 + y2) / 2), 1, 1);
             }
-            // Crosshair: 4 bars + center dot
+            // Crosshair: 4 bars + center dot, with a pulsing outer ring so the
+            // reticle stays findable against busy painted bgs.
             const cx = Math.round(mx), cy = Math.round(my);
+            const pulse = (Math.sin(performance.now() * 0.012) + 1) * 0.5; // 0..1
+            ctx.fillStyle = `rgba(255, 224, 112, ${0.18 + pulse * 0.22})`;
+            // Outer ring (8 dots forming a diamond)
+            ctx.fillRect(cx, cy - 6, 1, 1);
+            ctx.fillRect(cx, cy + 6, 1, 1);
+            ctx.fillRect(cx - 6, cy, 1, 1);
+            ctx.fillRect(cx + 6, cy, 1, 1);
+            ctx.fillRect(cx - 4, cy - 4, 1, 1);
+            ctx.fillRect(cx + 4, cy - 4, 1, 1);
+            ctx.fillRect(cx - 4, cy + 4, 1, 1);
+            ctx.fillRect(cx + 4, cy + 4, 1, 1);
             ctx.fillStyle = '#ff5050';
             ctx.fillRect(cx - 4, cy, 3, 1);
             ctx.fillRect(cx + 2, cy, 3, 1);
