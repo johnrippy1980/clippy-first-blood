@@ -475,6 +475,9 @@ function makeStage7() {
     platT(g, 7, 14, 4);
     platT(g, 9, 22, 4);
     platT(g, 7, 30, 4);
+    // Floor-grate hides at the arena edges — break LOS on boss attacks.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 4 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 34 + i, G);
     // No exit door — boss-rush ends when bosses are dead
     return {
         tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
