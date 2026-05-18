@@ -16,6 +16,7 @@ npm test                 # full pipeline: asset manifest + runtime smoke
 npm run test:assets      # ~50ms: validate every MANIFEST entry resolves to a file on disk
 npm run test:smoke       # ~10s: load all 8 stages, render 6 menu scenes, spawn 8 bosses, kill stage 1, _restartRun clean
 npm run test:perf        # ~5s: 60Hz sample over 3s of stage 1 play — avg FPS, p95 + max frame time
+npm run test:stability   # ~15s: cycle all 8 stages + replay, fail if heap grows past 30 MB
 npm run tour             # capture mid-stage screenshot per stage → /tmp/tour-stageN.png
 npm run audit:traversal  # BFS reachability check — every stage 100% completable
 ```

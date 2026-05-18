@@ -9,6 +9,7 @@
     "test:assets": "node tools/validate-assets.mjs",
     "test:smoke": "node tools/smoke-prod.mjs",
     "test:perf": "node tools/perf-smoke.mjs",
+    "test:stability": "node tools/long-session.mjs",
     "tour": "node tools/quick-tour.mjs",
     "audit:traversal": "node tools/traversal-audit.mjs"
   },
