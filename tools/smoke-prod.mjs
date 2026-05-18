@@ -27,8 +27,8 @@ await page.waitForTimeout(1500);
 await page.click('#screen');
 await page.waitForTimeout(500);
 
-// 1. Cycle through every stage and verify it loads + draws one frame
-for (let stage = 1; stage <= 8; stage++) {
+// 1. Cycle through every stage (1-8 main + 9 secret) and verify it loads.
+for (let stage = 1; stage <= 9; stage++) {
     await page.evaluate(s => window.__game._startStage(s), stage);
     await page.waitForTimeout(400);
     const ok = await page.evaluate(() => {
