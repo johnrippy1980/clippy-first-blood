@@ -181,10 +181,10 @@ class Enemy {
         const mult = this._fireRateMult || 1;
         const baseRate = distAbs < 80 ? Math.max(28, tpl.shootInterval - 30) : tpl.shootInterval;
         const fireRate = Math.max(20, Math.round(baseRate * mult));
-        // Don't fire on a hidden player (ducked-in-water OR behind cover);
-        // respect owl-pause too. When the player hides, queue a "where did
-        // he go?" thought bubble — cycles a different phrase each time.
-        if (player.waterHidden || player.state === STATE.COVER) {
+        // Don't fire on a hidden player (ducked-in-water OR behind cover OR
+        // standing in tall grass); respect owl-pause too. When the player
+        // hides, queue a "where did he go?" thought bubble.
+        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
             this._noticeTargetLost();
             return;
         }
@@ -278,7 +278,7 @@ class Enemy {
         const distAbs = Math.abs(dx);
         this.facing = dx > 0 ? 1 : -1;
         // Only fire when player is in range, not hidden, not owl-paused
-        if (player.waterHidden || player.state === STATE.COVER) {
+        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
             this._noticeTargetLost();
             return;
         }

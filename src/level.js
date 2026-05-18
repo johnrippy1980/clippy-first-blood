@@ -20,6 +20,7 @@ const L = 3; // ladder
 const S = 4; // spike
 const C = 7; // cover (theme-specific duck-behind: tree, vending machine, etc.)
 const X = 9; // exit
+const G = 10; // tall grass — pass-through, hides player from AI
 
 // Stage 1 — Office Park Jungle.
 // Each row is 16 tiles wide × n cols tall mapped to GAME.TILE pixels (16px).
@@ -58,6 +59,11 @@ function makeStage1() {
     // crouch behind and become invulnerable while shots arc overhead.
     set(h - 3, 19, C);   // near sniper at col 19
     set(h - 3, 44, C);   // near sniper at col 44
+    // Tall-grass patches — passive cover. Walk in, enemies lose lock.
+    // Cluster 1: between sections A and B, taught before the first sniper.
+    for (let i = 0; i < 3; i++) set(h - 3, 11 + i, G);
+    // Cluster 2: between sections C and D, on the path to the second swamp.
+    for (let i = 0; i < 3; i++) set(h - 3, 38 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.JUNGLE,
@@ -643,6 +649,10 @@ export class Level {
         return this.tileAt(px, py) === TILE.WATER;
     }
 
+    isGrass(px, py) {
+        return this.tileAt(px, py) === TILE.GRASS;
+    }
+
     // AABB sweep — call separately for x and y. Returns adjusted position.
     moveX(box, dx) {
         const sign = Math.sign(dx);
@@ -1004,6 +1014,65 @@ export class Level {
                 }
                 break;
             }
+            case TILE.GRASS: {
+                // Tall-grass clump. Pass-through (no collision); when the player
+                // stands inside, AI loses target lock (see Level.isGrass()).
+                // Drawn behind the player here, with a separate foreground pass
+                // (drawGrassForeground) painting the tips OVER the player so
+                // they read as truly hidden when crouched.
+                this._drawGrassBlades(ctx, x, y, c, false);
+                break;
+            }
+        }
+    }
+
+    // Foreground grass tips — call AFTER player + enemies so the top half of
+    // the blades sits over the sprite, selling the "hidden inside" read.
+    drawGrassForeground(ctx, camera) {
+        const T = GAME.TILE;
+        const startCol = Math.max(0, Math.floor(camera.viewX / T));
+        const endCol = Math.min(this.data.width, Math.ceil((camera.viewX + GAME.W) / T) + 1);
+        const startRow = Math.max(0, Math.floor(camera.viewY / T));
+        const endRow = Math.min(this.data.height, Math.ceil((camera.viewY + GAME.H) / T) + 1);
+        for (let r = startRow; r < endRow; r++) {
+            for (let c = startCol; c < endCol; c++) {
+                if (this.tiles[r][c] !== TILE.GRASS) continue;
+                const x = c * T - camera.viewX;
+                const y = r * T - camera.viewY;
+                this._drawGrassBlades(ctx, x, y, c, true);
+            }
+        }
+    }
+
+    _drawGrassBlades(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        const t2 = this.tileAnimTick;
+        // Sway phase varies per column so the field isn't synchronized.
+        const sway = ((t2 + c * 3) & 7) < 4 ? 0 : 1;
+        const tips = foreground;   // foreground pass paints just the upper half
+        // Base mat — earthy floor under the blades. Only on background pass.
+        if (!foreground) {
+            ctx.fillStyle = 'rgba(20, 32, 16, 0.45)';
+            ctx.fillRect(x, y + T - 4, T, 4);
+        }
+        // Five blades per tile, alternating heights, two-tone green
+        const yTop = tips ? y - 14 : y - 6;
+        const yBot = tips ? y + 2  : y + T;
+        ctx.fillStyle = '#2a4a1c';
+        for (let i = 0; i < 5; i++) {
+            const bx = x + i * 3 + 1 + ((i + sway) & 1);
+            ctx.fillRect(bx, yTop, 1, yBot - yTop);
+        }
+        // Brighter highlight blades on the foreground pass — sells the depth
+        ctx.fillStyle = foreground ? '#6a9c34' : '#3a6024';
+        for (let i = 0; i < 3; i++) {
+            const bx = x + 2 + i * 5 + ((i ^ sway) & 1);
+            ctx.fillRect(bx, yTop + 1, 1, (yBot - yTop) - 2);
+        }
+        // Sway tips — single bright pixel that flickers across the top edge
+        if (foreground && (t2 + c) & 2) {
+            ctx.fillStyle = '#a8c844';
+            ctx.fillRect(x + 4 + ((t2 + c) & 7), yTop, 1, 1);
         }
     }
 }

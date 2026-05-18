@@ -301,6 +301,13 @@ export class Player {
             this.waterHidden = false;
         }
 
+        // Tall-grass cover: if the upper body is inside a GRASS tile, the
+        // player is hidden from enemy AI. No input required — passive cover.
+        // Probe at mid-body and head so a crouched player still hides if the
+        // grass tile sits at sprite-head level.
+        this.grassHidden = level.isGrass(this.x + this.w / 2, this.y + this.h / 2)
+            || level.isGrass(this.x + this.w / 2, this.y + 4);
+
         // Footstep tick when running on the ground
         if (this.onGround && Math.abs(this.vx) > 0.8 && this.state !== STATE.SLIDE) {
             this._footstepTick = (this._footstepTick || 0) + 1;

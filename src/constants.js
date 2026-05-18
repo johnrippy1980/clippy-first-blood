@@ -24,6 +24,7 @@ export const TILE = Object.freeze({
     COVER: 7,       // crouch behind to take reduced damage
     BREAKABLE: 8,   // destructible
     EXIT: 9,        // stage end trigger
+    GRASS: 10,      // tall grass — passes through; while inside, player is hidden from AI
 });
 
 // Soundtrack gallery — what shows in the SOUNDTRACK pause menu.
