@@ -132,7 +132,22 @@ class Audio {
             case 'frogCroak': return this._frogCroak(t);
             case 'wade':     return this._waterWade(t);
             case 'whizz':    return this._bulletWhizz(t);
+            case 'attract':  return this._attractChime(t);
         }
+    }
+
+    // Short bright upward chirp — telegraphs that the magnet engaged.
+    // Quieter than the pickup chime so it doesn't dominate when chained.
+    _attractChime(t) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(660, t);
+        o.frequency.exponentialRampToValueAtTime(1320, t + 0.08);
+        this._envOn(g, 0.045, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.12);
     }
 
     // Filtered noise sweep — high-passed white noise with a brief pitch dip,

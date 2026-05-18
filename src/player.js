@@ -1103,7 +1103,15 @@ export class Player {
             }
         } else {
             const drawX = Math.round(cx - dims.w / 2);
-            const drawY = Math.round(cy - dims.h / 2);
+            // Idle breath bob — sub-pixel vertical drift when stationary on
+            // ground. Frequency ~1.3 Hz so it reads as breathing, not jitter.
+            // Suppressed during any non-idle state to avoid stacking with
+            // run animation.
+            let idleBob = 0;
+            if (this.state === STATE.IDLE && this.onGround && Math.abs(this.vx) < 0.1) {
+                idleBob = Math.sin(performance.now() * 0.008) > 0 ? -1 : 0;
+            }
+            const drawY = Math.round(cy - dims.h / 2) + idleBob;
             drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
         }
 

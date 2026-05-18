@@ -89,6 +89,10 @@ class Pickup {
             } else if (player.hp <= 1 && d < 64) {
                 pull = 1.0;
             }
+            if (pull > 0 && !this._attracting) {
+                this._attracting = true;
+                audio.sfx('attract');
+            }
             if (pull > 0) {
                 // Probe the target tile before moving — don't drag a pickup
                 // into a wall just because the player is on the other side.

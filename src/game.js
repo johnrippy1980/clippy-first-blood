@@ -1667,8 +1667,22 @@ export class Game {
     _tickGameOver() {
         this.storyTimer++;
         if (this.gameOverIndex == null) this.gameOverIndex = 0;
-        // Two-option menu: CONTINUE (retry current stage with full HP), QUIT
+        // 10-second auto-quit countdown begins after the 1.5s dramatic pause.
+        // Adds Contra-style urgency: pick a choice or the run ends.
         if (this.storyTimer > 90) {
+            const elapsed = this.storyTimer - 90;
+            const remaining = Math.max(0, 600 - elapsed); // 10s at 60fps
+            this.gameOverCountdown = Math.ceil(remaining / 60);
+            // Tick SFX on each whole-second boundary (under 5s)
+            const prev = Math.ceil(Math.max(0, 600 - (elapsed - 1)) / 60);
+            if (this.gameOverCountdown !== prev && this.gameOverCountdown > 0 && this.gameOverCountdown <= 5) {
+                audio.sfx('select');
+            }
+            if (remaining === 0) {
+                audio.sfx('menu');
+                this._restartRun();
+                return;
+            }
             if (input.isPressed('up') || input.isPressed('down')) {
                 this.gameOverIndex = (this.gameOverIndex + 1) % GAME_OVER_OPTIONS.length;
                 audio.sfx('select');
@@ -1746,6 +1760,13 @@ export class Game {
                     drawText(ctx, '<', GAME.W - 92, y, '#ffe070', 1, 'left');
                 }
                 drawText(ctx, GAME_OVER_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
+            }
+            // Countdown — last 10s feels urgent; flashes red under 5s
+            if (this.gameOverCountdown != null && this.gameOverCountdown > 0) {
+                const urgent = this.gameOverCountdown <= 5;
+                const flash = urgent && (this.storyTimer % 30 < 15);
+                const color = !urgent ? '#c0a0d0' : flash ? '#ff5050' : '#ffe070';
+                drawText(ctx, String(this.gameOverCountdown), GAME.W / 2, GAME.H - 22, color, 2, 'center');
             }
         }
     }
@@ -1840,6 +1861,7 @@ export class Game {
         this.boss = null;
         this.player = null;
         this._stageClearTallyDone = false;
+        this.gameOverCountdown = null;
         this.scene = SCENE.TITLE;
     }
 
