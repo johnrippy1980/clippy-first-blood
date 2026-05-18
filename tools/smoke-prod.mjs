@@ -140,6 +140,35 @@ if (!killInfo.ok) {
     }
 }
 
+// 5. Input-driven smoke — keyboard path from title → story → play.
+// Catches regressions in the input layer (broken keymap, missing listener,
+// scene routes that don't react to X) that the API-direct tests miss.
+// Reload the page first so we're back at the boot/title scene.
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+// First click is required to activate the audio context (autoplay policy)
+// AND counts as the title-screen tap-to-start.
+await page.click('#screen');
+await page.waitForTimeout(600);
+// Spam X to traverse title → story (5 pages) → stageIntro
+const sceneTimeline = [];
+for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('x');
+    await page.waitForTimeout(280);
+    sceneTimeline.push(await page.evaluate(() => window.__game.scene));
+}
+// Give stageIntro time to finish its hold + fade-out to play
+await page.waitForTimeout(2000);
+const finalScene = await page.evaluate(() => window.__game.scene);
+sceneTimeline.push(finalScene);
+const inputPath = sceneTimeline.join('→');
+const reached = ['stageIntro', 'play'].some(s => sceneTimeline.includes(s));
+if (!reached) {
+    errors.push(`INPUT PATH: never reached stageIntro/play via keyboard. Timeline: ${inputPath}`);
+} else {
+    console.log(`input path OK (timeline: ${inputPath})`);
+}
+
 await browser.close();
 
 if (errors.length) {
