@@ -49,8 +49,8 @@ for (const s of scenes) {
     else console.log(`scene ${s} OK`);
 }
 
-// 3. Verify boss spawn in each stage doesn't crash
-for (let stage = 1; stage <= 8; stage++) {
+// 3. Verify boss spawn in each stage doesn't crash (1-9, secret included).
+for (let stage = 1; stage <= 9; stage++) {
     await page.evaluate(s => window.__game._startStage(s), stage);
     await page.waitForTimeout(300);
     await page.evaluate(() => {
