@@ -436,35 +436,63 @@ export class Game {
     triggerSlowMo(frames = 30) {
         this.slowMoFrames = Math.max(this.slowMoFrames || 0, frames);
     }
+    // Top-level play tick. Drives the per-frame world update, then runs
+    // post-update telemetry + state-machine gates. Each phase is a small
+    // helper so this method reads as a timeline.
     _tickPlay() {
-        // Slow-mo: still run player/input/level so controls stay responsive,
-        // but skip enemy + bullet + camera updates on alternating frames.
-        let slowMoSkipEnemies = false;
-        if (this.slowMoFrames > 0) {
-            this.slowMoFrames--;
-            this._slowMoSkip = !this._slowMoSkip;
-            slowMoSkipEnemies = this._slowMoSkip;
-        }
-        if (input.isPressed('pause')) {
-            audio.sfx('pause');
-            this.pauseIndex = 0;
-            this.scene = SCENE.PAUSE;
-            return;
-        }
-        const prevHp = this.player.hp;
-        const prevKills = this.player.kills;
-        const prevBullet = this.player.secondChanceUsed;
+        if (this._tickPlayHandlePause()) return;
+        const slowMoSkipEnemies = this._tickPlayAdvanceSlowMo();
+        const snap = this._tickPlayCaptureSnapshot();
+        this._tickPlayUpdateWorld(slowMoSkipEnemies);
+        this._tickPlayHandleHeartbeat();
+        achievements.tickBanner();
+        this._tickPlayAdvanceBossEntrance();
+        this._tickPlayTrackTelemetry(snap);
+        this._tickPlayHandleBossPhase();
+        if (this._tickPlayHandleBossTriggers()) return;
+        this._tickPlayHandleStageClear();
+        this._tickPlayHandleDeath();
+    }
+
+    // Pause is a hard return — drop the rest of the tick if pressed.
+    _tickPlayHandlePause() {
+        if (!input.isPressed('pause')) return false;
+        audio.sfx('pause');
+        this.pauseIndex = 0;
+        this.scene = SCENE.PAUSE;
+        return true;
+    }
+
+    // Slow-mo: tick the countdown and alternate the skip flag so enemies +
+    // bullets advance every other frame, halving their apparent speed.
+    _tickPlayAdvanceSlowMo() {
+        if (this.slowMoFrames <= 0) return false;
+        this.slowMoFrames--;
+        this._slowMoSkip = !this._slowMoSkip;
+        return this._slowMoSkip;
+    }
+
+    // Snapshot of player state BEFORE the update runs, so we can diff
+    // damage taken, kills, and secondChance trigger after.
+    _tickPlayCaptureSnapshot() {
+        return {
+            hp: this.player.hp,
+            kills: this.player.kills,
+            secondChance: this.player.secondChanceUsed,
+        };
+    }
+
+    // World tick: player always runs (for input responsiveness), but
+    // enemies + camera honor hit-pause and slow-mo.
+    _tickPlayUpdateWorld(slowMoSkipEnemies) {
         this.stageTime++;
         this.totalTime++;
         this.level.update();
         this.player.update(this.level, this.camera);
-        // Game-feel: skip enemy + camera updates during hit-pause so the kill
-        // hangs in the air for a couple of frames before action resumes.
         const hitPause = (this.player.hitPauseFrames || 0) > 0;
         if (hitPause) {
             this.player.hitPauseFrames--;
         } else if (slowMoSkipEnemies) {
-            // Slow-mo: skip enemy/pickup update this frame, but still smooth-follow the camera
             this.camera.follow(this.player, this.player.facing);
             this.camera.update();
         } else {
@@ -473,12 +501,15 @@ export class Game {
             this.camera.follow(this.player, this.player.facing);
             this.camera.update();
         }
-        // Drain any shake the player requested into the camera
         if (this.player.requestShake) {
             this.camera.shake(this.player.requestShake);
             this.player.requestShake = 0;
         }
-        // Low-HP heartbeat at the AMBIENT-tuned interval
+    }
+
+    // Low-HP heartbeat tick. Plays the heartbeat SFX at the AMBIENT-tuned
+    // interval when player is at 1 HP. Resets the counter when not in danger.
+    _tickPlayHandleHeartbeat() {
         if (this.player.hp <= 1 && this.player.hp > 0) {
             this._hbTick = (this._hbTick || 0) + 1;
             if (this._hbTick >= AMBIENT.HEARTBEAT_PERIOD_F) {
@@ -488,23 +519,31 @@ export class Game {
         } else {
             this._hbTick = 0;
         }
-        achievements.tickBanner();
-        if (this._bossEntrance) {
-            this._bossEntrance.age++;
-            const dur = this._bossEntrance.isMini ? 80 : 120;
-            if (this._bossEntrance.age >= dur) this._bossEntrance = null;
-        }
-        // Track damage taken + new kills
-        if (this.player.hp < prevHp) this.stageStats.damageTaken += (prevHp - this.player.hp);
-        if (this.player.kills > prevKills) this.stageStats.kills += (this.player.kills - prevKills);
-        if (this.player.secondChanceUsed && !prevBullet) {
+    }
+
+    // Boss entrance overlay age tick. Mini-boss = 80f, full boss = 120f.
+    _tickPlayAdvanceBossEntrance() {
+        if (!this._bossEntrance) return;
+        this._bossEntrance.age++;
+        const dur = this._bossEntrance.isMini ? 80 : 120;
+        if (this._bossEntrance.age >= dur) this._bossEntrance = null;
+    }
+
+    // Diff vs. pre-update snapshot — damage taken, new kills, second-chance.
+    _tickPlayTrackTelemetry(snap) {
+        if (this.player.hp < snap.hp) this.stageStats.damageTaken += (snap.hp - this.player.hp);
+        if (this.player.kills > snap.kills) this.stageStats.kills += (this.player.kills - snap.kills);
+        if (this.player.secondChanceUsed && !snap.secondChance) {
             this.runStats.bulletTimeUses++;
             this.triggerSlowMo(AMBIENT.SLOWMO_SECOND_CHANCE_F);
             this.camera.shake(6);
         }
-        // Boss phase-2 transition: slow-mo + shake
+    }
+
+    // Boss phase-2 transition: slow-mo + shake.
+    _tickPlayHandleBossPhase() {
         if (this.boss && this.boss.alive) {
-            if (this._lastBossPhase != null && this._lastBossPhase === 1 && this.boss.phase === 2) {
+            if (this._lastBossPhase === 1 && this.boss.phase === 2) {
                 this.triggerSlowMo(AMBIENT.SLOWMO_BOSS_PHASE_F);
                 this.camera.shake(5);
             }
@@ -512,10 +551,11 @@ export class Game {
         } else {
             this._lastBossPhase = null;
         }
+    }
 
-        // Boss trigger
-        // Mini-boss: spawn once when player crosses the mini-boss trigger x.
-        // Same Boss class but lower HP + simpler tagline. Cleared mid-stage as pacing payoff.
+    // Mini-boss + full-boss + boss-rush spawn gates. Returns true if the
+    // boss-rush early-return fires so the caller bails the rest of the tick.
+    _tickPlayHandleBossTriggers() {
         const miniTrigger = this.level.data.miniBossTrigger;
         if (!this.miniBossSpawned && miniTrigger != null && this.player.x > miniTrigger) {
             this._spawnMiniBoss();
@@ -524,32 +564,34 @@ export class Game {
             this._spawnBoss();
         }
         this.boss = this.enemies.activeBoss();
-
-        // Boss-rush: spawn next when current is dead and queue isn't empty
         if (this.bossSpawned && !this.boss && this._gauntletQueue?.length) {
             this._spawnNextGauntlet();
-            return;
+            return true;
         }
+        return false;
+    }
 
-        // Stage clear: boss dead or exit reached (no-boss debug fallback)
-        if (this.bossSpawned && !this.boss) {
-            this._onStageClear();
-        }
-        if (this.level.isExit(this.player.x + this.player.w / 2, this.player.y + this.player.h)) {
-            this._onStageClear();
-        }
+    // Stage-clear gate: fires if the (real) boss is dead, or the player
+    // crossed an exit tile (debug fallback for no-boss stages).
+    _tickPlayHandleStageClear() {
+        if (this.bossSpawned && !this.boss) this._onStageClear();
+        const ex = this.player.x + this.player.w / 2;
+        const ey = this.player.y + this.player.h;
+        if (this.level.isExit(ex, ey)) this._onStageClear();
+    }
 
-        // Death
-        if (this.player.isDead()) {
-            this.totalDeaths++;
-            this.player.lives--;
-            if (this.player.lives < 0) {
-                this.gameOverIndex = 0;
-                this.storyTimer = 0;
-                this._fadeTo(SCENE.GAME_OVER);
-            } else {
-                this._respawn();
-            }
+    // Death handler: decrement lives, route to GAME_OVER if exhausted,
+    // otherwise respawn at the stage's playerStart.
+    _tickPlayHandleDeath() {
+        if (!this.player.isDead()) return;
+        this.totalDeaths++;
+        this.player.lives--;
+        if (this.player.lives < 0) {
+            this.gameOverIndex = 0;
+            this.storyTimer = 0;
+            this._fadeTo(SCENE.GAME_OVER);
+        } else {
+            this._respawn();
         }
     }
 
