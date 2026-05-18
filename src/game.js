@@ -485,7 +485,8 @@ export class Game {
         achievements.tickBanner();
         if (this._bossEntrance) {
             this._bossEntrance.age++;
-            if (this._bossEntrance.age >= 120) this._bossEntrance = null;
+            const dur = this._bossEntrance.isMini ? 80 : 120;
+            if (this._bossEntrance.age >= dur) this._bossEntrance = null;
         }
         // Track damage taken + new kills
         if (this.player.hp < prevHp) this.stageStats.damageTaken += (prevHp - this.player.hp);
@@ -566,44 +567,52 @@ export class Game {
         if (this._bossEntrance) this._drawBossEntrance();
     }
 
-    // Boss entrance overlay. Phases:
-    //   0-15:  red full-screen flash (alpha 0.5 → 0)
-    //   0-90:  black letterbox bars slide in + name/tagline hold
-    //   90-120: letterbox fade out, title fades out
+    // Boss entrance overlay — see _triggerBossEntrance for phase timings.
     _drawBossEntrance() {
         const ctx = this.ctx;
         const t = this._bossEntrance.age;
+        const isMini = !!this._bossEntrance.isMini;
         const boss = this.boss || this.enemies.activeMiniBoss();
         if (!boss) return;
-        // Phase 1: red flash
-        if (t < 15) {
-            const a = (1 - t / 15) * 0.5;
+        const total = isMini ? 80 : 120;
+        const flashF = isMini ? 0 : 15;
+        const holdEnd = isMini ? 55 : 90;
+        const barMax = isMini ? 16 : 26;
+        // Phase 1: red flash (full boss only)
+        if (!isMini && t < flashF) {
+            const a = (1 - t / flashF) * 0.5;
             ctx.fillStyle = `rgba(255, 40, 40, ${a})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
         }
-        // Letterbox bars — slide in 0-15, hold 15-90, slide out 90-120
+        // Letterbox bars
+        const slideIn = isMini ? 10 : 15;
+        const fadeF = total - holdEnd;
         let barH = 0;
-        if (t < 15) barH = (t / 15) * 26;
-        else if (t < 90) barH = 26;
-        else barH = (1 - (t - 90) / 30) * 26;
+        if (t < slideIn) barH = (t / slideIn) * barMax;
+        else if (t < holdEnd) barH = barMax;
+        else barH = (1 - (t - holdEnd) / fadeF) * barMax;
         ctx.fillStyle = 'rgba(8, 4, 14, 0.9)';
         ctx.fillRect(0, 0, GAME.W, barH);
         ctx.fillRect(0, GAME.H - barH, GAME.W, barH);
-        // Title (held 15-90, fade 90-120)
+        // Title
         let alpha = 1;
-        if (t < 15) alpha = t / 15;
-        else if (t > 90) alpha = Math.max(0, (120 - t) / 30);
+        if (t < slideIn) alpha = t / slideIn;
+        else if (t > holdEnd) alpha = Math.max(0, (total - t) / fadeF);
         ctx.globalAlpha = alpha;
         const cy = GAME.H / 2;
-        // BG plate behind the title
+        const plateH = isMini ? 28 : 36;
+        const titleY = cy - (isMini ? 10 : 12);
+        const tagY   = cy + (isMini ? 2 : 4);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, cy - 18, GAME.W, 36);
-        ctx.fillStyle = '#a82020';
-        ctx.fillRect(0, cy - 18, GAME.W, 1);
-        ctx.fillRect(0, cy + 17, GAME.W, 1);
-        drawTextOutlined(ctx, boss.name || 'BOSS', GAME.W / 2, cy - 12, '#ff5050', '#1a0000', 2, 'center');
+        ctx.fillRect(0, cy - plateH / 2, GAME.W, plateH);
+        ctx.fillStyle = isMini ? '#604030' : '#a82020';
+        ctx.fillRect(0, cy - plateH / 2, GAME.W, 1);
+        ctx.fillRect(0, cy + plateH / 2 - 1, GAME.W, 1);
+        drawTextOutlined(ctx, boss.name || 'BOSS', GAME.W / 2, titleY,
+                         isMini ? '#ffa050' : '#ff5050', '#1a0000',
+                         isMini ? 1 : 2, 'center');
         if (boss.tagline) {
-            drawText(ctx, boss.tagline, GAME.W / 2, cy + 4, '#ffe070', 1, 'center');
+            drawText(ctx, boss.tagline, GAME.W / 2, tagY, '#ffe070', 1, 'center');
         }
         ctx.globalAlpha = 1;
     }
@@ -1143,7 +1152,8 @@ export class Game {
             m.tagline = 'WARMUP ROUND';
         }
         audio.sfx('bossHit');
-        this.camera.shake(4);
+        this.camera.shake(6);
+        this._triggerBossEntrance(true);
     }
 
     _spawnBoss() {
@@ -1174,13 +1184,14 @@ export class Game {
         return true;
     }
 
-    // Boss entrance beat — 120-frame title card with red flash + name/tagline
-    // overlay. Phases: 0-15 flash, 15-90 hold, 90-120 fade. Boss reference is
-    // resolved at draw time since enemies.spawnBoss hasn't fully wired this.boss
-    // yet at the moment we trigger.
-    _triggerBossEntrance() {
-        this._bossEntrance = { age: 0 };
-        audio.sfx('bossHit');
+    // Boss entrance beat — title card with name/tagline + (full boss) red flash.
+    // Main:  120f total — 0-15 flash, 15-90 hold, 90-120 fade.
+    // Mini:   80f total — no flash, slimmer letterbox, shorter hold.
+    // Boss reference is resolved at draw time since enemies.spawnBoss hasn't
+    // fully wired this.boss yet at the moment we trigger.
+    _triggerBossEntrance(isMini = false) {
+        this._bossEntrance = { age: 0, isMini };
+        if (!isMini) audio.sfx('bossHit');
     }
 
     _respawn() {
