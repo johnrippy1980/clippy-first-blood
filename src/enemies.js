@@ -94,7 +94,15 @@ class Bullet {
         ctx.globalAlpha = 0.4;
         ctx.fillRect(dx - 2, dy - 2, 5, 5);
         ctx.globalAlpha = 1;
+        // Dark outline ring — guarantees the bullet reads against bright
+        // painted bg patches (keynote spotlights, founder embers, etc.).
+        ctx.fillStyle = '#1a0500';
+        ctx.fillRect(dx - 2, dy - 1, 1, 3); // left
+        ctx.fillRect(dx + 2, dy - 1, 1, 3); // right
+        ctx.fillRect(dx - 1, dy - 2, 3, 1); // top
+        ctx.fillRect(dx - 1, dy + 2, 3, 1); // bottom
         // Core
+        ctx.fillStyle = this.color;
         ctx.fillRect(dx - 1, dy - 1, 3, 3);
         // Hot center
         ctx.fillStyle = '#ffe070';

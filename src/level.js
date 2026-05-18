@@ -990,6 +990,21 @@ export class Level {
                     for (let i = 0; i < T; i += 4) {
                         if (((i + shift) & 7) < 2) ctx.fillRect(x + i, y, 1, 1);
                     }
+                    // Slow-traveling specular stripe — a brighter glint that
+                    // crawls along the surface at ~1px every other frame. Long
+                    // wavelength so it reads as a single moving reflection
+                    // instead of static dotted shimmer.
+                    const SPEC_WAVE = 40;
+                    const specPhase = (this.tileAnimTick >> 1) % SPEC_WAVE;
+                    const colWorldX = c * T;
+                    const localPhase = ((colWorldX + x) - specPhase) % SPEC_WAVE;
+                    for (let i = 0; i < T; i++) {
+                        const p = (localPhase + i + SPEC_WAVE) % SPEC_WAVE;
+                        if (p < 3) {
+                            ctx.fillStyle = p === 1 ? '#d8fff0' : '#a0f0c8';
+                            ctx.fillRect(x + i, y, 1, 1);
+                        }
+                    }
                 }
                 break;
             }

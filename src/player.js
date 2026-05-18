@@ -367,6 +367,20 @@ export class Player {
             if (this._footstepTick >= 14) {
                 this._footstepTick = 0;
                 audio.sfx(this.inWater ? 'wade' : 'step');
+                // Foot-plant dust at the trailing heel. Suppressed in water
+                // (the wade SFX + ripple already sell that beat) and grass
+                // (stealth — no telltale dust either).
+                if (!this.inWater) {
+                    const heelX = this.x + this.w / 2 - this.facing * 3;
+                    particles.spawn(
+                        heelX + (Math.random() - 0.5) * 2,
+                        this.y + this.h - 1,
+                        -this.facing * (0.3 + Math.random() * 0.5),
+                        -0.2 - Math.random() * 0.4,
+                        12 + (Math.random() * 6 | 0),
+                        '#9a8270', 1, 0.04
+                    );
+                }
             }
         } else {
             this._footstepTick = 0;
