@@ -1267,6 +1267,12 @@ export class Game {
         this._clearBursts = [];
         this.slowMoFrames = 0;
         this._newlyUnlocked = null;
+        // Gauntlet queue from boss-rush (stage 7) can survive if the player
+        // dies or quits mid-rush. Drop any leftover entries before the next
+        // stage so its boss-clear path doesn't try to spawn the next rush boss.
+        this._gauntletQueue = null;
+        this._bossEntrance = null;
+        this._lastBossPhase = null;
         const data = STAGE_LOADERS[n]();
         this.level = new Level(data);
         this.parallax.setTheme(data.theme);

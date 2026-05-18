@@ -141,11 +141,20 @@ if (!killInfo.ok) {
     // Let the stage-clear sequence advance — _onStageClear sets _clearScheduled
     // and the next tick transitions scene to stageClear.
     await page.waitForTimeout(1200);
-    const scene = await page.evaluate(() => window.__game.scene);
-    if (!['stageClear', 'stageCard', 'stageIntro'].includes(scene)) {
-        errors.push(`KILL LOOP: scene ${scene} after kill — expected stageClear/stageCard/stageIntro`);
+    const state = await page.evaluate(() => {
+        const g = window.__game;
+        return {
+            scene: g.scene,
+            bossSpawned: g.bossSpawned,
+            clearScheduled: g._clearScheduled,
+            bossAlive: g.enemies.activeBoss()?.alive ?? null,
+            currentStage: g.currentStage,
+        };
+    });
+    if (!['stageClear', 'stageCard', 'stageIntro'].includes(state.scene)) {
+        errors.push(`KILL LOOP: scene ${state.scene} after kill — diagnostics: ${JSON.stringify(state)}`);
     } else {
-        console.log(`kill loop OK (killed ${killInfo.bossName} → scene: ${scene})`);
+        console.log(`kill loop OK (killed ${killInfo.bossName} → scene: ${state.scene})`);
     }
 }
 
