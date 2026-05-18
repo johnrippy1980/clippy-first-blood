@@ -77,11 +77,15 @@ export function drawHUD(ctx, state) {
     ctx.fillRect(GAME.W - 64, 27, 64, 1);
     ctx.fillRect(GAME.W - 65, 16, 1, 12);
 
-    // Lives icon
-    ctx.fillStyle = '#a0a0b0'; ctx.fillRect(3, 5, 2, 8);
+    // Lives icon — flashes red when on the final life (lives===0 = last
+    // respawn ahead). Subtle warning that one more death ends the run.
+    const lastLife = player.lives <= 0;
+    const lifePulse = lastLife && (Math.floor(performance.now() / 250) % 2 === 0);
+    ctx.fillStyle = lifePulse ? '#ff5050' : '#a0a0b0';
+    ctx.fillRect(3, 5, 2, 8);
     ctx.fillRect(3, 4, 4, 1); ctx.fillRect(6, 5, 1, 8);
     ctx.fillStyle = '#a01020'; ctx.fillRect(3, 3, 4, 1);
-    drawText(ctx, 'x' + player.lives, 10, 5, '#fff', 1);
+    drawText(ctx, 'x' + player.lives, 10, 5, lifePulse ? '#ff5050' : '#fff', 1);
 
     // HP bar
     const barX = 28, barY = 5, barW = 60, barH = 7;
@@ -186,8 +190,18 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(x, 12, fillW, 2);
     }
 
-    // Score
-    drawText(ctx, ('000000' + score).slice(-6), GAME.W - 4, 5, '#ffe070', 1, 'right');
+    // Score — flashes briefly when score increases. Static counters feel
+    // dead; the flash makes kills feel rewarding even when the popup is
+    // off-screen or buried in particle noise.
+    if (drawHUD._lastScore == null) drawHUD._lastScore = score;
+    if (score > drawHUD._lastScore) {
+        drawHUD._scoreFlash = 12;
+        drawHUD._lastScore = score;
+    }
+    const scoreFlash = drawHUD._scoreFlash || 0;
+    if (scoreFlash > 0) drawHUD._scoreFlash = scoreFlash - 1;
+    const scoreColor = scoreFlash > 6 ? '#fff' : '#ffe070';
+    drawText(ctx, ('000000' + score).slice(-6), GAME.W - 4, 5, scoreColor, 1, 'right');
 
     // Speedrun timer (small, under bar)
     const min = Math.floor(time / 3600);
@@ -207,17 +221,24 @@ export function drawHUD(ctx, state) {
     }
 
     // In-game achievement unlock banner — top-center, fades over 300f (5s).
-    // Phases: 0-20 fade-in, 20-250 hold full opacity, 250-300 fade-out.
+    // Phases: 0-20 slide-in + fade-in, 20-250 hold, 250-300 fade-out.
     const banner = achievements.activeBanner?.();
     if (banner) {
         const a = achievements.get(banner.id);
         if (a) {
             const age = banner.age;
             let alpha = 1;
-            if (age < 20) alpha = age / 20;
+            let slideY = 0;
+            if (age < 20) {
+                const t = age / 20;
+                alpha = t;
+                // Slide-in from 16px above final position, eased
+                const eased = 1 - (1 - t) * (1 - t);
+                slideY = -16 * (1 - eased);
+            }
             else if (age > 250) alpha = Math.max(0, (300 - age) / 50);
             ctx.globalAlpha = alpha;
-            const bx = GAME.W / 2 - 70, by = 32, bw = 140, bh = 22;
+            const bx = GAME.W / 2 - 70, by = 32 + slideY, bw = 140, bh = 22;
             ctx.fillStyle = '#0a0612';
             ctx.fillRect(bx, by, bw, bh);
             ctx.fillStyle = '#ffe070';
