@@ -118,7 +118,10 @@ export class Game {
         this.titleBlink = 0;
         this.bootTimer = 0;
         this.assetsReady = false;
-        this.transition = 0;            // 0 = none, 1..30 = fade in, -1..-30 = fade out
+        // Scene transition fade. Positive counts down 30→0 while fading OUT (to
+        // black) — then snaps scene = transitionTarget and starts negative
+        // 30→0 fading IN from black. Zero = idle, no overlay drawn.
+        this.transition = 0;
         this.transitionTarget = null;
         this.pauseAlpha = 0;
     }
