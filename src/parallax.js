@@ -184,13 +184,27 @@ export class Parallax {
         // when the painted asset hasn't loaded yet.
         const key = BG_KEY_FOR_THEME[this.theme];
         if (key && this._paintedBg(ctx, camera, key)) {
-            // Slight dark overlay so gameplay sprites pop against the painted bg.
-            // Use a vertical gradient: lighter at top (sky stays moody), darker
-            // at the gameplay-ground band where the player and enemies live.
-            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            // Per-theme overlay tuning. Stages 3/5/7 (server, keynote, boss-rush)
+            // have very dark painted plates — we lift their darken pass + add a
+            // subtle warm/cool tint band so Clippy + enemies pop without losing
+            // mood. Stages 1/2/4/6/8 keep the original deeper darken.
+            const tune = {
+                [THEME.JUNGLE]:     { topA: 0.18, botA: 0.32, tint: null },
+                [THEME.BREAKROOM]:  { topA: 0.18, botA: 0.32, tint: null },
+                [THEME.SERVERROOM]: { topA: 0.08, botA: 0.18, tint: 'rgba(60, 90, 120, 0.06)' },
+                [THEME.BOARDROOM]:  { topA: 0.18, botA: 0.32, tint: null },
+                [THEME.KEYNOTE]:    { topA: 0.08, botA: 0.20, tint: 'rgba(120, 90, 60, 0.05)' },
+                [THEME.FOUNDER]:    { topA: 0.18, botA: 0.32, tint: null },
+                [THEME.CLOUD]:      { topA: 0.18, botA: 0.32, tint: null },
+            }[this.theme] || { topA: 0.18, botA: 0.32, tint: null };
+            ctx.fillStyle = `rgba(0,0,0,${tune.topA})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H * 0.55);
-            ctx.fillStyle = 'rgba(0,0,0,0.32)';
+            ctx.fillStyle = `rgba(0,0,0,${tune.botA})`;
             ctx.fillRect(0, GAME.H * 0.55, GAME.W, GAME.H * 0.45);
+            if (tune.tint) {
+                ctx.fillStyle = tune.tint;
+                ctx.fillRect(0, 0, GAME.W, GAME.H);
+            }
             return;
         }
         switch (this.theme) {
