@@ -1668,8 +1668,20 @@ export class Game {
     }
 
     _restartRun() {
+        // Per-run state that must NOT carry over to the next run, otherwise
+        // achievements (e.g. "BEAT GAME UNDER 12 MINUTES") get false-positives
+        // and medal grants become sticky from prior runs.
         this.totalTime = 0;
         this.totalDeaths = 0;
+        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0 };
+        this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
+        this._bossEntrance = null;
+        this._clearScheduled = false;
+        this._clearBursts = [];
+        this.slowMoFrames = 0;
+        this.bossSpawned = false;
+        this.miniBossSpawned = false;
+        this.boss = null;
         this.player = null;
         this.scene = SCENE.TITLE;
     }

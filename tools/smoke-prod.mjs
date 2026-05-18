@@ -71,6 +71,41 @@ for (const bad of [0, -1, 99, 'foo', null, undefined, 1.5]) {
     }
 }
 
+// 3c. _restartRun clears per-run state.
+await page.evaluate(() => {
+    const g = window.__game;
+    g.totalTime = 9999;
+    g.totalDeaths = 42;
+    g.runStats.maxCombo = 30;
+    g.runStats.stagesCleared.add(1);
+    g.runStats.stagesCleared.add(8);
+    g.runStats.bulletTimeUses = 5;
+    g._bossEntrance = { age: 30, isMini: false };
+    g.bossSpawned = true;
+    g.miniBossSpawned = true;
+    g._restartRun();
+});
+const cleanup = await page.evaluate(() => {
+    const g = window.__game;
+    return {
+        totalTime: g.totalTime,
+        totalDeaths: g.totalDeaths,
+        maxCombo: g.runStats.maxCombo,
+        stagesCleared: g.runStats.stagesCleared.size,
+        bulletTimeUses: g.runStats.bulletTimeUses,
+        bossEntrance: g._bossEntrance,
+        bossSpawned: g.bossSpawned,
+        miniBossSpawned: g.miniBossSpawned,
+    };
+});
+const expectedClean = { totalTime: 0, totalDeaths: 0, maxCombo: 0, stagesCleared: 0, bulletTimeUses: 0, bossEntrance: null, bossSpawned: false, miniBossSpawned: false };
+const dirty = Object.entries(expectedClean).filter(([k, v]) => JSON.stringify(cleanup[k]) !== JSON.stringify(v));
+if (dirty.length) {
+    errors.push(`RESTART: state survived _restartRun — ${dirty.map(([k]) => `${k}=${JSON.stringify(cleanup[k])}`).join(', ')}`);
+} else {
+    console.log('restart cleanup OK');
+}
+
 // 4. Kill-loop smoke: spawn stage 1 boss, force-damage to 0, verify
 // scene routes to STAGE_CLEAR (which fades to STAGE_CARD then next stage).
 await page.evaluate(() => window.__game._startStage(1));
