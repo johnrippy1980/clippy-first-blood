@@ -653,11 +653,12 @@ export class Game {
         // Grass tips paint OVER player + enemies so the hidden read is sold.
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);
+        const showBoss = this.scene === SCENE.PLAY || this.scene === SCENE.PAUSE;
         drawHUD(ctx, {
             player: this.player,
             score: this.player.score,
             time: this.totalTime,
-            boss: this.boss || this.enemies.activeMiniBoss(),
+            boss: showBoss ? (this.boss || this.enemies.activeMiniBoss()) : null,
             camera: this.camera,
         });
         if (this._bossEntrance) this._drawBossEntrance();
@@ -1405,6 +1406,11 @@ export class Game {
     _onStageClear() {
         if (this._clearScheduled) return;
         this._clearScheduled = true;
+        // Stray mini-boss survives if player rushed past the mini trigger
+        // and burned down the main first — drop it so its HP bar doesn't
+        // bleed through the stage-clear panel.
+        const stray = this.enemies.activeMiniBoss();
+        if (stray) { stray.alive = false; stray.hp = 0; }
         audio.stopTrack();
         audio.sfx('explode');
         // Big payoff: schedule 8 explosion bursts at boss position via the game's
