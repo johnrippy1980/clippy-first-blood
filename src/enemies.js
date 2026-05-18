@@ -526,12 +526,24 @@ class Boss extends Enemy {
             const yRes = level.moveY(this, this.vy, true, this.vy);
             this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
         }
-        // Phase 2 at half hp
+        // Phase 2 at half hp — boss enrages: explosion FX, brief invuln-ish
+        // pause, screen shake, "RAGE" floating label, and an extended hitFlash
+        // so the player can read the threshold beat clearly.
         if (this.phase === 1 && this.hp <= this.maxHp / 2) {
             this.phase = 2;
             this.attackTimer = 60;
+            this.hitFlash = 18;
             audio.sfx('explode');
+            audio.sfx('bossHit');
             particles.explosion(this.x + this.w / 2, this.y + this.h / 2);
+            particles.floatingText(
+                this.x + this.w / 2,
+                this.y - 4,
+                'RAGE',
+                '#ff5050', 70, -0.5, 2
+            );
+            // Telegraph the rage to the player via camera shake
+            player.requestShake = Math.max(player.requestShake || 0, 5);
         }
         // Pattern execution
         this.attackTimer--;
