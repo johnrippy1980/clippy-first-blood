@@ -49,8 +49,11 @@ class Bullet {
         this.x = x; this.y = y; this.vx = vx; this.vy = vy;
         this.dmg = dmg; this.life = 180;
         this.color = '#ff8050';
+        // Position history for trail render — 4-step tail in direction of travel.
+        this.prevX = x; this.prevY = y;
     }
     update(level) {
+        this.prevX = this.x; this.prevY = this.y;
         this.x += this.vx; this.y += this.vy;
         this.life--;
         if (level.isSolid(this.x, this.y)) { this.life = 0; particles.hitSpark(this.x, this.y, this.color); }
@@ -58,8 +61,15 @@ class Bullet {
     draw(ctx, camera) {
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY);
-        // Outer glow
+        // Trail: 4 ghost steps back along the velocity vector, each fainter
         ctx.fillStyle = this.color;
+        for (let i = 1; i <= 4; i++) {
+            ctx.globalAlpha = 0.32 - i * 0.06;
+            const tx = Math.round(dx - this.vx * i);
+            const ty = Math.round(dy - this.vy * i);
+            ctx.fillRect(tx - 1, ty - 1, 3, 3);
+        }
+        // Outer glow
         ctx.globalAlpha = 0.4;
         ctx.fillRect(dx - 2, dy - 2, 5, 5);
         ctx.globalAlpha = 1;
