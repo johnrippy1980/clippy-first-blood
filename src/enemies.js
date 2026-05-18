@@ -140,7 +140,17 @@ class Enemy {
         // the player a half-second to orient before any enemy can fire.
         const dxAbs = Math.abs(player.x - this.x);
         const range = this.tpl.activateRange || 999;
-        if (!this.activated && dxAbs < range) this.activated = true;
+        if (!this.activated && dxAbs < range) {
+            this.activated = true;
+            // Spawn-in puff — small smoke burst telegraphs the activation so
+            // enemies don't appear to teleport in when they enter range.
+            const cx = this.x + this.w / 2;
+            const cy = this.y + this.h / 2;
+            for (let i = 0; i < 5; i++) {
+                const a = (i / 5) * Math.PI * 2;
+                particles.spawn(cx, cy, Math.cos(a) * 0.6, Math.sin(a) * 0.6 - 0.2, 12 + Math.random() * 4, '#604030', 1, -0.02);
+            }
+        }
         if (!this.activated) return;
         // Honor the global stage-start grace — set by EnemyManager on _startStage.
         if (this._grace > 0) { this._grace--; return; }

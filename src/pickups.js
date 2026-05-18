@@ -37,8 +37,15 @@ class Crate {
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY);
         if (this.hitFlash > 0) {
+            // Bright flash + inner shrink. Single-frame full-white was hard to
+            // read at 60fps; expanding alpha + colored fringe pulses through
+            // the 4-frame hitFlash window.
+            const t = this.hitFlash / 4;
             ctx.fillStyle = '#fff';
             ctx.fillRect(dx, dy, this.w, this.h);
+            ctx.fillStyle = '#ffe070';
+            const inset = Math.floor(t * 2);
+            ctx.fillRect(dx + inset, dy + inset, this.w - inset * 2, this.h - inset * 2);
             return;
         }
         // Wood crate
