@@ -152,6 +152,11 @@ function makeStage2() {
     setT(g, h - 3, 24, C);
     // Second cover near the sniper above the second puddle.
     setT(g, h - 3, 52, C);
+    // Tablecloth hide — duck under a low table. Two placements: before the
+    // first coffee puddle (teaches the mechanic) and between vending wall
+    // and second puddle (high-traffic combat).
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 12 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 44 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.BREAKROOM,
@@ -217,6 +222,11 @@ function makeStage3() {
     setT(g, h - 3, 16, C);
     // Second server rack near the sniper above the second electric floor.
     setT(g, h - 3, 56, C);
+    // Floor-grate hide spots — drop into the raised-floor cavity and the
+    // snipers lose track. Two clusters bracket the electric-floor hazards
+    // so the player gets a moment to reposition mid-combat.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 26 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 46 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
@@ -278,6 +288,9 @@ function makeStage4() {
     setT(g, h - 3, w - 4, X);
     // Heavy boardroom door — duck-cover near the sniper above projectors.
     setT(g, h - 3, 46, C);
+    // Velvet wall curtains — slip behind to break the sniper line of sight.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 14 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 42 + i, G);
     // Second door near the holepunch sniper on the top route.
     setT(g, h - 3, 60, C);
 
@@ -341,6 +354,9 @@ function makeStage5() {
     setT(g, h - 3, 24, C);
     // Catwalk podium — near the holepunch sniper above audience.
     setT(g, h - 3, 60, C);
+    // Audience seat rows — duck into the velvet chairs to break LOS.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 10 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 64 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.KEYNOTE,
@@ -406,6 +422,8 @@ function makeStage6() {
     setT(g, h - 3, w - 4, X);
     // Crimson statue cover — duck-behind near the holepunch sniper.
     setT(g, h - 3, 52, C);
+    // Arcane lab drape — slip behind the founder's velvet curtain.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 20 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.FOUNDER,
@@ -510,6 +528,8 @@ function makeStage8() {
     // Floating data-pillar cover near snipers above the archipelago.
     setT(g, h - 3, 24, C);
     setT(g, h - 3, 48, C);
+    // Drifting cloud puffs — duck into the mist between data pillars.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 36 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.CLOUD,
@@ -553,6 +573,8 @@ function makeStage9() {
     rectT(g, 8, 36, 2, 4, W);
     platT(g, 6, 42, 5);
     setT(g, h - 3, w - 4, X);
+    // Floor-grate hide spots — drop into the cavity between hazards.
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 32 + i, G);
     return {
         tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
@@ -1044,35 +1066,210 @@ export class Level {
         }
     }
 
+    // GRASS tile is shorthand for "passive hide spot." Each theme draws it
+    // as a different element: jungle blades, breakroom tablecloth, server
+    // floor grate, boardroom curtain, keynote audience row, etc. Same
+    // gameplay (player walks in → grassHidden = true → AI loses lock).
     _drawGrassBlades(ctx, x, y, c, foreground) {
+        switch (this.data.theme) {
+            case THEME.JUNGLE:     return this._drawHideJungle(ctx, x, y, c, foreground);
+            case THEME.BREAKROOM:  return this._drawHideBreakroom(ctx, x, y, c, foreground);
+            case THEME.SERVERROOM: return this._drawHideServerroom(ctx, x, y, c, foreground);
+            case THEME.BOARDROOM:  return this._drawHideBoardroom(ctx, x, y, c, foreground);
+            case THEME.KEYNOTE:    return this._drawHideKeynote(ctx, x, y, c, foreground);
+            case THEME.FOUNDER:    return this._drawHideFounder(ctx, x, y, c, foreground);
+            case THEME.CLOUD:      return this._drawHideCloud(ctx, x, y, c, foreground);
+            default:               return this._drawHideJungle(ctx, x, y, c, foreground);
+        }
+    }
+
+    // Jungle: tall grass blades, two-tone green, swaying tips.
+    _drawHideJungle(ctx, x, y, c, foreground) {
         const T = GAME.TILE;
         const t2 = this.tileAnimTick;
-        // Sway phase varies per column so the field isn't synchronized.
         const sway = ((t2 + c * 3) & 7) < 4 ? 0 : 1;
-        const tips = foreground;   // foreground pass paints just the upper half
-        // Base mat — earthy floor under the blades. Only on background pass.
         if (!foreground) {
             ctx.fillStyle = 'rgba(20, 32, 16, 0.45)';
             ctx.fillRect(x, y + T - 4, T, 4);
         }
-        // Five blades per tile, alternating heights, two-tone green
-        const yTop = tips ? y - 14 : y - 6;
-        const yBot = tips ? y + 2  : y + T;
+        const yTop = foreground ? y - 14 : y - 6;
+        const yBot = foreground ? y + 2  : y + T;
         ctx.fillStyle = '#2a4a1c';
         for (let i = 0; i < 5; i++) {
             const bx = x + i * 3 + 1 + ((i + sway) & 1);
             ctx.fillRect(bx, yTop, 1, yBot - yTop);
         }
-        // Brighter highlight blades on the foreground pass — sells the depth
         ctx.fillStyle = foreground ? '#6a9c34' : '#3a6024';
         for (let i = 0; i < 3; i++) {
             const bx = x + 2 + i * 5 + ((i ^ sway) & 1);
             ctx.fillRect(bx, yTop + 1, 1, (yBot - yTop) - 2);
         }
-        // Sway tips — single bright pixel that flickers across the top edge
         if (foreground && (t2 + c) & 2) {
             ctx.fillStyle = '#a8c844';
             ctx.fillRect(x + 4 + ((t2 + c) & 7), yTop, 1, 1);
+        }
+    }
+
+    // Breakroom: low table with hanging tablecloth — duck under to hide.
+    // Background = the legs + skirt, foreground = the table top edge.
+    _drawHideBreakroom(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        if (!foreground) {
+            // Tablecloth body — hangs from table edge to floor
+            ctx.fillStyle = '#9a3030';
+            ctx.fillRect(x, y - 2, T, T + 2);
+            // Cloth shadow on right edge
+            ctx.fillStyle = '#601818';
+            ctx.fillRect(x + T - 2, y - 2, 2, T + 2);
+            // Cloth fold highlight
+            ctx.fillStyle = '#c04848';
+            ctx.fillRect(x + 2, y - 2, 1, T);
+            // Floor shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(x - 1, y + T - 2, T + 2, 2);
+        } else {
+            // Table top — flat dark wood plate sitting just above tile origin
+            ctx.fillStyle = '#3a1a08';
+            ctx.fillRect(x - 1, y - 8, T + 2, 4);
+            ctx.fillStyle = '#5a2a18';
+            ctx.fillRect(x - 1, y - 8, T + 2, 1);
+            ctx.fillStyle = '#1a0a04';
+            ctx.fillRect(x - 1, y - 5, T + 2, 1);
+        }
+    }
+
+    // Serverroom: raised floor grate — drop down through metal slats.
+    // Bg = the cavity shadow + grate base, fg = grate slats over the player.
+    _drawHideServerroom(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        const t2 = this.tileAnimTick;
+        if (!foreground) {
+            // Cavity beneath the grate — black void with subtle blue rim
+            ctx.fillStyle = '#080814';
+            ctx.fillRect(x, y, T, T);
+            // Bottom highlight (cables crossing in the dark)
+            ctx.fillStyle = '#1a3050';
+            ctx.fillRect(x + 2, y + T - 3, T - 4, 1);
+            // Occasional spark in the cavity
+            if ((t2 + c) & 7) { } else {
+                ctx.fillStyle = '#5cf0ff';
+                ctx.fillRect(x + 4 + (c & 7), y + 6, 1, 1);
+            }
+        } else {
+            // Grate slats — horizontal metal bars OVER the player
+            ctx.fillStyle = '#404858';
+            ctx.fillRect(x, y - 2, T, 2);          // top rim
+            ctx.fillStyle = '#606878';
+            ctx.fillRect(x, y - 2, T, 1);          // top highlight
+            // Three slats spanning the tile, with gaps showing the void
+            for (let i = 0; i < 3; i++) {
+                const sy = y + 2 + i * 4;
+                ctx.fillStyle = '#383c48';
+                ctx.fillRect(x + 1, sy, T - 2, 2);
+                ctx.fillStyle = '#585c68';
+                ctx.fillRect(x + 1, sy, T - 2, 1);
+            }
+            // Side rails — metallic edges
+            ctx.fillStyle = '#202430';
+            ctx.fillRect(x, y - 2, 1, T);
+            ctx.fillRect(x + T - 1, y - 2, 1, T);
+        }
+    }
+
+    // Boardroom: heavy red curtain — slip behind, only the bottom shows.
+    _drawHideBoardroom(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        if (!foreground) {
+            // Wall behind — dark wood paneling
+            ctx.fillStyle = '#180a04';
+            ctx.fillRect(x, y - 2, T, T + 2);
+        } else {
+            // Curtain — deep crimson with vertical fold highlights
+            ctx.fillStyle = '#601018';
+            ctx.fillRect(x, y - 14, T, T + 12);
+            ctx.fillStyle = '#a01828';
+            // Fold ridges every ~5px
+            for (let i = 0; i < 3; i++) {
+                ctx.fillRect(x + 1 + i * 5, y - 14, 1, T + 12);
+            }
+            ctx.fillStyle = '#2a0408';
+            for (let i = 0; i < 3; i++) {
+                ctx.fillRect(x + 3 + i * 5, y - 14, 1, T + 12);
+            }
+            // Curtain rod
+            ctx.fillStyle = '#806040';
+            ctx.fillRect(x - 1, y - 16, T + 2, 2);
+            // Bottom hem ripples (sway)
+            ctx.fillStyle = '#400810';
+            ctx.fillRect(x, y - 2, T, 2);
+        }
+    }
+
+    // Keynote: theater audience row — duck into the seats.
+    _drawHideKeynote(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        if (!foreground) {
+            // Floor riser shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fillRect(x, y + T - 3, T, 3);
+        } else {
+            // Seat backs — three plush velvet chairs
+            for (let i = 0; i < 3; i++) {
+                const bx = x + i * 5 + 1;
+                ctx.fillStyle = '#3a1830';
+                ctx.fillRect(bx, y - 12, 4, 14);
+                ctx.fillStyle = '#5a2848';
+                ctx.fillRect(bx, y - 12, 4, 1);
+                ctx.fillRect(bx, y - 12, 1, 14);
+                // Headrest dot — gold stud
+                ctx.fillStyle = '#c0a040';
+                ctx.fillRect(bx + 1, y - 10, 1, 1);
+            }
+        }
+    }
+
+    // Founder's Lair: tall lab curtain / drape with electric trim.
+    _drawHideFounder(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        const t2 = this.tileAnimTick;
+        if (!foreground) {
+            ctx.fillStyle = '#100820';
+            ctx.fillRect(x, y - 2, T, T + 2);
+        } else {
+            // Velvet drape with arcane purple/teal piping
+            ctx.fillStyle = '#1a0a30';
+            ctx.fillRect(x, y - 14, T, T + 12);
+            ctx.fillStyle = '#382060';
+            ctx.fillRect(x + 1, y - 14, 1, T + 12);
+            ctx.fillRect(x + 6, y - 14, 1, T + 12);
+            ctx.fillRect(x + 11, y - 14, 1, T + 12);
+            // Animated arcane spark traveling down a fold
+            const sparkY = (t2 + c * 4) % 16;
+            ctx.fillStyle = '#80f0ff';
+            ctx.fillRect(x + 3 + (c & 3), y - 14 + sparkY, 1, 1);
+        }
+    }
+
+    // Cloud: dense cumulus puff — duck inside the mist.
+    _drawHideCloud(ctx, x, y, c, foreground) {
+        const T = GAME.TILE;
+        const t2 = this.tileAnimTick;
+        if (!foreground) {
+            // Soft halo underneath, draws BEHIND player
+            ctx.fillStyle = 'rgba(220, 230, 250, 0.55)';
+            ctx.fillRect(x - 1, y - 4, T + 2, T + 4);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
+            ctx.fillRect(x + 2, y - 2, T - 4, T);
+        } else {
+            // Bright puff lobes OVER the player
+            ctx.fillStyle = '#e8ecf8';
+            ctx.fillRect(x + 1, y - 12, T - 2, 8);
+            ctx.fillRect(x + 3, y - 14, T - 6, 6);
+            // Highlight crests + drifting wisp
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + 3, y - 13, T - 6, 1);
+            const drift = (t2 >> 1) % 8;
+            ctx.fillRect(x + 1 + drift, y - 10, 2, 1);
         }
     }
 }
