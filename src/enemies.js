@@ -464,22 +464,28 @@ class Enemy {
         // _lostBubble is set by _noticeTargetLost(); fades over 120 frames so
         // a brief hide-and-pop doesn't leave the bubble stuck on screen.
         if (this._lostBubble && this._lostBubble.life > 0) {
-            const bx = dx + this.w / 2;
+            let bx = dx + this.w / 2;
             const by = dy - 14;
             const fade = Math.min(1, this._lostBubble.life / 30);
             ctx.globalAlpha = fade;
             const text = this._lostBubble.text;
             const w = Math.max(24, text.length * 4 + 8);
+            // Clamp bubble center so it doesn't clip past the canvas edges.
+            // Speech-bubble tail still anchors to the enemy when possible.
+            const halfW = w / 2;
+            const clampedBx = Math.max(halfW + 2, Math.min(GAME.W - halfW - 2, bx));
             ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-            ctx.fillRect(bx - w / 2, by - 3, w, 9);
+            ctx.fillRect(clampedBx - halfW, by - 3, w, 9);
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(bx - w / 2, by - 3, w, 1);
-            ctx.fillRect(bx - w / 2, by + 5, w, 1);
-            // Speech-bubble tail pointing down to the enemy
+            ctx.fillRect(clampedBx - halfW, by - 3, w, 1);
+            ctx.fillRect(clampedBx - halfW, by + 5, w, 1);
+            // Speech-bubble tail — point toward the enemy x even if bubble
+            // was nudged inward to fit. Tail x is clamped to bubble bounds.
+            const tailX = Math.max(clampedBx - halfW + 2, Math.min(clampedBx + halfW - 2, bx));
             ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-            ctx.fillRect(bx - 1, by + 6, 2, 1);
-            ctx.fillRect(bx, by + 7, 1, 1);
-            drawText(ctx, text, bx, by - 1, '#1a0820', 1, 'center');
+            ctx.fillRect(tailX - 1, by + 6, 2, 1);
+            ctx.fillRect(tailX, by + 7, 1, 1);
+            drawText(ctx, text, clampedBx, by - 1, '#1a0820', 1, 'center');
             ctx.globalAlpha = 1;
             this._lostBubble.life--;
         }
