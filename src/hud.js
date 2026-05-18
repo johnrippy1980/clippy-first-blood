@@ -268,6 +268,34 @@ export function drawHUD(ctx, state) {
         ctx.fillStyle = '#3a2a4a';
         ctx.fillRect(bx, by, bw, 1);
         ctx.fillRect(bx, by + bh - 1, bw, 1);
+        // Off-screen arrow — if boss is outside the visible camera rect,
+        // pulse a red triangle at the edge pointing toward it. Keeps players
+        // oriented during big arenas where the boss can drift off-screen.
+        if (camera) {
+            const bossCX = boss.x + boss.w / 2;
+            const bossCY = boss.y + boss.h / 2;
+            const viewL = camera.viewX, viewR = camera.viewX + GAME.W;
+            const viewT = camera.viewY, viewB = camera.viewY + GAME.H;
+            const off = bossCX < viewL || bossCX > viewR || bossCY < viewT || bossCY > viewB;
+            if (off) {
+                const pulse = (Math.sin(performance.now() * 0.012) + 1) * 0.5;
+                ctx.fillStyle = `rgba(255,80,80,${0.5 + pulse * 0.5})`;
+                // Pick edge — clamp boss center to screen rect, position arrow at clamp
+                const ax = Math.max(8, Math.min(GAME.W - 8, bossCX - camera.viewX));
+                const ay = Math.max(20, Math.min(GAME.H - 22, bossCY - camera.viewY));
+                // Triangle pointing toward bossCX/bossCY from clamped position
+                const dx = (bossCX - camera.viewX) - ax;
+                const dy = (bossCY - camera.viewY) - ay;
+                const ang = Math.atan2(dy, dx);
+                const r = 6;
+                ctx.beginPath();
+                ctx.moveTo(ax + Math.cos(ang) * r, ay + Math.sin(ang) * r);
+                ctx.lineTo(ax + Math.cos(ang + 2.6) * r, ay + Math.sin(ang + 2.6) * r);
+                ctx.lineTo(ax + Math.cos(ang - 2.6) * r, ay + Math.sin(ang - 2.6) * r);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
     }
 }
 
