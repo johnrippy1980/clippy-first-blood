@@ -1373,33 +1373,69 @@ export class Game {
             this.scene = SCENE.STAGE_CARD;
         }
     }
+    // Stage-clear screen plays as a 5-beat cinematic timeline driven by
+    // this.storyTimer. Each beat reads its own time window and bails early
+    // before the next one. Coordinating timestamps via the helper layout:
+    //   0–50f:   white flash over live scene
+    //   50–95f:  background dim + "STAGE CLEAR" title bounce-in
+    //   95+ +12: results panel slide-up + alpha-in
+    //   panel+: stats rows stagger in
+    //   panel+80: medal row (no-dmg / all-kills / secret)
+    //   panel+100: newly-unlocked achievement banner
+    //   panel+90: "X TO CONTINUE" prompt blink
     _drawStageClear() {
-        const ctx = this.ctx;
         const t = this.storyTimer;
-        // Beat 1 (0–50f): boss explosion plays over the live scene with flashing white wash
-        if (t < 50) {
-            const flash = t < 6 ? 0.9 : Math.max(0, 0.5 - t * 0.012);
-            if (flash > 0) { ctx.fillStyle = `rgba(255,240,160,${flash})`; ctx.fillRect(0, 0, GAME.W, GAME.H); }
-            return; // keep showing _drawPlay underneath
-        }
-        // Beat 2 (50–95f): "STAGE CLEAR" slams in from top with bounce
-        const dim = Math.min(0.78, (t - 50) / 40 * 0.78);
-        ctx.fillStyle = `rgba(0,0,0,${dim})`;
-        ctx.fillRect(0, 0, GAME.W, GAME.H);
-
-        // Title bounce-in: ease-out from above
-        let titleY = 22;
-        if (t < 95) {
-            const k = (t - 50) / 45;   // 0..1
-            const eased = 1 - Math.pow(1 - k, 3);
-            titleY = -20 + (22 - -20) * eased + Math.sin(k * Math.PI) * 4;
-        }
-        const titleScale = t < 60 ? 3 : 2;
-        drawTextOutlined(ctx, 'STAGE CLEAR', GAME.W / 2, titleY, '#ffe070', '#a82020', titleScale, 'center');
-
-        // Beat 3 (95+): results panel slides up + stats tally
+        if (this._drawStageClearFlash(t)) return;
+        this._drawStageClearDim(t);
+        this._drawStageClearTitle(t);
         if (t < 95) return;
         const panelT = t - 95;
+        const panelTop = this._drawStageClearPanel(panelT);
+        if (panelT < 12) return;
+        this._drawStageClearStats(panelT, panelTop);
+        this._drawStageClearMedals(panelT);
+        this._drawStageClearAchievementBanner(panelT);
+        this._drawStageClearContinuePrompt(t, panelT);
+    }
+
+    // Beat 1: white flash. Returns true if still in this beat so caller bails
+    // (we keep _drawPlay visible underneath for the boss explosion).
+    _drawStageClearFlash(t) {
+        if (t >= 50) return false;
+        const ctx = this.ctx;
+        const flash = t < 6 ? 0.9 : Math.max(0, 0.5 - t * 0.012);
+        if (flash > 0) {
+            ctx.fillStyle = `rgba(255,240,160,${flash})`;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+        }
+        return true;
+    }
+
+    // Beat 2a: background dim ramping to 0.78 alpha over 40 frames.
+    _drawStageClearDim(t) {
+        const dim = Math.min(0.78, (t - 50) / 40 * 0.78);
+        const ctx = this.ctx;
+        ctx.fillStyle = `rgba(0,0,0,${dim})`;
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+    }
+
+    // Beat 2b: "STAGE CLEAR" title bounces in from above with ease-out cubic
+    // and a sine overshoot. Scale shrinks from 3x to 2x at frame 60 (post-slam).
+    _drawStageClearTitle(t) {
+        let titleY = 22;
+        if (t < 95) {
+            const k = (t - 50) / 45;
+            const eased = 1 - Math.pow(1 - k, 3);
+            titleY = -20 + 42 * eased + Math.sin(k * Math.PI) * 4;
+        }
+        const titleScale = t < 60 ? 3 : 2;
+        drawTextOutlined(this.ctx, 'STAGE CLEAR', GAME.W / 2, titleY, '#ffe070', '#a82020', titleScale, 'center');
+    }
+
+    // Beat 3: results panel slides up + fades in over ~12 frames. Returns the
+    // settled panelTop Y so subsequent beats can align to it.
+    _drawStageClearPanel(panelT) {
+        const ctx = this.ctx;
         const panelTop = 42 + Math.max(0, 30 - panelT);
         const panelAlpha = Math.min(1, panelT / 12);
         ctx.globalAlpha = panelAlpha;
@@ -1407,98 +1443,97 @@ export class Game {
         ctx.fillStyle = '#3a2a4a'; ctx.fillRect(20, panelTop, GAME.W - 40, 1);
         ctx.fillStyle = '#3a2a4a'; ctx.fillRect(20, panelTop + 99, GAME.W - 40, 1);
         ctx.globalAlpha = 1;
-        if (panelT < 12) return;
+        return panelTop;
+    }
 
+    // Beat 4: stats rows stagger in every 8 frames. Score ticks up over 60f
+    // so the final number feels earned rather than instant.
+    _drawStageClearStats(panelT, panelTop) {
+        const ctx = this.ctx;
         const min = Math.floor(this.stageTime / 3600);
         const sec = Math.floor((this.stageTime / 60) % 60);
         const time = `${min}:${String(sec).padStart(2,'0')}`;
         const accuracy = this.player.shotsFired > 0
             ? Math.round((this.stageStats.kills / this.player.shotsFired) * 100)
             : 0;
-        const favWeapon = this._favoriteWeapon();
-        const noDmg = this.stageStats.damageTaken === 0;
-
-        const finalScore = this.player.score;
-        // Score ticks up over ~60 frames so it feels earned
         const scoreT = Math.min(1, (panelT - 12) / 60);
-        const shownScore = Math.floor(finalScore * scoreT);
+        const shownScore = Math.floor(this.player.score * scoreT);
         const stats = [
-            ['TIME',       time, '#7af0ff'],
-            ['KILLS',      String(this.stageStats.kills), '#fff'],
-            ['MAX COMBO',  String(this.player.maxCombo) + 'x', '#ffe070'],
-            ['SCORE',      ('000000' + shownScore).slice(-6), '#ffe070'],
-            ['ACCURACY',   accuracy + '%', '#fff'],
-            ['FAVORITE',   favWeapon, '#a0c0e0'],
+            ['TIME',       time,                                    '#7af0ff'],
+            ['KILLS',      String(this.stageStats.kills),           '#fff'],
+            ['MAX COMBO',  String(this.player.maxCombo) + 'x',      '#ffe070'],
+            ['SCORE',      ('000000' + shownScore).slice(-6),       '#ffe070'],
+            ['ACCURACY',   accuracy + '%',                          '#fff'],
+            ['FAVORITE',   this._favoriteWeapon(),                  '#a0c0e0'],
         ];
-        // Stagger rows in
         for (let i = 0; i < stats.length; i++) {
-            const rowReady = panelT > 12 + i * 8;
-            if (!rowReady) continue;
+            if (panelT <= 12 + i * 8) continue;
             const [k, v, c] = stats[i];
             const y = panelTop + 8 + i * 14;
-            drawText(ctx, k,        30,             y, '#c0a0d0', 1, 'left');
-            drawText(ctx, v,        GAME.W - 30,    y, c,         1, 'right');
+            drawText(ctx, k, 30,          y, '#c0a0d0', 1, 'left');
+            drawText(ctx, v, GAME.W - 30, y, c,         1, 'right');
         }
+    }
 
-        // Per-stage medal row — 3 slots showing earned/missed medals for this stage
-        // (Replaces the old "NO DAMAGE BONUS" text — encoded in the noDamage medal)
-        if (panelT > 80 && this.stageStats.medals) {
-            const m = this.stageStats.medals;
-            const baseY = 150;
-            const labels = [
-                { key: 'noDamage', label: 'NO DMG',  earned: m.noDamage, c: '#50ff70' },
-                { key: 'allKills', label: 'ALL FOES', earned: m.allKills, c: '#ff8050' },
-                { key: 'secret',   label: 'SECRET',   earned: m.secret,   c: '#7af0ff' },
-            ];
-            const slotW = 64;
-            const startX = GAME.W / 2 - (slotW * 3) / 2 + slotW / 2;
-            for (let i = 0; i < labels.length; i++) {
-                const med = labels[i];
-                const cx = startX + i * slotW;
-                // Coin background — golden if earned, grey if not
-                const earned = med.earned;
-                ctx.fillStyle = earned ? '#a07028' : '#202028';
-                ctx.fillRect(cx - 8, baseY, 16, 14);
-                ctx.fillStyle = earned ? med.c : '#404048';
-                ctx.fillRect(cx - 7, baseY + 1, 14, 12);
-                // Star or X mark
-                ctx.fillStyle = earned ? '#ffe070' : '#606068';
-                if (earned) {
-                    // Star
-                    ctx.fillRect(cx - 1, baseY + 3, 2, 8);
-                    ctx.fillRect(cx - 4, baseY + 6, 8, 2);
-                } else {
-                    // X
-                    ctx.fillRect(cx - 3, baseY + 4, 1, 1);
-                    ctx.fillRect(cx + 2, baseY + 4, 1, 1);
-                    ctx.fillRect(cx - 2, baseY + 5, 1, 1);
-                    ctx.fillRect(cx + 1, baseY + 5, 1, 1);
-                    ctx.fillRect(cx - 1, baseY + 6, 3, 1);
-                    ctx.fillRect(cx - 2, baseY + 7, 1, 1);
-                    ctx.fillRect(cx + 1, baseY + 7, 1, 1);
-                    ctx.fillRect(cx - 3, baseY + 8, 1, 1);
-                    ctx.fillRect(cx + 2, baseY + 8, 1, 1);
-                }
-                drawText(ctx, med.label, cx, baseY + 16, earned ? '#ffe070' : '#606068', 1, 'center');
+    // Beat 5: 3-slot medal row. Earned medals show as golden coins with stars,
+    // missed ones show as grey coins with X marks.
+    _drawStageClearMedals(panelT) {
+        if (panelT <= 80) return;
+        const m = this.stageStats.medals;
+        if (!m) return;
+        const ctx = this.ctx;
+        const baseY = 150;
+        const labels = [
+            { label: 'NO DMG',   earned: m.noDamage, c: '#50ff70' },
+            { label: 'ALL FOES', earned: m.allKills, c: '#ff8050' },
+            { label: 'SECRET',   earned: m.secret,   c: '#7af0ff' },
+        ];
+        const slotW = 64;
+        const startX = GAME.W / 2 - (slotW * 3) / 2 + slotW / 2;
+        for (let i = 0; i < labels.length; i++) {
+            const med = labels[i];
+            const cx = startX + i * slotW;
+            const earned = med.earned;
+            ctx.fillStyle = earned ? '#a07028' : '#202028';
+            ctx.fillRect(cx - 8, baseY, 16, 14);
+            ctx.fillStyle = earned ? med.c : '#404048';
+            ctx.fillRect(cx - 7, baseY + 1, 14, 12);
+            ctx.fillStyle = earned ? '#ffe070' : '#606068';
+            if (earned) {
+                // Star
+                ctx.fillRect(cx - 1, baseY + 3, 2, 8);
+                ctx.fillRect(cx - 4, baseY + 6, 8, 2);
+            } else {
+                // X mark
+                ctx.fillRect(cx - 3, baseY + 4, 1, 1); ctx.fillRect(cx + 2, baseY + 4, 1, 1);
+                ctx.fillRect(cx - 2, baseY + 5, 1, 1); ctx.fillRect(cx + 1, baseY + 5, 1, 1);
+                ctx.fillRect(cx - 1, baseY + 6, 3, 1);
+                ctx.fillRect(cx - 2, baseY + 7, 1, 1); ctx.fillRect(cx + 1, baseY + 7, 1, 1);
+                ctx.fillRect(cx - 3, baseY + 8, 1, 1); ctx.fillRect(cx + 2, baseY + 8, 1, 1);
             }
+            drawText(ctx, med.label, cx, baseY + 16, earned ? '#ffe070' : '#606068', 1, 'center');
         }
+    }
 
-        // Newly unlocked banner — shifted below medal row
-        if (this._newlyUnlocked?.length && panelT > 100) {
-            const a = this._newlyUnlocked[0];
-            const banY = 180;
-            ctx.fillStyle = '#1a0a00';
-            ctx.fillRect(20, banY, GAME.W - 40, 20);
-            ctx.fillStyle = '#ffe070';
-            ctx.fillRect(20, banY, GAME.W - 40, 1);
-            ctx.fillRect(20, banY + 19, GAME.W - 40, 1);
-            drawText(ctx, 'NEW: ' + a.name, GAME.W / 2, banY + 4,  '#ffe070', 1, 'center');
-            drawText(ctx, a.desc,           GAME.W / 2, banY + 13, '#fff',    1, 'center');
-        }
+    // Beat 6: newly-unlocked achievement banner below medals.
+    _drawStageClearAchievementBanner(panelT) {
+        if (!this._newlyUnlocked?.length || panelT <= 100) return;
+        const ctx = this.ctx;
+        const a = this._newlyUnlocked[0];
+        const banY = 180;
+        ctx.fillStyle = '#1a0a00';
+        ctx.fillRect(20, banY, GAME.W - 40, 20);
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(20, banY, GAME.W - 40, 1);
+        ctx.fillRect(20, banY + 19, GAME.W - 40, 1);
+        drawText(ctx, 'NEW: ' + a.name, GAME.W / 2, banY + 4,  '#ffe070', 1, 'center');
+        drawText(ctx, a.desc,           GAME.W / 2, banY + 13, '#fff',    1, 'center');
+    }
 
-        if (panelT > 90 && (t % 60 < 40)) {
-            drawText(ctx, 'X TO CONTINUE', GAME.W / 2, GAME.H - 12, '#fff', 1, 'center');
-        }
+    // Beat 7: blinking "X TO CONTINUE" prompt at the bottom edge.
+    _drawStageClearContinuePrompt(t, panelT) {
+        if (panelT <= 90 || (t % 60 >= 40)) return;
+        drawText(this.ctx, 'X TO CONTINUE', GAME.W / 2, GAME.H - 12, '#fff', 1, 'center');
     }
 
     _favoriteWeapon() {
