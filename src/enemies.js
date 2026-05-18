@@ -841,6 +841,7 @@ export class EnemyManager {
         this.stageContactBonus = 0; // flat add to contact damage
         this.stageFireRate = 1;     // <1 = faster enemy fire (per stage)
         this.lostCount = 0;         // # of new "target lost" bubbles this stage
+        this._whizzCooldown = 0;    // cap whizz SFX retriggers in dense barrages
     }
     // Total "target lost" bubbles fired since the last clear(). Used by the
     // GHILLIE SUIT achievement and resets on stage start.
@@ -897,6 +898,7 @@ export class EnemyManager {
     }
 
     update(level, player) {
+        if (this._whizzCooldown > 0) this._whizzCooldown--;
         // Cull off-screen-far enemies optionally (left for now)
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const e = this.enemies[i];
@@ -978,15 +980,17 @@ export class EnemyManager {
                 this.bullets.splice(i, 1);
                 continue;
             }
-            // Whizz-by: bullet passed within 8px of the player without hitting
-            // — play a single soft "whoosh" the first time per bullet to
-            // telegraph the near-miss. Tracked on bullet itself so we don't
-            // re-trigger on subsequent frames as it recedes.
-            if (!b._whizzed) {
+            // Whizz-by: bullet passed within 18×8px of the player without
+            // hitting — play a single soft "whoosh" the first time per bullet
+            // to telegraph the near-miss. Bullet-level flag prevents re-trigger
+            // as it recedes; manager-level cooldown caps overlap in dense
+            // barrages (one whizz at most every 8 frames).
+            if (!b._whizzed && this._whizzCooldown <= 0) {
                 const dx = (b.x) - (player.x + player.w / 2);
                 const dy = (b.y) - (player.y + player.h / 2);
                 if (Math.abs(dx) < 18 && Math.abs(dy) < 8) {
                     b._whizzed = true;
+                    this._whizzCooldown = 8;
                     audio.sfx('whizz');
                 }
             }
