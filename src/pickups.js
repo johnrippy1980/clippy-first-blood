@@ -17,6 +17,7 @@ class Crate {
         // Check player bullets
         for (let i = player.bullets.length - 1; i >= 0; i--) {
             const b = player.bullets[i];
+            if (b.stuck) continue; // Wall-stuck bullets are inert decoration
             if (b.x > this.x && b.x < this.x + this.w && b.y > this.y && b.y < this.y + this.h) {
                 this.hp -= b.damage;
                 this.hitFlash = 4;

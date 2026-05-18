@@ -949,13 +949,16 @@ export class EnemyManager {
             const b = this.bullets[i];
             b.update(level);
             if (b.life <= 0) { this.bullets.splice(i, 1); continue; }
-            // Ducked-in-water OR inside tall grass / hide spot: shrink the
-            // hittable region to the lower body only, so bullets at chest/head
-            // pass over you (cleans up any rounds still in flight from before
-            // the AI lost lock).
-            const hitTop = (player.waterHidden || player.grassHidden)
-                ? player.y + player.h - 4
-                : player.y;
+            // Ducked-in-water, inside tall grass / hide spot, OR actively
+            // crouched/prone/sliding: shrink the hittable region to the lower
+            // body only so bullets at chest/head pass over you. Lets the
+            // player actively duck shots, not just hide passively.
+            const ducked = player.waterHidden || player.grassHidden
+                || player.state === STATE.CROUCH
+                || player.state === STATE.PRONE
+                || player.state === STATE.SLIDE
+                || player.state === STATE.ROLL;
+            const hitTop = ducked ? player.y + player.h - 4 : player.y;
             if (player.iFrames === 0 &&
                 b.x > player.x && b.x < player.x + player.w &&
                 b.y > hitTop && b.y < player.y + player.h) {
