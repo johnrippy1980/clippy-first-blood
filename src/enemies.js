@@ -964,6 +964,19 @@ export class EnemyManager {
                 b.y > hitTop && b.y < player.y + player.h) {
                 player.hurt(b.dmg, b.vx > 0 ? -1 : 1, b.x, b.y);
                 this.bullets.splice(i, 1);
+                continue;
+            }
+            // Whizz-by: bullet passed within 8px of the player without hitting
+            // — play a single soft "whoosh" the first time per bullet to
+            // telegraph the near-miss. Tracked on bullet itself so we don't
+            // re-trigger on subsequent frames as it recedes.
+            if (!b._whizzed) {
+                const dx = (b.x) - (player.x + player.w / 2);
+                const dy = (b.y) - (player.y + player.h / 2);
+                if (Math.abs(dx) < 18 && Math.abs(dy) < 8) {
+                    b._whizzed = true;
+                    audio.sfx('whizz');
+                }
             }
         }
 

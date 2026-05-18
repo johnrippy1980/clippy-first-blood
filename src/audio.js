@@ -131,7 +131,29 @@ class Audio {
             case 'splash':   return this._waterSplash(t);
             case 'frogCroak': return this._frogCroak(t);
             case 'wade':     return this._waterWade(t);
+            case 'whizz':    return this._bulletWhizz(t);
         }
+    }
+
+    // Filtered noise sweep — high-passed white noise with a brief pitch dip,
+    // mimicking a bullet passing close to the ear. Quiet enough to feel
+    // incidental, not alarming.
+    _bulletWhizz(t) {
+        const dur = 0.10;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(2400, t);
+        filt.frequency.exponentialRampToValueAtTime(800, t + dur);
+        filt.Q.value = 4;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
     }
 
     // Mournful 2-note hoot. Pitch dip, soft attack, ~0.8s tail.
@@ -233,16 +255,20 @@ class Audio {
     }
 
     _footstep(t) {
-        // Short low-pass noise tick
+        // Short low-pass noise tick. Vary cutoff + gain per step so successive
+        // footsteps don't sound robotically identical — alternating timbre
+        // reads as left/right foot, not a metronome.
         const dur = 0.05;
+        const cutoff = 500 + Math.random() * 250;   // 500-750 Hz
+        const vol = 0.06 + Math.random() * 0.04;    // 0.06-0.10
         const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
         const src = this.ctx.createBufferSource(); src.buffer = buf;
         const filt = this.ctx.createBiquadFilter();
-        filt.type = 'lowpass'; filt.frequency.value = 600;
+        filt.type = 'lowpass'; filt.frequency.value = cutoff;
         const g = this.ctx.createGain();
-        this._envOn(g, 0.08, t);
+        this._envOn(g, vol, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.connect(filt).connect(g).connect(this.sfxBus);
         src.start(t); src.stop(t + dur + 0.02);
