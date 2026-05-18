@@ -1701,7 +1701,7 @@ export class Game {
         const dmg = this.player.dmgDealt || {};
         let best = 'MG', bestV = -1;
         for (const [k, v] of Object.entries(dmg)) if (v > bestV) { best = k; bestV = v; }
-        return best;
+        return best === 'MG' ? 'MACHINE' : best;
     }
 
     _tickGameOver() {
