@@ -84,4 +84,66 @@ body {
    scales fluidly via --scale, so no media query needed for sizing. */
 @media (max-width: 560px) {
     #hint { font-size: 9px; }
+    /* Hide the keyboard hint on touch devices — overlay buttons replace it. */
+    body:has(#touch-overlay[data-active="true"]) #hint { display: none; }
 }
+
+/* Touch overlay: hidden by default, revealed by input.js when it detects
+   a touch-capable device. Buttons sit on top of the canvas in the CRT frame
+   so the canvas keeps full visual real estate when the overlay's off. */
+#touch-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    z-index: 5;
+}
+#touch-overlay[data-active="true"] { display: block; }
+
+#touch-overlay .dpad,
+#touch-overlay .actions {
+    position: absolute;
+    bottom: 6%;
+    pointer-events: auto;
+}
+#touch-overlay .dpad    { left: 4%; width: 28%; aspect-ratio: 1; }
+#touch-overlay .actions { right: 4%; width: 28%; aspect-ratio: 1; }
+
+#touch-overlay .dpad-btn,
+#touch-overlay .act-btn {
+    position: absolute;
+    background: rgba(20, 12, 28, 0.55);
+    border: 1px solid rgba(168, 32, 32, 0.55);
+    color: #ffe070;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    pointer-events: auto;
+    transition: background 60ms;
+}
+#touch-overlay .dpad-btn.held,
+#touch-overlay .act-btn.held {
+    background: rgba(168, 32, 32, 0.75);
+    color: #fff;
+}
+
+/* D-pad cross layout — 3x3 grid where corner cells are empty */
+#touch-overlay .dpad-btn { width: 33%; height: 33%; }
+#touch-overlay .dpad-up    { top: 0; left: 33%; }
+#touch-overlay .dpad-down  { bottom: 0; left: 33%; }
+#touch-overlay .dpad-left  { top: 33%; left: 0; }
+#touch-overlay .dpad-right { top: 33%; right: 0; }
+
+/* Action buttons: triangle layout (jump top, shoot right, special bottom) */
+#touch-overlay .act-btn { width: 38%; height: 38%; }
+#touch-overlay .act-jump    { top: 0; right: 31%; }
+#touch-overlay .act-shoot   { top: 31%; right: 0; background: rgba(60, 16, 16, 0.65); }
+#touch-overlay .act-special { bottom: 0; right: 31%; }
+#touch-overlay .act-pause   { top: 4%; right: 4%; width: 8%; aspect-ratio: 1; font-size: 12px; }

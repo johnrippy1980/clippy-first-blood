@@ -14,6 +14,20 @@
         <canvas id="screen" width="256" height="224"></canvas>
         <div id="scanlines"></div>
         <div id="vignette"></div>
+        <div id="touch-overlay" aria-hidden="true">
+            <div class="dpad">
+                <div class="dpad-btn dpad-up"    data-act="up">▲</div>
+                <div class="dpad-btn dpad-left"  data-act="left">◀</div>
+                <div class="dpad-btn dpad-right" data-act="right">▶</div>
+                <div class="dpad-btn dpad-down"  data-act="down">▼</div>
+            </div>
+            <div class="actions">
+                <div class="act-btn act-jump"    data-act="jump">A</div>
+                <div class="act-btn act-shoot"   data-act="shoot">B</div>
+                <div class="act-btn act-special" data-act="special">C</div>
+            </div>
+            <div class="act-btn act-pause" data-act="pause">≡</div>
+        </div>
     </div>
     <div id="hint">Z jump · X shoot · C special · arrows move · ↑ hide · ↓+Z slide · P pause · M mute</div>
     <noscript>

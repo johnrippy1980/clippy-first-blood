@@ -182,8 +182,41 @@ class Input {
     }
 
     _setupTouch() {
-        if (!('ontouchstart' in window)) return;
-        // Touch is added later as overlay UI. Leave hook here.
+        if (typeof document === 'undefined') return;
+        // Only build touch UI on devices that report touch capability. Desktop
+        // browsers can still register touch events via dev tools — fine, the
+        // overlay just won't show because the CSS rule gates it on (hover:none)
+        // OR a manual `data-touch="on"` toggle.
+        const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+        const overlay = document.getElementById('touch-overlay');
+        if (!overlay) return;
+        if (!hasTouch) return;
+        overlay.setAttribute('data-active', 'true');
+
+        // Each button has an action; press/release dispatches to the input
+        // state machine the same way keyboard does. Touch IDs are tracked so
+        // overlapping fingers don't fight each other.
+        const bind = (id, action) => {
+            const el = overlay.querySelector(`[data-act="${id}"]`);
+            if (!el) return;
+            const start = e => { e.preventDefault(); this._down(action); el.classList.add('held'); };
+            const end   = e => { e.preventDefault(); this._up(action); el.classList.remove('held'); };
+            el.addEventListener('touchstart', start, { passive: false });
+            el.addEventListener('touchend', end, { passive: false });
+            el.addEventListener('touchcancel', end, { passive: false });
+            // pointerdown/up too, so the same overlay works on hybrid pen/touch.
+            el.addEventListener('pointerdown', start);
+            el.addEventListener('pointerup', end);
+            el.addEventListener('pointerleave', end);
+        };
+        bind('left', 'left');
+        bind('right', 'right');
+        bind('up', 'up');
+        bind('down', 'down');
+        bind('jump', 'jump');
+        bind('shoot', 'shoot');
+        bind('special', 'special');
+        bind('pause', 'pause');
     }
 }
 
