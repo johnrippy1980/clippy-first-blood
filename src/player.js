@@ -308,8 +308,11 @@ export class Player {
         this.grassHidden = level.isGrass(this.x + this.w / 2, this.y + this.h / 2)
             || level.isGrass(this.x + this.w / 2, this.y + 4);
 
-        // Footstep tick when running on the ground
-        if (this.onGround && Math.abs(this.vx) > 0.8 && this.state !== STATE.SLIDE) {
+        // Footstep tick when running on the ground.
+        // Skip footstep sfx when grass-hidden — sells the "stealth" beat,
+        // and prevents step audio from giving the player's position away
+        // while the AI thought-bubbles say "WHERE'D HE GO?".
+        if (this.onGround && Math.abs(this.vx) > 0.8 && this.state !== STATE.SLIDE && !this.grassHidden) {
             this._footstepTick = (this._footstepTick || 0) + 1;
             if (this._footstepTick >= 14) {
                 this._footstepTick = 0;
