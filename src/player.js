@@ -757,7 +757,9 @@ export class Player {
             return;
         }
         if (type === '1UP') {
-            this.lives++;
+            // Cap at 9 — keeps the HUD "x{N}" label inside its slot, and 9 is
+            // already absurd for a Contra-style game (death-tax mechanic only).
+            this.lives = Math.min(9, this.lives + 1);
             audio.sfx('powerup');
             burstBurst('#ffe070', 14);
             particles.floatingText(cx, this.y - 4, '1 UP!', '#ffe070', 75, -0.7, 2);
