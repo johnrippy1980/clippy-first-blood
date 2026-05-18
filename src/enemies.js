@@ -1,10 +1,25 @@
 // Enemies. Grunts (4 types) + bosses (7). Behaviors are state machines
 // driven by a per-frame update with the level and the player as inputs.
 
-import { GAME } from './constants.js';
+import { GAME, STATE } from './constants.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { drawEnemyFrame, sprites, getSpriteDims } from './sprites.js';
+import { drawText } from './pixelfont.js';
+
+// Pool of "where did the player go?" lines that enemies cycle through when
+// the player ducks behind cover or into water. Picked at random per bubble
+// instance so the screen doesn't repeat the same line across multiple enemies.
+const LOST_TARGET_LINES = [
+    'WHERE\'D HE GO?',
+    'TARGET LOST',
+    "DON'T SEE HIM",
+    'MUST\'VE BEEN THE WIND',
+    'CLIPPY? COME OUT',
+    '...',
+    'HMMMM',
+    'WEIRD',
+];
 
 // Grunt templates.
 const TYPES = {
@@ -166,8 +181,13 @@ class Enemy {
         const mult = this._fireRateMult || 1;
         const baseRate = distAbs < 80 ? Math.max(28, tpl.shootInterval - 30) : tpl.shootInterval;
         const fireRate = Math.max(20, Math.round(baseRate * mult));
-        // Don't fire on a hidden (ducked-in-water) player; respect owl-pause
-        if (player.waterHidden) return;
+        // Don't fire on a hidden player (ducked-in-water OR behind cover);
+        // respect owl-pause too. When the player hides, queue a "where did
+        // he go?" thought bubble — cycles a different phrase each time.
+        if (player.waterHidden || player.state === STATE.COVER) {
+            this._noticeTargetLost();
+            return;
+        }
         if (this.owlPause > 0) return;
         if (this.timer % fireRate === 0 && distAbs < 200) {
             const d = Math.hypot(dx, dy) || 1;
@@ -258,7 +278,10 @@ class Enemy {
         const distAbs = Math.abs(dx);
         this.facing = dx > 0 ? 1 : -1;
         // Only fire when player is in range, not hidden, not owl-paused
-        if (player.waterHidden) return;
+        if (player.waterHidden || player.state === STATE.COVER) {
+            this._noticeTargetLost();
+            return;
+        }
         if (this.owlPause > 0) return;
         if (distAbs < 220 && this.timer % tpl.shootInterval === 0 && this.subTimer === 0) {
             this.subTimer = tpl.beamCharge;
@@ -286,6 +309,20 @@ class Enemy {
     _isOnGround(level) {
         return level.isSolid(this.x + 2, this.y + this.h + 1) ||
                level.isSolid(this.x + this.w - 2, this.y + this.h + 1);
+    }
+
+    // Called when fire is suppressed because the player is hidden (cover or
+    // water). Shows a thought bubble with a randomly-picked phrase for ~2.5s.
+    // Cooldown prevents spamming the bubble every frame the player is hidden.
+    _noticeTargetLost() {
+        if (this._lostBubbleCooldown > 0) {
+            this._lostBubbleCooldown--;
+            return;
+        }
+        if (this._lostBubble && this._lostBubble.life > 0) return;
+        const i = Math.floor(Math.random() * LOST_TARGET_LINES.length);
+        this._lostBubble = { text: LOST_TARGET_LINES[i], life: 150 };
+        this._lostBubbleCooldown = 240; // ~4s before this enemy bubbles again
     }
 
     hurt(dmg, knockDir = 0, opts = {}) {
@@ -393,6 +430,29 @@ class Enemy {
                 ctx.fillStyle = '#ff5050';
                 ctx.fillRect(dx, dy - 4, this.w, 2);
             }
+        }
+        // Thought bubble — "where did he go?" when the player is hidden.
+        // _lostBubble is set by _noticeTargetLost(); fades over 120 frames so
+        // a brief hide-and-pop doesn't leave the bubble stuck on screen.
+        if (this._lostBubble && this._lostBubble.life > 0) {
+            const bx = dx + this.w / 2;
+            const by = dy - 14;
+            const fade = Math.min(1, this._lostBubble.life / 30);
+            ctx.globalAlpha = fade;
+            const text = this._lostBubble.text;
+            const w = Math.max(24, text.length * 4 + 8);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.fillRect(bx - w / 2, by - 3, w, 9);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(bx - w / 2, by - 3, w, 1);
+            ctx.fillRect(bx - w / 2, by + 5, w, 1);
+            // Speech-bubble tail pointing down to the enemy
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.fillRect(bx - 1, by + 6, 2, 1);
+            ctx.fillRect(bx, by + 7, 1, 1);
+            drawText(ctx, text, bx, by - 1, '#1a0820', 1, 'center');
+            ctx.globalAlpha = 1;
+            this._lostBubble.life--;
         }
         // Sniper telegraph — laser dot at aim point, intensifying as fire approaches
         if (this.behavior === 'hover_sniper' && this.subTimer > 0 && this._aimX != null) {

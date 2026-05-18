@@ -6,6 +6,7 @@ import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { drawClippyFrame, getSpriteDims } from './sprites.js';
+import { drawText } from './pixelfont.js';
 
 // Quick alias so the call site reads cleanly.
 const spriteDims = getSpriteDims;
@@ -523,9 +524,24 @@ export class Player {
     _coverAvailable(level) {
         // Probe at the player's bottom-pixel. Cover tiles sit at the row that
         // the player's feet occupy (the row just above the solid floor).
-        const px = this.x + this.w / 2;
+        // Check a 3-tile-wide band so the player doesn't have to stand on
+        // the exact pixel — anywhere within an 8px lateral tolerance counts.
         const py = this.y + this.h - 1;
-        return level.tileAt(px, py) === 7 /* TILE.COVER */;
+        const cxs = [this.x + this.w / 2, this.x + 2, this.x + this.w - 2];
+        for (const px of cxs) {
+            if (level.tileAt(px, py) === 7 /* TILE.COVER */) return true;
+        }
+        return false;
+    }
+
+    // For HUD hint: true if there's a cover tile within ~1 tile of the player,
+    // so we can show "↑ HIDE" before they're standing on top of it.
+    _coverNearby(level) {
+        const py = this.y + this.h - 1;
+        for (let dx = -16; dx <= 16; dx += 4) {
+            if (level.tileAt(this.x + this.w / 2 + dx, py) === 7) return true;
+        }
+        return false;
     }
 
     _axisToAim(x, y) {
@@ -842,7 +858,25 @@ export class Player {
     }
 
     // ---------- drawing ----------
-    draw(ctx, camera) {
+    draw(ctx, camera, level = null) {
+        // Cover prompt: a pulsing "↑ HIDE" hint above the player when they're
+        // near a cover tile and not already in cover. Drawn FIRST so it sits
+        // behind the player sprite — feels less HUD-ish, more diegetic.
+        if (level && this.state !== STATE.COVER && this.onGround && this._coverNearby(level)) {
+            const px = Math.round(this.x + this.w / 2 - camera.viewX);
+            const py = Math.round(this.y - 24 - camera.viewY);
+            const pulse = (Math.sin(performance.now() * 0.012) + 1) * 0.5;
+            ctx.save();
+            ctx.globalAlpha = 0.55 + pulse * 0.35;
+            ctx.fillStyle = 'rgba(8, 4, 14, 0.85)';
+            ctx.fillRect(px - 22, py - 2, 44, 11);
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(px - 22, py - 2, 44, 1);
+            ctx.fillRect(px - 22, py + 8, 44, 1);
+            drawText(ctx, '^ HIDE', px, py + 1, '#ffe070', 1, 'center');
+            ctx.restore();
+        }
+
         // Flicker on i-frames
         if (this.iFrames > 0 && this.iFrames % 4 < 2) return;
 

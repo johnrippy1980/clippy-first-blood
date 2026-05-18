@@ -601,7 +601,7 @@ export class Game {
         this.level.draw(ctx, this.camera);
         this.pickups.draw(ctx, this.camera);
         this.enemies.draw(ctx, this.camera);
-        this.player.draw(ctx, this.camera);
+        this.player.draw(ctx, this.camera, this.level);
         particles.draw(ctx, this.camera);
         particles.drawFloats(ctx, this.camera, drawText);
         this.parallax.drawFront(ctx, this.camera);
