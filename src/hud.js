@@ -87,9 +87,10 @@ export function drawHUD(ctx, state) {
     ctx.fillStyle = '#a01020'; ctx.fillRect(3, 3, 4, 1);
     drawText(ctx, 'x' + player.lives, 10, 5, lifePulse ? '#ff5050' : '#fff', 1);
 
-    // HP bar
+    // HP bar — dark grey-violet bg so empty segments read as "empty" not
+    // "red"; was #1a1018 which merged with the low-HP red border treatment.
     const barX = 28, barY = 5, barW = 60, barH = 7;
-    ctx.fillStyle = '#1a1018'; ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = '#1a1428'; ctx.fillRect(barX, barY, barW, barH);
     const pct = Math.max(0, player.hp / player.maxHp);
     const fillW = Math.floor(barW * pct);
     let fillColor = pct > 0.6 ? '#50ff70' : pct > 0.3 ? '#ffe070' : '#ff5050';
