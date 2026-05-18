@@ -120,7 +120,7 @@ export class Game {
         // Per-stage stats (resets on _startStage)
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         // Run-level achievement progress (built up across stages)
-        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0 };
+        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0 };
         // Pause sub-state
         this.pauseIndex = 0;
         this.optionsIndex = 0;
@@ -1407,6 +1407,11 @@ export class Game {
             this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
         }
         if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
+        // Roll the per-stage "target lost" bubble count into the run total
+        // before snapshotting for achievements (GHILLIE SUIT).
+        this.runStats.enemiesLost = (this.runStats.enemiesLost || 0)
+            + (this.enemies.lostBubbleTotal || 0);
+
         // Update achievement snapshot
         const newlyUnlocked = achievements.update({
             totalKills: this.player.kills,
@@ -1419,6 +1424,7 @@ export class Game {
             secretStageDiscovered: this.runStats.stagesCleared.has(9),
             bulletTimeUses: this.runStats.bulletTimeUses,
             bestScore: this.player.score,
+            enemiesLost: this.runStats.enemiesLost,
         });
         this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
 
@@ -1801,7 +1807,7 @@ export class Game {
         // and medal grants become sticky from prior runs.
         this.totalTime = 0;
         this.totalDeaths = 0;
-        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0 };
+        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0 };
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         this._bossEntrance = null;
         this._clearScheduled = false;

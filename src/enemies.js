@@ -7,6 +7,12 @@ import { particles } from './particles.js';
 import { drawEnemyFrame, sprites, getSpriteDims } from './sprites.js';
 import { drawText } from './pixelfont.js';
 
+// Running module-level counter of distinct "target lost" bubble events
+// across the current stage. Read by EnemyManager.lostCount getter and used
+// to drive the GHILLIE SUIT achievement. Reset each time EnemyManager.clear()
+// fires (i.e. on stage start).
+let _lostBubblesFired = 0;
+
 // Pool of "where did the player go?" lines that enemies cycle through when
 // the player ducks behind cover or into water. Picked at random per bubble
 // instance so the screen doesn't repeat the same line across multiple enemies.
@@ -323,6 +329,7 @@ class Enemy {
         const i = Math.floor(Math.random() * LOST_TARGET_LINES.length);
         this._lostBubble = { text: LOST_TARGET_LINES[i], life: 150 };
         this._lostBubbleCooldown = 240; // ~4s before this enemy bubbles again
+        _lostBubblesFired++;
     }
 
     hurt(dmg, knockDir = 0, opts = {}) {
@@ -809,10 +816,15 @@ export class EnemyManager {
         this.stageScale = 1;        // hp + score multiplier
         this.stageContactBonus = 0; // flat add to contact damage
         this.stageFireRate = 1;     // <1 = faster enemy fire (per stage)
+        this.lostCount = 0;         // # of new "target lost" bubbles this stage
     }
+    // Total "target lost" bubbles fired since the last clear(). Used by the
+    // GHILLIE SUIT achievement and resets on stage start.
+    get lostBubbleTotal() { return _lostBubblesFired; }
     clear() {
         this.enemies.length = 0;
         this.bullets.length = 0;
+        _lostBubblesFired = 0;
     }
     // Owl hoot: enemies within radius briefly look up — attack timers freeze
     // for `frames` ticks. Free-shot opportunity for the player.

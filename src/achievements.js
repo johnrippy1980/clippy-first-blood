@@ -22,6 +22,7 @@ export const ACHIEVEMENT_LIST = [
     { id: 'secret_room',   name: 'OFF THE GRID',    desc: 'DISCOVER THE SECRET STAGE',              icon: 'S',  gate: s => s.secretStageDiscovered === true },
     { id: 'second_chance', name: 'CLOSE CALL',      desc: 'TRIGGER BULLET-TIME RESCUE',             icon: 'B',  gate: s => s.bulletTimeUses >= 1 },
     { id: 'high_score',    name: 'TOP TIER',        desc: 'SCORE OVER 100,000',                     icon: '$',  gate: s => s.bestScore >= 100000 },
+    { id: 'ghillie',       name: 'GHILLIE SUIT',    desc: 'HIDE FROM 10 ENEMIES IN TALL COVER',     icon: '~',  gate: s => (s.enemiesLost || 0) >= 10 },
 ];
 
 class Achievements {
@@ -39,6 +40,7 @@ class Achievements {
             secretStageDiscovered: false,
             bulletTimeUses: 0,
             bestScore: 0,
+            enemiesLost: 0,    // count of "target lost" thought-bubbles triggered
         };
         this._load();
     }
