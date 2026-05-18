@@ -439,12 +439,17 @@ export class Game {
             const numX = -50 + (GAME.W / 2 + 50) * eased;
             drawText(ctx, 'STAGE ' + stg.id, numX, 78, '#ffe070', 1, 'center');
         }
-        // Stage NAME slides in from right at t > 24
+        // Stage NAME slides in from right at t > 24. Drop to size=1 for
+        // long names that would overflow 256px at size=2.
         if (t > 24) {
             const k = Math.min(1, (t - 24) / 22);
             const eased = 1 - Math.pow(1 - k, 3);
-            const nameX = GAME.W + 200 - (GAME.W + 100) * eased;
-            drawTextOutlined(ctx, stg.name, nameX, 94, '#ff5050', '#1a0000', 2, 'center');
+            // Final rest = canvas center (128); start off-screen right (+200).
+            const nameX = GAME.W + 200 - (GAME.W + 200 - GAME.W / 2) * eased;
+            // 7px glyph + 1px gap = 8px per char at size=1; size=2 = 16px each.
+            // Stage names >14 chars at size=2 overflow the 256px viewport.
+            const nameSize = stg.name.length > 14 ? 1 : 2;
+            drawTextOutlined(ctx, stg.name, nameX, 94, '#ff5050', '#1a0000', nameSize, 'center');
         }
         // Tagline fades in at t > 48
         if (t > 48) {
