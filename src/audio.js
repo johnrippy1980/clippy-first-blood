@@ -170,7 +170,7 @@ class Audio {
         const filt = this.ctx.createBiquadFilter();
         filt.type = 'highpass'; filt.frequency.value = 4500; filt.Q.value = 3;
         const g = this.ctx.createGain();
-        g.gain.setValueAtTime(0.10, t);
+        this._envOn(g, 0.10, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.connect(filt).connect(g).connect(this.sfxBus);
         src.start(t); src.stop(t + dur + 0.02);
@@ -183,7 +183,7 @@ class Audio {
         o.type = 'sine';
         o.frequency.setValueAtTime(120, t);
         o.frequency.exponentialRampToValueAtTime(45, t + 0.08);
-        og.gain.setValueAtTime(0.18, t);
+        this._envOn(og, 0.18, t);
         og.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
         o.connect(og).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.12);
@@ -242,7 +242,7 @@ class Audio {
         const filt = this.ctx.createBiquadFilter();
         filt.type = 'lowpass'; filt.frequency.value = 600;
         const g = this.ctx.createGain();
-        g.gain.setValueAtTime(0.08, t);
+        this._envOn(g, 0.08, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.connect(filt).connect(g).connect(this.sfxBus);
         src.start(t); src.stop(t + dur + 0.02);
@@ -254,7 +254,7 @@ class Audio {
         o.type = 'sine';
         o.frequency.setValueAtTime(140, t);
         o.frequency.exponentialRampToValueAtTime(40, t + 0.10);
-        g.gain.setValueAtTime(0.32, t);
+        this._envOn(g, 0.32, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.16);
@@ -288,7 +288,7 @@ class Audio {
             filt.frequency.exponentialRampToValueAtTime(body * 0.4, start + bodyDur);
             filt.Q.value = 1.2;
             const g = this.ctx.createGain();
-            g.gain.setValueAtTime(0.42, start);
+            this._envOn(g, 0.42, start);
             g.gain.exponentialRampToValueAtTime(0.001, start + bodyDur);
             src.connect(filt).connect(g).connect(this.sfxBus);
             src.start(start); src.stop(start + bodyDur + 0.02);
@@ -302,7 +302,7 @@ class Audio {
             cfilt.type = 'highpass';
             cfilt.frequency.value = crack;
             const cg = this.ctx.createGain();
-            cg.gain.setValueAtTime(0.32, start);
+            this._envOn(cg, 0.32, start);
             cg.gain.exponentialRampToValueAtTime(0.001, start + 0.025);
             csrc.connect(cfilt).connect(cg).connect(this.sfxBus);
             csrc.start(start); csrc.stop(start + 0.03);
@@ -342,7 +342,7 @@ class Audio {
         filt.frequency.exponentialRampToValueAtTime(600, t + dur);
         filt.Q.value = 1.6;
         const g = this.ctx.createGain();
-        g.gain.setValueAtTime(0.28, t);
+        this._envOn(g, 0.28, t);
         g.gain.linearRampToValueAtTime(0.001, t + dur);
         src.connect(filt).connect(g).connect(this.sfxBus);
         src.start(t); src.stop(t + dur + 0.02);
@@ -355,7 +355,7 @@ class Audio {
         o.type = 'sine';
         o.frequency.setValueAtTime(180, t);
         o.frequency.exponentialRampToValueAtTime(80, t + 0.15);
-        g.gain.setValueAtTime(0.35, t);
+        this._envOn(g, 0.35, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.2);
@@ -400,7 +400,7 @@ class Audio {
         filt.type = 'lowpass';
         filt.frequency.setValueAtTime(1200, t);
         filt.frequency.exponentialRampToValueAtTime(300, t + 0.28);
-        g.gain.setValueAtTime(0.30, t);
+        this._envOn(g, 0.30, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
         o.connect(filt).connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.32);
@@ -434,6 +434,14 @@ class Audio {
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + dur + 0.02);
+    }
+
+    // Envelope helper: ramp from silence to `vol` over a 3ms attack so the
+    // gain doesn't jump from 0 → vol on hard onset (audible click on speakers).
+    // All SFX should call this instead of `g.gain.setValueAtTime(vol, t)`.
+    _envOn(g, vol, t) {
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(vol, t + 0.003);
     }
 
     _noise(t, dur, vol, filterFreq, type = 'bp', q = 1.4) {
@@ -485,7 +493,7 @@ class Audio {
             o.detune.value = i === 0 ? -7 : 7;
             o.frequency.setValueAtTime(1800, t);
             o.frequency.exponentialRampToValueAtTime(320, t + 0.18);
-            g.gain.setValueAtTime(0.18, t);
+            this._envOn(g, 0.18, t);
             g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
             o.connect(g).connect(this.sfxBus);
             o.start(t); o.stop(t + 0.2);
@@ -504,7 +512,7 @@ class Audio {
         o.type = 'sine';
         o.frequency.setValueAtTime(440, t);
         o.frequency.exponentialRampToValueAtTime(1320, t + 0.18);
-        g.gain.setValueAtTime(0.18, t);
+        this._envOn(g, 0.18, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.2);
@@ -520,7 +528,7 @@ class Audio {
         // Sub thump
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'sine'; o.frequency.setValueAtTime(60, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.4);
-        g.gain.setValueAtTime(0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        this._envOn(g, 0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
         o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.45);
     }
 
@@ -531,7 +539,7 @@ class Audio {
         o.type = 'sawtooth';
         o.frequency.setValueAtTime(220, t);
         o.frequency.exponentialRampToValueAtTime(110, t + 0.25);
-        g.gain.setValueAtTime(0.28, t);
+        this._envOn(g, 0.28, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
         const filt = this.ctx.createBiquadFilter();
         filt.type = 'lowpass'; filt.frequency.value = 900;
@@ -549,7 +557,7 @@ class Audio {
         filt.type = 'lowpass';
         filt.frequency.setValueAtTime(1200, t);
         filt.frequency.exponentialRampToValueAtTime(220, t + 0.8);
-        g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        this._envOn(g, 0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
         o.connect(filt).connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.9);
         this._noise(t + 0.1, 0.4, 0.18, 400, 'lp', 1.2);
@@ -562,7 +570,7 @@ class Audio {
         this._noise(t + 0.02, 0.08, 0.18, 4000, 'hp', 1);
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'sine'; o.frequency.setValueAtTime(80, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.5);
-        g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        this._envOn(g, 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
         o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.55);
     }
 
@@ -578,7 +586,7 @@ class Audio {
         }
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.8);
-        g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        this._envOn(g, 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
         o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.95);
     }
 
@@ -759,7 +767,7 @@ class Audio {
         const filt = this.ctx.createBiquadFilter();
         filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 1.2;
         const g = this.ctx.createGain();
-        g.gain.setValueAtTime(0.42, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        this._envOn(g, 0.42, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
         src.connect(filt).connect(g).connect(this.musicBus);
         src.start(t); src.stop(t + 0.2);
         // Tonal
@@ -767,7 +775,7 @@ class Audio {
         o.type = 'triangle';
         o.frequency.setValueAtTime(220, t);
         o.frequency.exponentialRampToValueAtTime(120, t + 0.1);
-        og.gain.setValueAtTime(0.18, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        this._envOn(og, 0.18, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
         o.connect(og).connect(this.musicBus);
         o.start(t); o.stop(t + 0.12);
     }
