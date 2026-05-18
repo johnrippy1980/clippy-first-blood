@@ -79,18 +79,27 @@ function makeStage1() {
         enemySpawns: [
             // A: early-contact stapler, no empty opening
             { x:  9 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
-            // B: sniper above the first swamp — teaches duck-hide
+            // B: sniper above the first swamp — teaches duck-hide.
+            // Added: cabinet on far side of swamp so the wade-out feels
+            // contested, not free (user feedback: swamp items needed enemies).
             { x: 19 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
-            { x: 27 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            { x: 28 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
             // C: folder up high, cabinet down low — tests verticality + ranged choice
             { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'folder' },
             { x: 42 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
-            // D: second swamp sniper — reinforce duck-hide muscle memory
+            // D: second swamp sniper — reinforce duck-hide muscle memory.
+            // Added: folder hovering over the second swamp so the player
+            // must choose between wading (slow, under fire) or rushing.
             { x: 44 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            { x: 49 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
             { x: 54 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
         ],
         pickupSpawns: [
             { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'LASER' },
+            // Reward for clearing each swamp — a pickup sits on the far bank,
+            // contested by the added grunts. Wading is now worth it.
+            { x: 26 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SPREAD' },
+            { x: 51 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
             { x: 14 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'SPREAD' },
