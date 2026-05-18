@@ -126,6 +126,75 @@ class ParticleSystem {
         }
     }
 
+    // Per-weapon hit burst variant — selects a tailored particle pattern so
+    // each weapon's impact reads visually distinct, on top of the existing
+    // damage / knockback / DOT differences.
+    weaponHitBurst(x, y, weapon, color) {
+        switch (weapon) {
+            case 'MG':
+                // Tight 4-spark fan in the direction of fire — punchy, minimal
+                for (let i = 0; i < 4; i++) {
+                    const a = (Math.random() - 0.5) * Math.PI * 0.8;
+                    const sp = 1.4 + Math.random() * 0.9;
+                    this.spawn(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 5 + Math.random() * 3, color, 2, 0);
+                }
+                this.spawn(x, y, 0, 0, 3, '#fff', 3, 0);
+                break;
+            case 'SPREAD':
+                // Wide shotgun burst — 10 sparks in a full radial fan
+                for (let i = 0; i < 10; i++) {
+                    const a = (i / 10) * Math.PI * 2 + Math.random() * 0.2;
+                    const sp = 1.8 + Math.random() * 1.4;
+                    this.spawn(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 7 + Math.random() * 4, color, 2, 0);
+                }
+                for (let i = 0; i < 2; i++) this.spawn(x, y, 0, 0, 3, '#fff', 3 - i, 0);
+                break;
+            case 'LASER':
+                // Crisp cyan spark + bright core, no smoke — energy weapon
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2;
+                    const sp = 2.2 + Math.random() * 0.6;
+                    this.spawn(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 4 + Math.random() * 3, '#7af0ff', 2, 0);
+                }
+                // Hot white core
+                this.spawn(x, y, 0, 0, 4, '#fff', 4, 0);
+                this.spawn(x, y, 0, 0, 3, '#fff', 3, 0);
+                break;
+            case 'FLAME':
+                // Lingering ember puffs — drifts up like the flame itself
+                for (let i = 0; i < 6; i++) {
+                    this.spawn(
+                        x + (Math.random() - 0.5) * 4,
+                        y + (Math.random() - 0.5) * 4,
+                        (Math.random() - 0.5) * 0.8,
+                        -0.5 - Math.random() * 0.5,
+                        12 + Math.random() * 6,
+                        i < 3 ? '#ff5040' : '#ffe070', 2, -0.06
+                    );
+                }
+                break;
+            case 'HOMING':
+                // Magenta pinwheel — sparks spiral outward
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2;
+                    const sp = 1.6 + Math.random() * 0.8;
+                    this.spawn(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 0.4, 8 + Math.random() * 4, '#ff60ff', 2, -0.02);
+                }
+                this.spawn(x, y, 0, 0, 4, '#fff', 3, 0);
+                break;
+            case 'THUNDER':
+                // Vertical strike — sparks rocket up + down from impact point
+                for (let i = 0; i < 6; i++) {
+                    this.spawn(x + (Math.random() - 0.5) * 2, y, (Math.random() - 0.5) * 0.6, -2 - Math.random() * 1.5, 8 + Math.random() * 4, '#fffac8', 2, 0);
+                    this.spawn(x + (Math.random() - 0.5) * 2, y, (Math.random() - 0.5) * 0.6,  2 + Math.random() * 1.5, 8 + Math.random() * 4, '#fffac8', 2, 0);
+                }
+                for (let i = 0; i < 3; i++) this.spawn(x, y, 0, 0, 4, '#fff', 4 - i, 0);
+                break;
+            default:
+                this.hitBurst(x, y, color);
+        }
+    }
+
     muzzleFlash(x, y, dx, dy, color = '#ffe070') {
         // Bright core sparkle
         for (let i = 0; i < 3; i++) {

@@ -69,6 +69,11 @@ export class Player {
         this.aimAngle = 0;           // 360-degree aim angle
         this.aimLocked = false;
 
+        // Afterimage ring buffer — sprite snapshots captured during speed
+        // moves (dash/slide/backdash) and re-rendered at decaying alpha
+        // behind the live sprite. Each entry: { frame, x, y, facing, age }.
+        this._afterimages = [];
+
         // Slide / roll / backdash
         this.slideTimer = 0;
         this.rollTimer = 0;
@@ -367,6 +372,33 @@ export class Player {
 
         // Update state derived from motion
         this._updateState();
+
+        // Afterimage capture — sample sprite frame every other update during
+        // speed states. Buffer drains over MAX_AGE frames.
+        this._updateAfterimages();
+    }
+
+    _updateAfterimages() {
+        const speedState = this.state === STATE.SLIDE
+            || this.state === STATE.DASH_ATTACK
+            || this.state === STATE.BACKDASH;
+        if (speedState && (this._afterimageTick = (this._afterimageTick || 0) + 1) % 2 === 0) {
+            this._afterimages.push({
+                frame: this._frameForState(),
+                x: this.x, y: this.y,
+                facing: this.facing,
+                age: 0,
+                // Color tint: dash-attack gets warm orange, slide tan, backdash cool blue
+                tint: this.state === STATE.DASH_ATTACK ? '#ff9050'
+                    : this.state === STATE.BACKDASH    ? '#80a0ff'
+                                                       : '#ffd080',
+            });
+        }
+        // Age + cull
+        for (let i = this._afterimages.length - 1; i >= 0; i--) {
+            this._afterimages[i].age++;
+            if (this._afterimages[i].age >= 14) this._afterimages.splice(i, 1);
+        }
     }
 
     _handleInput(level) {
@@ -776,7 +808,7 @@ export class Player {
                 if (idx >= 0) this.bullets.splice(idx, 1);
             }
         }
-        particles.hitBurst(bullet.x, bullet.y, bullet.color);
+        particles.weaponHitBurst(bullet.x, bullet.y, bullet.weapon, bullet.color);
         this.dmgDealt[bullet.weapon] = (this.dmgDealt[bullet.weapon] || 0) + bullet.damage;
         // Damage numbers on non-kill hits — only for high-HP targets (bosses /
         // miniboss). Grunts die in 1-2 hits, so a number would just be noise.
@@ -960,6 +992,38 @@ export class Player {
 
         // Flicker on i-frames
         if (this.iFrames > 0 && this.iFrames % 4 < 2) return;
+
+        // Afterimage trail — render colored silhouettes BEHIND the live
+        // sprite. Each snapshot is drawn into an isolated layer (save/restore
+        // with a clipped region), painted as a flat-color silhouette, and
+        // composited at fading alpha. Without the tint a straight low-alpha
+        // draw reads as a ghost-of-self rather than a speed streak; the
+        // colored silhouette sells the motion blur.
+        if (typeof ctx.filter === 'string') {
+            for (const a of this._afterimages) {
+                const aDims = spriteDims(a.frame);
+                const acx = a.x + this.w / 2 - camera.viewX;
+                const acy = a.y + this.h - aDims.h / 2 - camera.viewY + 1;
+                const aAlpha = (1 - a.age / 14) * 0.55;
+                if (aAlpha <= 0.03) continue;
+                const drawX = Math.round(acx - aDims.w / 2);
+                const drawY = Math.round(acy - aDims.h / 2);
+                ctx.save();
+                ctx.globalAlpha = aAlpha;
+                // Stamp the sprite as a black silhouette, then color it via
+                // source-atop fill clipped to the sprite's drawn region.
+                ctx.beginPath();
+                ctx.rect(drawX - 2, drawY - 2, aDims.w + 4, aDims.h + 4);
+                ctx.clip();
+                ctx.filter = 'brightness(0)';
+                drawClippyFrame(ctx, a.frame, drawX, drawY, a.facing < 0, 1, false);
+                ctx.filter = 'none';
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.fillStyle = a.tint;
+                ctx.fillRect(drawX - 2, drawY - 2, aDims.w + 4, aDims.h + 4);
+                ctx.restore();
+            }
+        }
 
         const frame = this._frameForState();
         const dims = spriteDims(frame);

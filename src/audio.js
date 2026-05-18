@@ -692,6 +692,25 @@ class Audio {
         this.beat = 0;
         this._scheduleBeat(t);
     }
+    // Side-chain duck: ramp musicBus.gain down to a target level over the
+    // attack time, hold while held flag stays true, and ramp back to
+    // sidechainBase on release. Used during story dialog / stage card text so
+    // music doesn't compete with the read.
+    setDuck(active, target = 0.18, attackS = 0.25, releaseS = 0.45) {
+        if (!this.ctx || !this.musicBus) return;
+        const now = this.ctx.currentTime;
+        const g = this.musicBus.gain;
+        try {
+            g.cancelScheduledValues(now);
+            g.setValueAtTime(g.value, now);
+            if (active) {
+                g.linearRampToValueAtTime(target, now + attackS);
+            } else {
+                g.linearRampToValueAtTime(this.sidechainBase, now + releaseS);
+            }
+        } catch (e) {}
+    }
+
     stopTrack() {
         if (this._timer) clearTimeout(this._timer);
         this._timer = null;

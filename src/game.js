@@ -152,6 +152,10 @@ export class Game {
     // ============== loop ==============
     tick() {
         this.bootTimer++;
+        // Side-chain duck — music drops on scenes that show dialog/exposition
+        // text the player should be reading, restores on PLAY.
+        const duckScenes = [SCENE.STORY, SCENE.STAGE_CARD, SCENE.STAGE_INTRO];
+        audio.setDuck?.(duckScenes.includes(this.scene));
         switch (this.scene) {
             case SCENE.BOOT:         this._tickBoot(); break;
             case SCENE.TITLE:        this._tickTitle(); break;
