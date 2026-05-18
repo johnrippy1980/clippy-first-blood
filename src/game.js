@@ -906,19 +906,34 @@ export class Game {
         const t = this.storyTimer;
         if (key && sprites.has(key)) {
             const img = sprites.images.get(key);
-            // Slow Ken-Burns zoom on the painted card for cinematic feel
-            const zoom = 1.05 + Math.min(0.15, t * 0.0008);
+            // Ken-Burns zoom — modest 1.08 → 1.18 so the crop stays predictable.
+            // Painted cards have Clippy near bottom-center; we pan UP (revealing
+            // the environment above Clippy) so the subject is always visible.
+            const zoom = 1.08 + Math.min(0.10, t * 0.0005);
             const scale = (GAME.W / img.width) * zoom;
             const dw = img.width * scale;
             const dh = img.height * scale;
-            // Vertical pan: top fifth → middle as time progresses
-            const panT = Math.min(1, t / 200);
-            const dy = -((dh - GAME.H) * (0.2 + panT * 0.4));
+            // Anchor on Clippy: start at frac 0.55 (lower-mid), pan to 0.35 (upper-mid)
+            const panT = Math.min(1, t / 240);
+            const frac = 0.55 - panT * 0.20;
+            const dy = -(dh - GAME.H) * frac;
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img, (GAME.W - dw) / 2, dy, dw, dh);
         } else {
-            ctx.fillStyle = '#0a0612';
+            // Asset-missing fallback: deep navy gradient + faint stage label badge.
+            // Far better than a flat black screen — tells the player something
+            // intentional is happening even when art fails to load.
+            const grad = ctx.createLinearGradient(0, 0, 0, GAME.H);
+            grad.addColorStop(0, '#1a0a1a');
+            grad.addColorStop(0.5, '#0a0612');
+            grad.addColorStop(1, '#1a0a1a');
+            ctx.fillStyle = grad;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
+            // Pulsing center diamond as a visual placeholder
+            const pulse = 0.4 + Math.sin(t * 0.08) * 0.2;
+            ctx.fillStyle = `rgba(255, 224, 112, ${pulse})`;
+            const cx = GAME.W / 2, cy = GAME.H / 2;
+            for (let i = 0; i < 4; i++) ctx.fillRect(cx - 2 + (i === 1 ? 2 : i === 3 ? -2 : 0), cy - 2 + (i === 0 ? -2 : i === 2 ? 2 : 0), 2, 2);
         }
         // Letterbox bars
         const barH = 30;

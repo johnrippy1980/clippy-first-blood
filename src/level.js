@@ -868,26 +868,33 @@ export class Level {
                 // so it visually reads as cover-from-shots.
                 const theme = this.data.theme;
                 const t2 = this.tileAnimTick;
+                // Subtle bright-rim glow so cover objects read against the
+                // painted parallax bg. Half-tile-wide pulse around the object.
+                ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
+                ctx.fillRect(x - 2, y - 32, T + 4, T + 40);
                 if (theme === THEME.JUNGLE) {
-                    // Tree trunk + canopy hint
-                    ctx.fillStyle = '#2a1810';
-                    ctx.fillRect(x + 5, y - 24, 6, 36);
-                    ctx.fillStyle = '#1a0810';
-                    ctx.fillRect(x + 5, y - 24, 1, 36);
-                    // Bark grain
+                    // Tree trunk — wider + brighter so it reads against bg
                     ctx.fillStyle = '#3a2010';
-                    for (let i = 0; i < 5; i++) {
-                        if ((i + c) & 1) ctx.fillRect(x + 7, y - 22 + i * 7, 2, 1);
+                    ctx.fillRect(x + 4, y - 28, 8, 40);
+                    ctx.fillStyle = '#1a0810';
+                    ctx.fillRect(x + 4, y - 28, 1, 40);
+                    ctx.fillRect(x + 11, y - 28, 1, 40);
+                    // Bark grain — brighter speckle
+                    ctx.fillStyle = '#604030';
+                    for (let i = 0; i < 6; i++) {
+                        if ((i + c) & 1) ctx.fillRect(x + 6, y - 26 + i * 6, 3, 1);
                     }
-                    // Canopy leaves at top
-                    ctx.fillStyle = '#1a3018';
-                    ctx.fillRect(x + 1, y - 28, 14, 6);
+                    // Canopy leaves — wider + brighter green
                     ctx.fillStyle = '#284028';
-                    ctx.fillRect(x + 2, y - 30, 12, 3);
-                    // Animated leaf rustle
+                    ctx.fillRect(x - 2, y - 34, 20, 8);
+                    ctx.fillStyle = '#3a5824';
+                    ctx.fillRect(x, y - 36, 16, 4);
+                    ctx.fillStyle = '#507030';
+                    ctx.fillRect(x + 2, y - 38, 12, 2);
+                    // Animated leaf rustle — more visible
                     if ((t2 + c) & 3) {
-                        ctx.fillStyle = '#3a5824';
-                        ctx.fillRect(x + 3 + ((t2 + c) & 7), y - 29, 1, 1);
+                        ctx.fillStyle = '#80a040';
+                        ctx.fillRect(x + 4 + ((t2 + c) & 7), y - 35, 2, 1);
                     }
                 } else if (theme === THEME.BREAKROOM) {
                     // Vending machine
