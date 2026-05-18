@@ -33,6 +33,10 @@ export class Parallax {
         this.batCooldown = AMBIENT.BAT_INITIAL_WARMUP_F;
         this.owlRoosts = [];
         this.owlHootCooldown = 0;
+        // Atmospheric motes — per-stage thin drifting particles that
+        // animate the painted bgs (dust, steam, embers, data sparks…).
+        this.motes = [];
+        this._spawnMotes();
     }
     setTheme(theme) {
         this.theme = theme;
@@ -41,6 +45,64 @@ export class Parallax {
         this.batCooldown = AMBIENT.BAT_INITIAL_WARMUP_F;
         this.owlRoosts = [];
         this.owlHootCooldown = AMBIENT.OWL_HOOT_INITIAL_F;
+        this._spawnMotes();
+    }
+
+    // Per-theme atmospheric motes spec. drift = pixel/frame, jitter = wobble.
+    // Drawn additively over the painted bg before player/enemies, so they
+    // read as "air in the room" not particles in front of gameplay.
+    _moteSpec() {
+        switch (this.theme) {
+            case THEME.JUNGLE:     return { count: 10, color: '#9aa8ff', size: 1, drift: 0.18, vyMin: -0.10, vyMax:  0.10, jitter: 0.4, alpha: 0.42 };
+            case THEME.BREAKROOM:  return { count: 8,  color: '#ffb070', size: 1, drift: 0.25, vyMin: -0.30, vyMax: -0.05, jitter: 0.6, alpha: 0.32 }; // rising steam wisps
+            case THEME.SERVERROOM: return { count: 12, color: '#80c0ff', size: 1, drift: 0.30, vyMin: -0.05, vyMax:  0.05, jitter: 0.2, alpha: 0.52 }; // horizontal data motes
+            case THEME.BOARDROOM:  return { count: 7,  color: '#ffd070', size: 1, drift: 0.10, vyMin:  0.02, vyMax:  0.08, jitter: 0.5, alpha: 0.38 }; // gold dust falling
+            case THEME.KEYNOTE:    return { count: 9,  color: '#a070ff', size: 1, drift: 0.14, vyMin: -0.04, vyMax:  0.06, jitter: 0.4, alpha: 0.34 }; // stage haze
+            case THEME.FOUNDER:    return { count: 14, color: '#ff7040', size: 1, drift: 0.20, vyMin: -0.35, vyMax: -0.10, jitter: 0.5, alpha: 0.56 }; // rising embers
+            case THEME.CLOUD:      return { count: 8,  color: '#a0ffff', size: 1, drift: 0.35, vyMin: -0.06, vyMax:  0.04, jitter: 0.3, alpha: 0.44 }; // wisp cloud puffs
+            default: return null;
+        }
+    }
+
+    _spawnMotes() {
+        this.motes.length = 0;
+        const s = this._moteSpec();
+        if (!s) return;
+        for (let i = 0; i < s.count; i++) {
+            this.motes.push({
+                x: Math.random() * GAME.W,
+                y: Math.random() * GAME.H,
+                vx: (s.drift || 0) * (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.8),
+                vy: (s.vyMin || 0) + Math.random() * ((s.vyMax || 0) - (s.vyMin || 0)),
+                phase: Math.random() * Math.PI * 2,
+            });
+        }
+    }
+
+    _updateMotes() {
+        const s = this._moteSpec();
+        if (!s) return;
+        for (const m of this.motes) {
+            m.x += m.vx + Math.sin((this.t + m.phase * 30) * 0.04) * s.jitter * 0.3;
+            m.y += m.vy;
+            // Wrap horizontally + reseed Y when off-screen vertically
+            if (m.x < -4) m.x = GAME.W + 4;
+            if (m.x > GAME.W + 4) m.x = -4;
+            if (m.y < -4) { m.y = GAME.H + 4; m.x = Math.random() * GAME.W; }
+            if (m.y > GAME.H + 4) { m.y = -4; m.x = Math.random() * GAME.W; }
+        }
+    }
+
+    _drawMotes(ctx) {
+        const s = this._moteSpec();
+        if (!s) return;
+        ctx.save();
+        ctx.globalAlpha = s.alpha;
+        ctx.fillStyle = s.color;
+        for (const m of this.motes) {
+            ctx.fillRect(m.x | 0, m.y | 0, s.size, s.size);
+        }
+        ctx.restore();
     }
     setOwlRoosts(roosts) { this.owlRoosts = roosts || []; }
     update(playerWorldX = null, playerWorldY = null) {
@@ -49,6 +111,7 @@ export class Parallax {
         const isDarkTheme = this.theme === THEME.JUNGLE || this.theme === THEME.FOUNDER;
         if (isDarkTheme) this._updateBats();
         if (isDarkTheme) this._updateOwls(playerWorldX, playerWorldY);
+        this._updateMotes();
     }
 
     _updateBats() {
@@ -205,6 +268,7 @@ export class Parallax {
                 ctx.fillStyle = tune.tint;
                 ctx.fillRect(0, 0, GAME.W, GAME.H);
             }
+            this._drawMotes(ctx);
             return;
         }
         switch (this.theme) {
@@ -216,6 +280,7 @@ export class Parallax {
             case THEME.FOUNDER:    this._founderBack(ctx, camera); break;
             case THEME.CLOUD:      this._cloudBack(ctx, camera); break;
         }
+        this._drawMotes(ctx);
     }
 
     drawFront(ctx, camera) {
