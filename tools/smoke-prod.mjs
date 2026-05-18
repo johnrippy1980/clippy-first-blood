@@ -59,6 +59,18 @@ for (let stage = 1; stage <= 8; stage++) {
     console.log(`boss ${stage} spawn OK`);
 }
 
+// 3b. Bounds guard: _startStage with invalid indices should fall back to 1.
+for (const bad of [0, -1, 99, 'foo', null, undefined, 1.5]) {
+    try {
+        await page.evaluate(n => window.__game._startStage(n), bad);
+        const got = await page.evaluate(() => window.__game.currentStage);
+        if (got !== 1) errors.push(`BOUNDS: _startStage(${JSON.stringify(bad)}) → currentStage=${got}, expected 1`);
+        else console.log(`bounds-guard ${JSON.stringify(bad)} → 1 OK`);
+    } catch (e) {
+        errors.push(`BOUNDS: _startStage(${JSON.stringify(bad)}) threw — ${e.message}`);
+    }
+}
+
 // 4. Kill-loop smoke: spawn stage 1 boss, force-damage to 0, verify
 // scene routes to STAGE_CLEAR (which fades to STAGE_CARD then next stage).
 await page.evaluate(() => window.__game._startStage(1));
