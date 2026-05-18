@@ -34,6 +34,10 @@ const SCENE = {
 };
 
 const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SOUNDTRACK', 'QUIT TO TITLE'];
+const OPTIONS_ITEMS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
+// Key per OPTIONS_ITEMS index for options.get/set dispatch. BACK has no key.
+const OPTIONS_KEYS = ['musicVol', 'sfxVol', 'scanlines', 'shakeScale', 'BACK'];
+const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 const STORY_PAGES = [
     [
@@ -685,12 +689,11 @@ export class Game {
             // No-op on shoot release; close on pause
         }
         if (input.isPressed('pause')) { this.scene = SCENE.PAUSE; audio.sfx('pause'); return; }
-        const OPTS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
-        if (input.isPressed('up'))   { this.optionsIndex = (this.optionsIndex + OPTS.length - 1) % OPTS.length; audio.sfx('select'); }
-        if (input.isPressed('down')) { this.optionsIndex = (this.optionsIndex + 1) % OPTS.length; audio.sfx('select'); }
+        if (input.isPressed('up'))   { this.optionsIndex = (this.optionsIndex + OPTIONS_ITEMS.length - 1) % OPTIONS_ITEMS.length; audio.sfx('select'); }
+        if (input.isPressed('down')) { this.optionsIndex = (this.optionsIndex + 1) % OPTIONS_ITEMS.length; audio.sfx('select'); }
         const dir = (input.isPressed('left') ? -1 : 0) + (input.isPressed('right') ? 1 : 0);
         if (dir !== 0) {
-            const k = ['musicVol','sfxVol','scanlines','shakeScale','BACK'][this.optionsIndex];
+            const k = OPTIONS_KEYS[this.optionsIndex];
             if (k === 'musicVol' || k === 'sfxVol') {
                 options.set(k, Math.max(0, Math.min(1, options.get(k) + dir * 0.1)));
                 if (audio.musicBus && k === 'musicVol') audio.musicBus.gain.value = options.get('musicVol');
@@ -704,7 +707,7 @@ export class Game {
             audio.sfx('menu');
         }
         if (input.isPressed('shoot') || input.isPressed('jump')) {
-            if (OPTS[this.optionsIndex] === 'BACK') { this.scene = SCENE.PAUSE; audio.sfx('pause'); }
+            if (OPTIONS_ITEMS[this.optionsIndex] === 'BACK') { this.scene = SCENE.PAUSE; audio.sfx('pause'); }
         }
     }
     _drawOptions() {
@@ -723,10 +726,9 @@ export class Game {
 
         drawTextOutlined(ctx, 'OPTIONS', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 2, 'center');
 
-        const OPTS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
         const startY = panelY + 38;
         this._optionsPulse = (this._optionsPulse || 0) + 1;
-        for (let i = 0; i < OPTS.length; i++) {
+        for (let i = 0; i < OPTIONS_ITEMS.length; i++) {
             const y = startY + i * 18;
             const sel = i === this.optionsIndex;
             if (sel) {
@@ -736,7 +738,7 @@ export class Game {
                 drawText(ctx, '>', panelX + 12, y, '#ffe070', 1, 'left');
                 drawText(ctx, '<', panelX + panelW - 18, y, '#ffe070', 1, 'left');
             }
-            drawText(ctx, OPTS[i], panelX + 22, y, sel ? '#fff' : '#c0a0d0', 1, 'left');
+            drawText(ctx, OPTIONS_ITEMS[i], panelX + 22, y, sel ? '#fff' : '#c0a0d0', 1, 'left');
             // Value: for slider types, draw a filled bar; for toggle, just text.
             if (i === 0 || i === 1) {
                 const v = options.get(i === 0 ? 'musicVol' : 'sfxVol');
@@ -1501,10 +1503,9 @@ export class Game {
         this.storyTimer++;
         if (this.gameOverIndex == null) this.gameOverIndex = 0;
         // Two-option menu: CONTINUE (retry current stage with full HP), QUIT
-        const GO_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
         if (this.storyTimer > 90) {
             if (input.isPressed('up') || input.isPressed('down')) {
-                this.gameOverIndex = (this.gameOverIndex + 1) % GO_OPTIONS.length;
+                this.gameOverIndex = (this.gameOverIndex + 1) % GAME_OVER_OPTIONS.length;
                 audio.sfx('select');
             }
             if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
@@ -1567,10 +1568,9 @@ export class Game {
         }
         // Two-option menu reveal after panel settle
         if (this.storyTimer > 90) {
-            const GO_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
             const baseY = GAME.H - 32;
             this._goPulse = (this._goPulse || 0) + 1;
-            for (let i = 0; i < GO_OPTIONS.length; i++) {
+            for (let i = 0; i < GAME_OVER_OPTIONS.length; i++) {
                 const y = baseY + i * 14;
                 const isSel = i === (this.gameOverIndex || 0);
                 if (isSel) {
@@ -1580,7 +1580,7 @@ export class Game {
                     drawText(ctx, '>', 86, y, '#ffe070', 1, 'left');
                     drawText(ctx, '<', GAME.W - 92, y, '#ffe070', 1, 'left');
                 }
-                drawText(ctx, GO_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
+                drawText(ctx, GAME_OVER_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
             }
         }
     }
