@@ -406,6 +406,20 @@ class Enemy {
     }
 
     draw(ctx, camera) {
+        // Ground-contact drop shadow under non-flying grunts. Skipped for
+        // hover_sniper since they float. Same trick as the player — anchors
+        // the sprite to the painted floor instead of floating on top.
+        if (this.behavior !== 'hover_sniper') {
+            const shY = Math.round(this.y + this.h - 1 - camera.viewY);
+            const shCX = Math.round(this.x + this.w / 2 - camera.viewX);
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.38)';
+            ctx.beginPath();
+            ctx.ellipse(shCX, shY, this.w * 0.55, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
         // Pick frame: attack (charge wind-up / hop / sniper telegraph),
         // hurt (recent damage), or base. Falls back gracefully if variant missing.
         const dyingShortly = this.hp <= 1 && this.maxHp > 2;
@@ -674,6 +688,18 @@ class Boss extends Enemy {
     }
 
     draw(ctx, camera) {
+        // Larger ground-contact shadow for grounded bosses. Sells the weight
+        // of the silhouette against painted boss arenas; flying bosses skip.
+        if (BOSS_TEMPLATES[this.kind]?.grounded) {
+            const shY = Math.round(this.y + this.h - 1 - camera.viewY);
+            const shCX = Math.round(this.x + this.w / 2 - camera.viewX);
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(shCX, shY, this.w * 0.6, 3.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
         const spriteKey = 'boss_' + this.kind;
         if (sprites.has(spriteKey)) {
             // Use PNG, anchored to bottom-center of hitbox

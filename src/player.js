@@ -11,6 +11,20 @@ import { drawText } from './pixelfont.js';
 // Quick alias so the call site reads cleanly.
 const spriteDims = getSpriteDims;
 
+// Per-stage rim-light palette. `side` = which side of the sprite the
+// dominant light hits (-1 left, +1 right). `top` = whether to also
+// paint a single-pixel top highlight (overhead lighting).
+// Picked from the painted bg dominant light source for each theme.
+const RIM_BY_THEME = {
+    jungle:     { color: '#9aa8ff', alpha: 0.28, side:  1, top: false }, // moon, upper-right
+    breakroom:  { color: '#ff6060', alpha: 0.34, side: -1, top: false }, // emergency strip on the left
+    serverroom: { color: '#80c0ff', alpha: 0.30, side:  1, top: true  }, // server-rack LED stack
+    boardroom:  { color: '#ffd070', alpha: 0.28, side:  1, top: true  }, // chandelier overhead
+    keynote:    { color: '#a070ff', alpha: 0.32, side: -1, top: true  }, // stage spot from left
+    founder:    { color: '#ff5050', alpha: 0.32, side: -1, top: false }, // burning ruin off-frame left
+    cloud:      { color: '#a0ffff', alpha: 0.26, side:  1, top: true  }, // ambient cloud light
+};
+
 const COYOTE_FRAMES = 6;     // jump-after-edge grace
 const JUMP_BUFFER_MS = 110;  // matched to input buffer
 const MAX_SPEED = 2.0;
@@ -46,6 +60,9 @@ export class Player {
         this.coyote = 0;
         this.animFrame = 0;
         this.animTimer = 0;
+        // Last grounded y — drives the drop-shadow position while airborne
+        // so the shadow stays anchored on the floor instead of following feet.
+        this._lastGroundY = y + STAND_HEIGHT;
 
         // Health/lives
         this.maxHp = 4;
@@ -160,7 +177,11 @@ export class Player {
         }
 
         // Coyote frames
-        if (this.onGround) { this.coyote = COYOTE_FRAMES; this.airJumpsLeft = 1; }
+        if (this.onGround) {
+            this.coyote = COYOTE_FRAMES;
+            this.airJumpsLeft = 1;
+            this._lastGroundY = this.y + this.h;
+        }
         else if (this.coyote > 0) this.coyote--;
 
         if (this.hurtTimer > 0) {
@@ -993,6 +1014,30 @@ export class Player {
             ctx.restore();
         }
 
+        // Ground-contact drop shadow. Anchored to _lastGroundY so it stays
+        // on the floor while the player jumps, growing slightly larger and
+        // dimmer with airtime. Sells "stands in the painted world" — without
+        // this the sprite reads as a sticker pasted on top of the bg.
+        // Hidden in water-duck (handled below via early-return path).
+        if (!this.waterHidden && !this.grassHidden) {
+            const shadowY = Math.round(this._lastGroundY - camera.viewY - 1);
+            const shadowCX = Math.round(this.x + this.w / 2 - camera.viewX);
+            const airHeight = Math.max(0, (this._lastGroundY - (this.y + this.h)));
+            // Scale from full at ground → 1.4x faded at peak jump
+            const airT = Math.min(1, airHeight / 80);
+            const rx = 9 + airT * 3;
+            const ry = 2.2 + airT * 0.4;
+            const alpha = 0.42 * (1 - airT * 0.55);
+            if (alpha > 0.04) {
+                ctx.save();
+                ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
+                ctx.beginPath();
+                ctx.ellipse(shadowCX, shadowY, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
         // Flicker on i-frames
         if (this.iFrames > 0 && this.iFrames % 4 < 2) return;
 
@@ -1121,6 +1166,59 @@ export class Player {
             }
             const drawY = Math.round(cy - dims.h / 2) + idleBob;
             drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+
+            // Per-stage rim light: thin colored wash on the side of the
+            // sprite facing the dominant scene light source. Sells "lit by
+            // the painted environment" — without it Clippy reads as flat
+            // pasted-on art. Uses source-atop so the rim only paints onto
+            // existing sprite pixels.
+            const rim = level ? RIM_BY_THEME[level.data.theme] : null;
+            if (rim) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
+                ctx.clip();
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.globalAlpha = rim.alpha;
+                ctx.fillStyle = rim.color;
+                // Rim runs along the lit edge (rim.side = -1 = left, +1 = right).
+                // Two-pixel band so it reads at native 256x224 scale.
+                const rimX = rim.side > 0 ? drawX + dims.w - 2 : drawX;
+                ctx.fillRect(rimX, drawY + 2, 2, dims.h - 4);
+                // Top highlight for overhead-light scenes
+                if (rim.top) {
+                    ctx.globalAlpha = rim.alpha * 0.7;
+                    ctx.fillRect(drawX + 3, drawY, dims.w - 6, 1);
+                }
+                ctx.restore();
+            }
+
+            // Muzzle-flash light cast: while firing, paint a warm radial
+            // wash over the sprite from the muzzle outward. Uses 'lighter'
+            // so the wash adds to the existing pixels instead of replacing.
+            // Decays with recoilTimer so it pulses with each shot.
+            if (this.recoilTimer > 0) {
+                const flashT = this.recoilTimer / 6;
+                const ax = Math.cos(this.aimAngle || 0) * this.facing;
+                const ay = Math.sin(this.aimAngle || 0);
+                const muzzleX = cx + ax * 10;
+                const muzzleY = cy + ay * 4;
+                ctx.save();
+                // Clip to the sprite's rect + a couple pixels of bleed so the
+                // wash only colors the player and doesn't bleed onto the bg.
+                ctx.beginPath();
+                ctx.rect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
+                ctx.clip();
+                ctx.globalCompositeOperation = 'lighter';
+                const grad = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, 22);
+                const a = (0.55 * flashT).toFixed(3);
+                grad.addColorStop(0, `rgba(255,210,140,${a})`);
+                grad.addColorStop(0.5, `rgba(255,140,60,${(0.30 * flashT).toFixed(3)})`);
+                grad.addColorStop(1, 'rgba(255,80,30,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
+                ctx.restore();
+            }
         }
 
         // Aim-direction arm overlay: small procedural arm + gun barrel that points
