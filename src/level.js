@@ -502,8 +502,10 @@ function makeStage6() {
     for (let x = 0; x < w; x++) g[0][x] = W; // ceiling
 
     // Section A (x 0–14): VERTICAL ENTRY — climb up to choose path.
+    // Ladder runs up the LEFT side of the entry column so the player
+    // can actually reach it instead of bonking on the wall.
     rectT(g, 6, 6, 1, 7, W);
-    ladderT(g, 4, 8, 10);
+    ladderT(g, 4, 5, 10);
     platT(g, 4, 6, 6);
 
     // Section B (x 14–32): FORK 1 — high catwalk vs. low spikes.
