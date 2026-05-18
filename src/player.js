@@ -730,7 +730,10 @@ export class Player {
 
         // Muzzle effects + recoil + shell ejection
         particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color);
-        particles.shellEject(this.x + this.w / 2 - this.facing * 2, this.y + 8, this.facing);
+        // Pass floorY when grounded so the shell bounces + settles on the
+        // ground tile beneath Clippy instead of falling forever.
+        const shellFloor = this.onGround ? this.y + this.h : null;
+        particles.shellEject(this.x + this.w / 2 - this.facing * 2, this.y + 8, this.facing, shellFloor);
         audio.sfx(w.sound);
         this.shotsFired++;
         this.recoilTimer = 6;

@@ -986,6 +986,11 @@ export class EnemyManager {
             if (player.iFrames === 0 &&
                 b.x > player.x && b.x < player.x + player.w &&
                 b.y > hitTop && b.y < player.y + player.h) {
+                // Bullet-impact spark at the strike point. The blood splatter
+                // inside hurt() fires too, but the small spark sells where
+                // the projectile actually struck (often offset from sprite
+                // center where blood originates).
+                particles.hitSpark(b.x, b.y, b.color || '#ff8050');
                 player.hurt(b.dmg, b.vx > 0 ? -1 : 1, b.x, b.y);
                 this.bullets.splice(i, 1);
                 continue;

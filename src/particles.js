@@ -9,12 +9,26 @@ class Particle {
         this.color = color; this.size = size;
         this.gravity = gravity;
         this.fade = fade;
+        this.floor = null; // bounce floor, set by callers that need a floor collision
         this.alive = true;
     }
     update() {
         this.x += this.vx;
         this.y += this.vy;
         this.vy += this.gravity;
+        // Sub-particle pseudo-bounce: if a settling particle is marked with
+        // a floor (set on spawn), reflect vy with damping when it crosses.
+        // Only fires once per particle (this.floor cleared after bounce).
+        if (this.floor != null && this.y >= this.floor && this.vy > 0) {
+            this.y = this.floor;
+            this.vy = -this.vy * 0.35;
+            this.vx *= 0.6;
+            // Tiny bounce only — second touch settles
+            if (Math.abs(this.vy) < 0.4) {
+                this.vy = 0;
+                this.floor = null;
+            }
+        }
         this.life--;
         if (this.life <= 0) this.alive = false;
     }
@@ -214,14 +228,18 @@ class ParticleSystem {
         }
     }
 
-    shellEject(x, y, dx) {
-        // Brass casing ejecting sideways + falling
-        this.spawn(
+    shellEject(x, y, dx, floorY = null) {
+        // Brass casing ejecting sideways + falling. floorY (optional) makes
+        // the shell bounce once when it hits, then settle in place — sells
+        // the casing as a real object instead of fading into space.
+        const p = this._take();
+        p.init(
             x, y,
             -dx * 0.8 + (Math.random() - 0.5) * 0.3,
             -1.4 - Math.random() * 0.4,
             34, '#ffd040', 1, 0.18
         );
+        if (floorY != null) p.floor = floorY;
     }
 
     dust(x, y) {
