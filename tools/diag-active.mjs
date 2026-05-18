@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const browser = await chromium.launch();
 const page = await browser.newContext({ viewport: { width: 1024, height: 768 } }).then(c => c.newPage());
 
-await page.goto('http://localhost:8765/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:8765/?nocache=' + Date.now(), { waitUntil: 'networkidle' });
 await page.waitForTimeout(1200);
 await page.click('#screen');
 await page.evaluate(() => window.__game._startStage(1));

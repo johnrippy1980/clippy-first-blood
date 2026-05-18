@@ -450,8 +450,37 @@ function drawPixelString(ctx, frame, x, y, flipH = false, palette = P) {
 }
 
 // Public API: try PNG first, fall back to procedural pixel string.
-export function drawClippyFrame(ctx, frameName, x, y, flipH = false, scale = 1) {
-    if (sprites.has(frameName) && sprites.draw(ctx, frameName, x, y, flipH, scale)) return;
+// `outline` (default true) draws a 1px navy halo so the sprite reads against
+// painted backgrounds. Disable for boss intros / death sequences where the
+// halo would conflict with white flash effects.
+export function drawClippyFrame(ctx, frameName, x, y, flipH = false, scale = 1, outline = true) {
+    const hasImg = sprites.has(frameName);
+    if (outline && hasImg) {
+        // 1px dark halo via offset stamps. Cheap, no filter API needed.
+        const prev = ctx.globalCompositeOperation;
+        // Draw the sprite 4 times tinted dark + offset; the actual pixels of
+        // each stamp form the outline, and the central pass covers the body.
+        ctx.save();
+        // Tint via globalCompositeOperation=multiply on a temp pass works
+        // poorly with image alpha. Fall back to drawing the sprite with reduced
+        // brightness as a stamp. Canvas filter is widely supported in evergreen
+        // browsers (Chrome/Firefox/Safari/Edge); fall back to skipping outline.
+        if (typeof ctx.filter === 'string') {
+            // Bright cream-white halo for max contrast against dark painted bgs.
+            // brightness(0) gives a pure-black silhouette, invert() flips to white.
+            ctx.filter = 'brightness(0) invert(1)';
+            ctx.globalAlpha = 0.55;
+            sprites.draw(ctx, frameName, x - 1, y, flipH, scale);
+            sprites.draw(ctx, frameName, x + 1, y, flipH, scale);
+            sprites.draw(ctx, frameName, x, y - 1, flipH, scale);
+            sprites.draw(ctx, frameName, x, y + 1, flipH, scale);
+            ctx.filter = 'none';
+            ctx.globalAlpha = 1;
+        }
+        ctx.restore();
+        ctx.globalCompositeOperation = prev;
+    }
+    if (hasImg && sprites.draw(ctx, frameName, x, y, flipH, scale)) return;
     const frame = CLIPPY_FRAMES[frameName] || CLIPPY_FRAMES.idle;
     drawPixelString(ctx, frame, x, y, flipH);
 }
