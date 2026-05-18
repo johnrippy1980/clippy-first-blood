@@ -533,6 +533,8 @@ export class Game {
             this.totalDeaths++;
             this.player.lives--;
             if (this.player.lives < 0) {
+                this.gameOverIndex = 0;
+                this.storyTimer = 0;
                 this._fadeTo(SCENE.GAME_OVER);
             } else {
                 this._respawn();
@@ -1413,8 +1415,25 @@ export class Game {
 
     _tickGameOver() {
         this.storyTimer++;
-        if (this.storyTimer > 60 && (input.isPressed('shoot') || input.isPressed('jump'))) {
-            this._restartRun();
+        if (this.gameOverIndex == null) this.gameOverIndex = 0;
+        // Two-option menu: CONTINUE (retry current stage with full HP), QUIT
+        const GO_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
+        if (this.storyTimer > 90) {
+            if (input.isPressed('up') || input.isPressed('down')) {
+                this.gameOverIndex = (this.gameOverIndex + 1) % GO_OPTIONS.length;
+                audio.sfx('select');
+            }
+            if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+                audio.sfx('menu');
+                if (this.gameOverIndex === 0) {
+                    // CONTINUE: re-enter the current stage. Preserves run score / time totals
+                    // (small comeback penalty: score is halved as a soft cost).
+                    this.player.score = Math.floor((this.player.score || 0) * 0.5);
+                    this._startStage(this.currentStage || 1);
+                } else {
+                    this._restartRun();
+                }
+            }
         }
     }
     _drawGameOver() {
@@ -1462,8 +1481,23 @@ export class Game {
                 drawText(ctx, String(rows[i].value), panelX + panelW - 12, y, rows[i].color, 1, 'right');
             }
         }
-        if (this.storyTimer > 90 && this.storyTimer % 60 < 40) {
-            drawTextOutlined(ctx, 'X TO TRY AGAIN', GAME.W / 2, GAME.H - 18, '#fff', '#a82020', 1, 'center');
+        // Two-option menu reveal after panel settle
+        if (this.storyTimer > 90) {
+            const GO_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
+            const baseY = GAME.H - 32;
+            this._goPulse = (this._goPulse || 0) + 1;
+            for (let i = 0; i < GO_OPTIONS.length; i++) {
+                const y = baseY + i * 14;
+                const isSel = i === (this.gameOverIndex || 0);
+                if (isSel) {
+                    const phase = Math.sin(this._goPulse * 0.18) * 0.5 + 0.5;
+                    ctx.fillStyle = `rgb(${160 + Math.floor(phase * 40)},${16},${32})`;
+                    ctx.fillRect(80, y - 2, GAME.W - 160, 12);
+                    drawText(ctx, '>', 86, y, '#ffe070', 1, 'left');
+                    drawText(ctx, '<', GAME.W - 92, y, '#ffe070', 1, 'left');
+                }
+                drawText(ctx, GO_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
+            }
         }
     }
 

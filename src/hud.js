@@ -189,15 +189,16 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(ix + 5, iy - 1, 1, 1);
     }
 
-    // In-game achievement unlock banner — top-center, fades in/out over 180f
+    // In-game achievement unlock banner — top-center, fades over 300f (5s).
+    // Phases: 0-20 fade-in, 20-250 hold full opacity, 250-300 fade-out.
     const banner = achievements.activeBanner?.();
     if (banner) {
         const a = achievements.get(banner.id);
         if (a) {
             const age = banner.age;
             let alpha = 1;
-            if (age < 15) alpha = age / 15;
-            else if (age > 150) alpha = Math.max(0, (180 - age) / 30);
+            if (age < 20) alpha = age / 20;
+            else if (age > 250) alpha = Math.max(0, (300 - age) / 50);
             ctx.globalAlpha = alpha;
             const bx = GAME.W / 2 - 70, by = 32, bw = 140, bh = 22;
             ctx.fillStyle = '#0a0612';

@@ -92,8 +92,10 @@ class Achievements {
 
     tickBanner() {
         for (const b of this.banner) b.age++;
-        // Drop banners older than 180 frames
-        this.banner = this.banner.filter(b => b.age < 180);
+        // Drop banners older than 300 frames (5s @ 60fps). Long enough that a
+        // mid-firefight unlock can still register in the player's eye, short
+        // enough that stacked banners don't pile up forever.
+        this.banner = this.banner.filter(b => b.age < 300);
     }
 
     activeBanner() {
