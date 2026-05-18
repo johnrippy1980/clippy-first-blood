@@ -1381,13 +1381,31 @@ export class Player {
         // Barrel — dark outline + bright core (reads against painted bgs)
         this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
         this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 1);
-        // Muzzle tip — bright dot when fireCooldown is fresh (just fired)
+        // Muzzle tip — bright starburst when fireCooldown is fresh (just fired).
+        // Cross-pattern + hot center reads as a real muzzle flash instead of a
+        // flat yellow square. Decays with recoilTimer.
+        const mx = Math.round(muzzleX);
+        const my = Math.round(muzzleY);
         if (this.recoilTimer > 2) {
+            const flashSize = this.recoilTimer > 4 ? 3 : 2;
+            // Warm outer cross (orange)
+            ctx.fillStyle = '#ff9030';
+            ctx.fillRect(mx - flashSize, my, flashSize * 2 + 1, 1);
+            ctx.fillRect(mx, my - flashSize, 1, flashSize * 2 + 1);
+            // Mid cross (yellow)
             ctx.fillStyle = '#ffe070';
-            ctx.fillRect(Math.round(muzzleX) - 1, Math.round(muzzleY) - 1, 3, 3);
+            ctx.fillRect(mx - 1, my, 3, 1);
+            ctx.fillRect(mx, my - 1, 1, 3);
+            // White-hot center
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(mx, my, 1, 1);
+        } else if (this.recoilTimer > 0) {
+            // Residual yellow dot during the tail of the kickback
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(mx - 1, my - 1, 3, 3);
         } else {
             ctx.fillStyle = '#000';
-            ctx.fillRect(Math.round(muzzleX), Math.round(muzzleY), 1, 1);
+            ctx.fillRect(mx, my, 1, 1);
         }
     }
 
