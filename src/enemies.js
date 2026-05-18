@@ -440,13 +440,27 @@ class Enemy {
         const dims = getSpriteDims(useSprite);
         const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
         const dy = Math.round(this.y + this.h - dims.h - camera.viewY);
-        if (this.hitFlash > 0 && this.hitFlash % 2 === 0) {
+        // Always draw the base sprite first so the silhouette stays
+        // continuously visible against painted bgs (the old alternate-
+        // frame skip read as a broken sprite). Add a 'lighter' white wash
+        // on top while hitFlash is active for a steady "took damage" flash.
+        drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
+        if (this.hitFlash > 0) {
             ctx.save();
-            ctx.globalCompositeOperation = 'screen';
-            drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
+            ctx.globalCompositeOperation = 'lighter';
+            const a = Math.min(1, this.hitFlash / 6);
+            ctx.globalAlpha = 0.6 * a;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.rect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
+            ctx.clip();
+            // Use source-atop relative to the sprite already drawn so the
+            // wash only paints onto its pixels. Switch to source-atop AFTER
+            // setting the clip, otherwise the lighter-mode fill would also
+            // affect the background within the clip rect.
+            ctx.globalCompositeOperation = 'source-atop';
+            ctx.fillRect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
             ctx.restore();
-        } else {
-            drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
         }
         // Owl-pause cue: small "!" floating above enemy head — distracted
         if (this.owlPause > 0) {
