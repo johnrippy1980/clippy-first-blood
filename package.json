@@ -1,16 +1,18 @@
 {
   "name": "clippy-first-blood",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Contra-style run-and-gun starring Microsoft Clippy on a revenge mission. Vanilla JS + Canvas, no build step.",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "python3 -m http.server 8765",
+    "test": "node tools/smoke-prod.mjs",
+    "tour": "node tools/quick-tour.mjs",
+    "audit:traversal": "node tools/traversal-audit.mjs"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/johnrippy1980/clippy-first-blood.git"
   },
-  "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
@@ -18,7 +20,7 @@
   },
   "homepage": "https://github.com/johnrippy1980/clippy-first-blood#readme",
   "dependencies": {
-    "canvas": "^3.2.3"
-  },
-  "type": "module"
+    "canvas": "^3.2.3",
+    "playwright": "^1.49.0"
+  }
 }
