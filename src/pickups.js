@@ -123,13 +123,29 @@ class Pickup {
     draw(ctx, camera) {
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY + Math.sin(this.bob) * 1.5);
+        const color = this._color();
+        // Pulsing radial halo — phase ties to bob so the float and the
+        // glow feel like one beat. Drawn first so the crate sits on top.
+        const cx = dx + this.w / 2;
+        const cy = dy + this.h / 2;
+        const pulse = 0.65 + Math.sin(this.bob * 1.5) * 0.35;
+        const haloR = 9 + pulse * 2;
+        const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, haloR);
+        grad.addColorStop(0, this._rgba(color, 0.55 * pulse));
+        grad.addColorStop(0.6, this._rgba(color, 0.18 * pulse));
+        grad.addColorStop(1, this._rgba(color, 0));
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - haloR, cy - haloR, haloR * 2, haloR * 2);
+        ctx.restore();
         // Crate
         ctx.fillStyle = '#1a1a2a';
         ctx.fillRect(dx, dy, this.w, this.h);
         ctx.fillStyle = '#3a2a4a';
         ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
         // Letter
-        ctx.fillStyle = this._color();
+        ctx.fillStyle = color;
         const letter = this._letter();
         // Render letter as a 3×5 block of dots
         const glyph = GLYPHS[letter] || GLYPHS['?'];
@@ -151,6 +167,16 @@ class Pickup {
         if (this.type === 'LIFE') return '#50ff70';
         if (this.type === '1UP') return '#ff60ff';
         return WEAPON[this.type]?.color || '#fff';
+    }
+    // Convert #rgb / #rrggbb to "rgba(r,g,b,a)". Cheap, no validation —
+    // _color() is the only caller and always returns 6-digit hex.
+    _rgba(hex, alpha) {
+        const h = hex.startsWith('#') ? hex.slice(1) : hex;
+        const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+        const r = parseInt(full.slice(0, 2), 16) | 0;
+        const g = parseInt(full.slice(2, 4), 16) | 0;
+        const b = parseInt(full.slice(4, 6), 16) | 0;
+        return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
     }
 }
 
