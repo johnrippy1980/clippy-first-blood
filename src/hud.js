@@ -163,10 +163,27 @@ export function drawHUD(ctx, state) {
         drawText(ctx, 'x' + player.weaponLevel, lx, 5, '#ffe070', 1);
     }
 
-    // Combo
+    // Combo + decay bar — bar below the number shrinks as comboTimer drains.
+    // Telegraphs the "how long do I have to land the next hit" window so
+    // players can keep streaks alive intentionally.
     if (player.combo >= 3) {
         const x = 150;
-        drawText(ctx, player.combo + 'x', x, 5, '#ffe070', 1);
+        // Tier color matches combo milestones
+        const cColor = player.combo >= 20 ? '#ff60ff'
+                     : player.combo >= 10 ? '#ff8050'
+                     : player.combo >= 5  ? '#ffe070' : '#fff';
+        drawText(ctx, player.combo + 'x', x, 5, cColor, 1);
+        // Decay bar — comboTimer maxes at 90 frames (1.5s) per hit. Bar
+        // shrinks left-to-right as the timer drains; flashes red under 20%.
+        const cMax = 90;
+        const cT = Math.min(1, (player.comboTimer || 0) / cMax);
+        const barW = 18;
+        const fillW = Math.max(0, Math.floor(barW * cT));
+        ctx.fillStyle = '#1a0810';
+        ctx.fillRect(x, 12, barW, 2);
+        const lowFlash = cT < 0.2 && (performance.now() % 200 < 100);
+        ctx.fillStyle = lowFlash ? '#ff5050' : cColor;
+        ctx.fillRect(x, 12, fillW, 2);
     }
 
     // Score

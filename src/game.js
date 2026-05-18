@@ -486,6 +486,7 @@ export class Game {
         if (!input.isPressed('pause')) return false;
         audio.sfx('pause');
         this.pauseIndex = 0;
+        this._pauseAnim = 0;
         this.scene = SCENE.PAUSE;
         return true;
     }
@@ -696,12 +697,27 @@ export class Game {
 
     _drawPauseOverlay() {
         const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.82)';
+        // Fade-in animation — first 14 frames after entering pause ramp the
+        // overlay alpha + panel scale from 0 to full. Subtle but reads as
+        // "menu opened" rather than "menu teleported in".
+        const anim = Math.min(1, (this._pauseAnim = (this._pauseAnim || 0) + 1) / 14);
+        const eased = 1 - (1 - anim) * (1 - anim); // ease-out quad
+        ctx.fillStyle = `rgba(0,0,0,${0.82 * eased})`;
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         // Framed panel — matches achievements/stage-select look
         const panelX = 36, panelY = 18, panelW = GAME.W - 72, panelH = GAME.H - 36;
+        // Scale panel from center: at anim=0 it's a thin slit, at anim=1 full
+        const sH = Math.floor(panelH * eased);
+        const sY = panelY + Math.floor((panelH - sH) / 2);
         ctx.fillStyle = '#0a0612';
-        ctx.fillRect(panelX, panelY, panelW, panelH);
+        ctx.fillRect(panelX, sY, panelW, sH);
+        // Skip the rest while the panel is still mid-reveal
+        if (anim < 0.6) {
+            ctx.fillStyle = '#604030';
+            ctx.fillRect(panelX, sY, panelW, 1);
+            ctx.fillRect(panelX, sY + sH - 1, panelW, 1);
+            return;
+        }
         ctx.fillStyle = '#604030';
         ctx.fillRect(panelX, panelY, panelW, 1);
         ctx.fillRect(panelX, panelY + panelH - 1, panelW, 1);
