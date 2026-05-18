@@ -407,12 +407,15 @@ class Audio {
     }
 
     _uiClick(t, pitch) {
-        // Click + tail, not a square beep
+        // Click + tail, not a square beep. Start gain at 0 then ramp UP fast
+        // — a setValueAtTime jump from 0 → 0.16 creates an audible click at
+        // the speaker that's unrelated to the intended click character.
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'triangle';
         o.frequency.setValueAtTime(pitch * 1.6, t);
         o.frequency.exponentialRampToValueAtTime(pitch, t + 0.04);
-        g.gain.setValueAtTime(0.16, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.16, t + 0.003);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.08);

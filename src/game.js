@@ -155,14 +155,21 @@ export class Game {
         // Global hotkeys
         if (input.isPressed('mute')) { audio.toggleMute(); audio.sfx('select'); }
         particles.update();
-        this.parallax.update(
-            this.player ? this.player.x + this.player.w / 2 : null,
-            this.player ? this.player.y : null
-        );
-        // Owl hoot freezes nearby enemies — load-bearing ambient
-        if (this.parallax.pendingHoots && this.enemies) {
-            for (const h of this.parallax.pendingHoots) {
-                this.enemies.applyOwlPause(h.x, h.y, AMBIENT.OWL_PAUSE_RADIUS, AMBIENT.OWL_PAUSE_FRAMES);
+        // Parallax update fires ambient SFX (bat chitter, owl hoot) and ticks
+        // the bat flock + owl roost state. Only run during actual PLAY — during
+        // cinematic scenes (STORY, STAGE_CARD, STAGE_INTRO, STAGE_CLEAR) these
+        // SFX leak through as foreground clicks because the music ducks the
+        // overall ambience away.
+        if (this.scene === SCENE.PLAY || this.scene === SCENE.PAUSE) {
+            this.parallax.update(
+                this.player ? this.player.x + this.player.w / 2 : null,
+                this.player ? this.player.y : null
+            );
+            // Owl hoot freezes nearby enemies — load-bearing ambient
+            if (this.parallax.pendingHoots && this.enemies) {
+                for (const h of this.parallax.pendingHoots) {
+                    this.enemies.applyOwlPause(h.x, h.y, AMBIENT.OWL_PAUSE_RADIUS, AMBIENT.OWL_PAUSE_FRAMES);
+                }
             }
         }
         // Transition fades
