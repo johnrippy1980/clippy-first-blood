@@ -59,6 +59,40 @@ for (let stage = 1; stage <= 8; stage++) {
     console.log(`boss ${stage} spawn OK`);
 }
 
+// 4. Kill-loop smoke: spawn stage 1 boss, force-damage to 0, verify
+// scene routes to STAGE_CLEAR (which fades to STAGE_CARD then next stage).
+await page.evaluate(() => window.__game._startStage(1));
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+    const g = window.__game;
+    g.scene = 'play';
+    g.player.x = (g.level.data.width - 6) * 16;
+    g.camera.x = Math.max(0, g.player.x - 128);
+    g._spawnBoss();
+});
+await page.waitForTimeout(300);
+const killInfo = await page.evaluate(() => {
+    const g = window.__game;
+    const b = g.enemies.activeBoss();
+    if (!b) return { ok: false, msg: 'no active boss after spawn' };
+    b.hp = 0;
+    b.alive = false;
+    return { ok: true, bossName: b.name };
+});
+if (!killInfo.ok) {
+    errors.push(`KILL LOOP: ${killInfo.msg}`);
+} else {
+    // Let the stage-clear sequence advance — _onStageClear sets _clearScheduled
+    // and the next tick transitions scene to stageClear.
+    await page.waitForTimeout(1200);
+    const scene = await page.evaluate(() => window.__game.scene);
+    if (!['stageClear', 'stageCard', 'stageIntro'].includes(scene)) {
+        errors.push(`KILL LOOP: scene ${scene} after kill — expected stageClear/stageCard/stageIntro`);
+    } else {
+        console.log(`kill loop OK (killed ${killInfo.bossName} → scene: ${scene})`);
+    }
+}
+
 await browser.close();
 
 if (errors.length) {
