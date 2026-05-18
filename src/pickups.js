@@ -75,12 +75,20 @@ class Pickup {
         if (level.isSolid(this.x + this.w / 2, this.y + this.h + 1)) {
             this.vy = 0;
         }
-        // Low-HP magnet
-        if (player.hp <= 1) {
-            const dx = (player.x + player.w / 2) - (this.x + this.w / 2);
-            const dy = (player.y + player.h / 2) - (this.y + this.h / 2);
-            const d = Math.hypot(dx, dy);
-            if (d < 64 && d > 0.1) {
+        // Magnet: tight always-on pull within 28px so brushing past a pickup
+        // grabs it instead of needing a pixel-perfect touch. Stronger long-
+        // range pull (64px) only kicks in at low HP as an emergency assist.
+        const dx = (player.x + player.w / 2) - (this.x + this.w / 2);
+        const dy = (player.y + player.h / 2) - (this.y + this.h / 2);
+        const d = Math.hypot(dx, dy);
+        if (d > 0.1) {
+            if (d < 28) {
+                // Snappy close-range tug — accelerates as you get closer
+                const pull = 0.7 + (1 - d / 28) * 0.9;
+                this.x += (dx / d) * pull;
+                this.y += (dy / d) * pull;
+            } else if (player.hp <= 1 && d < 64) {
+                // Emergency long-range pull at critical HP
                 this.x += (dx / d) * 1.0;
                 this.y += (dy / d) * 1.0;
             }
