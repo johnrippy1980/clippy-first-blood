@@ -668,9 +668,13 @@ export class Player {
         audio.sfx(w.sound);
         this.shotsFired++;
         this.recoilTimer = 6;
-        // Tiny camera kick on each shot — bigger weapons hit harder
-        const kickMap = { MG: 0.5, SPREAD: 0.7, LASER: 0.9, FLAME: 0.3, HOMING: 0.5, THUNDER: 2.0 };
-        this.requestShake = Math.max(this.requestShake || 0, kickMap[this.weapon] || 0.5);
+        // Camera kick on each shot. Only THUNDER actually shakes — the smaller
+        // kicks at 0.5-0.9 stacked into a constant tremor during sustained MG fire,
+        // which read as twitch rather than weight. Recoil now lives in muzzle FX +
+        // shell ejection, not in the camera.
+        const kickMap = { THUNDER: 2.0 };
+        const kick = kickMap[this.weapon] || 0;
+        if (kick) this.requestShake = Math.max(this.requestShake || 0, kick);
     }
 
     _updateBullets(level) {
