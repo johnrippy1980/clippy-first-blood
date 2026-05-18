@@ -77,14 +77,28 @@ export function drawHUD(ctx, state) {
     ctx.fillRect(GAME.W - 64, 27, 64, 1);
     ctx.fillRect(GAME.W - 65, 16, 1, 12);
 
-    // Lives icon — flashes red when on the final life (lives===0 = last
-    // respawn ahead). Subtle warning that one more death ends the run.
+    // Lives icon — tiny Clippy paperclip silhouette. Flashes red when on
+    // the final life (lives===0 = last respawn ahead).
     const lastLife = player.lives <= 0;
     const lifePulse = lastLife && (Math.floor(performance.now() / 250) % 2 === 0);
-    ctx.fillStyle = lifePulse ? '#ff5050' : '#a0a0b0';
-    ctx.fillRect(3, 5, 2, 8);
-    ctx.fillRect(3, 4, 4, 1); ctx.fillRect(6, 5, 1, 8);
-    ctx.fillStyle = '#a01020'; ctx.fillRect(3, 3, 4, 1);
+    const clipCol = lifePulse ? '#ff5050' : '#c0c0d0';
+    // Mini-Clippy paperclip shape (8px tall × 6px wide), anchored at (2, 3).
+    // Outer loop + inner notch on the right side — reads as paperclip even
+    // at this size.
+    ctx.fillStyle = clipCol;
+    ctx.fillRect(2, 4, 5, 1); // top bar
+    ctx.fillRect(2, 4, 1, 9); // left vert
+    ctx.fillRect(6, 4, 1, 7); // right outer vert
+    ctx.fillRect(2, 12, 6, 1); // bottom bar
+    ctx.fillRect(4, 6, 1, 6); // inner divider
+    ctx.fillRect(4, 6, 2, 1); // inner top
+    // Red headband across the top — Clippy's signature
+    ctx.fillStyle = '#ff3030';
+    ctx.fillRect(2, 3, 5, 1);
+    // Two eye dots
+    ctx.fillStyle = '#000';
+    ctx.fillRect(3, 7, 1, 1);
+    ctx.fillRect(5, 7, 1, 1);
     drawText(ctx, 'x' + player.lives, 10, 5, lifePulse ? '#ff5050' : '#fff', 1);
 
     // HP bar — dark grey-violet bg so empty segments read as "empty" not
