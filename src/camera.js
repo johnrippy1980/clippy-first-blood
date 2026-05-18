@@ -15,10 +15,14 @@ export class Camera {
     }
 
     follow(target, facing = 1) {
-        // Look ahead in the direction of facing
-        const lookAhead = CAMERA.LOOK_AHEAD * facing;
+        // Combine facing lookahead with velocity-based lead — momentum matters
+        const facingLead = CAMERA.LOOK_AHEAD * facing;
+        const velLead = (target.vx || 0) * 8;
+        const lookAhead = facingLead * 0.6 + velLead * 0.4;
         this.targetX = target.x - GAME.W / 2 + lookAhead;
-        this.targetY = target.y - GAME.H / 2 - 24;
+        // Vertical lead when falling/jumping so the player sees their landing
+        const vyLead = Math.max(-24, Math.min(24, (target.vy || 0) * 4));
+        this.targetY = target.y - GAME.H / 2 - 24 + vyLead;
     }
 
     shake(intensity, decay = CAMERA.SHAKE_DECAY) {

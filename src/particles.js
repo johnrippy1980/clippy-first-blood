@@ -33,11 +33,12 @@ class Particle {
 
 class FloatingText {
     constructor() { this.alive = false; }
-    init(x, y, text, color, life = 40, vy = -0.6) {
+    init(x, y, text, color, life = 40, vy = -0.6, scale = 1) {
         this.x = x; this.y = y;
         this.text = text; this.color = color;
         this.life = life; this.maxLife = life;
         this.vy = vy;
+        this.scale = scale;
         this.alive = true;
     }
     update() {
@@ -78,8 +79,8 @@ class ParticleSystem {
         this._take().init(x, y, vx, vy, life, color, size, gravity, fade);
     }
 
-    floatingText(x, y, text, color, life = 40, vy = -0.6) {
-        this._takeFloat().init(x, y, text, color, life, vy);
+    floatingText(x, y, text, color, life = 40, vy = -0.6, scale = 1) {
+        this._takeFloat().init(x, y, text, color, life, vy, scale);
     }
 
     explosion(x, y, color = '#ff8050', count = 24) {
@@ -103,6 +104,25 @@ class ParticleSystem {
                 8 + Math.random() * 6,
                 color, 1, 0
             );
+        }
+    }
+
+    // Bigger impact for bullet→enemy contact: radial spark burst + bright flash + small smoke
+    hitBurst(x, y, color = '#ffe070') {
+        // 8 radial sparks
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+            const sp = 1.6 + Math.random() * 1.2;
+            this.spawn(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 6 + Math.random() * 4, color, 2, 0);
+        }
+        // 3-frame core flash
+        for (let i = 0; i < 3; i++) {
+            this.spawn(x, y, 0, 0, 3, '#fff', 3 - i, 0);
+        }
+        // Smoke puff
+        for (let i = 0; i < 2; i++) {
+            this.spawn(x, y, (Math.random() - 0.5) * 0.5, -0.3 - Math.random() * 0.3,
+                       10 + Math.random() * 4, '#605060', 1, -0.04);
         }
     }
 
@@ -176,8 +196,13 @@ class ParticleSystem {
             const dx = Math.round(f.x - camera.x);
             const dy = Math.round(f.y - camera.y);
             const a = f.life / f.maxLife;
+            // Bouncy intro: scale up over first ~6 frames then settle
+            const age = f.maxLife - f.life;
+            const intro = Math.min(1, age / 6);
+            const bounce = 1 + Math.sin(intro * Math.PI) * 0.4;
+            const baseScale = (f.scale || 1) * (intro < 1 ? bounce : 1);
             ctx.globalAlpha = Math.max(0, Math.min(1, a));
-            drawText(ctx, f.text, dx, dy, f.color, 1, 'center');
+            drawText(ctx, f.text, dx, dy, f.color, Math.round(baseScale), 'center');
             ctx.globalAlpha = 1;
         }
     }

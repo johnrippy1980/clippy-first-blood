@@ -3,9 +3,15 @@
 import { GAME } from './constants.js';
 import { input } from './input.js';
 import { Game } from './game.js';
+import { audio } from './audio.js';
 
 const canvas = document.getElementById('screen');
 const game = new Game(canvas);
+// Expose for headless smoke tests + dev console
+if (typeof window !== 'undefined') {
+    window.__game = game;
+    window.__audio = audio;
+}
 
 // Kick off async asset loading. Boot scene shows until ready.
 game.preload();
@@ -39,5 +45,22 @@ document.addEventListener('visibilitychange', () => {
     // Audio context auto-suspends; no action needed beyond logging.
 });
 
-// Click-anywhere to allow autoplay on first interaction
-window.addEventListener('keydown', () => { /* audio.init() runs in title tick */ }, { once: true });
+// First user gesture: init audio context + kick the title music.
+// Both keydown AND pointerdown count, in case the user clicks the canvas
+// before pressing X (the Audio context can only resume from inside a gesture
+// handler, not from an arbitrary tick).
+function _firstGesture() {
+    audio.init();
+    if (audio.ctx?.state === 'suspended') audio.ctx.resume();
+    audio.playTrack('title');
+    window.removeEventListener('keydown', _firstGesture);
+    window.removeEventListener('pointerdown', _firstGesture);
+    window.removeEventListener('touchstart', _firstGesture);
+}
+window.addEventListener('keydown', _firstGesture, { once: true });
+window.addEventListener('pointerdown', _firstGesture, { once: true });
+window.addEventListener('touchstart', _firstGesture, { once: true });
+// Canvas itself: catch direct clicks (in case the window-level pointerdown
+// listener loses the race with the canvas's own mouse handler).
+canvas.addEventListener('pointerdown', _firstGesture, { once: true });
+canvas.addEventListener('click', _firstGesture, { once: true });

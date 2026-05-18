@@ -1,0 +1,59 @@
+// Headless screenshot of every stage. Uses __game._startStage to skip.
+import { chromium } from 'playwright';
+import fs from 'node:fs/promises';
+
+const URL = 'http://localhost:8765/';
+const OUT = '/tmp/clippy-stages';
+const STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+const page = await ctx.newPage();
+
+const errs = [];
+page.on('pageerror', e => errs.push(`PAGE: ${e.message}`));
+page.on('console', m => { if (m.type() === 'error') errs.push(`CONSOLE: ${m.text()}`); });
+
+await page.goto(URL, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2200);
+await fs.mkdir(OUT, { recursive: true });
+
+// Click + press X to leave title
+await page.click('#screen');
+await page.waitForTimeout(200);
+
+for (const stage of STAGES) {
+    // Force the game directly to stage N
+    await page.evaluate((n) => {
+        const g = window.__game;
+        if (!g) return;
+        g._startStage(n);
+    }, stage);
+    // Wait long enough for the intro card to finish (≥ ~2s)
+    await page.waitForTimeout(2400);
+    // Force-flip if still on intro
+    await page.evaluate(() => {
+        const g = window.__game;
+        if (g && g.scene === 'stageIntro') g.scene = 'play';
+    });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/stage-${stage}.png` });
+    // Walk right and shoot for variety
+    await page.keyboard.down('ArrowRight');
+    await page.keyboard.down('KeyX');
+    await page.waitForTimeout(900);
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.up('KeyX');
+    await page.screenshot({ path: `${OUT}/stage-${stage}-action.png` });
+}
+
+const finalState = await page.evaluate(() => {
+    const g = window.__game;
+    return g ? { scene: g.scene, stage: g.currentStage, enemies: g.enemies?.length } : null;
+});
+
+await browser.close();
+console.log('Final:', JSON.stringify(finalState));
+console.log(`Errors (${errs.length}):`);
+errs.forEach(e => console.log(' ', e));
+console.log(`Screenshots in ${OUT}/`);

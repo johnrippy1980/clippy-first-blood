@@ -115,11 +115,150 @@ class Audio {
             case 'bossHit':  return this._bossHit(t);
             case 'bossExplode': return this._bossExplode(t);
             case 'comboBreak': return this._comboBreakRoar(t);
-            case 'combo':    return this._comboHit(t);
+            case 'combo':    return this._comboHit(t, 1);
+            case 'combo2':   return this._comboHit(t, 2);
+            case 'combo3':   return this._comboHit(t, 3);
+            case 'combo4':   return this._comboHit(t, 4);
             case 'select':   return this._uiClick(t, 880);
             case 'menu':     return this._uiClick(t, 660);
             case 'pause':    return this._uiClick(t, 440);
+            case 'step':     return this._footstep(t);
+            case 'land':     return this._landThump(t);
+            case 'heartbeat': return this._heartbeat(t);
+            // Environmental ambience
+            case 'owlHoot':  return this._owlHoot(t);
+            case 'batChitter': return this._batChitter(t);
+            case 'splash':   return this._waterSplash(t);
+            case 'frogCroak': return this._frogCroak(t);
+            case 'wade':     return this._waterWade(t);
         }
+    }
+
+    // Mournful 2-note hoot. Pitch dip, soft attack, ~0.8s tail.
+    _owlHoot(t) {
+        const notes = [
+            { f: 320, start: 0,    dur: 0.30 },
+            { f: 240, start: 0.40, dur: 0.45 },
+        ];
+        for (const n of notes) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(n.f * 1.05, t + n.start);
+            o.frequency.exponentialRampToValueAtTime(n.f * 0.85, t + n.start + n.dur);
+            g.gain.setValueAtTime(0, t + n.start);
+            g.gain.linearRampToValueAtTime(0.18, t + n.start + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.start + n.dur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + n.start); o.stop(t + n.start + n.dur + 0.05);
+            // breath component
+            this._noise(t + n.start, 0.04, n.dur, n.f * 2.5, 'bp', 0.8);
+        }
+    }
+
+    // Bat chitter — short HPF noise burst with rapid amplitude modulation.
+    _batChitter(t) {
+        const dur = 0.35;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+            // Trill: AM at ~30Hz
+            const am = (Math.sin(i / d.length * Math.PI * 2 * 12) + 1) * 0.5;
+            d[i] = (Math.random() * 2 - 1) * am * (1 - i / d.length);
+        }
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'highpass'; filt.frequency.value = 4500; filt.Q.value = 3;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.10, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    // Water splash — noise burst into LPF + sub thump.
+    _waterSplash(t) {
+        // Sub thump
+        const o = this.ctx.createOscillator(); const og = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(120, t);
+        o.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+        og.gain.setValueAtTime(0.18, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.12);
+        // Splash noise
+        this._noise(t, 0.18, 0.20, 1800, 'lp', 1.0);
+        // Bright droplet sparkle
+        this._noise(t + 0.04, 0.06, 0.10, 5000, 'hp', 1.2);
+    }
+
+    // Frog croak — short downward sawtooth chirp.
+    _frogCroak(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(80, t + 0.12);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.10, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 700;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.16);
+    }
+
+    // Wading footstep — like footstep but watery and longer.
+    _waterWade(t) {
+        const dur = 0.14;
+        this._noise(t, 0.09, dur, 800, 'lp', 1.0);
+        // Trickle sparkle on top
+        this._noise(t + 0.03, 0.05, 0.10, 3500, 'bp', 2.0);
+    }
+
+    _heartbeat(t) {
+        // Two thumps in quick succession — like a real heartbeat
+        for (const offset of [0, 0.13]) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(72, t + offset);
+            o.frequency.exponentialRampToValueAtTime(38, t + offset + 0.10);
+            g.gain.setValueAtTime(0.0, t + offset);
+            g.gain.linearRampToValueAtTime(0.22, t + offset + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.14);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + offset); o.stop(t + offset + 0.16);
+        }
+    }
+
+    _footstep(t) {
+        // Short low-pass noise tick
+        const dur = 0.05;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 600;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.08, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    _landThump(t) {
+        // Solid kick + dust whoosh
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(140, t);
+        o.frequency.exponentialRampToValueAtTime(40, t + 0.10);
+        g.gain.setValueAtTime(0.32, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.16);
+        this._noise(t, 0.10, 0.16, 1200, 'bp', 1.2);
     }
 
     // Real-feeling gunshot. Sub kick + filtered noise body + HPF crack.
@@ -222,16 +361,33 @@ class Audio {
         o.start(t); o.stop(t + 0.2);
     }
 
-    _comboHit(t) {
-        // Short bright two-tone, not a square blip
-        const o1 = this.ctx.createOscillator(); const g1 = this.ctx.createGain();
-        o1.type = 'triangle';
-        o1.frequency.setValueAtTime(1100, t);
-        o1.frequency.exponentialRampToValueAtTime(1760, t + 0.08);
-        g1.gain.setValueAtTime(0.18, t);
-        g1.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
-        o1.connect(g1).connect(this.sfxBus);
-        o1.start(t); o1.stop(t + 0.12);
+    _comboHit(t, tier = 1) {
+        // Tier 1 (5x): single bright note
+        // Tier 2 (10x): two notes a fifth apart, chord
+        // Tier 3 (20x): chord with high overtone + reverb-y tail
+        // Tier 4 (30x): sustained pad, three voices, slower release
+        const baseFreqs = [
+            [1100],                          // tier 1
+            [880, 1320],                     // tier 2 — root + fifth
+            [660, 990, 1320],                // tier 3 — major chord, higher voicing
+            [440, 660, 880, 1320],           // tier 4 — full pad
+        ];
+        const freqs = baseFreqs[Math.max(0, Math.min(3, tier - 1))];
+        const releaseDur = 0.10 + tier * 0.08; // longer tail for higher tiers
+        for (const f of freqs) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = tier >= 3 ? 'sawtooth' : 'triangle';
+            o.frequency.setValueAtTime(f, t);
+            o.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.08);
+            const peak = 0.16 / freqs.length;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(peak, t + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, t + releaseDur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t); o.stop(t + releaseDur + 0.02);
+        }
+        // Tier 3+: add a HPF noise shimmer on top — bright/sparkly
+        if (tier >= 3) this._noise(t + 0.02, 0.04, 0.15, 7000, 'hp', 1.4);
     }
 
     _comboBreakRoar(t) {
@@ -432,12 +588,56 @@ class Audio {
     // Pattern format: rows of [kick, snare, hat, bassNote, padNote, leadNote].
     // 1/16 step grid. Patterns repeat seamlessly.
     playTrack(name) {
-        if (this.currentTrack === name) return;
-        this.stopTrack();
+        // Same name — if the file element exists but is paused (autoplay blocked
+        // on first attempt, then user gesture arrived), try to resume now.
+        if (this.currentTrack === name) {
+            if (this._fileEl && this._fileEl.paused && this.ctx?.state !== 'suspended') {
+                this._fileEl.play().catch(() => {});
+            }
+            return;
+        }
+        // Continuity: if both old and new tracks resolve to the same file AND
+        // we still hold the element, keep it. If it's paused (autoplay was
+        // blocked or stopTrack paused it), try to resume in-place instead of
+        // recreating — that preserves currentTime so no audible restart.
+        const newFile = FILE_TRACKS[name];
+        const curFile = FILE_TRACKS[this.currentTrack];
+        if (newFile && curFile && newFile === curFile && this._fileEl) {
+            this.currentTrack = name;
+            if (this._fileEl.paused) {
+                this._fileEl.play().catch(() => {});
+            }
+            return;
+        }
+        // Cross-fade: ramp outgoing track down while new one ramps up.
+        // Falls back to instant cut if Web Audio is unavailable.
+        const FADE_S = 0.35;
+        if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+        if (this.ctx && this._fileEl && this._fileGainNode) {
+            const now = this.ctx.currentTime;
+            const node = this._fileGainNode;
+            const el = this._fileEl;
+            try {
+                node.gain.cancelScheduledValues(now);
+                node.gain.setValueAtTime(node.gain.value, now);
+                node.gain.linearRampToValueAtTime(0.0001, now + FADE_S);
+            } catch (e) {}
+            setTimeout(() => {
+                try { el.pause(); } catch (e) {}
+                try { node.disconnect(); } catch (e) {}
+            }, FADE_S * 1000 + 30);
+            // Drop refs so the next _playFile creates a fresh chain
+            this._fileEl = null;
+            this._fileGainNode = null;
+            this._fileSource = null;
+        } else if (this._fileEl) {
+            try { this._fileEl.pause(); } catch (e) {}
+            this._fileEl = null;
+        }
         this.currentTrack = name;
         // Prefer real file if mapped
-        if (FILE_TRACKS[name] && this.ctx) {
-            this._playFile(FILE_TRACKS[name]);
+        if (newFile && this.ctx) {
+            this._playFile(newFile, FADE_S);
             return;
         }
         const t = TRACKS[name];
@@ -454,22 +654,32 @@ class Audio {
             try { this._fileEl.pause(); } catch (e) {}
             this._fileEl = null;
         }
+        if (this._fileGainNode) {
+            try { this._fileGainNode.disconnect(); } catch (e) {}
+            this._fileGainNode = null;
+        }
+        this._fileSource = null;
     }
 
-    _playFile(path) {
+    _playFile(path, fadeIn = 0) {
         const el = new window.Audio(path);
         el.loop = true;
         el.volume = 0.7;
         el.preload = 'auto';
-        // Pipe through Web Audio so we still get the limiter
+        // Per-track gain so we can cross-fade independently.
+        const targetGain = 0.85;
         try {
-            if (!this._fileGainNode) {
-                this._fileGainNode = this.ctx.createGain();
-                this._fileGainNode.gain.value = 0.85;
-                this._fileGainNode.connect(this.musicBus);
-            }
+            const node = this.ctx.createGain();
+            // Start silent if we're fading in, else jump straight to target.
+            const startVal = fadeIn > 0 ? 0.0001 : targetGain;
+            node.gain.setValueAtTime(startVal, this.ctx.currentTime);
+            node.connect(this.musicBus);
             const src = this.ctx.createMediaElementSource(el);
-            src.connect(this._fileGainNode);
+            src.connect(node);
+            if (fadeIn > 0) {
+                node.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + fadeIn);
+            }
+            this._fileGainNode = node;
             this._fileSource = src;
         } catch (e) {
             // Browsers throw if the element is reused; fall back to direct play

@@ -1,7 +1,7 @@
 // Player. State machine, physics, weapons. The whole feel of the game
 // lives here, so we tune by hand.
 
-import { GAME, STATE, AIM, WEAPON, HURT_FLASH } from './constants.js';
+import { GAME, STATE, AIM, WEAPON, HURT_FLASH, AMBIENT } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
@@ -12,14 +12,17 @@ const spriteDims = getSpriteDims;
 
 const COYOTE_FRAMES = 6;     // jump-after-edge grace
 const JUMP_BUFFER_MS = 110;  // matched to input buffer
-const MAX_SPEED = 1.7;
-const RUN_ACCEL = 0.32;
-const JUMP_V = -5.3;
-const JUMP_CUT = 0.45;       // velocity * this when jump released early
+const MAX_SPEED = 2.0;
+const RUN_ACCEL = 0.36;
+const JUMP_V = -7.5;         // ~3 tiles of vertical clearance; reaches platforms reliably
+const JUMP_CUT = 0.42;       // velocity * this when jump released early
 const SLIDE_V = 3.2;
 const SLIDE_FRAMES = 22;
 const ROLL_V = 2.8;
 const ROLL_FRAMES = 26;
+const DASH_ATK_V = 3.6;        // faster than roll, shorter
+const DASH_ATK_FRAMES = 18;
+const DASH_ATK_DAMAGE = 3;     // knife slash damage
 const BACKDASH_V = 3.4;
 const BACKDASH_FRAMES = 16;
 const DOUBLE_TAP_WINDOW = 18;  // frames between taps to count as double-tap
@@ -128,6 +131,9 @@ export class Player {
 
         // Decrement timers
         if (this.iFrames > 0) this.iFrames--;
+        if (this.weaponPickupFlash > 0) this.weaponPickupFlash--;
+        // Tick the damage-indicator countdown on the update path, not the draw path
+        if (this.lastHurtSrc && this.lastHurtSrc.frames > 0) this.lastHurtSrc.frames--;
         if (this.hurtTimer > 0) this.hurtTimer--;
         if (this.fireCooldown > 0) this.fireCooldown--;
         if (this.comboTimer > 0) {
@@ -144,7 +150,7 @@ export class Player {
         }
 
         // Coyote frames
-        if (this.onGround) this.coyote = COYOTE_FRAMES;
+        if (this.onGround) { this.coyote = COYOTE_FRAMES; this.airJumpsLeft = 1; }
         else if (this.coyote > 0) this.coyote--;
 
         if (this.hurtTimer > 0) {
@@ -158,19 +164,38 @@ export class Player {
             this.vy += GAME.GRAVITY;
             if (this.slideTimer <= 0) this._endSlide();
             // Allow shooting during slide
-            if (input.isHeld('shoot') && this.fireCooldown === 0) this._shoot();
+            if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
         } else if (this.state === STATE.ROLL) {
             this.rollTimer--;
             this.vx = this.facing * ROLL_V * (this.rollTimer / ROLL_FRAMES + 0.5);
             this.vy += GAME.GRAVITY;
             if (this.rollTimer <= 0) { this.state = STATE.IDLE; this.h = STAND_HEIGHT; this.iFrames = Math.max(this.iFrames, 4); }
+        } else if (this.state === STATE.DASH_ATTACK) {
+            this.dashAtkTimer--;
+            // Linear lunge with brief tail-off — front-loaded for snap
+            const t = this.dashAtkTimer / DASH_ATK_FRAMES;
+            this.vx = this.facing * DASH_ATK_V * (0.4 + t * 0.6);
+            this.vy += GAME.GRAVITY;
+            // Slash particles trailing the dash
+            if (this.dashAtkTimer % 3 === 0) {
+                particles.spawn(
+                    this.x + this.w / 2 + this.facing * 6,
+                    this.y + this.h / 2 + (Math.random() - 0.5) * 4,
+                    -this.facing * 0.6, 0,
+                    6 + Math.random() * 4, '#fff', 1, 0
+                );
+            }
+            if (this.dashAtkTimer <= 0) {
+                this.state = STATE.IDLE;
+                this.iFrames = Math.max(this.iFrames, 4);
+            }
         } else if (this.state === STATE.BACKDASH) {
             this.backdashTimer--;
             this.vx = -this.facing * BACKDASH_V * (this.backdashTimer / BACKDASH_FRAMES);
             this.vy += GAME.GRAVITY * 0.6;
             if (this.backdashTimer <= 0) this.state = STATE.IDLE;
             // Can shoot while backdashing — Contra style
-            if (input.isHeld('shoot') && this.fireCooldown === 0) this._shoot();
+            if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
         } else if (this.state === STATE.CLIMB) {
             this._handleClimb(level);
         } else if (this.state === STATE.COVER) {
@@ -200,6 +225,7 @@ export class Player {
             if (yRes.landed) {
                 if (!this.onGround && this.vy > 2) {
                     particles.dust(this.x + this.w / 2, this.y + this.h);
+                    audio.sfx('land');
                 }
                 this.onGround = true;
             } else {
@@ -207,7 +233,82 @@ export class Player {
             }
             this.vy = 0;
         } else {
-            this.onGround = false;
+            // Ground-stick: if we were grounded and only barely moved off,
+            // probe 2px below — if solid, snap back. Prevents the run state
+            // from flickering to fall every other frame from gravity drift.
+            if (this.onGround && this.vy >= 0 && this.vy < 2) {
+                const probeY = this.y + this.h + 1;
+                // Standing on a platform counts too — check both SOLID and PLATFORM
+                const onPlatform = (x) => {
+                    const tile = level.tileAt(x, probeY);
+                    return tile === 1 || tile === 2; // TILE.SOLID || TILE.PLATFORM
+                };
+                if (
+                    onPlatform(this.x + 2) ||
+                    onPlatform(this.x + this.w / 2) ||
+                    onPlatform(this.x + this.w - 2)
+                ) {
+                    // Snap back to the ground/platform edge
+                    const tileTop = Math.floor(probeY / GAME.TILE) * GAME.TILE;
+                    this.y = tileTop - this.h;
+                    this.vy = 0;
+                    this.onGround = true;
+                } else {
+                    this.onGround = false;
+                }
+            } else {
+                this.onGround = false;
+            }
+        }
+
+        // Water check: if any part of player is in water, apply drag and update flags.
+        // Probe at feet, mid, and head positions.
+        const feetInWater = level.isWater(this.x + this.w / 2, this.y + this.h - 2);
+        const midInWater = level.isWater(this.x + this.w / 2, this.y + this.h / 2);
+        const inWater = feetInWater || midInWater;
+        const wasInWater = this.inWater || false;
+        this.inWater = inWater;
+        this.waterFeet = feetInWater;
+        if (inWater) {
+            // Drag — heavier in deeper water (mid-body submerged)
+            const drag = midInWater ? 0.78 : 0.86;
+            this.vx *= drag;
+            // Buoyancy: cap fall speed and gently push up if fully submerged
+            this.vy = Math.min(this.vy, midInWater ? 0.9 : 1.6);
+            if (midInWater && !this.onGround) this.vy *= 0.92;
+            // Splash entry burst
+            if (!wasInWater) {
+                audio.sfx('splash');
+                particles.dust(this.x + this.w / 2, this.y + this.h - 2);
+                this.requestShake = Math.max(this.requestShake || 0, 1.0);
+            }
+            // Hold-DOWN duck-hide while standing in water
+            const isHoldingDown = input.isHeld('down');
+            this.waterHidden = isHoldingDown && this.waterFeet;
+            // Occasional frog croak from the surrounding swamp
+            this._frogTick = (this._frogTick || 0) + 1;
+            if (this._frogTick >= AMBIENT.FROG_CROAK_MIN_GAP_F && Math.random() < AMBIENT.FROG_CROAK_PROB) {
+                audio.sfx('frogCroak');
+                this._frogTick = 0;
+            }
+        } else {
+            // Splash exit burst
+            if (wasInWater) {
+                audio.sfx('splash');
+                particles.dust(this.x + this.w / 2, this.y + this.h);
+            }
+            this.waterHidden = false;
+        }
+
+        // Footstep tick when running on the ground
+        if (this.onGround && Math.abs(this.vx) > 0.8 && this.state !== STATE.SLIDE) {
+            this._footstepTick = (this._footstepTick || 0) + 1;
+            if (this._footstepTick >= 14) {
+                this._footstepTick = 0;
+                audio.sfx(this.inWater ? 'wade' : 'step');
+            }
+        } else {
+            this._footstepTick = 0;
         }
 
         // Hazards
@@ -253,15 +354,16 @@ export class Player {
             return;
         }
 
-        // Double-tap detection for forward roll
+        // Double-tap forward — dash attack with knife slash. Closes range,
+        // brief i-frames, melee damage to enemies in path. Symmetric to backdash (C).
         this._trackTaps();
         const doubleTap = this._consumeDoubleTap();
-        if (doubleTap !== 0 && this.onGround && this.state !== STATE.ROLL) {
+        if (doubleTap !== 0 && this.onGround && this.state !== STATE.DASH_ATTACK) {
             this.facing = doubleTap;
-            this.state = STATE.ROLL;
-            this.rollTimer = ROLL_FRAMES;
-            this.h = PRONE_HEIGHT;
-            this.iFrames = Math.max(this.iFrames, ROLL_FRAMES - 4);
+            this.state = STATE.DASH_ATTACK;
+            this.dashAtkTimer = DASH_ATK_FRAMES;
+            this.dashAtkHits = new Set(); // each enemy hit only once per dash
+            this.iFrames = Math.max(this.iFrames, DASH_ATK_FRAMES - 4);
             audio.sfx('slide');
             particles.dust(this.x + this.w / 2, this.y + this.h);
             return;
@@ -332,6 +434,27 @@ export class Player {
             this.spinAngle = 0;
             audio.sfx('jump');
         }
+        // Double-jump — one extra mid-air leap with a burst puff. Slightly weaker.
+        else if (input.isPressed('jump') && !this.onGround && (this.airJumpsLeft || 0) > 0
+                 && this.state !== STATE.SLIDE && this.state !== STATE.BACKDASH) {
+            input.consume('jump');
+            this.airJumpsLeft--;
+            this.vy = JUMP_V * 0.85;
+            this.state = STATE.SPIN_JUMP;
+            this.spinAngle = 0;
+            audio.sfx('jump');
+            // Visual: ring puff at feet to telegraph the double-jump
+            particles.dust(this.x + this.w / 2, this.y + this.h);
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                particles.spawn(
+                    this.x + this.w / 2 + Math.cos(a) * 6,
+                    this.y + this.h - 2 + Math.sin(a) * 2,
+                    Math.cos(a) * 0.8, Math.abs(Math.sin(a)) * 0.4,
+                    8 + Math.random() * 4, '#a0c0e0', 1, 0
+                );
+            }
+        }
 
         // Jump cut on release
         if (input.isReleased('jump') && this.vy < 0) {
@@ -339,7 +462,7 @@ export class Player {
         }
 
         // Shoot
-        if (input.isHeld('shoot') && this.fireCooldown === 0) {
+        if (input.isHeld('shoot') && this.fireCooldown <= 0) {
             this._shoot();
         }
     }
@@ -386,7 +509,7 @@ export class Player {
             this.onLadder = false;
         }
         // Shoot while climbing (Contra)
-        if (input.isHeld('shoot') && this.fireCooldown === 0) {
+        if (input.isHeld('shoot') && this.fireCooldown <= 0) {
             this._shoot();
         }
     }
@@ -443,8 +566,8 @@ export class Player {
     _updateState() {
         // States that own themselves
         const owned = [STATE.SLIDE, STATE.CROUCH, STATE.PRONE, STATE.CRAWL,
-                       STATE.HURT, STATE.DIE, STATE.ROLL, STATE.BACKDASH,
-                       STATE.CLIMB, STATE.COVER, STATE.SPIN_JUMP];
+                       STATE.HURT, STATE.DIE, STATE.ROLL, STATE.DASH_ATTACK,
+                       STATE.BACKDASH, STATE.CLIMB, STATE.COVER, STATE.SPIN_JUMP];
         if (owned.includes(this.state)) {
             // Reset spin-jump if we land
             if (this.state === STATE.SPIN_JUMP && this.onGround) {
@@ -474,7 +597,7 @@ export class Player {
     // ---------- shooting ----------
     _shoot() {
         const w = WEAPON[this.weapon];
-        const rate = Math.max(2, w.fireRate - this.weaponLevel * 1.5);
+        const rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
         this.fireCooldown = rate;
 
         // Bullet emerges from the rifle tip — radius 10 from center body.
@@ -526,7 +649,10 @@ export class Player {
         particles.shellEject(this.x + this.w / 2 - this.facing * 2, this.y + 8, this.facing);
         audio.sfx(w.sound);
         this.shotsFired++;
-        this.recoilTimer = 4;   // frames; offsets the sprite slightly back
+        this.recoilTimer = 6;
+        // Tiny camera kick on each shot — bigger weapons hit harder
+        const kickMap = { MG: 0.5, SPREAD: 0.7, LASER: 0.9, FLAME: 0.3, HOMING: 0.5, THUNDER: 2.0 };
+        this.requestShake = Math.max(this.requestShake || 0, kickMap[this.weapon] || 0.5);
     }
 
     _updateBullets(level) {
@@ -544,6 +670,7 @@ export class Player {
                 b.vy = b.vy * 0.85 + (dy / d) * speed * 0.15;
             }
 
+            b.prevX = b.x; b.prevY = b.y;
             b.x += b.vx;
             b.y += b.vy;
 
@@ -567,20 +694,34 @@ export class Player {
             if (idx >= 0) this.bullets.splice(idx, 1);
         } else {
             bullet.hits.add(enemy);
+            // Cap pierce at 3 enemies — LASER doesn't wallhack the whole level
+            if (bullet.hits.size >= 3) {
+                const idx = this.bullets.indexOf(bullet);
+                if (idx >= 0) this.bullets.splice(idx, 1);
+            }
         }
-        particles.hitSpark(bullet.x, bullet.y, bullet.color);
+        particles.hitBurst(bullet.x, bullet.y, bullet.color);
         this.dmgDealt[bullet.weapon] = (this.dmgDealt[bullet.weapon] || 0) + bullet.damage;
         if (killed) {
             this.kills++;
             this.combo++;
             this.maxCombo = Math.max(this.maxCombo, this.combo);
             this.comboTimer = 90;
-            this.score += 100 + this.combo * 10;
-            // Combo milestones
+            const points = 100 + this.combo * 10;
+            this.score += points;
+            // Game-feel: short hit-pause + screen-shake on every kill.
+            this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_KILL_F);
+            this.requestShake = Math.max(this.requestShake || 0, 1.6);
+            // Per-kill score popup — color by combo tier
+            const tier = this.combo >= 20 ? '#ff60ff' : this.combo >= 10 ? '#ff8050' : this.combo >= 5 ? '#ffe070' : '#fff';
+            particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 2, '+' + points, tier, 45, -0.8, 1);
+            // Combo milestones — big bouncy label + tiered audio escalation
             if (this.combo === 5 || this.combo === 10 || this.combo === 20 || this.combo === 30) {
-                audio.sfx('combo');
-                particles.floatingText(enemy.x + enemy.w / 2, enemy.y, this._comboLabel(), '#ffe070', 60);
+                const tierSfx = this.combo >= 30 ? 'combo4' : this.combo >= 20 ? 'combo3' : this.combo >= 10 ? 'combo2' : 'combo';
+                audio.sfx(tierSfx);
+                particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 14, this._comboLabel(), '#ffe070', 80, -0.4, 2);
                 this.score += this.combo * 100;
+                this.requestShake = Math.max(this.requestShake || 0, 3.5);
             }
         }
     }
@@ -592,37 +733,71 @@ export class Player {
     }
 
     pickup(type) {
+        // Visual fanfare for ANY pickup — radial burst at Clippy's center
+        const cx = this.x + this.w / 2;
+        const cy = this.y + this.h / 2;
+        const burstBurst = (color, count = 10) => {
+            for (let i = 0; i < count; i++) {
+                const a = (i / count) * Math.PI * 2 + Math.random() * 0.2;
+                const sp = 1.2 + Math.random() * 1.4;
+                particles.spawn(cx, cy, Math.cos(a) * sp, Math.sin(a) * sp, 14 + Math.random() * 6, color, 1, -0.05);
+            }
+            // Center white flash
+            for (let i = 0; i < 4; i++) particles.spawn(cx, cy, 0, 0, 5 - i, '#fff', 2, 0);
+        };
+
         if (type === 'LIFE') {
             this.hp = Math.min(this.maxHp, this.hp + 1);
             this.score += 50;
             audio.sfx('pickup');
+            burstBurst('#50ff70');
+            particles.floatingText(cx, this.y - 4, '+1 HP', '#50ff70', 55, -0.8, 1);
             return;
         }
         if (type === '1UP') {
             this.lives++;
             audio.sfx('powerup');
+            burstBurst('#ffe070', 14);
+            particles.floatingText(cx, this.y - 4, '1 UP!', '#ffe070', 75, -0.7, 2);
             return;
         }
         if (WEAPON[type]) {
+            const w = WEAPON[type];
             if (this.weapon === type) {
                 if (this.weaponLevel < 3) {
                     this.weaponLevel++;
                     audio.sfx('powerup');
+                    burstBurst(w.color, 12);
+                    particles.floatingText(cx, this.y - 4,
+                        'LV ' + this.weaponLevel + '!', w.color, 60, -0.7, 2);
                 } else {
+                    // Already maxed — convert into score
                     this.score += 500;
                     audio.sfx('pickup');
+                    burstBurst('#ffe070');
+                    particles.floatingText(cx, this.y - 4, '+500', '#ffe070', 50, -0.7, 1);
                 }
             } else {
                 this.weapon = type;
                 this.weaponLevel = 1;
                 audio.sfx('powerup');
+                burstBurst(w.color, 14);
+                // Weapon name in its own color — bigger scale
+                const label = type === 'MG' ? 'MACHINE' : type;
+                particles.floatingText(cx, this.y - 4, label, w.color, 80, -0.5, 2);
+                // HUD glyph flash flag — read by hud.js
+                this.weaponPickupFlash = 30;
             }
             this.weaponTimer = WEAPON_DURATION;
         }
     }
 
-    hurt(dmg, knockDir = 0) {
+    hurt(dmg, knockDir = 0, srcX = null, srcY = null) {
         if (this.iFrames > 0 || this.state === STATE.DIE) return;
+        // Remember the damage source for the off-screen indicator
+        if (srcX != null) {
+            this.lastHurtSrc = { x: srcX, y: srcY, frames: AMBIENT.DAMAGE_INDICATOR_F };
+        }
         this.hp -= dmg;
         // Bullet-time second-chance rescue
         if (this.hp <= 0 && !this.secondChanceUsed) {
@@ -638,11 +813,14 @@ export class Player {
         this.state = STATE.HURT;
         this.hurtTimer = HURT_FRAMES;
         this.iFrames = IFRAMES;
-        this.knockX = knockDir * 1.6;
-        this.vy = -2.2;
+        this.knockX = knockDir * 2.4;
+        this.vy = -3.0;
         this.combo = 0;
         audio.sfx('hurt');
         particles.blood(this.x + this.w / 2, this.y + 6, knockDir > 0 ? -1 : 1);
+        // Big game-feel: hit-pause + heavy screen shake on player damage
+        this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_HURT_F);
+        this.requestShake = Math.max(this.requestShake || 0, 4.5);
     }
 
     kill() {
@@ -666,9 +844,46 @@ export class Player {
 
         const frame = this._frameForState();
         const dims = spriteDims(frame);
-        const recoilDX = this.recoilTimer > 0 ? -this.facing * (this.recoilTimer > 2 ? 1 : 0) : 0;
+        const recoilDX = this.recoilTimer > 0 ? -this.facing * (this.recoilTimer > 3 ? 2 : 1) : 0;
         const cx = this.x + this.w / 2 - camera.viewX + recoilDX;
         const cy = this.y + this.h - dims.h / 2 - camera.viewY + 1;
+
+        // Ducked in swamp water — replace sprite with surface ripple + tiny periscope head
+        if (this.waterHidden) {
+            const surfX = Math.round(this.x + this.w / 2 - camera.viewX);
+            const surfY = Math.round(this.y + this.h - 6 - camera.viewY);
+            // Two concentric ripple rings
+            ctx.strokeStyle = 'rgba(122,240,191,0.65)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(surfX, surfY, 5, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = 'rgba(122,240,191,0.35)';
+            ctx.beginPath(); ctx.arc(surfX, surfY, 9, 0, Math.PI * 2); ctx.stroke();
+            // Just the tip of Clippy's clip visible above water — two grey pixels
+            ctx.fillStyle = '#a0a0b0';
+            ctx.fillRect(surfX - 1, surfY - 3, 2, 1);
+            ctx.fillRect(surfX, surfY - 4, 1, 1);
+            return;
+        }
+
+        // Wading in water — render Clippy with lower body cut off + splash particles at feet
+        if (this.inWater && this.waterFeet) {
+            const surfY = Math.round(this.y + this.h - 6 - camera.viewY);
+            // Clip lower body so submerged part is hidden
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, GAME.W, surfY + 1);
+            ctx.clip();
+            const drawX = Math.round(cx - dims.w / 2);
+            const drawY = Math.round(cy - dims.h / 2);
+            drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+            ctx.restore();
+            // Surface line at waist
+            ctx.fillStyle = '#7af0bf';
+            ctx.globalAlpha = 0.45 + Math.sin(this._waterTick = (this._waterTick || 0) + 0.2) * 0.2;
+            ctx.fillRect(Math.round(cx) - 8, surfY, 16, 1);
+            ctx.globalAlpha = 1;
+            return;
+        }
 
         // Spin-jump rotates the whole sprite around its center
         if (this.state === STATE.SPIN_JUMP) {
@@ -683,14 +898,55 @@ export class Player {
             drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
         }
 
-        // Aim indicator: draw a small targeting reticule line from chest to aim
-        if (input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
-            const reticleX = this.x + this.w / 2 + this.aim.x * 24 - camera.viewX;
-            const reticleY = this.y + this.h / 2 + this.aim.y * 24 - camera.viewY;
-            ctx.fillStyle = '#ff5050';
-            ctx.fillRect(Math.round(reticleX) - 1, Math.round(reticleY) - 1, 2, 2);
+        // Aim-direction arm overlay: small procedural arm + gun barrel that points
+        // in the actual aim direction. Layered on top of the base sprite so we get
+        // 8-way aim coverage without needing a sprite-frame per direction.
+        if (this.state !== STATE.DIE && this.state !== STATE.HURT &&
+            this.state !== STATE.SPIN_JUMP && this.state !== STATE.DASH_ATTACK &&
+            this.state !== STATE.BACKDASH && this.state !== STATE.ROLL) {
+            this._drawAimArm(ctx, cx, cy);
+        }
+
+        // Dash-attack: render a quick knife slash arc out in front
+        if (this.state === STATE.DASH_ATTACK) {
+            const t = 1 - (this.dashAtkTimer / DASH_ATK_FRAMES);
+            const arcCx = Math.round(cx + this.facing * 8);
+            const arcCy = Math.round(cy + 2);
+            // Blade — bright streak from inside to outside
+            const reach = 4 + Math.round(t * 10);
             ctx.fillStyle = '#fff';
-            ctx.fillRect(Math.round(reticleX), Math.round(reticleY), 1, 1);
+            ctx.fillRect(arcCx, arcCy - 1, this.facing * reach, 2);
+            ctx.fillStyle = '#c0e0ff';
+            ctx.fillRect(arcCx + this.facing * (reach - 2), arcCy - 3, this.facing * 3, 1);
+            ctx.fillRect(arcCx + this.facing * (reach - 2), arcCy + 2, this.facing * 3, 1);
+            // Hilt
+            ctx.fillStyle = '#604030';
+            ctx.fillRect(arcCx - this.facing, arcCy - 1, this.facing * 2, 3);
+        }
+
+        // Aim crosshair at actual cursor + thin lead line from player
+        if (input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
+            const px = this.x + this.w / 2 - camera.viewX;
+            const py = this.y + this.h / 2 - camera.viewY;
+            const mx = input.mouseX, my = input.mouseY;
+            // Faint lead line, dashed look using a few segments
+            ctx.fillStyle = 'rgba(255,80,80,0.35)';
+            const segs = 6;
+            for (let i = 1; i < segs; i += 2) {
+                const t1 = i / segs, t2 = (i + 1) / segs;
+                const x1 = px + (mx - px) * t1, y1 = py + (my - py) * t1;
+                const x2 = px + (mx - px) * t2, y2 = py + (my - py) * t2;
+                ctx.fillRect(Math.round((x1 + x2) / 2), Math.round((y1 + y2) / 2), 1, 1);
+            }
+            // Crosshair: 4 bars + center dot
+            const cx = Math.round(mx), cy = Math.round(my);
+            ctx.fillStyle = '#ff5050';
+            ctx.fillRect(cx - 4, cy, 3, 1);
+            ctx.fillRect(cx + 2, cy, 3, 1);
+            ctx.fillRect(cx, cy - 4, 1, 3);
+            ctx.fillRect(cx, cy + 2, 1, 3);
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(cx, cy, 1, 1);
         }
 
         if (this.recoilTimer > 0) this.recoilTimer--;
@@ -699,19 +955,101 @@ export class Player {
         for (const b of this.bullets) {
             const bx = Math.round(b.x - camera.viewX);
             const by = Math.round(b.y - camera.viewY);
-            ctx.fillStyle = b.color;
             if (b.weapon === 'LASER') {
-                ctx.fillRect(bx - 2, by, 4, 2);
+                // Long beam — trail to previous position so it reads as a streak
+                const px = Math.round((b.prevX ?? b.x) - camera.viewX);
+                const py = Math.round((b.prevY ?? b.y) - camera.viewY);
+                ctx.strokeStyle = b.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(bx, by); ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(bx - 1, by - 1, 2, 2);
             } else if (b.weapon === 'THUNDER') {
-                // Lightning zigzag
                 let ly = by;
                 ctx.fillStyle = '#fffac8';
                 for (let yy = 0; yy < 200; yy += 3) {
                     ctx.fillRect(bx + (Math.random() * 4 - 2), by + yy, 2, 3);
                 }
-            } else {
+            } else if (b.weapon === 'FLAME') {
+                // Soft flame puff
+                ctx.fillStyle = b.color;
+                ctx.globalAlpha = 0.6;
+                ctx.fillRect(bx - 2, by - 2, 5, 5);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#ffe070';
                 ctx.fillRect(bx - 1, by - 1, 3, 3);
+            } else {
+                // HOMING gets a curve-revealing trail — its path is non-linear so the trail adds info.
+                // MG/SPREAD skip the trail — too many bullets at once turns the screen to mush.
+                if (b.weapon === 'HOMING' && b.prevX != null) {
+                    const px = Math.round(b.prevX - camera.viewX);
+                    const py = Math.round(b.prevY - camera.viewY);
+                    ctx.globalAlpha = 0.45;
+                    this._line(ctx, px, py, bx, by, b.color, 1);
+                    ctx.globalAlpha = 1;
+                }
+                // Outer glow
+                ctx.fillStyle = b.color;
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(bx - 2, by - 2, 5, 5);
+                ctx.globalAlpha = 1;
+                ctx.fillRect(bx - 1, by - 1, 3, 3);
+                // Hot center
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(bx, by, 1, 1);
             }
+        }
+    }
+
+    // Procedural arm + gun barrel pointing along the aim vector.
+    // Avoids needing 8-direction sprite sheets while still showing aim direction.
+    _drawAimArm(ctx, cx, cy) {
+        const ax = this.aim?.x, ay = this.aim?.y;
+        if (ax == null) return;
+        // Don't draw arm when aim is essentially still (close to ±forward without much vertical)
+        // — let the painted sprite speak. We still draw barrel for clarity.
+        // Shoulder anchor — slightly above center, in front of body
+        const sx = Math.round(cx + this.facing * 2);
+        const sy = Math.round(cy - 3);
+        // Arm extends 5px along the aim, then barrel 8px
+        const armLen = 5;
+        const barrelLen = 8;
+        const recoilPull = this.recoilTimer > 0 ? Math.min(3, this.recoilTimer / 2) : 0;
+        const elbowX = sx + ax * armLen;
+        const elbowY = sy + ay * armLen;
+        const muzzleX = elbowX + ax * (barrelLen - recoilPull);
+        const muzzleY = elbowY + ay * (barrelLen - recoilPull);
+        // Arm — thicker, light steel grey
+        this._line(ctx, sx, sy, elbowX, elbowY, '#b0b0c0', 2);
+        // Barrel — dark outline + bright core (reads against painted bgs)
+        this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
+        this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 1);
+        // Muzzle tip — bright dot when fireCooldown is fresh (just fired)
+        if (this.recoilTimer > 2) {
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(Math.round(muzzleX) - 1, Math.round(muzzleY) - 1, 3, 3);
+        } else {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(Math.round(muzzleX), Math.round(muzzleY), 1, 1);
+        }
+    }
+
+    // Bresenham-style stepped fillRect line. No anti-aliasing — preserves pixel canvas feel.
+    _line(ctx, x0, y0, x1, y1, color, thickness = 1) {
+        ctx.fillStyle = color;
+        const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+        const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+        let err = dx - dy;
+        let x = Math.round(x0), y = Math.round(y0);
+        const tEnd = Math.round(x1), eEnd = Math.round(y1);
+        const t = thickness;
+        let safety = 64;
+        while (safety-- > 0) {
+            ctx.fillRect(x, y, t, t);
+            if (x === tEnd && y === eEnd) break;
+            const e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x += sx; }
+            if (e2 < dx)  { err += dx; y += sy; }
         }
     }
 
@@ -765,9 +1103,15 @@ export class Player {
                 return 'death_burning';
             }
             default: {
-                // Idle picks aim-up / aim-diag / shoot variants
+                // Pick sprite by aim band — fall back gracefully if a variant is missing.
+                // Procedural arm overlay handles fine-grained aim direction on top.
                 if (aimBand === 'up') return 'aim_up';
                 if (aimBand === 'diag-up') return 'aim_diag';
+                if (aimBand === 'down' || aimBand === 'diag-down') {
+                    // No down-aim sprite — use crouch as a crude approximation.
+                    // Arm overlay still points correctly.
+                    return shooting ? 'crouch_shoot' : 'crouch';
+                }
                 if (shooting) return 'shoot';
                 return 'idle';
             }

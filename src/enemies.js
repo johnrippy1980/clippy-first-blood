@@ -12,29 +12,35 @@ const TYPES = {
         sprite: 'folder',
         w: 14, h: 12,
         hp: 2, contactDmg: 1, score: 100,
-        speed: 0.7, behavior: 'fly_sine',
-        amplitude: 12, period: 90, shootInterval: 100, projectileSpeed: 1.6,
+        speed: 0.9, behavior: 'fly_sine',
+        amplitude: 14, period: 90, shootInterval: 60, projectileSpeed: 1.9,
+        activateRange: 240,
     },
     stapler: {
         sprite: 'stapler',
         w: 14, h: 8,
         hp: 1, contactDmg: 1, score: 80,
-        speed: 0.6, behavior: 'hop',
-        hopV: -3.0, hopInterval: 50,
+        speed: 0.9, behavior: 'hop',
+        hopV: -3.4, hopInterval: 32, leapV: -4.6, leapTriggerDx: 64,
+        activateRange: 220,
     },
     cabinet: {
         sprite: 'cabinet',
         w: 18, h: 22,
         hp: 6, contactDmg: 2, score: 250,
-        speed: 0.35, behavior: 'charge',
-        chargeSpeed: 1.8, chargeWindup: 40,
+        speed: 0.55, behavior: 'charge',
+        chargeSpeed: 2.4, chargeWindup: 24,
+        activateRange: 200,
     },
     holepunch: {
         sprite: 'holepunch',
         w: 14, h: 14,
         hp: 3, contactDmg: 1, score: 150,
         speed: 0, behavior: 'hover_sniper',
-        hoverY: -2, shootInterval: 80, projectileSpeed: 2.4, beamCharge: 30,
+        hoverY: -2, shootInterval: 70, projectileSpeed: 2.7, beamCharge: 22,
+        // Snipers activate inside one screen width (256px), down from 260.
+        // Off-screen snipers cannot fire at the player — fair gameplay.
+        activateRange: 200,
     },
 };
 
@@ -50,8 +56,18 @@ class Bullet {
         if (level.isSolid(this.x, this.y)) { this.life = 0; particles.hitSpark(this.x, this.y, this.color); }
     }
     draw(ctx, camera) {
+        const dx = Math.round(this.x - camera.viewX);
+        const dy = Math.round(this.y - camera.viewY);
+        // Outer glow
         ctx.fillStyle = this.color;
-        ctx.fillRect(Math.round(this.x - camera.viewX) - 1, Math.round(this.y - camera.viewY) - 1, 3, 3);
+        ctx.globalAlpha = 0.4;
+        ctx.fillRect(dx - 2, dy - 2, 5, 5);
+        ctx.globalAlpha = 1;
+        // Core
+        ctx.fillRect(dx - 1, dy - 1, 3, 3);
+        // Hot center
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(dx, dy, 1, 1);
     }
 }
 
@@ -76,11 +92,43 @@ class Enemy {
         this.subState = 0;
         this.subTimer = 0;
         this.sprite = t.sprite;
+        // Per-enemy grace counter — frames remaining before this enemy may
+        // act after activation. EnemyManager seeds with the stage-start grace.
+        this._grace = 30;
     }
 
     update(level, player) {
         this.timer++;
         if (this.hitFlash > 0) this.hitFlash--;
+        if (this.owlPause > 0) this.owlPause--;
+        this._tickStatus();
+        if (!this.alive) return;
+        // Sleep enemies that are way off camera — keeps the action focused on the player.
+        // Activation requires BOTH: enemy within activateRange of player AND
+        // global stage-start grace (gameStartGrace) has elapsed. The grace gives
+        // the player a half-second to orient before any enemy can fire.
+        const dxAbs = Math.abs(player.x - this.x);
+        const range = this.tpl.activateRange || 999;
+        if (!this.activated && dxAbs < range) this.activated = true;
+        if (!this.activated) return;
+        // Honor the global stage-start grace — set by EnemyManager on _startStage.
+        if (this._grace > 0) { this._grace--; return; }
+        // Knock-stun: skip AI; physics still applies for hop/charge
+        if ((this.knockStun || 0) > 0) {
+            // Just settle vy on stunned ground enemies, no behavior
+            if (this.behavior === 'hop' || this.behavior === 'charge') {
+                this.vy = (this.vy || 0) + GAME.GRAVITY;
+                const yRes = level.moveY(this, this.vy, true, this.vy);
+                this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
+                // Honor any horizontal velocity from the hit
+                if (Math.abs(this.vx) > 0.1) {
+                    const xRes = level.moveX(this, this.vx);
+                    this.x = xRes.x; if (xRes.hit) this.vx = 0;
+                    this.vx *= 0.88;
+                }
+            }
+            return;
+        }
         switch (this.behavior) {
             case 'fly_sine':       this._flySine(level, player); break;
             case 'hop':            this._hop(level, player); break;
@@ -92,14 +140,32 @@ class Enemy {
     _flySine(level, player) {
         const tpl = this.tpl;
         const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distAbs = Math.abs(dx);
         this.facing = dx > 0 ? 1 : -1;
-        this.x += this.facing * tpl.speed * 0.5;
-        this.y = this.spawnY + Math.sin(this.timer / tpl.period * Math.PI * 2) * tpl.amplitude;
-        if (this.timer % tpl.shootInterval === 0 && Math.abs(dx) < 140) {
-            const d = Math.hypot(dx, player.y - this.y);
+        // Optimal range 90-140px — pursue if far, retreat if too close.
+        // Recently-fired = retreat for a brief window so player gets a window.
+        const wantsDistance = (this._retreatTimer || 0) > 0 || distAbs < 70;
+        const moveDir = wantsDistance ? -this.facing : this.facing;
+        this.x += moveDir * tpl.speed * 0.6;
+        if (this._retreatTimer > 0) this._retreatTimer--;
+        // Vertical: drift toward player but also rise on retreat for variety
+        const yBias = wantsDistance ? -8 : Math.max(-30, Math.min(30, dy * 0.05));
+        this.y = this.spawnY + Math.sin(this.timer / tpl.period * Math.PI * 2) * tpl.amplitude + yBias;
+        // Fire faster the closer you are; stage-scaled
+        const mult = this._fireRateMult || 1;
+        const baseRate = distAbs < 80 ? Math.max(28, tpl.shootInterval - 30) : tpl.shootInterval;
+        const fireRate = Math.max(20, Math.round(baseRate * mult));
+        // Don't fire on a hidden (ducked-in-water) player; respect owl-pause
+        if (player.waterHidden) return;
+        if (this.owlPause > 0) return;
+        if (this.timer % fireRate === 0 && distAbs < 200) {
+            const d = Math.hypot(dx, dy) || 1;
             const vx = dx / d * tpl.projectileSpeed;
-            const vy = (player.y - this.y) / d * tpl.projectileSpeed;
+            const vy = dy / d * tpl.projectileSpeed;
             globalEnemyBullets.push(new Bullet(this.x + this.w / 2, this.y + this.h / 2, vx, vy));
+            // Retreat for a beat after firing — gives the player a window to advance
+            this._retreatTimer = 25;
         }
     }
 
@@ -107,11 +173,23 @@ class Enemy {
         const tpl = this.tpl;
         this.vy += GAME.GRAVITY;
         const onGround = this._isOnGround(level);
+        const dx = player.x - this.x;
+        const distAbs = Math.abs(dx);
         if (onGround && this.timer % tpl.hopInterval === 0) {
-            this.vy = tpl.hopV;
-            const dx = player.x - this.x;
             this.facing = dx > 0 ? 1 : -1;
-            this.vx = this.facing * tpl.speed;
+            if (distAbs < 28) {
+                // Point-blank panic-leap AWAY — gives player breathing room
+                this.vy = tpl.leapV * 0.9;
+                this.vx = -this.facing * tpl.speed * 2.2;
+                this.facing *= -1; // turn around mid-air
+            } else if (distAbs < tpl.leapTriggerDx) {
+                // Medium-range leap-attack TOWARD player
+                this.vy = tpl.leapV;
+                this.vx = this.facing * tpl.speed * 2.0;
+            } else {
+                this.vy = tpl.hopV;
+                this.vx = this.facing * tpl.speed;
+            }
         }
         if (onGround && this.vy >= 0) this.vy = 0.1;
 
@@ -128,7 +206,7 @@ class Enemy {
         if (this.subState === 0) {
             this.facing = dx > 0 ? 1 : -1;
             this.vx = this.facing * tpl.speed;
-            if (dist < 64) this.subState = 1; // wind up
+            if (dist < 96) this.subState = 1; // wind up earlier
             this.subTimer = 0;
         } else if (this.subState === 1) {
             this.subTimer++;
@@ -136,15 +214,29 @@ class Enemy {
             if (this.subTimer >= tpl.chargeWindup) {
                 this.subState = 2;
                 this.subTimer = 0;
+                // Re-aim at moment of release so player can dodge but a perfect strafe is rewarded
+                this.facing = dx > 0 ? 1 : -1;
             }
         } else if (this.subState === 2) {
             this.vx = this.facing * tpl.chargeSpeed;
             this.subTimer++;
-            if (this.subTimer > 60) { this.subState = 0; }
+            if (this.subTimer > 45) { this.subState = 0; }
         }
         this.vy += GAME.GRAVITY;
         const xRes = level.moveX(this, this.vx);
-        this.x = xRes.x; if (xRes.hit) { if (this.subState === 2) this.subState = 0; this.vx = 0; }
+        this.x = xRes.x;
+        if (xRes.hit) {
+            // Wall-hit MID-CHARGE: cabinet stuns itself for 60f — punish window for player
+            if (this.subState === 2) {
+                this.subState = 0;
+                this.knockStun = 60;
+                this.vx = -this.facing * 1.2; // recoil
+                audio.sfx('bossHit');
+                particles.dust(this.x + this.w / 2, this.y + this.h - 2);
+            } else {
+                this.vx = 0;
+            }
+        }
         const yRes = level.moveY(this, this.vy, true, this.vy);
         this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0; else if (yRes.hit) this.vy = 1;
     }
@@ -153,20 +245,30 @@ class Enemy {
         const tpl = this.tpl;
         this.y = this.spawnY + Math.sin(this.timer / 60) * 4;
         const dx = player.x - this.x;
+        const distAbs = Math.abs(dx);
         this.facing = dx > 0 ? 1 : -1;
-        if (this.timer % tpl.shootInterval === 0) {
-            // Telegraphed: charge then fire
+        // Only fire when player is in range, not hidden, not owl-paused
+        if (player.waterHidden) return;
+        if (this.owlPause > 0) return;
+        if (distAbs < 220 && this.timer % tpl.shootInterval === 0 && this.subTimer === 0) {
             this.subTimer = tpl.beamCharge;
+            // Snapshot aim point ahead of player based on their velocity (lead shot)
+            const leadFrames = Math.min(40, distAbs / tpl.projectileSpeed);
+            this._aimX = player.x + player.w / 2 + (player.vx || 0) * leadFrames * 0.5;
+            this._aimY = player.y + player.h / 2 + (player.vy || 0) * leadFrames * 0.3;
         }
         if (this.subTimer > 0) {
             this.subTimer--;
             if (this.subTimer === 0) {
-                const d = Math.hypot(dx, player.y - this.y) || 1;
-                const vx = dx / d * tpl.projectileSpeed;
-                const vy = (player.y - this.y) / d * tpl.projectileSpeed;
+                const tx = this._aimX - (this.x + this.w / 2);
+                const ty = this._aimY - (this.y + this.h / 2);
+                const d = Math.hypot(tx, ty) || 1;
+                const vx = tx / d * tpl.projectileSpeed;
+                const vy = ty / d * tpl.projectileSpeed;
                 const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, vx, vy);
                 b.color = '#ff5050';
                 globalEnemyBullets.push(b);
+                audio.sfx?.('shoot');
             }
         }
     }
@@ -176,9 +278,19 @@ class Enemy {
                level.isSolid(this.x + this.w - 2, this.y + this.h + 1);
     }
 
-    hurt(dmg, knockDir = 0) {
+    hurt(dmg, knockDir = 0, opts = {}) {
         this.hp -= dmg;
         this.hitFlash = 6;
+        // Knockback push — SPREAD weapon and contact-hits shove the enemy back
+        if (opts.knockBack) {
+            this.vx = (this.vx || 0) + knockDir * opts.knockBack;
+            this.knockStun = Math.max(this.knockStun || 0, opts.knockBack > 1.5 ? 10 : 6);
+        }
+        // Burn DOT — FLAME applies a damage-over-time tick
+        if (opts.burn) {
+            this.burnTimer = Math.max(this.burnTimer || 0, opts.burn);
+            this.burnDPS = opts.burnDPS || 0.05;
+        }
         audio.sfx('bossHit');
         if (this.hp <= 0) {
             this.alive = false;
@@ -187,6 +299,29 @@ class Enemy {
             return true;
         }
         return false;
+    }
+
+    _tickStatus() {
+        // Burn DOT — small recurring damage with flame particle
+        if (this.burnTimer > 0) {
+            this.burnTimer--;
+            this.hp -= this.burnDPS || 0.05;
+            if (this.burnTimer % 6 === 0) {
+                particles.spawn(
+                    this.x + Math.random() * this.w,
+                    this.y + Math.random() * (this.h / 2),
+                    (Math.random() - 0.5) * 0.4, -0.6 - Math.random() * 0.4,
+                    14 + Math.random() * 4, '#ff8050', 1, -0.04
+                );
+            }
+            if (this.hp <= 0) {
+                this.alive = false;
+                particles.explosion(this.x + this.w / 2, this.y + this.h / 2);
+                audio.sfx('explode');
+            }
+        }
+        // Knock stun — block AI updates briefly
+        if (this.knockStun > 0) this.knockStun--;
     }
 
     intersects(box) {
@@ -223,6 +358,24 @@ class Enemy {
         } else {
             drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
         }
+        // Owl-pause cue: small "!" floating above enemy head — distracted
+        if (this.owlPause > 0) {
+            const px = dx + this.w / 2;
+            const py = dy - 6 + Math.sin(this.timer * 0.3) * 1;
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(Math.round(px), Math.round(py), 1, 3);
+            ctx.fillRect(Math.round(px), Math.round(py + 4), 1, 1);
+        }
+        // Knock-stun cue: tiny stars circle the head
+        if (this.knockStun > 0) {
+            const px = dx + this.w / 2;
+            const py = dy - 2;
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < 3; i++) {
+                const a = this.timer * 0.2 + i * (Math.PI * 2 / 3);
+                ctx.fillRect(Math.round(px + Math.cos(a) * 4), Math.round(py + Math.sin(a) * 2), 1, 1);
+            }
+        }
         // Charge tell: red flash on cabinet wind-up
         if (this.behavior === 'charge' && this.subState === 1) {
             const t = this.subTimer % 8;
@@ -231,16 +384,24 @@ class Enemy {
                 ctx.fillRect(dx, dy - 4, this.w, 2);
             }
         }
-        // Sniper telegraph
-        if (this.behavior === 'hover_sniper' && this.subTimer > 0) {
-            ctx.fillStyle = '#ff5050';
+        // Sniper telegraph — laser dot at aim point, intensifying as fire approaches
+        if (this.behavior === 'hover_sniper' && this.subTimer > 0 && this._aimX != null) {
             const cx = dx + this.w / 2;
             const cy = dy + this.h / 2;
-            const len = (this.tpl.beamCharge - this.subTimer) * 8;
-            // We don't know player position here without extra plumbing; draw warning glow
-            ctx.fillRect(cx - 1, cy - 1, 2, 2);
-            ctx.globalAlpha = 0.4;
-            ctx.fillRect(cx - len, cy - 1, len * 2, 2);
+            const ax = Math.round(this._aimX - camera.viewX);
+            const ay = Math.round(this._aimY - camera.viewY);
+            const t = 1 - (this.subTimer / this.tpl.beamCharge);
+            // Aim line: faint → bright
+            ctx.globalAlpha = 0.15 + t * 0.45;
+            ctx.strokeStyle = '#ff5050';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay); ctx.stroke();
+            // Pulsing target dot
+            ctx.globalAlpha = 0.4 + Math.sin(this.timer * 0.5) * 0.3 + t * 0.3;
+            ctx.fillStyle = '#ff5050';
+            const dotR = 2 + Math.round(t * 3);
+            ctx.fillRect(ax - dotR, ay - 1, dotR * 2, 2);
+            ctx.fillRect(ax - 1, ay - dotR, 2, dotR * 2);
             ctx.globalAlpha = 1;
         }
     }
@@ -575,17 +736,56 @@ export class EnemyManager {
     constructor() {
         this.enemies = [];
         this.bullets = globalEnemyBullets;
+        this.stageScale = 1;        // hp + score multiplier
+        this.stageContactBonus = 0; // flat add to contact damage
+        this.stageFireRate = 1;     // <1 = faster enemy fire (per stage)
     }
     clear() {
         this.enemies.length = 0;
         this.bullets.length = 0;
     }
+    // Owl hoot: enemies within radius briefly look up — attack timers freeze
+    // for `frames` ticks. Free-shot opportunity for the player.
+    applyOwlPause(x, y, radius = 100, frames = 30) {
+        const r2 = radius * radius;
+        for (const e of this.enemies) {
+            const dx = e.x + e.w / 2 - x;
+            const dy = e.y + e.h / 2 - y;
+            if (dx * dx + dy * dy <= r2) {
+                e.owlPause = Math.max(e.owlPause || 0, frames);
+            }
+        }
+    }
+
+    setStageDifficulty(stageN) {
+        // Stages 1..9 (9 = secret). Smooth ramp; secret hardest.
+        // 1: baseline, 2: +10% hp, ... 8: +70% hp + 1 contact dmg, 9: +100% hp + 1 dmg
+        const s = Math.max(1, Math.min(9, stageN));
+        this.stageScale = 1 + (s - 1) * 0.12;
+        this.stageContactBonus = s >= 7 ? 1 : 0;
+        this.stageFireRate = Math.max(0.55, 1 - (s - 1) * 0.06);
+    }
     spawn(x, y, type) {
-        this.enemies.push(new Enemy(x, y - TYPES[type].h, type));
+        const e = new Enemy(x, y - TYPES[type].h, type);
+        // Apply stage scaling
+        e.hp = Math.ceil(e.hp * this.stageScale);
+        e.maxHp = e.hp;
+        e.score = Math.round(e.score * this.stageScale);
+        e.contactDmg += this.stageContactBonus;
+        e._fireRateMult = this.stageFireRate;
+        // Initial spawns get a longer grace — gives the player a full second to
+        // orient before any pre-placed enemy can fire. Mid-stage spawns
+        // (mini-boss reinforcements) keep the default 30f grace.
+        if (this._initialSpawnPhase) e._grace = 60;
+        this.enemies.push(e);
     }
     spawnBoss(x, y, kind) {
         const tpl = BOSS_TEMPLATES[kind];
         const boss = new Boss(x - tpl.w / 2, y - tpl.h, kind);
+        // Bosses scale less aggressively — already tuned individually
+        const bossScale = 1 + (this.stageScale - 1) * 0.5;
+        boss.hp = Math.ceil(boss.hp * bossScale);
+        boss.maxHp = boss.hp;
         this.enemies.push(boss);
         return boss;
     }
@@ -601,9 +801,26 @@ export class EnemyManager {
             }
             e.update(level, player);
 
-            // Contact damage
+            // Dash-attack melee: knife slash hits any enemy the player intersects during the dash.
+            // Each enemy can only be hit once per dash via dashAtkHits set.
+            if (player.state === 'dashatk' && e.intersects(player)) {
+                if (!player.dashAtkHits.has(e)) {
+                    player.dashAtkHits.add(e);
+                    const killed = e.hurt(3, player.facing, { knockBack: 1.8 });
+                    particles.hitBurst?.(e.x + e.w / 2, e.y + e.h / 2, '#ffe070');
+                    player.dmgDealt['MELEE'] = (player.dmgDealt['MELEE'] || 0) + 3;
+                    if (killed) {
+                        player.kills++;
+                        player.combo++;
+                        player.maxCombo = Math.max(player.maxCombo, player.combo);
+                        player.score += 150 + player.combo * 10;
+                        player.requestShake = Math.max(player.requestShake || 0, 2.5);
+                    }
+                }
+            }
+            // Contact damage (skip during dash i-frames already handled by player.iFrames)
             if (player.iFrames === 0 && e.intersects(player)) {
-                player.hurt(e.contactDmg, e.x < player.x ? 1 : -1);
+                player.hurt(e.contactDmg, e.x < player.x ? 1 : -1, e.x + e.w / 2, e.y + e.h / 2);
             }
 
             // Player bullets vs enemy
@@ -611,7 +828,13 @@ export class EnemyManager {
                 const b = player.bullets[bi];
                 if (b.piercing && b.hits.has(e)) continue;
                 if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
-                    const killed = e.hurt(b.damage, e.x < player.x ? 1 : -1);
+                    // Weapon-specific impact opts: knockback / burn DOT
+                    const opts = {};
+                    if (b.weapon === 'SPREAD') opts.knockBack = 1.4;
+                    if (b.weapon === 'THUNDER') opts.knockBack = 2.0;
+                    if (b.weapon === 'FLAME')  { opts.burn = 90; opts.burnDPS = 0.08; }
+                    const knockDir = b.vx > 0 ? 1 : (b.vx < 0 ? -1 : (e.x < player.x ? 1 : -1));
+                    const killed = e.hurt(b.damage, knockDir, opts);
                     player.onBulletHit(b, e, killed);
                     if (b.homing) b._target = null;
                     if (killed) break;
@@ -624,10 +847,13 @@ export class EnemyManager {
             const b = this.bullets[i];
             b.update(level);
             if (b.life <= 0) { this.bullets.splice(i, 1); continue; }
+            // Ducked-in-water: shrink the hittable region to the lower body only,
+            // so bullets at chest/head pass over you.
+            const hitTop = player.waterHidden ? player.y + player.h - 4 : player.y;
             if (player.iFrames === 0 &&
                 b.x > player.x && b.x < player.x + player.w &&
-                b.y > player.y && b.y < player.y + player.h) {
-                player.hurt(b.dmg, b.vx > 0 ? -1 : 1);
+                b.y > hitTop && b.y < player.y + player.h) {
+                player.hurt(b.dmg, b.vx > 0 ? -1 : 1, b.x, b.y);
                 this.bullets.splice(i, 1);
             }
         }
@@ -651,6 +877,11 @@ export class EnemyManager {
     }
 
     activeBoss() {
-        return this.enemies.find(e => e instanceof Boss && e.alive);
+        // Mini-bosses spawn at the halfway point but should NOT register as "the" boss —
+        // stage-clear logic keys off this returning null after the real boss dies.
+        return this.enemies.find(e => e instanceof Boss && e.alive && !e.isMini);
+    }
+    activeMiniBoss() {
+        return this.enemies.find(e => e instanceof Boss && e.alive && e.isMini);
     }
 }

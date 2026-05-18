@@ -3,8 +3,8 @@ export const GAME = Object.freeze({
     W: 256,
     H: 224,
     TILE: 16,
-    GRAVITY: 0.32,
-    MAX_FALL: 4.6,
+    GRAVITY: 0.36,
+    MAX_FALL: 5.4,
     FRICTION: 0.85,
     AIR_FRICTION: 0.94,
     TARGET_FPS: 60,
@@ -26,6 +26,21 @@ export const TILE = Object.freeze({
     EXIT: 9,        // stage end trigger
 });
 
+// Soundtrack gallery — what shows in the SOUNDTRACK pause menu.
+// Add a new entry when a new music file is wired into audio.js's FILE_TRACKS.
+// `track` is the FILE_TRACKS key. `title` and `mood` are display strings.
+export const TRACK_MANIFEST = [
+    { track: 'title',   title: 'DREAM',   mood: 'TITLE + STORY',        author: 'OWL HALL' },
+    { track: 'jungle',  title: 'REVENGE', mood: 'GAMEPLAY + BOSS',      author: 'OWL HALL' },
+    // FUTURE: per-stage tracks slot in here when added.
+    // { track: 'breakroom',  title: '...', mood: 'BREAK ROOM',  author: '...' },
+    // { track: 'serverroom', title: '...', mood: 'SERVER ROOM', author: '...' },
+    // { track: 'boardroom',  title: '...', mood: 'BOARD ROOM',  author: '...' },
+    // { track: 'keynote',    title: '...', mood: 'KEYNOTE',     author: '...' },
+    // { track: 'founder',    title: '...', mood: 'FOUNDER',     author: '...' },
+    // { track: 'cloud',      title: '...', mood: 'THE CLOUD',   author: '...' },
+];
+
 // Player state machine. State transitions live in player.js.
 export const STATE = Object.freeze({
     IDLE: 'idle',
@@ -38,6 +53,7 @@ export const STATE = Object.freeze({
     CRAWL: 'crawl',         // prone + moving
     SLIDE: 'slide',
     ROLL: 'roll',           // forward dodge roll (double-tap direction)
+    DASH_ATTACK: 'dashatk', // forward dash + knife slash (double-tap toward enemy)
     BACKDASH: 'backdash',   // defensive dash backwards with i-frames
     CLIMB: 'climb',         // on ladder/vine
     COVER: 'cover',         // pressed up at a cover spot — invulnerable but can't move
@@ -103,4 +119,29 @@ export const CAMERA = Object.freeze({
     DEADZONE_Y: 48,
     LOOK_AHEAD: 28,
     SHAKE_DECAY: 0.85,
+});
+
+// Ambient layer tuning. All cooldowns are in FRAMES (60 fps target).
+// One place to retune the atmosphere — designers can sweep these without
+// hunting through parallax.js / player.js / enemies.js.
+export const AMBIENT = Object.freeze({
+    BAT_INITIAL_WARMUP_F: 60 * 8,           // 8s before first flock can spawn
+    BAT_FLOCK_GAP_MIN_F:  60 * 15,          // 15s minimum between flocks
+    BAT_FLOCK_GAP_MAX_F:  60 * 30,          // 30s maximum
+    BAT_CHITTER_PERIOD_F: 25,
+    OWL_HOOT_INITIAL_F:   60 * 3,           // 3s after stage start
+    OWL_HOOT_COOLDOWN_F:  60 * 6,           // 6s between hoots while near owl
+    OWL_NEAR_RADIUS:      80,               // px around owl
+    OWL_HOOT_PROB:        0.01,             // chance per frame to hoot while near
+    OWL_PAUSE_RADIUS:     120,              // px radius for enemy freeze
+    OWL_PAUSE_FRAMES:     30,               // frame freeze duration
+    OWL_BLINK_GAP_F:      120,              // min frames between blinks
+    FROG_CROAK_MIN_GAP_F: 180,
+    FROG_CROAK_PROB:      0.02,
+    HEARTBEAT_PERIOD_F:   70,               // frames between heartbeats at low HP
+    DAMAGE_INDICATOR_F:   45,               // arrow-on-screen duration
+    HIT_PAUSE_KILL_F:     2,                // hit-pause on enemy kill
+    HIT_PAUSE_HURT_F:     4,                // hit-pause on player hurt
+    SLOWMO_BOSS_PHASE_F:  30,               // boss phase-2 slow-mo
+    SLOWMO_SECOND_CHANCE_F: 45,             // bullet-time rescue slow-mo
 });
