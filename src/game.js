@@ -98,7 +98,6 @@ export class Game {
 
         this.currentStage = 1;
         this.unlockedStage = 1;
-        this.runScore = 0;
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
