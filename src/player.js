@@ -167,6 +167,16 @@ export class Player {
             this.slideTimer--;
             this.vx = this.facing * SLIDE_V * (this.slideTimer / SLIDE_FRAMES + 0.4);
             this.vy += GAME.GRAVITY;
+            // Dust trail kicks up under the slide — sells the speed/friction
+            if (this.onGround && this.slideTimer % 2 === 0) {
+                particles.spawn(
+                    this.x + this.w / 2 - this.facing * 4,
+                    this.y + this.h - 1,
+                    -this.facing * 0.5 + (Math.random() - 0.5) * 0.3,
+                    -0.3 - Math.random() * 0.3,
+                    10 + Math.random() * 4, '#c0a080', 1, 0.04
+                );
+            }
             if (this.slideTimer <= 0) this._endSlide();
             // Allow shooting during slide
             if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
@@ -198,6 +208,16 @@ export class Player {
             this.backdashTimer--;
             this.vx = -this.facing * BACKDASH_V * (this.backdashTimer / BACKDASH_FRAMES);
             this.vy += GAME.GRAVITY * 0.6;
+            // Burst of light-blue speed motes drag behind the backdash
+            if (this.backdashTimer % 2 === 0) {
+                particles.spawn(
+                    this.x + this.w / 2 + this.facing * 4,
+                    this.y + this.h / 2 + (Math.random() - 0.5) * 6,
+                    this.facing * 0.4 + (Math.random() - 0.5) * 0.3,
+                    -0.1 + (Math.random() - 0.5) * 0.3,
+                    8 + Math.random() * 4, '#a0c0ff', 1, -0.02
+                );
+            }
             if (this.backdashTimer <= 0) this.state = STATE.IDLE;
             // Can shoot while backdashing — Contra style
             if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
