@@ -649,7 +649,7 @@ export class Game {
         this.enemies.draw(ctx, this.camera);
         this.player.draw(ctx, this.camera, this.level);
         particles.draw(ctx, this.camera);
-        particles.drawFloats(ctx, this.camera, drawText);
+        particles.drawFloats(ctx, this.camera, drawText, drawTextOutlined);
         // Grass tips paint OVER player + enemies so the hidden read is sold.
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);

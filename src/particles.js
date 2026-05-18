@@ -277,7 +277,7 @@ class ParticleSystem {
         for (const p of this.pool) if (p.alive) p.draw(ctx, camera);
     }
 
-    drawFloats(ctx, camera, drawText) {
+    drawFloats(ctx, camera, drawText, drawTextOutlined = null) {
         for (const f of this.floats) {
             if (!f.alive) continue;
             const dx = Math.round(f.x - camera.x);
@@ -289,7 +289,14 @@ class ParticleSystem {
             const bounce = 1 + Math.sin(intro * Math.PI) * 0.4;
             const baseScale = (f.scale || 1) * (intro < 1 ? bounce : 1);
             ctx.globalAlpha = Math.max(0, Math.min(1, a));
-            drawText(ctx, f.text, dx, dy, f.color, Math.round(baseScale), 'center');
+            // Outline if the helper is available — float text reads against
+            // painted bgs without it, since the color often clashes with the
+            // bg tones (yellow damage numbers vs. jungle moonlight, etc).
+            if (drawTextOutlined) {
+                drawTextOutlined(ctx, f.text, dx, dy, f.color, '#000', Math.round(baseScale), 'center');
+            } else {
+                drawText(ctx, f.text, dx, dy, f.color, Math.round(baseScale), 'center');
+            }
             ctx.globalAlpha = 1;
         }
     }
