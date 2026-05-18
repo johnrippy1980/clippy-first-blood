@@ -428,7 +428,9 @@ class Audio {
         o.type = type;
         o.frequency.setValueAtTime(f1, t);
         o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), t + dur);
-        g.gain.setValueAtTime(vol, t);
+        // Short attack ramp prevents the speaker-pop on hard onset.
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(vol, t + 0.003);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + dur + 0.02);
@@ -443,7 +445,13 @@ class Audio {
         filt.type = type === 'bp' ? 'bandpass' : (type === 'lp' ? 'lowpass' : 'highpass');
         filt.frequency.value = filterFreq; filt.Q.value = q;
         const g = this.ctx.createGain();
-        g.gain.setValueAtTime(vol, t);
+        // Ramp UP from 0 over the first few ms — a jump from 0 to vol at t
+        // produces an audible click at the speaker that's independent of the
+        // intended noise character. ~2ms attack kills the click without
+        // smearing the shape of the noise burst itself.
+        const attack = Math.min(0.003, dur * 0.2);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(vol, t + attack);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.connect(filt).connect(g).connect(this.sfxBus);
         src.start(t); src.stop(t + dur + 0.05);
@@ -453,13 +461,14 @@ class Audio {
     _gunShot(t, dur, vol, type, fStart, fEnd) {
         // Layered: noise burst + thump + tonal click
         this._noise(t, dur, vol * 0.7, fStart, 'bp', 0.6);
-        // Thump (sub kick)
+        // Thump (sub kick) — short attack ramp to avoid click on hard onset
         const o = this.ctx.createOscillator();
         const g = this.ctx.createGain();
         o.type = 'sine';
         o.frequency.setValueAtTime(120, t);
         o.frequency.exponentialRampToValueAtTime(40, t + dur);
-        g.gain.setValueAtTime(vol * 0.55, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(vol * 0.55, t + 0.003);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + dur + 0.05);

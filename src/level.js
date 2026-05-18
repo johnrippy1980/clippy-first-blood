@@ -4,6 +4,101 @@
 import { TILE, GAME, THEME } from './constants.js';
 import { sprites } from './sprites.js';
 
+// ============================================================
+// Tall-grass sprite cache. We bake 4 sway frames once into a row of
+// offscreen canvases so per-tile draws are just blits, and the bends
+// are real curves (parabolic) instead of fixed 1px vertical bars.
+// ============================================================
+const GRASS_FRAME_W = 16;   // tile width
+const GRASS_FRAME_H = 22;   // overshoot above the tile so blades poke up
+const GRASS_FRAMES = 4;
+let _grassSprites = null;   // [bgCanvas[], fgCanvas[]] — built lazily on first use
+
+function _buildGrassSprites() {
+    if (_grassSprites) return _grassSprites;
+    if (typeof document === 'undefined') {
+        _grassSprites = { bg: [], fg: [] };
+        return _grassSprites;
+    }
+    const bg = [];
+    const fg = [];
+    // 5 blades per tile, each with a random hue between dark and bright green,
+    // a parabolic bend amount, and a height. Deterministic via fixed seeds so
+    // every grass tile looks the same across frames (the SWAY is what differs).
+    const blades = [];
+    const BLADE_COLORS_BG = ['#1e3812', '#2a4a1c', '#1a3010', '#244018'];
+    const BLADE_COLORS_FG = ['#4a8024', '#3a6024', '#5a9028', '#3a5818'];
+    const TIP_COLORS = ['#a8c844', '#8eb838', '#c0d860'];
+    for (let i = 0; i < 6; i++) {
+        // Stable pseudo-random per blade index — no Math.random in render hot path.
+        const h = (i * 2654435761) >>> 0;
+        const baseX = i * 3 + ((h >> 3) & 1);      // wider gaps so blades read separately
+        const tipH = 12 + ((h >> 5) % 9);          // 12..20 px tall
+        const bendDir = ((h >> 7) & 1) ? 1 : -1;   // left or right curl
+        blades.push({
+            x: baseX,
+            tipH,
+            bendDir,
+            bendAmt: 2 + ((h >> 9) % 3),           // 2..4 px peak deflection — more visible curl
+            bg: BLADE_COLORS_BG[(h >> 11) % BLADE_COLORS_BG.length],
+            fg: BLADE_COLORS_FG[(h >> 13) % BLADE_COLORS_FG.length],
+            tip: TIP_COLORS[(h >> 15) % TIP_COLORS.length],
+        });
+    }
+    for (let f = 0; f < GRASS_FRAMES; f++) {
+        // Per-frame wind phase — sin oscillation across the 4 frames.
+        // Amplitude 1.0 means a blade with bendAmt=4 bends by 4px at extremes.
+        const wind = Math.sin((f / GRASS_FRAMES) * Math.PI * 2) * 1.0;
+        for (const layer of ['bg', 'fg']) {
+            const cvs = document.createElement('canvas');
+            cvs.width = GRASS_FRAME_W;
+            cvs.height = GRASS_FRAME_H;
+            const ctx = cvs.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+            // Background pass paints the dark mat at the base
+            if (layer === 'bg') {
+                ctx.fillStyle = 'rgba(20, 32, 16, 0.45)';
+                ctx.fillRect(0, GRASS_FRAME_H - 4, GRASS_FRAME_W, 4);
+            }
+            // Walk every blade. For each y in the blade height, plot a pixel
+            // at the x = base + bend(y) where bend follows a parabola from 0
+            // at the root to bendAmt*wind*bendDir at the tip.
+            for (const b of blades) {
+                const baseY = GRASS_FRAME_H - 1;
+                const tipY = baseY - b.tipH;
+                // Tone — fg pass paints the brighter sides of each blade
+                const stalkColor = (layer === 'fg') ? b.fg : b.bg;
+                for (let py = baseY; py >= tipY; py--) {
+                    const t = (baseY - py) / b.tipH;     // 0 at base, 1 at tip
+                    const bend = (t * t) * b.bendAmt * wind * b.bendDir;
+                    const px = Math.round(b.x + bend);
+                    if (px < 0 || px >= GRASS_FRAME_W) continue;
+                    // Stalk pixel
+                    ctx.fillStyle = stalkColor;
+                    ctx.fillRect(px, py, 1, 1);
+                    // Brighter highlight on the leeward edge (one pixel right)
+                    if (layer === 'fg' && t > 0.3 && t < 0.95) {
+                        ctx.fillStyle = b.fg;
+                        ctx.fillRect(px + b.bendDir, py, 1, 1);
+                    }
+                }
+                // Tip cap — bright on fg pass only
+                if (layer === 'fg') {
+                    const tBend = b.bendAmt * wind * b.bendDir;
+                    const tipX = Math.round(b.x + tBend);
+                    ctx.fillStyle = b.tip;
+                    if (tipX >= 0 && tipX < GRASS_FRAME_W) {
+                        ctx.fillRect(tipX, tipY, 1, 1);
+                    }
+                }
+            }
+            (layer === 'bg' ? bg : fg).push(cvs);
+        }
+    }
+    _grassSprites = { bg, fg };
+    return _grassSprites;
+}
+
 const GROUND_BITMAP_KEY = {
     [THEME.JUNGLE]:     'ground_jungle',
     [THEME.BREAKROOM]:  'ground_breakroom',
@@ -1095,31 +1190,21 @@ export class Level {
         }
     }
 
-    // Jungle: tall grass blades, two-tone green, swaying tips.
+    // Jungle: tall grass — baked sprite, 4 sway frames cycled by tileAnimTick.
+    // Each tile's frame is staggered by column so adjacent tiles don't sway
+    // in sync, which would read as one rigid wave instead of a wind field.
     _drawHideJungle(ctx, x, y, c, foreground) {
         const T = GAME.TILE;
+        const set = _buildGrassSprites();
+        const frames = foreground ? set.fg : set.bg;
+        if (!frames.length) return;   // headless smoke path — no document
         const t2 = this.tileAnimTick;
-        const sway = ((t2 + c * 3) & 7) < 4 ? 0 : 1;
-        if (!foreground) {
-            ctx.fillStyle = 'rgba(20, 32, 16, 0.45)';
-            ctx.fillRect(x, y + T - 4, T, 4);
-        }
-        const yTop = foreground ? y - 14 : y - 6;
-        const yBot = foreground ? y + 2  : y + T;
-        ctx.fillStyle = '#2a4a1c';
-        for (let i = 0; i < 5; i++) {
-            const bx = x + i * 3 + 1 + ((i + sway) & 1);
-            ctx.fillRect(bx, yTop, 1, yBot - yTop);
-        }
-        ctx.fillStyle = foreground ? '#6a9c34' : '#3a6024';
-        for (let i = 0; i < 3; i++) {
-            const bx = x + 2 + i * 5 + ((i ^ sway) & 1);
-            ctx.fillRect(bx, yTop + 1, 1, (yBot - yTop) - 2);
-        }
-        if (foreground && (t2 + c) & 2) {
-            ctx.fillStyle = '#a8c844';
-            ctx.fillRect(x + 4 + ((t2 + c) & 7), yTop, 1, 1);
-        }
+        const frame = (Math.floor(t2 / 2) + c) & 3;   // ~8 ticks per frame
+        const img = frames[frame];
+        // Sprite bottom aligns to tile bottom (y + T) so blades poke
+        // upward into the air above.
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, x, y + T - GRASS_FRAME_H);
     }
 
     // Breakroom: low table with hanging tablecloth — duck under to hide.

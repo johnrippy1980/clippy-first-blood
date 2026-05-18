@@ -976,20 +976,11 @@ export class Player {
             ctx.fillRect(arcCx - this.facing, arcCy - 1, this.facing * 2, 3);
         }
 
-        // Aim crosshair at actual cursor + thin lead line from player
+        // Aim crosshair at actual cursor. The lead-line from player-to-cursor
+        // was previously drawn here but it added visual noise without helping
+        // the player aim (the crosshair already shows the target); removed.
         if (input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
-            const px = this.x + this.w / 2 - camera.viewX;
-            const py = this.y + this.h / 2 - camera.viewY;
             const mx = input.mouseX, my = input.mouseY;
-            // Faint lead line, dashed look using a few segments
-            ctx.fillStyle = 'rgba(255,80,80,0.35)';
-            const segs = 6;
-            for (let i = 1; i < segs; i += 2) {
-                const t1 = i / segs, t2 = (i + 1) / segs;
-                const x1 = px + (mx - px) * t1, y1 = py + (my - py) * t1;
-                const x2 = px + (mx - px) * t2, y2 = py + (my - py) * t2;
-                ctx.fillRect(Math.round((x1 + x2) / 2), Math.round((y1 + y2) / 2), 1, 1);
-            }
             // Crosshair: 4 bars + center dot, with a pulsing outer ring so the
             // reticle stays findable against busy painted bgs.
             const cx = Math.round(mx), cy = Math.round(my);
@@ -1020,14 +1011,17 @@ export class Player {
             const bx = Math.round(b.x - camera.viewX);
             const by = Math.round(b.y - camera.viewY);
             if (b.weapon === 'LASER') {
-                // Long beam — trail to previous position so it reads as a streak
-                const px = Math.round((b.prevX ?? b.x) - camera.viewX);
-                const py = Math.round((b.prevY ?? b.y) - camera.viewY);
-                ctx.strokeStyle = b.color;
-                ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(bx, by); ctx.stroke();
+                // Short cyan dart — outer glow + bright core. Previous render
+                // drew a continuous prev→current beam that read as a hard
+                // white aim-line across the screen, which players described
+                // as "weird". Now it's a focused projectile, not a streak.
+                ctx.fillStyle = b.color;
+                ctx.globalAlpha = 0.55;
+                ctx.fillRect(bx - 2, by - 1, 5, 3);
+                ctx.globalAlpha = 1;
+                ctx.fillRect(bx - 1, by, 3, 1);
                 ctx.fillStyle = '#fff';
-                ctx.fillRect(bx - 1, by - 1, 2, 2);
+                ctx.fillRect(bx, by, 1, 1);
             } else if (b.weapon === 'THUNDER') {
                 let ly = by;
                 ctx.fillStyle = '#fffac8';
