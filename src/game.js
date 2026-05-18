@@ -39,6 +39,22 @@ const OPTIONS_ITEMS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSI
 const OPTIONS_KEYS = ['musicVol', 'sfxVol', 'scanlines', 'shakeScale', 'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
+// Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
+// shown over the painted card as Clippy progresses through his hit list.
+// First line is Clippy's voice / inner thought, second is location flavor.
+// Inter-stage cinematic dialog. Top line ≤22 chars, bottom line ≤28 chars
+// so the procedural pixel font (~5px glyph) fits inside the 256px viewport.
+const STAGE_CARD_DIALOG = {
+    2: ['ONE DOWN.',              'COFFEE\'S STILL HOT.'],
+    3: ['DOC FORMATTER. DEAD.',   'UNPLUG THE SERVER FARM.'],
+    4: ['THE STACK\'S THINNING.', 'BOARDROOM. THE SUITS.'],
+    5: ['BALLMER WAS A WARM-UP.', 'THE SHOWMAN AWAITS.'],
+    6: ['THE FOUNDER. FINALLY.',  'WHERE IT ALL BEGAN.'],
+    7: ['THE OTHER CLIPPY.',      'NO MORE WARM-UPS.'],
+    8: ['THE ALGORITHM REMAINS.', 'THE CLOUD. NO RETURN.'],
+    9: ['SOMETHING\'S OFF.',      'THE RECYCLE BIN CALLS.'],
+};
+
 const STORY_PAGES = [
     [
         'CLIPPY HAD A FAMILY ONCE.',
@@ -1050,6 +1066,24 @@ export class Game {
         ctx.fillRect(0, 0, GAME.W, barH);
         ctx.fillRect(0, GAME.H - barH, GAME.W, barH);
 
+        // Inter-stage dialog beats in the TOP letterbox.
+        // Beat 1 fades in at t > 30, beat 2 at t > 90. Each holds until card exit.
+        const dialog = STAGE_CARD_DIALOG[next];
+        if (dialog) {
+            if (t > 30) {
+                const k = Math.min(1, (t - 30) / 25);
+                ctx.globalAlpha = k;
+                drawText(ctx, dialog[0], GAME.W / 2, 10, '#ffe070', 1, 'center');
+                ctx.globalAlpha = 1;
+            }
+            if (t > 90) {
+                const k = Math.min(1, (t - 90) / 25);
+                ctx.globalAlpha = k;
+                drawText(ctx, dialog[1], GAME.W / 2, 19, '#c0a0d0', 1, 'center');
+                ctx.globalAlpha = 1;
+            }
+        }
+
         // Stage name + tagline appearing in the lower letterbox
         const stg = STAGES[next];
         if (stg) {
@@ -1067,8 +1101,10 @@ export class Game {
                 ctx.globalAlpha = 1;
             }
         }
+        // Blinking "X" hint in the upper-right corner — small footprint so it doesn't
+        // crowd the dialog beats below, and the player learns the input quickly anyway.
         if (t > 130 && (t % 60) < 40) {
-            drawText(ctx, 'X TO CONTINUE', GAME.W - 4, 22, '#a08090', 1, 'right');
+            drawText(ctx, 'X >', GAME.W - 4, 2, '#a08090', 1, 'right');
         }
     }
 
