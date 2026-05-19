@@ -447,6 +447,13 @@ export class Game {
         if (this.unlockedStage > 1) {
             drawText(ctx, 'DOWN: STAGE SELECT', GAME.W / 2, GAME.H - 24, '#c0a0d0', 1, 'center');
         }
+        // Personal best — TOP TIER achievement gates on >=100k, but the
+        // player never saw their current best until they hit it. Show it on
+        // the title once they've scored at least once so the goal feels real.
+        const best = achievements.stats?.bestScore || 0;
+        if (best > 0) {
+            drawText(ctx, 'HI-SCORE  ' + best.toLocaleString(), GAME.W / 2, GAME.H - 50, '#ffe070', 1, 'center');
+        }
         drawText(ctx, '(C) 2026 OFFICE WARFARE LTD  v1.0', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
     }
 
