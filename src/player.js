@@ -715,7 +715,14 @@ export class Player {
 
     _updateAnim() {
         this.animTimer++;
-        const speed = this.state === STATE.RUN ? 4 : 12;
+        // Run cycle speed scales with horizontal velocity so a sprint frame-
+        // cycles faster than a creep. Falls to 12-frame idle when not running.
+        let speed = 12;
+        if (this.state === STATE.RUN) {
+            const v = Math.abs(this.vx);
+            // 6 frames at low speed → 3 frames at max speed. Sells acceleration.
+            speed = Math.max(3, Math.round(6 - v * 1.5));
+        }
         if (this.animTimer >= speed) {
             this.animTimer = 0;
             this.animFrame = (this.animFrame + 1) % 1024;
