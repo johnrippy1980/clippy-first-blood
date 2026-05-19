@@ -141,7 +141,42 @@ class Audio {
             case 'unlock':   return this._unlockDing(t);
             case 'crateHit': return this._crateHit(t);
             case 'climbRung': return this._climbRung(t);
+            case 'grenadeThrow': return this._grenadeThrow(t);
         }
+    }
+
+    // Grenade throw — short metallic pin-pull click followed by a cloth/air
+    // whoosh as it leaves the hand. Two layers so the tell is recognizable
+    // even mid-combat.
+    _grenadeThrow(t) {
+        // Pin click — bright triangle pop
+        const o = this.ctx.createOscillator();
+        const og = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(1800, t);
+        o.frequency.exponentialRampToValueAtTime(1100, t + 0.02);
+        this._envOn(og, 0.08, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.05);
+        // Whoosh — short HPF noise sweep, slightly delayed so the click
+        // sits in front
+        const dur = 0.16;
+        const start = t + 0.03;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(1400, start);
+        filt.frequency.exponentialRampToValueAtTime(500, start + dur);
+        filt.Q.value = 2.5;
+        const ng = this.ctx.createGain();
+        this._envOn(ng, 0.10, start);
+        ng.gain.exponentialRampToValueAtTime(0.001, start + dur);
+        src.connect(filt).connect(ng).connect(this.sfxBus);
+        src.start(start); src.stop(start + dur + 0.02);
     }
 
     // Metallic ladder tick — short HPF noise + low triangle pluck. Quieter

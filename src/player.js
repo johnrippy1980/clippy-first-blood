@@ -1131,7 +1131,7 @@ export class Player {
             spinSpeed: facing * 0.32,
             alive: true,
         });
-        audio.sfx('slide');  // re-use slide whoosh — close enough to a throw grunt
+        audio.sfx('grenadeThrow');
         particles.dust(cx, cy + 4);
     }
 
