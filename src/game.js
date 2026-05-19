@@ -659,6 +659,11 @@ export class Game {
         this._tickPlayTrackTelemetry(snap);
         this._tickPlayHandleBossPhase();
         if (this._tickPlayHandleBossTriggers()) return;
+        // If a boss trigger just routed us into the BOSS_INTRO cinematic,
+        // bail before the stage-clear gate runs — bossSpawned is now true
+        // but the actual boss enemy doesn't exist yet, which would
+        // mis-trigger _tickPlayHandleStageClear and end the stage.
+        if (this.scene !== SCENE.PLAY) return;
         this._tickPlayHandleStageClear();
         this._tickPlayHandleDeath();
     }
