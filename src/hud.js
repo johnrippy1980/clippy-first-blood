@@ -203,6 +203,29 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(px, 7, 1, 1);
     }
 
+    // MG heat bar — 20px wide bar below the chevrons, fills warm-yellow at
+    // low heat → red at high heat. Pulses red while venting. Only renders
+    // for MG since it's the only weapon with heat.
+    if (player.weapon === 'MG') {
+        const heat = player.mgHeat || 0;
+        const venting = (player.mgVentLock || 0) > 0;
+        const hx = ix + 12;
+        const hy = 11;
+        const hw = 20, hh = 2;
+        ctx.fillStyle = '#1a0810';
+        ctx.fillRect(hx, hy, hw, hh);
+        const fillW = Math.max(0, Math.floor(hw * heat / 100));
+        let hColor;
+        if (venting) {
+            const flash = (performance.now() % 200) < 100;
+            hColor = flash ? '#ff4040' : '#a02020';
+        } else if (heat > 75) hColor = '#ff8030';
+        else if (heat > 40) hColor = '#ffc060';
+        else hColor = '#80c080';
+        ctx.fillStyle = hColor;
+        ctx.fillRect(hx, hy, fillW, hh);
+    }
+
     // Combo + decay bar — bar below the number shrinks as comboTimer drains.
     // Telegraphs the "how long do I have to land the next hit" window so
     // players can keep streaks alive intentionally.

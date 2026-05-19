@@ -124,6 +124,14 @@ export class Player {
         // Recoil visual offset
         this.recoilTimer = 0;
 
+        // MG heat meter — 0..100. Each MG shot adds 8, idle decay -1.5/frame.
+        // At 100 the gun overheats: forced lock for 30 frames, vented-puff
+        // particle burst, audio beat. Encourages tap-fire and makes the
+        // alternate weapons (SPREAD/LASER/HOMING) feel valuable for sustained
+        // pressure. Only applies to MG so power-ups remain a clean upgrade.
+        this.mgHeat = 0;
+        this.mgVentLock = 0;
+
         // Score/stats
         this.score = 0;
         this.kills = 0;
@@ -211,6 +219,21 @@ export class Player {
             if (this.slideTimer <= 0) this._endSlide();
             // Allow shooting during slide
             if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
+            // SLIDE-CANCEL: pressing special (C) mid-slide pivots into the
+            // knife-strike dash. Preserves forward momentum, transfers most
+            // of the slide's i-frames into the dash window, and rewards skilled
+            // chaining — slide under a sniper's bullet, cancel into a knife
+            // strike on the enemy behind. Costs the rest of the slide window
+            // but adds the full dash damage frame.
+            if (input.isPressed('special') && this.state !== STATE.DASH_ATTACK) {
+                this._endSlide();
+                this.state = STATE.DASH_ATTACK;
+                this.dashAtkTimer = DASH_ATK_FRAMES;
+                this.dashAtkHits = new Set();
+                this.iFrames = Math.max(this.iFrames, DASH_ATK_FRAMES - 4);
+                audio.sfx('slide');
+                particles.dust(this.x + this.w / 2, this.y + this.h);
+            }
         } else if (this.state === STATE.ROLL) {
             this.rollTimer--;
             this.vx = this.facing * ROLL_V * (this.rollTimer / ROLL_FRAMES + 0.5);
@@ -738,9 +761,34 @@ export class Player {
 
     // ---------- shooting ----------
     _shoot() {
+        // MG-only overheat gate: while venting, the gun is locked.
+        if (this.weapon === 'MG' && this.mgVentLock > 0) {
+            this.fireCooldown = 2; // small cooldown so we don't poll constantly
+            return;
+        }
         const w = WEAPON[this.weapon];
         const rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
         this.fireCooldown = rate;
+        if (this.weapon === 'MG') {
+            this.mgHeat = Math.min(100, this.mgHeat + 8);
+            if (this.mgHeat >= 100) {
+                this.mgVentLock = 30;
+                this.mgHeat = 100;
+                audio.sfx('comboBreak'); // re-use existing "broken" beat
+                // Steam vent puff from the barrel — short white burst.
+                const mz = this._muzzleWorldPos();
+                for (let i = 0; i < 8; i++) {
+                    particles.spawn(
+                        mz.x, mz.y,
+                        (Math.random() - 0.5) * 1.2,
+                        -0.4 - Math.random() * 0.6,
+                        16 + Math.random() * 8,
+                        '#f0f0ff', 1, -0.06
+                    );
+                }
+                return; // don't fire the shot that triggered the lock
+            }
+        }
 
         // World-space muzzle position — derived from the SAME shoulder + arm +
         // barrel offsets as the visible procedural barrel (_drawAimArm). The
@@ -1354,6 +1402,10 @@ export class Player {
 
         if (this.recoilTimer > 0) this.recoilTimer--;
         if (this._squashFrames > 0) this._squashFrames--;
+        // MG heat decay (always — even mid-fire — but the per-shot add (+8)
+        // outpaces the per-frame -1.5 when held).
+        if (this.mgHeat > 0) this.mgHeat = Math.max(0, this.mgHeat - 1.5);
+        if (this.mgVentLock > 0) this.mgVentLock--;
 
         // Bullets
         for (const b of this.bullets) {
