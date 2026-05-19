@@ -24,6 +24,7 @@ export const ACHIEVEMENT_LIST = [
     { id: 'high_score',    name: 'TOP TIER',        desc: 'SCORE OVER 100,000',                     icon: '$',  gate: s => s.bestScore >= 100000 },
     { id: 'ghillie',       name: 'GHILLIE SUIT',    desc: 'HIDE FROM 10 ENEMIES IN TALL COVER',     icon: '~',  gate: s => (s.enemiesLost || 0) >= 10 },
     { id: 'silent_strike', name: 'SILENT STRIKE',   desc: 'LAND A STEALTH POUNCE KILL',             icon: 'P',  gate: s => (s.pounceKills || 0) >= 1 },
+    { id: 'grenadier',     name: 'GRENADIER',       desc: 'KILL 5 ENEMIES WITH GRENADES',           icon: '^',  gate: s => (s.grenadeKills || 0) >= 5 },
 ];
 
 class Achievements {

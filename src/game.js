@@ -1941,6 +1941,7 @@ export class Game {
             bestScore: this.player.score,
             enemiesLost: this.runStats.enemiesLost,
             pounceKills: (this.player.pounceKills || 0),
+            grenadeKills: this.runStats.grenadeKills,
         });
         this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
         // Fanfare when at least one achievement unlocks this clear. Single
