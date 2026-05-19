@@ -738,13 +738,24 @@ export class Player {
         const mz = this._muzzleWorldPos();
         const baseX = mz.x, baseY = mz.y;
 
+        // Combo damage multiplier — bullets get stronger as the player
+        // sustains a kill streak. Tiers: <10 = 1x (white-tier), 10-24 = 1.25x
+        // (gold), 25-49 = 1.5x (orange), 50+ = 2x (white-hot). Bullet color
+        // shifts to telegraph the tier so the player sees the bonus active.
+        const tier = this.combo >= 50 ? 3 : this.combo >= 25 ? 2 : this.combo >= 10 ? 1 : 0;
+        const COMBO_MULT = [1, 1.25, 1.5, 2.0];
+        const COMBO_COLOR = [w.color, '#ffe070', '#ff9030', '#ffffff'];
+        const comboMult = COMBO_MULT[tier];
+        const bulletColor = COMBO_COLOR[tier];
+
         const fire = (vx, vy) => {
             const b = {
                 x: baseX, y: baseY,
                 vx, vy,
-                damage: w.damage * (1 + (this.weaponLevel - 1) * 0.5),
-                color: w.color,
+                damage: w.damage * (1 + (this.weaponLevel - 1) * 0.5) * comboMult,
+                color: bulletColor,
                 weapon: this.weapon,
+                comboTier: tier,
                 life: 60,
                 piercing: w.piercing || false,
                 homing: w.homing || false,
