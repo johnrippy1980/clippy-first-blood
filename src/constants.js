@@ -147,4 +147,5 @@ export const AMBIENT = Object.freeze({
     HIT_PAUSE_HURT_F:     4,                // hit-pause on player hurt
     SLOWMO_BOSS_PHASE_F:  30,               // boss phase-2 slow-mo
     SLOWMO_SECOND_CHANCE_F: 45,             // bullet-time rescue slow-mo
+    SLOWMO_BOSS_KILL_F:   50,               // dramatic beat on boss kill before stage clear
 });

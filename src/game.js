@@ -754,7 +754,17 @@ export class Game {
     // Stage-clear gate: fires if the (real) boss is dead, or the player
     // crossed an exit tile (debug fallback for no-boss stages).
     _tickPlayHandleStageClear() {
-        if (this.bossSpawned && !this.boss) this._onStageClear();
+        if (this.bossSpawned && !this.boss) {
+            // Boss-kill beat — once per stage, before _onStageClear schedules
+            // the panel. Gauntlet swap-outs short-circuit earlier in the tick
+            // (_tickPlayHandleBossTriggers), so reaching here is a real kill.
+            if (!this._bossKillBeatFired) {
+                this._bossKillBeatFired = true;
+                this.triggerSlowMo(AMBIENT.SLOWMO_BOSS_KILL_F);
+                this.camera.shake(6);
+            }
+            this._onStageClear();
+        }
         const ex = this.player.x + this.player.w / 2;
         const ey = this.player.y + this.player.h;
         if (this.level.isExit(ex, ey)) this._onStageClear();
@@ -1595,6 +1605,7 @@ export class Game {
         this._clearBursts = [];
         this.slowMoFrames = 0;
         this._newlyUnlocked = null;
+        this._bossKillBeatFired = false;
         // Gauntlet queue from boss-rush (stage 7) can survive if the player
         // dies or quits mid-rush. Drop any leftover entries before the next
         // stage so its boss-clear path doesn't try to spawn the next rush boss.
@@ -2299,6 +2310,7 @@ export class Game {
         this._clearScheduled = false;
         this._clearBursts = [];
         this.slowMoFrames = 0;
+        this._bossKillBeatFired = false;
         this.bossSpawned = false;
         this.miniBossSpawned = false;
         this.boss = null;
