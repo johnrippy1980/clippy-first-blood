@@ -306,9 +306,16 @@ export class Player {
             this._handleClimb(level);
         } else if (this.state === STATE.GRAPPLE) {
             this._tickGrapple(level);
+        } else if (this.state === STATE.POUNCE) {
+            this._tickPounce(level);
         } else if (this.state === STATE.COVER) {
             this.vx = 0; this.vy = 0;
             this.iFrames = Math.max(this.iFrames, 2);
+            // Pounce from cover — special button launches the stealth attack.
+            if (input.isPressed('special') && this._pounceTarget) {
+                this._startPounce(this._pounceTarget);
+                return;
+            }
             // Break-out conditions: input release, cover unavailable, or
             // durability drained from incoming fire. coverHp drain happens
             // in enemy bullet tick (when shots hit while in cover).
@@ -575,6 +582,17 @@ export class Player {
             }
         }
 
+        // Stealth pounce: SPECIAL while hidden (grass/water/cover) launches a
+        // spin-jump arc onto the nearest enemy's head for a heavy knife strike.
+        // If the strike doesn't kill, the enemy is stunned and Clippy vaults to
+        // the opposite side. Refreshes one air-jump so the vault can recover
+        // from pit landings.
+        const hidden = this.grassHidden || this.waterHidden || this.state === STATE.COVER;
+        if (input.isPressed('special') && hidden && this._pounceTarget && this.state !== STATE.POUNCE) {
+            this._startPounce(this._pounceTarget);
+            return;
+        }
+
         // Grapple hook: SPECIAL (C) while airborne fires a line in the aim
         // direction. If it finds a solid tile within 80px, Clippy reels in
         // with i-frames during the pull. Boss-fight reposition tool.
@@ -832,7 +850,8 @@ export class Player {
         // States that own themselves
         const owned = [STATE.SLIDE, STATE.CROUCH, STATE.PRONE, STATE.CRAWL,
                        STATE.HURT, STATE.DIE, STATE.ROLL, STATE.DASH_ATTACK,
-                       STATE.BACKDASH, STATE.CLIMB, STATE.COVER, STATE.SPIN_JUMP];
+                       STATE.BACKDASH, STATE.CLIMB, STATE.COVER, STATE.SPIN_JUMP,
+                       STATE.GRAPPLE, STATE.POUNCE];
         if (owned.includes(this.state)) {
             // Reset spin-jump if we land
             if (this.state === STATE.SPIN_JUMP && this.onGround) {
@@ -1717,6 +1736,137 @@ export class Player {
         this.vy = (ay / d) * PULL_SPEED;
         // Cap drift to a max so vertical pulls don't snap-teleport
         this.iFrames = Math.max(this.iFrames, 4);
+    }
+
+    // Stealth pounce — launch a spin-jump arc from cover onto an enemy's head.
+    // Phases:
+    //   ARC_UP (frames 0-7)   — rising arc toward enemy head
+    //   STRIKE (frame 8)      — knife damage hits, stun if survive
+    //   VAULT  (frames 9-18)  — continue arc to opposite side of enemy
+    // After VAULT ends, one airJumpsLeft is granted so the player can recover
+    // from awkward pit landings.
+    _startPounce(target) {
+        // Snapshot target + spawn-side. Pounce path goes from current x to
+        // landing x = (target.x + target.w/2) + side * 14 where `side` is the
+        // OPPOSITE of the player's current side. Enemy gets pre-flagged so
+        // contact-damage doesn't fire mid-arc.
+        const targetCX = target.x + target.w / 2;
+        const playerCX = this.x + this.w / 2;
+        // Vault to opposite side: if Clippy is left of target, land right.
+        const side = playerCX < targetCX ? 1 : -1;
+        this._pounce = {
+            target,
+            phase: 'ARC_UP',
+            timer: 0,
+            startX: this.x,
+            startY: this.y,
+            apexX: targetCX - this.w / 2,           // strike position
+            apexY: target.y - this.h - 2,           // sit on head
+            landX: targetCX + side * 16 - this.w / 2, // vault landing
+            side,
+            struck: false,
+        };
+        this.state = STATE.POUNCE;
+        this.iFrames = Math.max(this.iFrames, 30);
+        this.onCover = false;
+        // If we came from COVER state, releasing input would normally drop us
+        // back to IDLE next tick — but state is now POUNCE so that branch
+        // skips. Just clear the visual cover flag.
+        this.facing = side > 0 ? -1 : 1; // face TOWARD the enemy initially
+        audio.sfx('slide');
+        // Visual: tight ring burst from spawn point
+        particles.dust(playerCX, this.y + this.h);
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            particles.spawn(
+                playerCX, this.y + this.h - 2,
+                Math.cos(a) * 1.2, Math.sin(a) * 1.2 - 0.3,
+                14, '#ffe070', 1, 0.05
+            );
+        }
+    }
+
+    _tickPounce(level) {
+        const p = this._pounce;
+        if (!p) { this.state = STATE.JUMP; return; }
+        // i-frames active throughout. Zero velocities so the post-state-tick
+        // collision pass doesn't drift us away from the scripted arc — we set
+        // x/y directly each frame.
+        this.iFrames = Math.max(this.iFrames, 2);
+        this.vx = 0; this.vy = 0;
+        this.spinAngle = (this.spinAngle || 0) + 0.5;
+        p.timer++;
+        // Phase progression
+        if (p.phase === 'ARC_UP') {
+            // 8-frame parabola from start → apex (target head)
+            const t = Math.min(1, p.timer / 8);
+            // Ease: cubic ease-out for snap-up feel
+            const ease = 1 - Math.pow(1 - t, 2);
+            this.x = p.startX + (p.apexX - p.startX) * ease;
+            // Y arcs up + over: -20px peak above midpoint
+            const midY = (p.startY + p.apexY) / 2 - 20;
+            this.y = (1 - t) * (1 - t) * p.startY
+                    + 2 * (1 - t) * t * midY
+                    + t * t * p.apexY;
+            if (t >= 1) {
+                p.phase = 'STRIKE';
+                p.timer = 0;
+            }
+        } else if (p.phase === 'STRIKE') {
+            // Single-frame damage event, then immediately enter vault
+            if (!p.struck && p.target && p.target.alive) {
+                const killed = p.target.hurt(5, p.side, { knockBack: 0 });
+                p.struck = true;
+                // Visual stab + score
+                particles.hitSpark(p.target.x + p.target.w / 2, p.target.y, '#ffffff');
+                this.requestShake = Math.max(this.requestShake || 0, 3);
+                this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, 4);
+                if (killed) {
+                    this.kills++;
+                    this.combo++;
+                    this.maxCombo = Math.max(this.maxCombo, this.combo);
+                    const points = 200 + this.combo * 12;
+                    this.score += points;
+                    particles.floatingText(
+                        p.target.x + p.target.w / 2, p.target.y - 2,
+                        '+' + points, '#ffe070', 60, -0.8, 1.6
+                    );
+                } else {
+                    // Survived — stun the enemy so the player gets free shots
+                    p.target._stunTimer = 60;
+                    particles.floatingText(
+                        p.target.x + p.target.w / 2, p.target.y - 4,
+                        'STUNNED', '#80e0ff', 50, -0.4, 1
+                    );
+                }
+                audio.sfx('bossHit');
+            }
+            p.phase = 'VAULT';
+            p.timer = 0;
+        } else if (p.phase === 'VAULT') {
+            // 10-frame arc from apex → land position (other side)
+            const t = Math.min(1, p.timer / 10);
+            const ease = 1 - Math.pow(1 - t, 2);
+            this.x = p.apexX + (p.landX - p.apexX) * ease;
+            // Arc up over the head: peak -12px above apex
+            const midY = (p.apexY + p.apexY) / 2 - 12;
+            this.y = (1 - t) * (1 - t) * p.apexY
+                    + 2 * (1 - t) * t * midY
+                    + t * t * p.apexY;
+            if (t >= 1) {
+                // Land on the opposite side; refresh one air-jump so the
+                // player can save themselves from pits / hazards.
+                this.state = STATE.FALL;
+                this.vy = 0;
+                this.vx = p.side * 0.5;
+                this.airJumpsLeft = 1;
+                this.facing = p.side;
+                this._pounce = null;
+                this._pounceTarget = null;
+                // Brief landing dust at the vault end
+                particles.dust(this.x + this.w / 2, this.y + this.h);
+            }
+        }
     }
 
     // Canonical muzzle position in WORLD coordinates. Single source of truth

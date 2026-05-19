@@ -217,6 +217,18 @@ class Enemy {
         if (!this.activated) return;
         // Honor the global stage-start grace — set by EnemyManager on _startStage.
         if (this._grace > 0) { this._grace--; return; }
+        // Pounce-stun: same effect as knock-stun but distinct counter so the
+        // pounce attack can chain without colliding with knockback timers.
+        if ((this._stunTimer || 0) > 0) {
+            // Apply gravity for grounded behaviors so a stunned hopper sits
+            // still instead of floating.
+            if (this.behavior === 'hop' || this.behavior === 'charge') {
+                this.vy = (this.vy || 0) + GAME.GRAVITY;
+                const yRes = level.moveY(this, this.vy, true, this.vy);
+                this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
+            }
+            return;
+        }
         // Knock-stun: skip AI; physics still applies for hop/charge
         if ((this.knockStun || 0) > 0) {
             // Just settle vy on stunned ground enemies, no behavior
@@ -1253,6 +1265,34 @@ export class EnemyManager {
 
     update(level, player) {
         if (this._whizzCooldown > 0) this._whizzCooldown--;
+        // Pounce target scan — while the player is hidden (grass/water/cover),
+        // find the nearest activated enemy within 72px and stash it as
+        // player._pounceTarget. Player tick consumes it on `special` press.
+        // Bosses excluded — too cheesy.
+        const isHidden = player.grassHidden || player.waterHidden || player.state === 'cover';
+        if (isHidden) {
+            let best = null, bestD = 72 * 72;
+            const px = player.x + player.w / 2;
+            const py = player.y + player.h / 2;
+            for (const e of this.enemies) {
+                if (!e.alive || !e.activated) continue;
+                if (e.behavior === 'boss') continue;
+                const dx = (e.x + e.w / 2) - px;
+                const dy = (e.y + e.h / 2) - py;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < bestD) { bestD = d2; best = e; }
+            }
+            player._pounceTarget = best;
+        } else {
+            player._pounceTarget = null;
+        }
+        // Tick enemy stun timers
+        for (const e of this.enemies) {
+            if ((e._stunTimer || 0) > 0) {
+                e._stunTimer--;
+                // Stunned enemies skip their AI (handled by _stunTimer check in update)
+            }
+        }
         // Cull off-screen-far enemies optionally (left for now)
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const e = this.enemies[i];
