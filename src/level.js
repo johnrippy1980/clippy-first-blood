@@ -114,6 +114,7 @@ const P = 2; // platform (one-way)
 const L = 3; // ladder
 const S = 4; // spike
 const C = 7; // cover (theme-specific duck-behind: tree, vending machine, etc.)
+const B = 8; // breakable crumble tile (solid until stood on for ~30 frames)
 const X = 9; // exit
 const G = 10; // tall grass — pass-through, hides player from AI
 
@@ -323,6 +324,10 @@ function makeStage3() {
     platT(g, 10, 50, 2);
     platT(g,  8, 54, 3);
     platT(g, 10, 58, 2);
+    // Crumble bridge across the spike pit between the two raised platforms.
+    // Walking across is fine; standing still crumbles the tile and drops you
+    // into the electric floor below.
+    for (let i = 0; i < 6; i++) setT(g, 10, 52 + i, B);
 
     // Section E (x 60–68): BOSS APPROACH — final platform before exit door.
     platT(g, 9, 62, 4);
@@ -518,6 +523,9 @@ function makeStage6() {
     platT(g, 4, 32, 6);
     spikeRow(g, h - 3, 36, 3);
     ladderT(g, 5, 40, 8);
+    // Crumble bonus pedestal — bridges the catwalk gap at high-tier height.
+    // Players who try to camp the bonus crate will fall back to the spike row.
+    for (let i = 0; i < 4; i++) setT(g, 4, 28 + i, B);
 
     // Section D (x 48–62): CONVERGENCE — paths meet at a vertical climb.
     rectT(g, 4, 48, 1, 8, W);
