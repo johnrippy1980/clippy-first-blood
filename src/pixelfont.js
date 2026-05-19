@@ -79,6 +79,9 @@ export function textWidth(s, scale = 1) {
     return s.length * (CHAR_W + SPACING) * scale - SPACING * scale;
 }
 
+// Tracks chars that fell back to '?' so missing-glyph bugs surface in
+// dev without requiring a visual screenshot. One warn per char per session.
+const _warnedMissing = new Set();
 export function drawText(ctx, s, x, y, color = '#fff', scale = 1, align = 'left') {
     const text = String(s).toUpperCase();
     const w = textWidth(text, scale);
@@ -87,7 +90,16 @@ export function drawText(ctx, s, x, y, color = '#fff', scale = 1, align = 'left'
     let cx = x;
     ctx.fillStyle = color;
     for (const ch of text) {
-        const rows = F[ch] || F['?'];
+        let rows = F[ch];
+        if (!rows) {
+            if (!_warnedMissing.has(ch)) {
+                _warnedMissing.add(ch);
+                if (typeof console !== 'undefined') {
+                    console.warn(`pixelfont: missing glyph '${ch}' (in "${text}"), falling back to '?'`);
+                }
+            }
+            rows = F['?'];
+        }
         for (let r = 0; r < CHAR_H; r++) {
             const bits = rows[r];
             if (!bits) continue;
