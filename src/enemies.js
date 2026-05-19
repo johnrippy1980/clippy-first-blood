@@ -1385,7 +1385,18 @@ export class EnemyManager {
                     if (b.weapon === 'THUNDER') opts.knockBack = 2.0;
                     if (b.weapon === 'FLAME')  { opts.burn = 90; opts.burnDPS = 0.08; }
                     const knockDir = b.vx > 0 ? 1 : (b.vx < 0 ? -1 : (e.x < player.x ? 1 : -1));
-                    const killed = e.hurt(b.damage, knockDir, opts);
+                    // Stun-bonus: follow-up hits on a pounce-stunned target
+                    // deal 1.5x damage. Yellow "STUN+" float telegraphs the
+                    // reward so the pounce→shoot loop has clear payoff.
+                    const stunned = (e._stunTimer || 0) > 0;
+                    const dmg = stunned ? b.damage * 1.5 : b.damage;
+                    if (stunned) {
+                        particles.floatingText(
+                            e.x + e.w / 2, e.y - 6,
+                            'STUN+', '#ffe070', 30, -0.5, 1
+                        );
+                    }
+                    const killed = e.hurt(dmg, knockDir, opts);
                     player.onBulletHit(b, e, killed);
                     if (b.homing) b._target = null;
                     if (killed) break;
