@@ -81,6 +81,12 @@ export class Player {
         // Weapons
         this.weapon = 'MG';
         this.weaponTimer = 0;
+        // Held weapon inventory — list of weapon codes the player can cycle
+        // through with the quick-select key. MG is always in slot 0 as the
+        // fallback default; pickups append (up to 3 slots beyond MG). Tab/Q
+        // cycles to the next slot. weaponTimer applies only to the ACTIVE
+        // slot — inactive picked-up weapons sit indefinitely.
+        this.weaponInventory = ['MG'];
         this.weaponLevel = 1;
         this.fireCooldown = 0;
         this.bullets = [];
@@ -157,6 +163,7 @@ export class Player {
         this.weapon = 'MG';
         this.weaponLevel = 1;
         this.weaponTimer = 0;
+        this.weaponInventory = ['MG'];
         this.secondChanceUsed = false;
         this.combo = 0;
         this.bullets.length = 0;
@@ -198,6 +205,12 @@ export class Player {
         if (this.weaponTimer > 0) {
             this.weaponTimer--;
             if (this.weaponTimer === 0 && this.weapon !== 'MG') {
+                // Drop the expired weapon from inventory so the cycle doesn't
+                // keep including it as an empty slot.
+                if (this.weaponInventory) {
+                    const idx = this.weaponInventory.indexOf(this.weapon);
+                    if (idx > 0) this.weaponInventory.splice(idx, 1);
+                }
                 this.weapon = 'MG';
                 this.weaponLevel = 1;
             }
@@ -535,6 +548,22 @@ export class Player {
             audio.sfx('slide');
             particles.dust(this.x + this.w / 2, this.y + this.h);
             return;
+        }
+
+        // Quick-select weapon cycle (Tab / Q): rotates through held inventory.
+        // MG stays in slot 0; pickups append to slots 1-3. Skipping back to
+        // MG is intentional — gives the player an "emergency tap-fire" exit
+        // from the overheat-able power weapons.
+        if (input.isPressed('cycle') && this.weaponInventory && this.weaponInventory.length > 1) {
+            const idx = this.weaponInventory.indexOf(this.weapon);
+            const next = this.weaponInventory[(idx + 1) % this.weaponInventory.length];
+            if (next !== this.weapon) {
+                this.weapon = next;
+                this.weaponLevel = 1;
+                this.weaponTimer = WEAPON_DURATION;
+                this.weaponPickupFlash = 18;
+                audio.sfx('select');
+            }
         }
 
         // Grapple hook: SPECIAL (C) while airborne fires a line in the aim
@@ -1100,6 +1129,16 @@ export class Player {
                 particles.floatingText(cx, this.y - 4, label, w.color, 80, -0.5, 2);
                 // HUD glyph flash flag — read by hud.js
                 this.weaponPickupFlash = 30;
+                // Append to inventory if not present (keep MG in slot 0).
+                // Cap total slots at 4 so the cycle stays readable; oldest
+                // non-MG slot drops off on overflow.
+                if (!this.weaponInventory.includes(type)) {
+                    if (this.weaponInventory.length >= 4) {
+                        // Drop the first non-MG entry (slot 1).
+                        this.weaponInventory.splice(1, 1);
+                    }
+                    this.weaponInventory.push(type);
+                }
             }
             this.weaponTimer = WEAPON_DURATION;
         }

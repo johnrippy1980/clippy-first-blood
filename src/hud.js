@@ -226,6 +226,28 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(hx, hy, fillW, hh);
     }
 
+    // Weapon inventory dots — small color-keyed pips to the right of the
+    // weapon icon block showing held weapons. Active slot gets a 2px halo;
+    // inactive slots are 1px dots in the weapon's color. Only renders if
+    // the player has picked up at least one non-MG weapon.
+    const inv = player.weaponInventory;
+    if (inv && inv.length > 1) {
+        const dx0 = ix + 36;
+        for (let i = 0; i < inv.length; i++) {
+            const code = inv[i];
+            const wInv = WEAPON[code] || { color: '#fff' };
+            const active = code === player.weapon;
+            const px = dx0 + i * 4;
+            const py = 13;
+            if (active) {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(px - 1, py - 1, 3, 3);
+            }
+            ctx.fillStyle = wInv.color;
+            ctx.fillRect(px, py, 1, 1);
+        }
+    }
+
     // Combo + decay bar — bar below the number shrinks as comboTimer drains.
     // Telegraphs the "how long do I have to land the next hit" window so
     // players can keep streaks alive intentionally.

@@ -16,6 +16,7 @@ const KEYMAP = {
     'Enter': 'start',
     'Escape': 'pause',     'p': 'pause', 'P': 'pause',
     'm': 'mute',           'M': 'mute',
+    'Tab': 'cycle',        'q': 'cycle', 'Q': 'cycle',
 };
 
 class Input {
@@ -38,9 +39,9 @@ class Input {
         window.addEventListener('gamepadconnected', e => { this.gamepadIndex = e.gamepad.index; });
         window.addEventListener('gamepaddisconnected', () => { this.gamepadIndex = null; });
 
-        // Prevent scrolling with arrow keys / space
+        // Prevent scrolling with arrow keys / space + Tab focus-switch.
         window.addEventListener('keydown', e => {
-            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
+            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Tab'].includes(e.key)) {
                 e.preventDefault();
             }
         });
