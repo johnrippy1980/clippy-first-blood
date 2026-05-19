@@ -84,6 +84,18 @@ export const SCENE_MANIFEST = {
     'card_bossrush':   'card_stage7_bossrush.png',
     'card_cloud':      'card_stage8_cloud.png',
     'card_recyclebin': 'card_stage9_recyclebin.png',
+    // Boss intro cinematic backgrounds — painted villain stages shown
+    // during the BOSS_INTRO scene. Keyed by boss code so _drawBossIntro
+    // can look up the matching backdrop. Falls back to dim _drawPlay when
+    // the asset is missing.
+    'boss_intro_COPIER_3000':  'boss_intros/boss_intro_copier.png',
+    'boss_intro_SHREDDER':     'boss_intros/boss_intro_shredder.png',
+    'boss_intro_CTRL_ALT_DEL': 'boss_intros/boss_intro_bsod.png',
+    'boss_intro_BALLMER':      'boss_intros/boss_intro_boardroom.png',
+    'boss_intro_GATES':        'boss_intros/boss_intro_founder.png',
+    'boss_intro_CLIPPY_2':     'boss_intros/boss_intro_founder.png',
+    'boss_intro_GAUNTLET':     'boss_intros/boss_intro_bossrush.png',
+    'boss_intro_ALGORITHM':    'boss_intros/boss_intro_algorithm.png',
 };
 
 // Painted parallax backgrounds, one per stage theme. Loaded from assets/bg/.

@@ -251,7 +251,7 @@ export class Game {
             case SCENE.SOUNDTRACK:   this._drawPlay(); this._drawSoundtrack(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
-            case SCENE.BOSS_INTRO:   this._drawPlay(); this._drawBossIntro(); break;
+            case SCENE.BOSS_INTRO:   this._drawBossIntro(); break;
             case SCENE.STAGE_CLEAR:  this._drawPlay(); this._drawStageClear(); break;
             case SCENE.GAME_OVER:    this._drawGameOver(); break;
             case SCENE.GAME_COMPLETE:this._drawGameComplete(); break;
@@ -913,18 +913,40 @@ export class Game {
         const ctx = this.ctx;
         const t = this._bossIntro.age;
         const stg = STAGES[this.currentStage];
-        const bossKey = stg.boss === 'GAUNTLET' ? 'COPIER_3000' : stg.boss;
+        const bossKey = stg.boss;
         const bark = BOSS_BARK[stg.boss] || ['', ''];
         // Phase ratios
         const slideInF = 20;
         const flashStartF = 130;
         const flashEndF = 145;
 
-        // Scene dim — ramps to 55% black across the slide-in window, holds.
+        // Painted boss-room backdrop — fill the frame with the boss's
+        // cinematic plate. Falls back to gameplay scene + dim if the asset
+        // is missing. Slight Ken-Burns push-in over the cinematic gives the
+        // shot life.
+        const bgKey = 'boss_intro_' + bossKey;
+        if (sprites.has(bgKey)) {
+            const img = sprites.images.get(bgKey);
+            // Push-in: 1.0 → 1.08 over 150f. Anchor center.
+            const zoom = 1.0 + Math.min(0.08, t * 0.00055);
+            const scale = Math.max(GAME.W / img.width, GAME.H / img.height) * zoom;
+            const dw = img.width * scale;
+            const dh = img.height * scale;
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+            ctx.imageSmoothingEnabled = false;
+        } else {
+            // Fallback to gameplay scene if no painted plate exists
+            this._drawPlay();
+        }
+
+        // Scene dim — ramps to 35% black across the slide-in window so the
+        // painted backdrop reads as a moody establishing shot (lighter than
+        // the pre-paint version since the art carries its own atmosphere).
         let dim;
-        if (t < slideInF) dim = (t / slideInF) * 0.55;
-        else if (t < flashStartF) dim = 0.55;
-        else if (t < flashEndF) dim = 0.55 - ((t - flashStartF) / (flashEndF - flashStartF)) * 0.55;
+        if (t < slideInF) dim = (t / slideInF) * 0.35;
+        else if (t < flashStartF) dim = 0.35;
+        else if (t < flashEndF) dim = 0.35 - ((t - flashStartF) / (flashEndF - flashStartF)) * 0.35;
         else dim = 0;
         ctx.fillStyle = `rgba(0,0,0,${dim.toFixed(3)})`;
         ctx.fillRect(0, 0, GAME.W, GAME.H);
