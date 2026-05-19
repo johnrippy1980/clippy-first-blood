@@ -729,6 +729,23 @@ export class Game {
         // Grass tips paint OVER player + enemies so the hidden read is sold.
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);
+        // Soft corner vignette — subtly darkens the screen edges so the eye
+        // gravitates to the gameplay center. Cached gradient; alpha is
+        // intentionally low (~0.22) so it adds depth-framing without crowding.
+        if (!this._playVignette) {
+            const g = ctx.createRadialGradient(
+                GAME.W / 2, GAME.H / 2, GAME.H * 0.35,
+                GAME.W / 2, GAME.H / 2, GAME.W * 0.75
+            );
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(1, 'rgba(0,0,0,0.55)');
+            this._playVignette = g;
+        }
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = this._playVignette;
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        ctx.restore();
         const showBoss = this.scene === SCENE.PLAY || this.scene === SCENE.PAUSE;
         drawHUD(ctx, {
             player: this.player,

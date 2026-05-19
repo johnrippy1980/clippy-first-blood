@@ -268,6 +268,7 @@ export class Parallax {
                 ctx.fillStyle = tune.tint;
                 ctx.fillRect(0, 0, GAME.W, GAME.H);
             }
+            this._drawDepthHaze(ctx);
             this._drawMotes(ctx);
             this._drawSignatureEffect(ctx);
             return;
@@ -281,8 +282,43 @@ export class Parallax {
             case THEME.FOUNDER:    this._founderBack(ctx, camera); break;
             case THEME.CLOUD:      this._cloudBack(ctx, camera); break;
         }
+        this._drawDepthHaze(ctx);
         this._drawMotes(ctx);
         this._drawSignatureEffect(ctx);
+    }
+
+    // Distance-haze band — soft horizontal mid-screen gradient that fades the
+    // painted bg toward an atmospheric tint at the horizon line. Pure depth
+    // cheat: far objects appear color-shifted toward the sky, near ground stays
+    // saturated. Bands by theme so each stage's haze color matches its mood.
+    // Drawn after darken pass so it sits ON the bg, before motes + signature
+    // FX so those still pop out of the haze layer.
+    _drawDepthHaze(ctx) {
+        const HAZE = {
+            [THEME.JUNGLE]:     { color: '90, 110, 90',   bandY: 0.40, bandH: 0.30, alpha: 0.14 }, // misty green
+            [THEME.BREAKROOM]:  { color: '160, 90, 110',  bandY: 0.35, bandH: 0.28, alpha: 0.10 }, // dusty pink
+            [THEME.SERVERROOM]: { color: '90, 130, 180',  bandY: 0.30, bandH: 0.36, alpha: 0.13 }, // cool blue glow
+            [THEME.BOARDROOM]:  { color: '180, 150, 110', bandY: 0.32, bandH: 0.30, alpha: 0.10 }, // amber lit
+            [THEME.KEYNOTE]:    { color: '160, 80, 90',   bandY: 0.30, bandH: 0.32, alpha: 0.12 }, // velvet red
+            [THEME.FOUNDER]:    { color: '210, 100, 60',  bandY: 0.30, bandH: 0.34, alpha: 0.15 }, // ember orange
+            [THEME.CLOUD]:      { color: '180, 200, 230', bandY: 0.35, bandH: 0.36, alpha: 0.12 }, // pale sky
+        };
+        const spec = HAZE[this.theme];
+        if (!spec) return;
+        const yTop = GAME.H * spec.bandY;
+        const yBot = yTop + GAME.H * spec.bandH;
+        // Cache gradient per theme — createLinearGradient on every frame is
+        // wasteful and the colors don't animate.
+        if (!this._hazeGrad || this._hazeGradTheme !== this.theme) {
+            const g = ctx.createLinearGradient(0, yTop, 0, yBot);
+            g.addColorStop(0,   `rgba(${spec.color}, 0)`);
+            g.addColorStop(0.5, `rgba(${spec.color}, ${spec.alpha})`);
+            g.addColorStop(1,   `rgba(${spec.color}, 0)`);
+            this._hazeGrad = g;
+            this._hazeGradTheme = this.theme;
+        }
+        ctx.fillStyle = this._hazeGrad;
+        ctx.fillRect(0, yTop, GAME.W, yBot - yTop);
     }
 
     // Signature per-stage atmospheric effects. One distinct lighting/mood
