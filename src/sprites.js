@@ -132,40 +132,40 @@ export const CLIPPY_MANIFEST = {
     'run_2':           'v2_run2.png',
     'run_3':           'v2_run.png',
     'run_4':           'v2_run2.png',
-    'run_5':           'v2_idle.png',
+    'run_5':           'v2_run_5.png',
     'jump':            'v2_jump.png',
-    // jump_aim/spin_1/spin_2 painted poses pulled — the source PNGs from
-    // gpt-image-2 had no alpha channel + were 1024x1024 native, so they
-    // rendered as giant white-bordered boxes blanketing the screen.
-    // Keep the *.png files on disk for a future round that runs them through
-    // tools/process-v2-sprites.py (chroma-key + crop + downscale) first.
-    'jump_aim':        'v2_jump.png',
+    // r99: painted poses re-integrated after running them through
+    // process-v2-sprites.py (white-bg knockout + crop + 56h downscale).
+    // Files are now proper game-resolution PNGs with alpha, not 1024x1024
+    // canvas-fillers. Visually verified via tools/capture-screenshots.mjs.
+    'jump_aim':        'v2_jump_aim.png',
     'fall':            'v2_jump.png',
-    'spin_1':          'v2_jump.png',
-    'spin_2':          'v2_jump.png',
+    'spin_1':          'v2_spin_1.png',
+    'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',
     'crouch_shoot':    'pack_crouch_shoot_1.png',
     'crouch_shoot_2':  'pack_crouch_shoot_2.png',
     'crouch_shoot_3':  'pack_crouch_shoot_3.png',
     'prone':           'v2_prone.png',
-    'prone_shoot':     'v2_prone.png',
-    'prone_heavy':     'v2_prone.png',
-    'run_shoot_1':     'v2_shoot.png',
-    'run_shoot_2':     'v2_shoot.png',
-    'run_shoot_3':     'v2_shoot.png',
-    'run_shoot_4':     'v2_shoot.png',
+    'prone_shoot':     'v2_prone_crawl.png',
+    'prone_heavy':     'v2_prone_crawl.png',
+    'run_shoot_1':     'v2_run_shoot.png',
+    'run_shoot_2':     'v2_run_shoot.png',
+    'run_shoot_3':     'v2_run_shoot.png',
+    'run_shoot_4':     'v2_run_shoot.png',
     'shoot':           'v2_shoot.png',
     'shoot_alt':       'v2_shoot.png',
     'aim':             'v2_idle.png',
     'aim_up':          'v2_shoot_up.png',
-    'aim_diag':        'v2_shoot.png',
+    'aim_diag':        'v2_aim_diag_up.png',
+    'aim_diag_down':   'v2_aim_diag_down.png',
     'climb_1':         'pack_rope_1.png',
     'climb_2':         'pack_rope_2.png',
     'cover':           'pack_cover_1.png',
     'cover_shoot':     'pack_cover_2.png',
-    'hurt':            'v2_hurt.png',
-    'backdash':        'v2_jump.png',
-    'death_hit':       'v2_hurt.png',
+    'hurt':            'v2_hurt2.png',
+    'backdash':        'v2_backdash.png',
+    'death_hit':       'v2_hurt2.png',
     'death_explode':   'v2_death.png',
     'death_burning':   'v2_death.png',
 };
@@ -192,18 +192,16 @@ export const ENEMY_MANIFEST = {
     'cabinet_death':    'v2_cabinet.png',
     'holepunch':        'v2_holepunch.png',
     // Bosses (painted PNGs already in place)
-    // Painted v2 bosses pulled — sips downscale dropped the alpha channel,
-    // so they rendered with white-border boxes around them in-game. The
-    // *_painted.png files stay on disk for a future round that runs them
-    // through tools/process-v2-sprites.py (chroma-keys black bg to alpha)
-    // before downscale.
-    'boss_COPIER_3000': 'boss_copier.png',
-    'boss_SHREDDER':    'boss_shredder.png',
-    'boss_CTRL_ALT_DEL':'boss_bsod.png',
-    'boss_BALLMER':     'boss_ballmer.png',
-    'boss_GATES':       'boss_founder.png',
-    'boss_CLIPPY_2':    'boss_clippy2.png',
-    'boss_ALGORITHM':   'boss_algorithm.png',
+    // r99: painted bosses re-integrated through process-v2-sprites.py
+    // (white-bg corners auto-detected and knocked out, crop tight, downscale
+    // to 96h). Original 60x60 boss_*.png files kept on disk as rollback.
+    'boss_COPIER_3000': 'boss_copier_painted.png',
+    'boss_SHREDDER':    'boss_shredder_painted.png',
+    'boss_CTRL_ALT_DEL':'boss_bsod_painted.png',
+    'boss_BALLMER':     'boss_ballmer_painted.png',
+    'boss_GATES':       'boss_founder_painted.png',
+    'boss_CLIPPY_2':    'boss_clippy2_painted.png',
+    'boss_ALGORITHM':   'boss_algorithm_painted.png',
 };
 
 // ============================================================
