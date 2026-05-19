@@ -325,6 +325,26 @@ class ParticleSystem {
         }
     }
 
+    // Water splash — upward droplet fan + flat ripple ring. Use on entry/exit
+    // of water tiles. Droplets arc up and fall under gravity; the ring marks
+    // the surface so the beat reads even when the player is mid-jump.
+    waterSplash(x, y) {
+        const dropColors = ['#cfe8ff', '#a8d4f0', '#6fb0d8'];
+        for (let i = 0; i < 10; i++) {
+            const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+            const sp = 0.8 + Math.random() * 1.6;
+            this.spawn(
+                x + (Math.random() - 0.5) * 4,
+                y,
+                Math.cos(a) * sp,
+                Math.sin(a) * sp,
+                18 + (Math.random() * 8 | 0),
+                dropColors[i % dropColors.length], 1, 0.14
+            );
+        }
+        this.shockRing(x, y, 10, 12, '#cfe8ff');
+    }
+
     // Chunky death debris — heavier 2-wide squares with strong gravity that
     // arc outward and fall. Sits on top of explosion + dust ring to give the
     // grunt-death beat physical weight. Colors should match the enemy's body

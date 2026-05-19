@@ -439,7 +439,7 @@ export class Player {
             // Splash entry burst
             if (!wasInWater) {
                 audio.sfx('splash');
-                particles.dust(this.x + this.w / 2, this.y + this.h - 2);
+                particles.waterSplash(this.x + this.w / 2, this.y + this.h - 2);
                 this.requestShake = Math.max(this.requestShake || 0, 1.0);
             }
             // Hold-DOWN duck-hide while standing in water
@@ -455,7 +455,7 @@ export class Player {
             // Splash exit burst
             if (wasInWater) {
                 audio.sfx('splash');
-                particles.dust(this.x + this.w / 2, this.y + this.h);
+                particles.waterSplash(this.x + this.w / 2, this.y + this.h);
             }
             this.waterHidden = false;
         }
