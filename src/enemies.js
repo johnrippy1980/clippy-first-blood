@@ -178,6 +178,8 @@ class Enemy {
         // Per-enemy grace counter — frames remaining before this enemy may
         // act after activation. EnemyManager seeds with the stage-start grace.
         this._grace = 30;
+        // Random idle-breath phase so enemies on screen don't all bob in sync.
+        this._breathPhase = Math.random() * Math.PI * 2;
     }
 
     update(level, player) {
@@ -491,7 +493,21 @@ class Enemy {
         }
         const dims = getSpriteDims(useSprite);
         const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
-        const dy = Math.round(this.y + this.h - dims.h - camera.viewY);
+        let dy = Math.round(this.y + this.h - dims.h - camera.viewY);
+        // Idle-breath bob — sub-pixel sine that resolves to a 0/-1 step so
+        // the silhouette isn't pixel-locked between behavior beats. Skip
+        // while hurt/charging/attacking (those states have their own motion)
+        // and for flying enemies (already animated by hover_sniper math).
+        const calmState = this.hitFlash === 0
+            && this.knockStun === 0
+            && this.behavior !== 'hover_sniper'
+            && this.subState !== 1
+            && Math.abs(this.vx || 0) < 0.2
+            && Math.abs(this.vy || 0) < 0.2;
+        if (calmState) {
+            const bob = Math.sin(this.timer * 0.05 + this._breathPhase) > 0.5 ? -1 : 0;
+            dy += bob;
+        }
         // Always draw the base sprite first so the silhouette stays
         // continuously visible against painted bgs (the old alternate-
         // frame skip read as a broken sprite). Add a 'lighter' white wash
@@ -641,8 +657,16 @@ class Boss extends Enemy {
             // Telegraph the rage to the player via camera shake
             player.requestShake = Math.max(player.requestShake || 0, 5);
         }
-        // Pattern execution
+        // Pattern execution + telegraph. Last 8 frames before the pattern
+        // fires, ramp _telegraph from 0 → 1 so the draw can paint a brief
+        // bright outline pulse. Fair-warning beat that also sells the AI
+        // making a decision.
         this.attackTimer--;
+        if (this.attackTimer > 0 && this.attackTimer <= 8) {
+            this._telegraph = 1 - (this.attackTimer / 8);
+        } else {
+            this._telegraph = 0;
+        }
         if (this.attackTimer <= 0) {
             this._runPattern(level, player);
         }
@@ -781,6 +805,21 @@ class Boss extends Enemy {
                 ctx.restore();
             }
             sprites.draw(ctx, spriteKey, dx, dy, false);
+            // Attack telegraph — red wash on the boss silhouette in the 8
+            // frames before each pattern fires. Sells the AI's wind-up and
+            // gives the player a fair-warning beat. Uses source-atop so the
+            // tint only paints onto existing sprite pixels.
+            if (this._telegraph > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
+                ctx.clip();
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.globalAlpha = 0.55 * this._telegraph;
+                ctx.fillStyle = this.phase === 2 ? '#ff3030' : '#ff8030';
+                ctx.fillRect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
+                ctx.restore();
+            }
             return;
         }
         // Procedural fallback for any boss without art
