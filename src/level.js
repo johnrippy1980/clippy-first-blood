@@ -198,7 +198,7 @@ function makeStage1() {
             { x: 51 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
-            { x: 14 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'SPREAD' },
+            { x: 14 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'SHOTGUN' },
             { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 52 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'HOMING' },
         ]
@@ -364,7 +364,7 @@ function makeStage3() {
             { x: 42 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'LASER' },
         ],
         crateSpawns: [
-            { x: 16 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'SPREAD' },
+            { x: 16 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'CHAINSAW' },
             { x: 38 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 62 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'HOMING' },
         ]
@@ -426,7 +426,7 @@ function makeStage4() {
             { x: 38 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'THUNDER' },
         ],
         crateSpawns: [
-            { x: 12 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'SPREAD' },
+            { x: 12 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'SHOTGUN' },
             { x: 36 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 54 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'HOMING' },
         ]
@@ -490,7 +490,7 @@ function makeStage5() {
             { x: 40 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'THUNDER' },
         ],
         crateSpawns: [
-            { x: 18 * GAME.TILE, y: (12) * GAME.TILE - 14, drop: 'LASER' },
+            { x: 18 * GAME.TILE, y: (12) * GAME.TILE - 14, drop: 'CHAINSAW' },
             { x: 40 * GAME.TILE, y: ( 3) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 56 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'HOMING' },
         ]

@@ -36,7 +36,12 @@ const result = await page.evaluate(async () => {
 
     p._shoot();
     const b = p.bullets[p.bullets.length - 1];
-    if (!b) return { ok: false, msg: 'no bullet spawned' };
+    if (!b) {
+        g.enemies.enemies.splice(g.enemies.enemies.indexOf(testEnemy), 1);
+        return { ok: false, msg: 'no bullet spawned' };
+    }
+    // Remove the plain-object test enemy so the render loop doesn't call .draw on it
+    g.enemies.enemies.splice(g.enemies.enemies.indexOf(testEnemy), 1);
 
     return {
         ok: true,

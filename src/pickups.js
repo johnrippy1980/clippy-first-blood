@@ -187,6 +187,8 @@ class Pickup {
         if (this.type === 'LIFE') return '+';
         if (this.type === '1UP') return '1';
         if (this.type === 'GRENADE') return 'G';
+        if (this.type === 'SHOTGUN') return 'X';   // S clashes with SPREAD; X reads as "scatter"
+        if (this.type === 'CHAINSAW') return 'C';
         return this.type[0];
     }
     _color() {
@@ -215,6 +217,8 @@ const GLYPHS = {
     'H': [0b101,0b101,0b111,0b101,0b101],
     'T': [0b111,0b010,0b010,0b010,0b010],
     'G': [0b111,0b100,0b101,0b101,0b111],
+    'C': [0b111,0b100,0b100,0b100,0b111],
+    'X': [0b101,0b101,0b010,0b101,0b101],
     '+': [0b000,0b010,0b111,0b010,0b000],
     '1': [0b010,0b110,0b010,0b010,0b111],
     '?': [0b110,0b001,0b010,0b000,0b010],

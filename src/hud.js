@@ -142,6 +142,7 @@ export function drawHUD(ctx, state) {
     const WEAPON_LABELS = {
         MG: 'MACHINE', SPREAD: 'SPREAD', LASER: 'LASER',
         FLAME: 'FLAME',   HOMING: 'HOMING', THUNDER: 'THUNDER',
+        SHOTGUN: 'SHOTGUN', CHAINSAW: 'CHAINSAW',
     };
     // Weapon icon glyph: 7x7 colored bullet shape based on weapon.
     // On pickup, flash a bright ring behind the glyph for ~30 frames.
@@ -178,6 +179,22 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(ix + 2, iy, 2, 2);
         ctx.fillRect(ix + 1, iy + 2, 2, 2);
         ctx.fillRect(ix + 3, iy + 4, 2, 2);
+    } else if (player.weapon === 'SHOTGUN') {
+        // 6-pellet scatter cluster
+        ctx.fillRect(ix, iy, 2, 2);
+        ctx.fillRect(ix + 3, iy, 2, 2);
+        ctx.fillRect(ix + 5, iy + 1, 2, 2);
+        ctx.fillRect(ix + 1, iy + 3, 2, 2);
+        ctx.fillRect(ix + 4, iy + 4, 2, 2);
+        ctx.fillRect(ix + 6, iy + 5, 1, 1);
+    } else if (player.weapon === 'CHAINSAW') {
+        // Tiny chainsaw bar w/ teeth
+        ctx.fillRect(ix, iy + 2, 7, 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(ix + 1, iy + 4, 1, 1);
+        ctx.fillRect(ix + 3, iy + 4, 1, 1);
+        ctx.fillRect(ix + 5, iy + 4, 1, 1);
+        ctx.fillStyle = w.color;
     } else {
         // MG: 3-round burst
         ctx.fillRect(ix, iy + 2, 2, 2);

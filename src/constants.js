@@ -84,6 +84,13 @@ export const WEAPON = Object.freeze({
     FLAME:   { name: 'FLAME',   damage: 0.5, fireRate: 3, bulletSpeed: 2.8, color: '#ff5040', maxRange: 60, dot: true, sound: 'flame' },
     HOMING:  { name: 'HOMING',  damage: 2,  fireRate: 18, bulletSpeed: 3.2, color: '#ff60ff', homing: true, sound: 'homing' },
     THUNDER: { name: 'THUNDER', damage: 4,  fireRate: 22, bulletSpeed: 0, color: '#fffac8', chain: true, sound: 'thunder' },
+    // SHOTGUN: short-range tight cone of pellets. Each pellet hits hard but the
+    // cone falls off fast (life: 18 ≈ ~70-90px range) so it's a CQB weapon.
+    SHOTGUN: { name: 'SHOTGUN', damage: 1.4, fireRate: 18, bulletSpeed: 4.6, color: '#ffaa30', shots: 6, spread: 0.18, life: 18, sound: 'shotgun' },
+    // CHAINSAW: melee weapon. No projectile — a tick-based hitbox in front
+    // of Clippy chews any enemy in arc every `tickRate` frames while shoot
+    // is held. range/dmg/arc tuned by _shoot dispatch + chainsaw tick code.
+    CHAINSAW: { name: 'CHAINSAW', damage: 1.0, fireRate: 4,  bulletSpeed: 0, color: '#ff5050', melee: true, range: 22, arcDeg: 70, sound: 'chainsaw' },
 });
 
 // Themes per stage, used for tile palettes + parallax + music.

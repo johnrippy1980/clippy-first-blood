@@ -166,7 +166,7 @@ export class Player {
         // Score/stats
         this.score = 0;
         this.kills = 0;
-        this.dmgDealt = { MG: 0, SPREAD: 0, LASER: 0, FLAME: 0, HOMING: 0, THUNDER: 0 };
+        this.dmgDealt = { MG: 0, SPREAD: 0, LASER: 0, FLAME: 0, HOMING: 0, THUNDER: 0, SHOTGUN: 0, CHAINSAW: 0 };
     }
 
     resetForStage() {
@@ -1028,6 +1028,26 @@ export class Player {
                 const cos = Math.cos(ang), sin = Math.sin(ang);
                 fire(ndx * sp * cos - ndy * sp * sin, ndx * sp * sin + ndy * sp * cos);
             }
+        } else if (this.weapon === 'SHOTGUN') {
+            // Tight cone — fire `shots` pellets within ±spread radians,
+            // each with short life so range falls off naturally. Per-pellet
+            // damage is heavy; total burst damage is brutal at point-blank.
+            const shotsN = w.shots + Math.floor((this.weaponLevel - 1) / 2);
+            for (let i = 0; i < shotsN; i++) {
+                const ang = (Math.random() - 0.5) * w.spread * 2;
+                const cos = Math.cos(ang), sin = Math.sin(ang);
+                fire(ndx * sp * cos - ndy * sp * sin, ndx * sp * sin + ndy * sp * cos);
+                this.bullets[this.bullets.length - 1].life = w.life;
+            }
+        } else if (this.weapon === 'CHAINSAW') {
+            // Melee — no projectile. _tickChainsaw on every fire frame
+            // applies damage to any enemy within the front arc. Audio is
+            // handled by _shoot's audio.sfx(w.sound) below (chainsaw rev).
+            this._tickChainsaw();
+            // Eat the shell-eject + muzzle-flash + recoil block below; we
+            // route through a sentinel that skips post-fire FX since
+            // chainsaw doesn't shoot a projectile.
+            this._chainsawTickedThisShoot = true;
         } else if (this.weapon === 'THUNDER') {
             // Hit-scan along the aim ray. Walks `MAX_RANGE` px out from the
             // muzzle, sampling each `STEP` px. First enemy AABB the ray pierces
@@ -1077,22 +1097,69 @@ export class Player {
             fire(ndx * sp + (Math.abs(ndy) < 0.1 ? 0 : j), ndy * sp + (Math.abs(ndx) < 0.1 ? 0 : j));
         }
 
-        // Muzzle effects + recoil + shell ejection
-        particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color);
-        // Pass floorY when grounded so the shell bounces + settles on the
-        // ground tile beneath Clippy instead of falling forever.
-        const shellFloor = this.onGround ? this.y + this.h : null;
-        particles.shellEject(this.x + this.w / 2 - this.facing * 2, this.y + 8, this.facing, shellFloor);
+        // Muzzle effects + recoil + shell ejection. CHAINSAW skips —
+        // melee weapon, no muzzle, no shell. SFX still plays so the rev
+        // loop ticks while the player holds shoot.
+        if (this.weapon !== 'CHAINSAW') {
+            particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color);
+            // Pass floorY when grounded so the shell bounces + settles on the
+            // ground tile beneath Clippy instead of falling forever.
+            const shellFloor = this.onGround ? this.y + this.h : null;
+            particles.shellEject(this.x + this.w / 2 - this.facing * 2, this.y + 8, this.facing, shellFloor);
+        }
         audio.sfx(w.sound);
         this.shotsFired++;
         this.recoilTimer = 6;
         // Camera kick on each shot. Only THUNDER actually shakes — the smaller
         // kicks at 0.5-0.9 stacked into a constant tremor during sustained MG fire,
         // which read as twitch rather than weight. Recoil now lives in muzzle FX +
-        // shell ejection, not in the camera.
-        const kickMap = { THUNDER: 2.0 };
+        // shell ejection, not in the camera. SHOTGUN gets a small kick so the
+        // blast reads as heavier than MG without becoming a tremor.
+        const kickMap = { THUNDER: 2.0, SHOTGUN: 1.2 };
         const kick = kickMap[this.weapon] || 0;
         if (kick) this.requestShake = Math.max(this.requestShake || 0, kick);
+    }
+
+    // CHAINSAW melee tick — damages all enemies whose center lies within
+    // `range` px of Clippy's center AND inside a `arcDeg` cone facing
+    // `this.facing`. Called every fire frame; damage is per-frame so a
+    // close-range hold tears through HP fast. No projectile.
+    _tickChainsaw() {
+        const w = WEAPON.CHAINSAW;
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        if (!game?.enemies?.enemies) return;
+        const cx = this.x + this.w / 2;
+        const cy = this.y + this.h / 2;
+        const range = w.range;
+        const halfArc = (w.arcDeg * Math.PI / 180) / 2;
+        // Damage scales with weapon level (1, 1.5, 2.0)
+        const dmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5);
+        for (const e of game.enemies.enemies) {
+            if (!e.alive) continue;
+            const ex = e.x + e.w / 2;
+            const ey = e.y + e.h / 2;
+            const dx = ex - cx, dy = ey - cy;
+            const d = Math.hypot(dx, dy);
+            if (d > range) continue;
+            // Angle from Clippy to enemy, measured against the facing axis.
+            // facing>0 → forward axis is +X; facing<0 → -X.
+            const forwardAng = this.facing > 0 ? Math.atan2(dy, dx) : Math.atan2(dy, -dx);
+            if (Math.abs(forwardAng) > halfArc) continue;
+            // Knock back AWAY from Clippy, slight chunky chip.
+            const killed = e.hurt(dmg, dx > 0 ? 1 : -1, { knockBack: 0.6 });
+            // Per-tick blood spurt — small red mote at contact.
+            particles.spawn(ex, ey, (Math.random() - 0.5) * 1.5, -1 - Math.random() * 0.8, 18, '#ff3030', 1, 0.04);
+            // Stat tracking through normal kill pipeline; chainsaw "bullet"
+            // is a synthetic for combo/dmgDealt accounting.
+            this.dmgDealt.CHAINSAW = (this.dmgDealt.CHAINSAW || 0) + dmg;
+            if (killed) {
+                // Trigger combo + score the way bullet kills do — synthetic bullet.
+                const fakeBullet = { weapon: 'CHAINSAW', x: ex, y: ey, color: w.color, damage: dmg, comboTier: 0 };
+                this.onBulletHit(fakeBullet, e, true);
+            }
+        }
+        // Flag for sprite/HUD to render the rev wobble + sawdust.
+        this._chainsawRevTimer = 4;
     }
 
     _updateBullets(level) {
@@ -2041,24 +2108,69 @@ export class Player {
             }
         }
 
-        // Thrown grenades — small olive-green pellet with a red blink in the
-        // last 15 frames so the player can read "about to detonate". Spins
-        // visibly so it's not mistaken for a bullet.
+        // Thrown grenades — pixel-art M67 pineapple. Drawn as a 7x9 oval
+        // body in olive-drab with darker grooves, silver lever along one
+        // side, and a pin ring on top. Whole sprite rotates with `g.spin`
+        // so it tumbles through the air. Blinks red+yellow in the final
+        // 15 frames before detonation.
         for (const g of this.thrownGrenades) {
             const gx = Math.round(g.x - camera.viewX);
             const gy = Math.round(g.y - camera.viewY);
-            // Blink when fuse is almost up
             const blink = g.fuse < 15 && Math.floor(g.fuse / 3) % 2 === 0;
-            // Pin/body
-            ctx.fillStyle = blink ? '#ff5050' : '#406030';
-            ctx.fillRect(gx - 2, gy - 2, 4, 4);
-            ctx.fillStyle = blink ? '#ffe070' : '#80a040';
-            ctx.fillRect(gx - 1, gy - 1, 2, 2);
-            // Spin tail
-            const tx = gx + Math.round(Math.cos(g.spin) * 3);
-            const ty = gy + Math.round(Math.sin(g.spin) * 3);
-            ctx.fillStyle = '#1a1208';
-            ctx.fillRect(tx, ty, 1, 1);
+            // Palette — blink overrides body color so the tell is unmissable
+            const dark = blink ? '#a02020' : '#2a3818';
+            const body = blink ? '#ff5050' : '#506030';
+            const mid  = blink ? '#ffa040' : '#647540';
+            const hi   = blink ? '#ffe070' : '#8aa050';
+            const metal = '#b8b8c0';
+            const metalHi = '#e8e8f0';
+            ctx.save();
+            ctx.translate(gx, gy);
+            ctx.rotate(g.spin);
+            // Body — 7x9 oval. Outline with `dark` then fill with `body`.
+            // Drawn as fillRect rows for crisp pixel shape.
+            // Row layout (relative to center):
+            //   -4: . X X X .       outline cap
+            //   -3: X . . . X
+            //   -2: X . . . X
+            //   -1: X . . . X
+            //    0: X . . . X       widest row
+            //    1: X . . . X
+            //    2: X . . . X
+            //    3: X . . . X
+            //    4: . X X X .       outline cap
+            // Outline
+            ctx.fillStyle = dark;
+            ctx.fillRect(-2, -5, 4, 1);     // top cap
+            ctx.fillRect(-2,  4, 4, 1);     // bottom cap
+            ctx.fillRect(-3, -4, 1, 8);     // left
+            ctx.fillRect( 2, -4, 1, 8);     // right
+            // Body fill
+            ctx.fillStyle = body;
+            ctx.fillRect(-2, -4, 4, 8);
+            // Cross-hatch grooves (mid)
+            ctx.fillStyle = mid;
+            ctx.fillRect(-2, -2, 4, 1);
+            ctx.fillRect(-2,  1, 4, 1);
+            ctx.fillRect(-1, -4, 1, 8);
+            // Side highlight strip
+            ctx.fillStyle = hi;
+            ctx.fillRect(-2, -3, 1, 1);
+            ctx.fillRect(-2,  0, 1, 1);
+            ctx.fillRect(-2,  3, 1, 1);
+            // Silver lever (spoon) along right edge
+            ctx.fillStyle = metal;
+            ctx.fillRect( 3, -3, 1, 5);
+            ctx.fillStyle = metalHi;
+            ctx.fillRect( 3, -3, 1, 1);
+            // Pin ring on top — small silver loop
+            ctx.fillStyle = metal;
+            ctx.fillRect(-1, -6, 3, 1);     // ring top
+            ctx.fillRect(-1, -5, 1, 1);     // ring left
+            ctx.fillRect( 1, -5, 1, 1);     // ring right
+            ctx.fillStyle = metalHi;
+            ctx.fillRect(0, -6, 1, 1);
+            ctx.restore();
         }
     }
 

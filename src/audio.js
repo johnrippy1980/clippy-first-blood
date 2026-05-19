@@ -142,7 +142,51 @@ class Audio {
             case 'crateHit': return this._crateHit(t);
             case 'climbRung': return this._climbRung(t);
             case 'grenadeThrow': return this._grenadeThrow(t);
+            case 'shotgun':  return this._shotgunBlast(t);
+            case 'chainsaw': return this._chainsawRev(t);
         }
+    }
+
+    // Shotgun: heavy thump + wide-band noise body + bright crack.
+    // Tuned heavier than MG/SPREAD so the player FEELS the pellet spread.
+    _shotgunBlast(t) {
+        this._gunshot(t, { thump: 55, body: 600, bodyDur: 0.22, crack: 3200, layers: 2 });
+    }
+
+    // Chainsaw rev — short sawtooth burst layered with noise. Called every
+    // few frames while shoot is held, so each call is short (~80ms) and
+    // overlaps with the next for a continuous chainsaw drone.
+    _chainsawRev(t) {
+        // Sawtooth growl
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        // Wobble between 110-160Hz for the "chuga-chuga" feel
+        const baseF = 110 + Math.random() * 50;
+        o.frequency.setValueAtTime(baseF, t);
+        o.frequency.linearRampToValueAtTime(baseF * 1.4, t + 0.04);
+        o.frequency.linearRampToValueAtTime(baseF, t + 0.08);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
+        o.connect(g).connect(this.master);
+        o.start(t); o.stop(t + 0.12);
+        // Noise layer — chain grinding teeth
+        const n = this.ctx.createBufferSource();
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.08, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
+        n.buffer = buf;
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1800;
+        bp.Q.value = 4;
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        ng.gain.exponentialRampToValueAtTime(0.12, t + 0.005);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+        n.connect(bp).connect(ng).connect(this.master);
+        n.start(t); n.stop(t + 0.08);
     }
 
     // Grenade throw — short metallic pin-pull click followed by a cloth/air
