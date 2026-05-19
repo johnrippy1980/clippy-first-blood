@@ -258,6 +258,33 @@ export class Game {
             }
         }
 
+        // Death-fall vignette: while Clippy is in the death-spin window,
+        // ramp a red-tinted vignette + dim wash so the play scene fades
+        // out under the spinning sprite instead of staying bright. Drives
+        // from deathTimer so it scales with the fall.
+        if (this.scene === SCENE.PLAY && this.player?.state === 'die') {
+            const dt = Math.min(1, (this.player.deathTimer || 0) / 90);
+            // Cached radial gradient — red edge, dark center
+            if (!this._deathGrad) {
+                const g = ctx.createRadialGradient(
+                    GAME.W / 2, GAME.H / 2, 0,
+                    GAME.W / 2, GAME.H / 2, GAME.W * 0.65
+                );
+                g.addColorStop(0, 'rgba(40,4,8,0)');
+                g.addColorStop(0.6, 'rgba(80,8,20,0.4)');
+                g.addColorStop(1, 'rgba(160,16,32,0.95)');
+                this._deathGrad = g;
+            }
+            ctx.save();
+            ctx.globalAlpha = 0.55 * dt;
+            ctx.fillStyle = this._deathGrad;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            ctx.restore();
+            // Slight desaturation tint — flat dark wash to drain color
+            ctx.fillStyle = `rgba(10,2,10,${(0.18 * dt).toFixed(3)})`;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+        }
+
         // Transition fade overlay
         if (this.transition !== 0) {
             // Scene fade: positive = fading OUT (clear → black) as it counts
