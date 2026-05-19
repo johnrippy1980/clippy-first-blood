@@ -1167,6 +1167,16 @@ export class EnemyManager {
             const inHitBox = !b.stuck && !b._parried
                 && b.x > player.x && b.x < player.x + player.w
                 && b.y > hitTop && b.y < player.y + player.h;
+            // Cover-chip: when the player is in STATE.COVER and a bullet
+            // would have hit, drain cover HP instead of damaging Clippy.
+            // Spark out front to show the cover taking the hit. Bullet
+            // is consumed.
+            if (inHitBox && player.state === STATE.COVER) {
+                player.coverHp = (player.coverHp || 0) - 1;
+                particles.hitSpark(b.x, b.y, '#a08070');
+                this.bullets.splice(i, 1);
+                continue;
+            }
             // KNIFE PARRY: during DASH_ATTACK the knife deflects incoming
             // enemy bullets — vector mirrored back at the firing direction,
             // ownership flipped so it now damages enemies. Reward for

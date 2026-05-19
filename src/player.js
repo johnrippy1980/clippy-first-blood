@@ -111,6 +111,10 @@ export class Player {
         // Climb
         this.onLadder = false;
         this.onCover = false;
+        // Cover durability — each time an enemy bullet would have hit the
+        // player but cover blocked it, this drains. At 0 the cover is broken
+        // and the player auto-exits. Refills when leaving cover normally.
+        this.coverHp = 5;
 
         // Bullet-time second chance (once per stage)
         this.secondChanceUsed = false;
@@ -292,9 +296,21 @@ export class Player {
         } else if (this.state === STATE.COVER) {
             this.vx = 0; this.vy = 0;
             this.iFrames = Math.max(this.iFrames, 2);
-            if (!input.isHeld('up') || !this._coverAvailable(level)) {
+            // Break-out conditions: input release, cover unavailable, or
+            // durability drained from incoming fire. coverHp drain happens
+            // in enemy bullet tick (when shots hit while in cover).
+            if (!input.isHeld('up') || !this._coverAvailable(level) || this.coverHp <= 0) {
                 this.state = STATE.IDLE;
                 this.onCover = false;
+                if (this.coverHp <= 0) {
+                    // Cover broke — knock the player out with a small kick so
+                    // they have to reposition instead of standing in place.
+                    this.vx = (Math.random() < 0.5 ? -1 : 1) * 1.4;
+                    this.vy = -2.2;
+                    audio.sfx('crateBreak');
+                    particles.dust(this.x + this.w / 2, this.y + this.h - 2);
+                }
+                this.coverHp = 5;
             }
         } else {
             this._handleInput(level);
