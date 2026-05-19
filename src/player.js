@@ -1186,6 +1186,13 @@ export class Player {
                 this.thrownGrenades.splice(i, 1);
                 continue;
             }
+            // Death-pit drop — quietly remove when far below the level so
+            // the player doesn't hear a distant explode SFX from a grenade
+            // that fell into the void.
+            if (g.y > level.height + 80) {
+                this.thrownGrenades.splice(i, 1);
+                continue;
+            }
         }
     }
 
