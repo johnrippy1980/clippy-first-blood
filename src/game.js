@@ -2102,6 +2102,10 @@ export class Game {
 
     _drawGameComplete() {
         const ctx = this.ctx;
+        // Guard: if _restartRun clears this.player but the scene is briefly
+        // still gameComplete, skip rendering rather than throwing on
+        // this.player.kills below. The next frame will switch to TITLE.
+        if (!this.player) return;
         const path = this._endingPath();
         const palette = {
             PERFECT:   { title: 'PERFECT REVENGE',     subtitle: 'EVERY NAME. EVERY SHOT TRUE.', accent: '#ffe070', tint: 'rgba(255,224,112,0.18)' },
@@ -2145,6 +2149,32 @@ export class Game {
         drawText(ctx, 'KILLS     ' + this.player.kills, 60, 126, '#fff', 1);
         drawText(ctx, 'MAX COMBO ' + this.player.maxCombo, 60, 138, '#fff', 1);
         drawText(ctx, 'DEATHS    ' + this.totalDeaths, 60, 150, this.totalDeaths === 0 ? '#50ff70' : '#fff', 1);
+        // Run rank — composite of deaths, no-damage clears, max combo, time vs
+        // 12-min speedrun target. Cached so the letter is stable across frames.
+        if (this._runRank == null) {
+            const deaths = this.totalDeaths || 0;
+            const noDmg = this.runStats.noDamageStages || 0;
+            const mxCombo = this.player.maxCombo || 0;
+            const target = 12 * 60 * 60; // 12 min in frames
+            // Smoothed curve so a 3-death clear lands as a C, not a D.
+            const deathScore = deaths === 0 ? 1 : deaths <= 2 ? 0.85 : deaths <= 5 ? 0.60 : 0.30;
+            const noDmgScore = Math.min(1, noDmg / 2);          // 2+ clears = full
+            const comboScore = Math.min(1, mxCombo / 15);       // 15-streak = full
+            const timeScore = Math.max(0.1, Math.min(1, target / Math.max(target, this.totalTime)));
+            const composite = deathScore * 0.4 + noDmgScore * 0.2 + comboScore * 0.2 + timeScore * 0.2;
+            const letter = composite >= 0.92 ? 'S'
+                         : composite >= 0.78 ? 'A'
+                         : composite >= 0.62 ? 'B'
+                         : composite >= 0.45 ? 'C' : 'D';
+            this._runRank = { letter, composite };
+        }
+        // Big rank letter on the right edge of the stats panel, scale=3 outlined
+        const rankCol = this._runRank.letter === 'S' ? '#ffe070'
+                      : this._runRank.letter === 'A' ? '#a0ff70'
+                      : this._runRank.letter === 'B' ? '#80c0ff'
+                      : this._runRank.letter === 'C' ? '#c0a0d0' : '#806080';
+        drawTextOutlined(ctx, this._runRank.letter, GAME.W - 58, 110, rankCol, '#0a0410', 3, 'center');
+        drawText(ctx, 'RANK', GAME.W - 58, 144, '#c0a0d0', 1, 'center');
         // Path badge under stats
         drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 184, ep.accent, '#0a0410', 1, 'center');
         if (this.storyTimer % 60 < 40) {
@@ -2169,6 +2199,7 @@ export class Game {
         this.boss = null;
         this.player = null;
         this._stageClearTallyDone = false;
+        this._runRank = null;
         this.gameOverCountdown = null;
         this._pendingStage = null;
         this._goEmbers = null;
