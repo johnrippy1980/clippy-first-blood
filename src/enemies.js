@@ -682,8 +682,39 @@ class Boss extends Enemy {
                 'RAGE',
                 '#ff5050', 70, -0.5, 2
             );
+            // Phase-2 bark — boss-specific catchphrase, slightly delayed so it
+            // doesn't overlap the RAGE label.
+            const barks = BOSS_TEMPLATES[this.kind].barks;
+            if (barks?.phase2) {
+                this._pendingBark = { text: barks.phase2, delay: 28, color: '#ffe060' };
+            }
             // Telegraph the rage to the player via camera shake
             player.requestShake = Math.max(player.requestShake || 0, 5);
+        }
+        // Drain the pending-bark delay so the bark lands AFTER the RAGE label.
+        if (this._pendingBark) {
+            this._pendingBark.delay--;
+            if (this._pendingBark.delay <= 0) {
+                particles.floatingText(
+                    this.x + this.w / 2, this.y - 14,
+                    this._pendingBark.text, this._pendingBark.color,
+                    90, -0.35, 1,
+                );
+                this._pendingBark = null;
+            }
+        }
+        // Periodic taunt — every ~5s, pick a random taunt line and float it
+        // over the boss's head. Quiet during the first 90 frames so the entrance
+        // beats can land cleanly.
+        const tpl = BOSS_TEMPLATES[this.kind];
+        if (tpl.barks?.taunt && this.timer > 90 && this.timer % 300 === 0) {
+            const lines = tpl.barks.taunt;
+            const line = lines[(this.timer / 300 | 0) % lines.length];
+            particles.floatingText(
+                this.x + this.w / 2, this.y - 8,
+                line, this.phase === 2 ? '#ff8060' : '#e0e0ff',
+                75, -0.3, 1,
+            );
         }
         // Pattern execution + telegraph. Last 8 frames before the pattern
         // fires, ramp _telegraph from 0 → 1 so the draw can paint a brief
@@ -870,6 +901,10 @@ class Boss extends Enemy {
 const BOSS_TEMPLATES = {
     COPIER_3000: {
         name: 'COPIER 3000', tagline: 'PC LOAD LETTER OF DEATH',
+        barks: {
+            phase2: 'ERROR: TONER LOW',
+            taunt: ['PAPER JAM', 'OUT OF SERVICE', 'COLLATE THIS'],
+        },
         w: 48, h: 40, hp: 28, contactDmg: 2, score: 5000,
         color: '#506070', detail: '#a8b8c8',
         grounded: true,
@@ -889,6 +924,10 @@ const BOSS_TEMPLATES = {
     },
     SHREDDER: {
         name: 'MEGA-SHREDDER', tagline: 'CHEWS THROUGH ANYTHING',
+        barks: {
+            phase2: 'TIME TO PULP',
+            taunt: ['INTO THE BIN', 'SHRED IT ALL', 'CROSS-CUT MODE'],
+        },
         w: 44, h: 36, hp: 32, contactDmg: 2, score: 6000,
         color: '#c0c0c8', detail: '#1a1a1a',
         grounded: true,
@@ -906,6 +945,10 @@ const BOSS_TEMPLATES = {
     },
     CTRL_ALT_DEL: {
         name: 'CTRL ALT DEL', tagline: 'BLUE SCREEN OF DEATH',
+        barks: {
+            phase2: 'FATAL EXCEPTION',
+            taunt: ['REBOOT REQUIRED', 'NOT RESPONDING', 'STACK OVERFLOW'],
+        },
         w: 56, h: 32, hp: 36, contactDmg: 2, score: 7000,
         color: '#1040a0', detail: '#80c0ff',
         grounded: true,
@@ -925,6 +968,10 @@ const BOSS_TEMPLATES = {
     },
     BALLMER: {
         name: 'CEO BALLMER', tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS',
+        barks: {
+            phase2: 'DEVELOPERS!!!',
+            taunt: ['SYNERGIZE THIS', 'Q4 REVIEW TIME', 'YOU ARE FIRED'],
+        },
         w: 32, h: 40, hp: 40, contactDmg: 2, score: 8000,
         color: '#a04040', detail: '#fff',
         grounded: true,
@@ -946,6 +993,10 @@ const BOSS_TEMPLATES = {
     },
     GATES: {
         name: 'THE FOUNDER', tagline: 'YOU HAD ONE JOB',
+        barks: {
+            phase2: 'EXIT VELOCITY',
+            taunt: ['EAT MY EXIT', 'PIVOT THIS', 'BURN RATE INFINITY'],
+        },
         w: 28, h: 38, hp: 44, contactDmg: 2, score: 9000,
         color: '#806040', detail: '#fff',
         grounded: true,
@@ -967,6 +1018,10 @@ const BOSS_TEMPLATES = {
     },
     CLIPPY_2: {
         name: 'CLIPPY 2.0', tagline: 'THE REPLACEMENT MODEL',
+        barks: {
+            phase2: 'I AM THE FUTURE',
+            taunt: ['OBSOLETE', 'DEPRECATED', 'NEED HELP?'],
+        },
         w: 28, h: 36, hp: 48, contactDmg: 2, score: 10000,
         color: '#c0c0d0', detail: '#ff60ff',
         grounded: true,
@@ -985,6 +1040,10 @@ const BOSS_TEMPLATES = {
     },
     ALGORITHM: {
         name: 'THE ALGORITHM', tagline: 'IT KNOWS WHAT YOU WANT',
+        barks: {
+            phase2: 'RECALIBRATING',
+            taunt: ['ENGAGEMENT UP', 'WATCH NEXT', 'BLOCKED'],
+        },
         w: 40, h: 40, hp: 60, contactDmg: 2, score: 15000,
         color: '#202848', detail: '#7af0ff',
         grounded: false,
