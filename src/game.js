@@ -1564,6 +1564,7 @@ export class Game {
         this.scene = SCENE.STAGE_CLEAR;
         this.storyTimer = 0;
         this._stageClearTallyDone = false;
+        this._stageClearRank = null;
 
         // Per-stage medals — 3 medals per stage that drive replay value
         const earned = {
@@ -1736,6 +1737,24 @@ export class Game {
         const accuracy = this.player.shotsFired > 0
             ? Math.round((this.stageStats.kills / this.player.shotsFired) * 100)
             : 0;
+        // Rank letter grade — weighted on damage-taken (50%), accuracy (30%),
+        // time (20%). Cached on the panel so the letter doesn't flicker between
+        // ticks as shownScore changes. Renders on the right edge as a big
+        // outlined letter once the stats have animated in.
+        if (this._stageClearRank == null) {
+            const dmg = this.stageStats.damageTaken || 0;
+            const dmgScore = dmg === 0 ? 1 : dmg <= 2 ? 0.7 : dmg <= 5 ? 0.4 : 0.15;
+            const accScore = Math.min(1, accuracy / 60); // 60% accuracy is full
+            // Time: stage par ~75s; under par = full, slower scales down
+            const par = 75 * 60; // frames
+            const timeScore = Math.max(0.1, Math.min(1, par / Math.max(par, this.stageTime)));
+            const composite = dmgScore * 0.5 + accScore * 0.3 + timeScore * 0.2;
+            const letter = composite >= 0.92 ? 'S'
+                         : composite >= 0.78 ? 'A'
+                         : composite >= 0.62 ? 'B'
+                         : composite >= 0.45 ? 'C' : 'D';
+            this._stageClearRank = { letter, composite };
+        }
         const scoreT = Math.min(1, (panelT - 12) / 60);
         const shownScore = Math.floor(this.player.score * scoreT);
         // Tick SFX every 4 frames while the score is still climbing — gives
@@ -1780,6 +1799,25 @@ export class Game {
             ctx.fillRect(28, y + 3, Math.floor((w + 4) * sweep), 1);
             if (killRowT > 22) {
                 drawText(ctx, '[DOWN]', GAME.W - 30, y, '#ff5050', 1, 'right');
+            }
+        }
+        // Rank letter — large outlined grade in the upper-right corner of the
+        // panel. Pops in once the stats finish animating, with a brief scale-up
+        // bounce. Tier colors mirror combo-tier palette: S=white, A=gold,
+        // B=orange, C=red, D=grey.
+        const rankT = panelT - (12 + stats.length * 8);
+        if (rankT > 10) {
+            const rk = this._stageClearRank;
+            const RANK_COLOR = { S: '#fff8c8', A: '#ffe070', B: '#ff9030', C: '#ff5050', D: '#a08080' };
+            const introT = Math.min(1, (rankT - 10) / 12);
+            const bounce = 1 + Math.sin(introT * Math.PI) * 0.5;
+            const scale = Math.round(3 * bounce);
+            const rx = GAME.W - 40;
+            const ry = panelTop + 12;
+            drawTextOutlined(ctx, rk.letter, rx, ry, RANK_COLOR[rk.letter] || '#fff', '#1a0820', scale, 'center');
+            // Small label
+            if (introT >= 1) {
+                drawText(ctx, 'RANK', rx, ry - 12, '#a0a0c0', 1, 'center');
             }
         }
     }
