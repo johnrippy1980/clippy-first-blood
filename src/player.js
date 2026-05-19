@@ -1472,6 +1472,10 @@ export class Player {
         }
         this.requestShake = Math.max(this.requestShake || 0, 8);
         this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_HURT_F * 2);
+        // Drop in-flight grenades silently — letting them keep ticking would
+        // fire 'explode' SFX mid-death-sequence and damage enemies after the
+        // player is already dying, which reads as bugged. Death is final.
+        this.thrownGrenades.length = 0;
     }
 
     isDead() {
