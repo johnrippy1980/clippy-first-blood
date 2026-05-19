@@ -19,8 +19,6 @@ const result = await page.evaluate(async () => {
     const required = [
         'boss_COPIER_3000', 'boss_SHREDDER', 'boss_CTRL_ALT_DEL',
         'boss_BALLMER', 'boss_GATES', 'boss_CLIPPY_2', 'boss_ALGORITHM',
-        // Grunts also upgraded to painted 64x64 in r96.
-        'folder', 'stapler', 'cabinet', 'holepunch',
     ];
     const loaded = {};
     const dims = {};

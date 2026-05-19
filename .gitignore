@@ -9,6 +9,7 @@ _reference/
 
 # Smoke-test artefact
 screenshot.png
+tools/screenshots/
 
 # Legacy patterns (kept for safety with older artifacts)
 ChatGPT*.png

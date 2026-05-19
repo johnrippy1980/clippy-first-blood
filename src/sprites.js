@@ -168,22 +168,25 @@ export const CLIPPY_MANIFEST = {
 
 export const ENEMY_MANIFEST = {
     // v2 painted enemies — prefer these; fall through to procedural if 404.
-    // *_painted.png are the high-res alts downscaled from 1024 → 64 via sips.
-    'folder':           'v2_folder_painted.png',
-    'folder_walk':      'v2_folder_painted.png',
-    'folder_attack':    'v2_folder_painted.png',
-    'folder_hurt':      'v2_folder_painted.png',
-    'folder_death':     'v2_folder_painted.png',
-    'stapler':          'v2_stapler_painted.png',
-    'stapler_attack':   'v2_stapler_painted.png',
-    'stapler_hurt':     'v2_stapler_painted.png',
-    'stapler_death':    'v2_stapler_painted.png',
-    'cabinet':          'v2_cabinet_painted.png',
-    'cabinet_walk':     'v2_cabinet_painted.png',
-    'cabinet_attack':   'v2_cabinet_painted.png',
-    'cabinet_hurt':     'v2_cabinet_painted.png',
-    'cabinet_death':    'v2_cabinet_painted.png',
-    'holepunch':        'v2_holepunch_painted.png',
+    // The r96 swap to *_painted.png 64x64 was reverted: visual review showed
+    // the downscaled high-res alts lost too much detail and read as ambiguous
+    // blobs in-game (folder looked like a shoe). The painted PNGs stay on disk
+    // for future iteration at a different scale or with sharper source art.
+    'folder':           'v2_folder.png',
+    'folder_walk':      'v2_folder.png',
+    'folder_attack':    'v2_folder.png',
+    'folder_hurt':      'v2_folder.png',
+    'folder_death':     'v2_folder.png',
+    'stapler':          'v2_stapler.png',
+    'stapler_attack':   'v2_stapler.png',
+    'stapler_hurt':     'v2_stapler.png',
+    'stapler_death':    'v2_stapler.png',
+    'cabinet':          'v2_cabinet.png',
+    'cabinet_walk':     'v2_cabinet.png',
+    'cabinet_attack':   'v2_cabinet.png',
+    'cabinet_hurt':     'v2_cabinet.png',
+    'cabinet_death':    'v2_cabinet.png',
+    'holepunch':        'v2_holepunch.png',
     // Bosses (painted PNGs already in place)
     'boss_COPIER_3000': 'boss_copier_painted.png',
     'boss_SHREDDER':    'boss_shredder_painted.png',
