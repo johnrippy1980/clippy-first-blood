@@ -858,6 +858,7 @@ class Boss extends Enemy {
             const startR = Math.max(this.w, this.h) * 0.9 + 8;
             const color = this.phase === 2 ? '#ff3030' : '#ff8030';
             particles.chargeRing(cx, cy, startR, 30, color, this);
+            audio.sfx?.('bossChargeTell');
         }
         if (this.attackTimer <= 0) {
             this._runPattern(level, player);

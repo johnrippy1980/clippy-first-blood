@@ -114,6 +114,7 @@ class Audio {
             case 'backdash': return this._backdashWhoosh(t);
             case 'bossHit':  return this._bossHit(t);
             case 'pounceStab': return this._pounceStab(t);
+            case 'bossChargeTell': return this._bossChargeTell(t);
             case 'bossExplode': return this._bossExplode(t);
             case 'comboBreak': return this._comboBreakRoar(t);
             case 'combo':    return this._comboHit(t, 1);
@@ -630,6 +631,16 @@ class Audio {
         // Blade clack: sharp square stab at 2.5kHz dropping to 600Hz
         this._tonal(t + 0.08, 'square', 2500, 600, 0.06, 0.30);
         this._noise(t + 0.08,  0.05, 0.10, 5000, 'hp', 2);
+    }
+
+    _bossChargeTell(t) {
+        // ~500ms rising synth swell matching the contracting telegraph ring.
+        // Low triangle base + filtered noise bed; the rising sweep telegraphs
+        // "windup ending soon" without stomping on weapon SFX.
+        this._tonal(t,        'triangle', 220, 660, 0.45, 0.16);
+        this._tonal(t + 0.10, 'sine',     330, 990, 0.40, 0.10);
+        // Filtered noise — adds the air-charging tail
+        this._noise(t,         0.45, 0.10, 1200, 'bp', 3);
     }
 
     _bossExplode(t) {
