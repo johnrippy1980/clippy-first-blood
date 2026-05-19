@@ -9,12 +9,20 @@ class SpriteSet {
     constructor() {
         this.images = new Map();     // frameName -> HTMLImageElement
         this.dims = new Map();       // frameName -> {w, h}
+        // Aggregate loading counters across all loadAll() calls. Boot screen
+        // reads these for a progress bar. settled = loaded+failed.
+        this.totalAssets = 0;
+        this.settledAssets = 0;
     }
 
     async loadAll(manifest, basePath) {
+        const entries = Object.entries(manifest);
+        this.totalAssets += entries.length;
         const promises = [];
-        for (const [name, file] of Object.entries(manifest)) {
-            promises.push(this._loadOne(name, `${basePath}/${file}`));
+        for (const [name, file] of entries) {
+            promises.push(this._loadOne(name, `${basePath}/${file}`).finally(() => {
+                this.settledAssets++;
+            }));
         }
         await Promise.allSettled(promises);
     }

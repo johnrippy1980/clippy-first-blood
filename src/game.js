@@ -310,6 +310,27 @@ export class Game {
         const ctx = this.ctx;
         drawText(ctx, 'OFFICE WARFARE LTD.', GAME.W / 2, GAME.H / 2 - 8, '#604068', 1, 'center');
         drawText(ctx, 'PRESENTS', GAME.W / 2, GAME.H / 2 + 4, '#4a3050', 1, 'center');
+        // Asset-loading progress bar. Sits below the studio bumper so a slow
+        // connection has a felt cue instead of a static screen. Hidden once
+        // assets are ready since the bumper holds for an extra ~1s anyway.
+        const total = sprites.totalAssets;
+        if (total > 0 && !this.assetsReady) {
+            const done = Math.min(sprites.settledAssets, total);
+            const pct = done / total;
+            const barW = 80, barH = 3;
+            const barX = Math.floor((GAME.W - barW) / 2);
+            const barY = GAME.H / 2 + 20;
+            ctx.fillStyle = '#1a0a14';
+            ctx.fillRect(barX, barY, barW, barH);
+            ctx.fillStyle = '#604068';
+            ctx.fillRect(barX, barY, Math.floor(barW * pct), barH);
+            // Border
+            ctx.fillStyle = '#2a1828';
+            ctx.fillRect(barX - 1, barY - 1, barW + 2, 1);
+            ctx.fillRect(barX - 1, barY + barH, barW + 2, 1);
+            ctx.fillRect(barX - 1, barY - 1, 1, barH + 2);
+            ctx.fillRect(barX + barW, barY - 1, 1, barH + 2);
+        }
     }
 
     // ============== title ==============
