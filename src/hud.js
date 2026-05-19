@@ -118,6 +118,16 @@ export function drawHUD(ctx, state) {
     ctx.fillStyle = '#3a2a4a';
     ctx.fillRect(barX, barY, barW, 1);
     ctx.fillRect(barX, barY + barH - 1, barW, 1);
+    // Segment dividers — one thin dark line at each HP unit boundary so the
+    // bar reads as discrete chunks ("3 of 4 hp") instead of an analog fill.
+    if (player.maxHp > 1) {
+        ctx.fillStyle = '#0a0410';
+        const segW = barW / player.maxHp;
+        for (let i = 1; i < player.maxHp; i++) {
+            const sx = barX + Math.floor(i * segW);
+            ctx.fillRect(sx, barY, 1, barH);
+        }
+    }
     // Extra: when low HP, pulse a thin red border around HP bar
     if (player.hp <= 1) {
         ctx.fillStyle = '#ff3030';
