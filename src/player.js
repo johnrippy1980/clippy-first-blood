@@ -99,6 +99,9 @@ export class Player {
         this.grenades = 0;
         this.thrownGrenades = [];
         this._grenadeCooldown = 0;
+        // First-throw tracker — drives a discovery prompt on the HUD until
+        // the player throws their first grenade. Persists across stages.
+        this._everThrewGrenade = false;
 
         // Aim — continuous angle in radians. 0 = right, -PI/2 = up, +PI/2 = down.
         this.aim = AIM.RIGHT;        // legacy 8-way pointer (kept for compat)
@@ -1116,6 +1119,7 @@ export class Player {
             return;
         }
         this.grenades--;
+        this._everThrewGrenade = true;
         this._grenadeCooldown = 18;  // 0.3s — no chain-throw spam
         const cx = this.x + this.w / 2;
         const cy = this.y + this.h / 2 - 2;
@@ -1469,6 +1473,25 @@ export class Player {
             ctx.fillRect(px - 26, py - 2, 52, 1);
             ctx.fillRect(px - 26, py + 8, 52, 1);
             drawText(ctx, 'C POUNCE', px, py + 1, '#80e0ff', 1, 'center');
+            ctx.restore();
+        }
+        // Grenade discovery hint — shows above Clippy until the player has
+        // thrown one grenade. Suppressed during pounce / death / cover prompt
+        // states so it doesn't stack with the cyan POUNCE hint.
+        if (this.grenades > 0 && !this._everThrewGrenade
+            && !hiddenForPrompt && this.state !== STATE.POUNCE
+            && this.state !== STATE.DIE) {
+            const px = Math.round(this.x + this.w / 2 - camera.viewX);
+            const py = Math.round(this.y - 24 - camera.viewY);
+            const pulse = (Math.sin(performance.now() * 0.014) + 1) * 0.5;
+            ctx.save();
+            ctx.globalAlpha = 0.65 + pulse * 0.35;
+            ctx.fillStyle = 'rgba(8, 18, 6, 0.9)';
+            ctx.fillRect(px - 24, py - 2, 48, 11);
+            ctx.fillStyle = '#80ff40';
+            ctx.fillRect(px - 24, py - 2, 48, 1);
+            ctx.fillRect(px - 24, py + 8, 48, 1);
+            drawText(ctx, 'V THROW', px, py + 1, '#80ff40', 1, 'center');
             ctx.restore();
         }
 
