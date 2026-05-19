@@ -268,6 +268,25 @@ class Enemy {
             return;
         }
         if (this.owlPause > 0) return;
+        // Pre-fire telegraph: in the 8 frames leading up to a shot, set
+        // _preFire to a 0..1 ramp so the draw can paint a charging muzzle
+        // flare. Lets the player see incoming bullets before they spawn.
+        if (distAbs < 200) {
+            const phase = this.timer % fireRate;
+            if (phase >= fireRate - 8) {
+                this._preFire = (phase - (fireRate - 8)) / 7;
+                // Snapshot the aim vector so the telegraph points where the
+                // shot will go, not the player's current position by the time
+                // it fires.
+                const d2 = Math.hypot(dx, dy) || 1;
+                this._preFireDx = dx / d2;
+                this._preFireDy = dy / d2;
+            } else {
+                this._preFire = 0;
+            }
+        } else {
+            this._preFire = 0;
+        }
         if (this.timer % fireRate === 0 && distAbs < 200) {
             const d = Math.hypot(dx, dy) || 1;
             const vx = dx / d * tpl.projectileSpeed;
@@ -587,6 +606,34 @@ class Enemy {
                 ctx.fillStyle = '#ff5050';
                 ctx.fillRect(dx, dy - 4, this.w, 2);
             }
+        }
+        // Pre-fire muzzle telegraph — glowing red dot at enemy center
+        // along the aim direction, intensifying over the last 8 frames before
+        // the shot. Gives the player time to dodge instead of bullets
+        // appearing instantly from a still sprite.
+        if (this._preFire > 0) {
+            const cx = dx + this.w / 2;
+            const cy = dy + this.h / 2;
+            const ax = this._preFireDx || 0;
+            const ay = this._preFireDy || 0;
+            // Glow site: 5px out along aim
+            const gx = cx + ax * 5;
+            const gy = cy + ay * 5;
+            ctx.save();
+            ctx.globalAlpha = 0.4 + this._preFire * 0.5;
+            // Outer warning red
+            ctx.fillStyle = '#ff3030';
+            const r = 2 + this._preFire * 2;
+            ctx.beginPath();
+            ctx.arc(gx, gy, r, 0, Math.PI * 2);
+            ctx.fill();
+            // Hot core
+            ctx.globalAlpha = 0.6 + this._preFire * 0.4;
+            ctx.fillStyle = '#ffe070';
+            ctx.beginPath();
+            ctx.arc(gx, gy, Math.max(0.5, r - 1.5), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
         // Alert "!" bubble — fires on first activation. Telegraphs that this
         // enemy has spotted the player so off-camera threats don't surprise.
