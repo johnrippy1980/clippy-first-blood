@@ -619,6 +619,27 @@ class Enemy {
                 ctx.fillRect(dx, dy - 4, this.w, 2);
             }
         }
+        // Stunned visual — 3 yellow stars orbiting above the enemy's head.
+        // Reads from across the screen as "this one is helpless, finish it".
+        if ((this._stunTimer || 0) > 0) {
+            const cx = dx + this.w / 2;
+            const cy = dy - 4;
+            const t = this.timer * 0.18;
+            for (let i = 0; i < 3; i++) {
+                const a = t + (i / 3) * Math.PI * 2;
+                const sx = cx + Math.cos(a) * 7;
+                const sy = cy + Math.sin(a) * 2.5;
+                // Star: 3x3 cross with dark center
+                ctx.fillStyle = '#1a0810';
+                ctx.fillRect(sx - 2, sy - 1, 5, 3);
+                ctx.fillRect(sx - 1, sy - 2, 3, 5);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(sx - 1, sy, 3, 1);
+                ctx.fillRect(sx, sy - 1, 1, 3);
+                ctx.fillStyle = '#fff8c8';
+                ctx.fillRect(sx, sy, 1, 1);
+            }
+        }
         // Pre-fire muzzle telegraph — glowing red dot at enemy center
         // along the aim direction, intensifying over the last 8 frames before
         // the shot. Gives the player time to dodge instead of bullets
