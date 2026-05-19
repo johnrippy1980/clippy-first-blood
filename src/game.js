@@ -746,6 +746,38 @@ export class Game {
         ctx.fillStyle = this._playVignette;
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         ctx.restore();
+        // Combo-tier vignette pulse — at high combo tiers, layer a warm
+        // colored edge glow over the standard vignette so the player FEELS
+        // the "in the zone" state without needing to look at the HUD.
+        // Tier 1 (10+): faint gold; tier 2 (25+): warmer orange;
+        // tier 3 (50+): white-hot. Pulses with a slow sine.
+        const c = this.player?.combo || 0;
+        const cTier = c >= 50 ? 3 : c >= 25 ? 2 : c >= 10 ? 1 : 0;
+        if (cTier > 0) {
+            if (!this._comboVignettes) this._comboVignettes = {};
+            if (!this._comboVignettes[cTier]) {
+                const COLORS = [
+                    null,
+                    'rgba(255, 224, 112, 0.18)',
+                    'rgba(255, 144, 48, 0.24)',
+                    'rgba(255, 255, 255, 0.32)',
+                ];
+                const g = ctx.createRadialGradient(
+                    GAME.W / 2, GAME.H / 2, GAME.H * 0.32,
+                    GAME.W / 2, GAME.H / 2, GAME.W * 0.7
+                );
+                g.addColorStop(0, 'rgba(0,0,0,0)');
+                g.addColorStop(1, COLORS[cTier]);
+                this._comboVignettes[cTier] = g;
+            }
+            const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
+            ctx.save();
+            ctx.globalAlpha = 0.55 + pulse * 0.35;
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = this._comboVignettes[cTier];
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            ctx.restore();
+        }
         const showBoss = this.scene === SCENE.PLAY || this.scene === SCENE.PAUSE;
         drawHUD(ctx, {
             player: this.player,
