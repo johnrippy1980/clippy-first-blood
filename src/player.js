@@ -358,6 +358,12 @@ export class Player {
                     this._grapplePhase = null;
                     this.state = STATE.IDLE;
                 }
+                // Notify crumble tiles under feet — three probe points so the
+                // tile cracks regardless of which side the player is standing on.
+                const footY = this.y + this.h + 1;
+                level.notifyStanding(this.x + 2, footY);
+                level.notifyStanding(this.x + this.w / 2, footY);
+                level.notifyStanding(this.x + this.w - 2, footY);
             } else {
                 // Ceiling hit
             }
@@ -383,6 +389,9 @@ export class Player {
                     this.y = tileTop - this.h;
                     this.vy = 0;
                     this.onGround = true;
+                    level.notifyStanding(this.x + 2, probeY);
+                    level.notifyStanding(this.x + this.w / 2, probeY);
+                    level.notifyStanding(this.x + this.w - 2, probeY);
                 } else {
                     this.onGround = false;
                 }

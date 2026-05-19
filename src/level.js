@@ -745,11 +745,75 @@ export class Level {
         this.palette = THEME_PALETTE[data.theme] || THEME_PALETTE[THEME.JUNGLE];
         this.frame = 0;
         this.tileAnimTick = 0;
+        // Crumble tile state. Key = `${tx},${ty}`; value tracks how long the
+        // player has been standing on the tile (cracking) or how long until
+        // it respawns (broken). Map keeps the level data immutable.
+        this._cracks = new Map();     // tx,ty -> crack progress (0..30)
+        this._broken = new Map();     // tx,ty -> respawn countdown (300..0)
+        this._crumbleDebris = [];     // {x, y, life} debris when a tile fully crumbles
     }
 
     update() {
         this.frame++;
         if (this.frame % 8 === 0) this.tileAnimTick++;
+        // Decay cracks for tiles that aren't being stood on anymore. The player
+        // calls `notifyStanding` each tick from `_landed`; we tag those tiles
+        // here via `_crackTouched`. Anything not touched this frame heals.
+        for (const [key, prog] of this._cracks) {
+            if (!this._crackTouched?.has(key)) {
+                const next = prog - 0.5;
+                if (next <= 0) this._cracks.delete(key);
+                else this._cracks.set(key, next);
+            }
+        }
+        this._crackTouched?.clear();
+        // Respawn timers
+        for (const [key, t] of this._broken) {
+            const next = t - 1;
+            if (next <= 0) this._broken.delete(key);
+            else this._broken.set(key, next);
+        }
+        // Debris fade
+        for (let i = this._crumbleDebris.length - 1; i >= 0; i--) {
+            const d = this._crumbleDebris[i];
+            d.x += d.vx; d.y += d.vy; d.vy += 0.2; d.life--;
+            if (d.life <= 0) this._crumbleDebris.splice(i, 1);
+        }
+    }
+
+    // Called from the player land-detect to mark a crumble tile as being
+    // weighted this frame. Once progress crosses 30, the tile breaks.
+    notifyStanding(px, py) {
+        const tx = Math.floor(px / GAME.TILE);
+        const ty = Math.floor(py / GAME.TILE);
+        if (ty < 0 || ty >= this.data.height || tx < 0 || tx >= this.data.width) return;
+        if (this.tiles[ty][tx] !== TILE.BREAKABLE) return;
+        const key = tx + ',' + ty;
+        if (this._broken.has(key)) return;
+        if (!this._crackTouched) this._crackTouched = new Set();
+        this._crackTouched.add(key);
+        const prog = (this._cracks.get(key) || 0) + 1;
+        if (prog >= 30) {
+            // Break — eject debris, mark broken with respawn timer.
+            this._cracks.delete(key);
+            this._broken.set(key, 300);
+            const cx = tx * GAME.TILE + GAME.TILE / 2;
+            const cy = ty * GAME.TILE + GAME.TILE / 2;
+            for (let i = 0; i < 6; i++) {
+                this._crumbleDebris.push({
+                    x: cx, y: cy,
+                    vx: (Math.random() - 0.5) * 1.5,
+                    vy: -1 - Math.random() * 1,
+                    life: 30,
+                });
+            }
+        } else {
+            this._cracks.set(key, prog);
+        }
+    }
+
+    isBrokenCrumble(tx, ty) {
+        return this._broken.has(tx + ',' + ty);
     }
 
     tileAt(px, py) {
@@ -762,6 +826,11 @@ export class Level {
     isSolid(px, py, allowPlatform = false, prevY = null) {
         const t = this.tileAt(px, py);
         if (t === TILE.SOLID) return true;
+        if (t === TILE.BREAKABLE) {
+            const tx = Math.floor(px / GAME.TILE);
+            const ty = Math.floor(py / GAME.TILE);
+            return !this.isBrokenCrumble(tx, ty);
+        }
         if (t === TILE.PLATFORM) {
             // One-way: solid only if we were above it last frame
             if (!allowPlatform) return false;
@@ -824,7 +893,11 @@ export class Level {
             const prevBottom = box.y + box.h;
             const isPlatformLanding = (t === TILE.PLATFORM) && sign > 0 && allowPlatform &&
                 (prevBottom <= tileTop + 4);
-            if (t === TILE.SOLID || isPlatformLanding) {
+            // Crumble tile lands like SOLID unless already broken
+            const tx = Math.floor(px / GAME.TILE);
+            const ty2 = Math.floor(probeY / GAME.TILE);
+            const isCrumbleSolid = (t === TILE.BREAKABLE) && !this.isBrokenCrumble(tx, ty2);
+            if (t === TILE.SOLID || isPlatformLanding || isCrumbleSolid) {
                 const ty = Math.floor(probeY / GAME.TILE);
                 const tileEdge = sign > 0 ? ty * GAME.TILE : (ty + 1) * GAME.TILE;
                 return {
@@ -853,6 +926,17 @@ export class Level {
                 const y = r * T - camera.viewY;
                 this._drawTile(ctx, t, x, y, r, c);
             }
+        }
+        // Crumble-tile debris — falling chunks ejected when a tile breaks.
+        if (this._crumbleDebris.length) {
+            ctx.fillStyle = '#5a3826';
+            for (const d of this._crumbleDebris) {
+                const dx = Math.round(d.x - camera.viewX);
+                const dy = Math.round(d.y - camera.viewY);
+                ctx.globalAlpha = Math.min(1, d.life / 20);
+                ctx.fillRect(dx, dy, 2, 2);
+            }
+            ctx.globalAlpha = 1;
         }
     }
 
@@ -1004,6 +1088,66 @@ export class Level {
                             ctx.fillStyle = p === 1 ? '#d8fff0' : '#a0f0c8';
                             ctx.fillRect(x + i, y, 1, 1);
                         }
+                    }
+                }
+                break;
+            }
+            case TILE.BREAKABLE: {
+                // Crumble tile — drawn like a SOLID but with rivet corners and
+                // crack overlay scaling with crackProg. Broken tiles show a faint
+                // outline so the player can read where it'll respawn.
+                const key = c + ',' + r;
+                const isBroken = this._broken.has(key);
+                if (isBroken) {
+                    // Ghost outline + respawn countdown ring
+                    const respawn = this._broken.get(key) || 0;
+                    ctx.strokeStyle = '#ffa040';
+                    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(this.frame * 0.15);
+                    ctx.setLineDash([2, 2]);
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
+                    ctx.setLineDash([]);
+                    ctx.globalAlpha = 1;
+                    break;
+                }
+                // Solid block — slightly warmer/brick-toned so it reads as DIFFERENT
+                // from regular SOLID.
+                ctx.fillStyle = '#5a3826';
+                ctx.fillRect(x, y, T, T);
+                ctx.fillStyle = '#7a5036';
+                ctx.fillRect(x + 1, y + 1, T - 2, 2);
+                ctx.fillStyle = '#3a2014';
+                ctx.fillRect(x + 1, y + T - 3, T - 2, 2);
+                // Rivets
+                ctx.fillStyle = '#2a1408';
+                ctx.fillRect(x + 2, y + 2, 1, 1);
+                ctx.fillRect(x + T - 3, y + 2, 1, 1);
+                ctx.fillRect(x + 2, y + T - 3, 1, 1);
+                ctx.fillRect(x + T - 3, y + T - 3, 1, 1);
+                // Crack overlay
+                const prog = this._cracks.get(key) || 0;
+                if (prog > 0) {
+                    const stage = prog / 30; // 0..1
+                    ctx.strokeStyle = '#1a0808';
+                    ctx.lineWidth = 1;
+                    ctx.globalAlpha = 0.5 + 0.5 * stage;
+                    // First crack appears immediately, secondary at 0.5+
+                    ctx.beginPath();
+                    ctx.moveTo(x + 2, y + 4);
+                    ctx.lineTo(x + T / 2, y + T / 2);
+                    ctx.lineTo(x + T - 3, y + T - 4);
+                    if (stage > 0.5) {
+                        ctx.moveTo(x + T - 4, y + 3);
+                        ctx.lineTo(x + T / 2 + 1, y + T / 2 + 1);
+                        ctx.lineTo(x + 3, y + T - 3);
+                    }
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                    // Late-stage shake — subtle 1px wobble on the rivets to
+                    // sell the imminent collapse.
+                    if (stage > 0.7 && this.frame % 4 === 0) {
+                        ctx.fillStyle = '#ff8040';
+                        ctx.fillRect(x + T / 2 - 1, y + T / 2 - 1, 2, 2);
                     }
                 }
                 break;
