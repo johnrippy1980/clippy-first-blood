@@ -287,6 +287,47 @@ export class Parallax {
         this._drawSignatureEffect(ctx);
     }
 
+    // Close-camera depth motes — 8 1px particles drift across the screen at
+    // 1.3x parallax, behind the theme's drawFront layer. Pure depth tier:
+    // motes appear to whoosh past the camera faster than the background
+    // moves, selling "you're close to the camera" without sprite art. Each
+    // mote uses theme-tinted color and has its own slow vertical drift.
+    _drawDepthMotes(ctx, camera) {
+        if (!this._depthMotes) {
+            this._depthMotes = [];
+            for (let i = 0; i < 8; i++) {
+                this._depthMotes.push({
+                    x: Math.random() * GAME.W * 1.4,
+                    y: Math.random() * GAME.H,
+                    vy: -0.05 - Math.random() * 0.06,
+                    phase: Math.random() * Math.PI * 2,
+                });
+            }
+        }
+        const FRONT_TINT = {
+            [THEME.JUNGLE]:     '#80c080',
+            [THEME.BREAKROOM]:  '#ffe0c0',
+            [THEME.SERVERROOM]: '#80c0ff',
+            [THEME.BOARDROOM]:  '#ffe080',
+            [THEME.KEYNOTE]:    '#ff8080',
+            [THEME.FOUNDER]:    '#ffa050',
+            [THEME.CLOUD]:      '#ffffff',
+        };
+        const tint = FRONT_TINT[this.theme] || '#ffffff';
+        const ox = camera.viewX * 1.3;
+        for (const m of this._depthMotes) {
+            m.y += m.vy;
+            m.phase += 0.04;
+            if (m.y < -2) { m.y = GAME.H + 2; m.x = Math.random() * GAME.W * 1.4; }
+            const sx = ((m.x - ox) % (GAME.W + 40) + (GAME.W + 40)) % (GAME.W + 40) - 20;
+            const a = 0.32 + Math.sin(m.phase) * 0.22;
+            ctx.globalAlpha = Math.max(0, a);
+            ctx.fillStyle = tint;
+            ctx.fillRect(Math.round(sx), Math.round(m.y), 1, 1);
+        }
+        ctx.globalAlpha = 1;
+    }
+
     // Distance-haze band — soft horizontal mid-screen gradient that fades the
     // painted bg toward an atmospheric tint at the horizon line. Pure depth
     // cheat: far objects appear color-shifted toward the sky, near ground stays
@@ -485,6 +526,7 @@ export class Parallax {
     }
 
     drawFront(ctx, camera) {
+        this._drawDepthMotes(ctx, camera);
         switch (this.theme) {
             case THEME.JUNGLE:     this._jungleFront(ctx, camera); break;
             case THEME.BREAKROOM:  this._breakroomFront(ctx, camera); break;
