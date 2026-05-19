@@ -1497,6 +1497,23 @@ export class Player {
                 ctx.restore();
             }
 
+            // Low-HP red rim wash — when below 30% HP and not in iframes,
+            // paint a pulsing red tint over the sprite. Pairs with the HUD
+            // HP-bar pulse so the player FEELS the danger on the body, not
+            // just at the top of the screen. Heartbeat tempo (~75 BPM).
+            if (this.hp > 0 && this.hp <= this.maxHp * 0.3 && this.iFrames === 0) {
+                const beat = (Math.sin(performance.now() * 0.013) + 1) * 0.5;
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
+                ctx.clip();
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.globalAlpha = 0.18 + beat * 0.32;
+                ctx.fillStyle = '#ff3030';
+                ctx.fillRect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
+                ctx.restore();
+            }
+
             // Muzzle-flash light cast: while firing, paint a warm radial
             // wash over the sprite from the muzzle outward. Uses 'lighter'
             // so the wash adds to the existing pixels instead of replacing.
