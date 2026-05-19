@@ -140,7 +140,37 @@ class Audio {
             case 'respawn':  return this._respawnReady(t);
             case 'unlock':   return this._unlockDing(t);
             case 'crateHit': return this._crateHit(t);
+            case 'climbRung': return this._climbRung(t);
         }
+    }
+
+    // Metallic ladder tick — short HPF noise + low triangle pluck. Quieter
+    // than 'step' so it doesn't dominate climbing sections; alternating Q
+    // gives left/right hand variation, like _footstep.
+    _climbRung(t) {
+        const dur = 0.05;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'highpass';
+        filt.frequency.value = 1800 + Math.random() * 600;
+        filt.Q.value = 1 + Math.random() * 1.5;
+        const ng = this.ctx.createGain();
+        this._envOn(ng, 0.05, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(ng).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        // Low triangle pluck for body
+        const o = this.ctx.createOscillator();
+        const og = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(220, t);
+        this._envOn(og, 0.03, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.05);
     }
 
     // Wood thunk — bandpassed noise burst + low triangle thump. Short, dry,

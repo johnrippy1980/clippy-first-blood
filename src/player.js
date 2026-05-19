@@ -780,7 +780,18 @@ export class Player {
         this.vy = ax.y * CLIMB_SPEED;
         this.vx = ax.x * CLIMB_SPEED * 0.4;
         // Animation cycles only while moving
-        if (Math.abs(this.vy) > 0.1) this.animFrame += 0.4;
+        if (Math.abs(this.vy) > 0.1) {
+            this.animFrame += 0.4;
+            // Rung tick — fires every ~14 ticks while ascending or descending.
+            // Idle on a ladder stays silent; ax.y === 0 is held without movement.
+            this._climbTick = (this._climbTick || 0) + 1;
+            if (this._climbTick >= 14) {
+                this._climbTick = 0;
+                audio.sfx('climbRung');
+            }
+        } else {
+            this._climbTick = 0;
+        }
         // Jump while climbing detaches
         if (input.isPressed('jump')) {
             this.state = STATE.JUMP;
