@@ -1415,6 +1415,20 @@ export class EnemyManager {
                     b._whizzed = true;
                     this._whizzCooldown = 8;
                     audio.sfx('whizz');
+                    // Visual whizz: 4 white streak particles aligned with the
+                    // bullet's velocity. Short-lived, no gravity — reads as a
+                    // motion blur where the bullet just passed.
+                    const sp = Math.hypot(b.vx, b.vy) || 1;
+                    const ux = b.vx / sp, uy = b.vy / sp;
+                    for (let i = 0; i < 4; i++) {
+                        const j = (Math.random() - 0.5) * 0.4;
+                        particles.spawn(
+                            b.x - ux * (i + 1) * 2,
+                            b.y - uy * (i + 1) * 2,
+                            ux * 0.8 + j, uy * 0.8 + j,
+                            8 - i, '#ffffff', 1, 0
+                        );
+                    }
                 }
             }
         }
