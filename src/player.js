@@ -5,7 +5,7 @@ import { GAME, STATE, AIM, WEAPON, HURT_FLASH, AMBIENT } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
-import { drawClippyFrame, getSpriteDims } from './sprites.js';
+import { drawClippyFrame, getSpriteDims, sprites } from './sprites.js';
 import { drawText } from './pixelfont.js';
 
 // Quick alias so the call site reads cleanly.
@@ -64,6 +64,10 @@ export class Player {
         // Last grounded y — drives the drop-shadow position while airborne
         // so the shadow stays anchored on the floor instead of following feet.
         this._lastGroundY = y + STAND_HEIGHT;
+        // Squash/stretch animation timer — set on hard landings to ~8 frames.
+        // Render scales vertically inversely to a brief squash curve (legs
+        // compress then bounce back). Pure visual; doesn't alter physics.
+        this._squashFrames = 0;
 
         // Health/lives
         this.maxHp = 4;
@@ -278,6 +282,9 @@ export class Player {
                 if (!this.onGround && this.vy > 2) {
                     particles.dust(this.x + this.w / 2, this.y + this.h);
                     audio.sfx('land');
+                    // Hard-landing squash — 8 frames of vertical squish that
+                    // bounces back. Magnitude scales with impact velocity.
+                    this._squashFrames = Math.min(10, 4 + Math.floor(this.vy));
                 }
                 this.onGround = true;
             } else {
@@ -1211,7 +1218,31 @@ export class Player {
                 idleBob = Math.sin(performance.now() * 0.008) > 0 ? -1 : 0;
             }
             const drawY = Math.round(cy - dims.h / 2) + idleBob;
-            drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+            // Squash/stretch on landing: vertical squish that bounces back over
+            // ~8 frames. Curve starts at 1.0 (full squash), eases to 1.15
+            // (overshoot), settles at 1.0. Sells the impact without altering
+            // the hitbox.
+            if (this._squashFrames > 0) {
+                // Phase 0..1 across the squash window.
+                const phase = 1 - this._squashFrames / 10;
+                // 0..0.4 squash (sy 0.75 → 1.0), 0.4..1.0 settle (sy 1.0 → 1.05 → 1.0)
+                let sy;
+                if (phase < 0.4) sy = 0.75 + (phase / 0.4) * 0.25;
+                else sy = 1.0 + Math.sin((phase - 0.4) / 0.6 * Math.PI) * 0.10;
+                const sx = 2 - sy; // conserve volume — squat wider, stretch thinner
+                ctx.save();
+                // Anchor at feet so the squash compresses toward the ground,
+                // not the center.
+                const feetX = drawX + dims.w / 2;
+                const feetY = drawY + dims.h;
+                ctx.translate(feetX, feetY);
+                ctx.scale(sx, sy);
+                ctx.translate(-feetX, -feetY);
+                drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+                ctx.restore();
+            } else {
+                drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+            }
 
             // Per-stage rim light: thin colored wash on the side of the
             // sprite facing the dominant scene light source. Sells "lit by
@@ -1322,6 +1353,7 @@ export class Player {
         }
 
         if (this.recoilTimer > 0) this.recoilTimer--;
+        if (this._squashFrames > 0) this._squashFrames--;
 
         // Bullets
         for (const b of this.bullets) {
@@ -1520,16 +1552,25 @@ export class Player {
         switch (this.state) {
             case STATE.RUN: {
                 if (shooting) {
-                    // Cycle through run-shoot frames
+                    // Run-shoot: aim-aware variant if available so the legs still
+                    // cycle but the upper body matches aim direction.
+                    if (aimBand === 'up' && sprites.has('aim_up')) return 'aim_up';
+                    if (aimBand === 'diag-up' && sprites.has('aim_diag')) return 'aim_diag';
                     const phase = Math.floor(this.animFrame / 2) % 3;
                     return ['run_shoot_1', 'run_shoot_2', 'run_shoot_3'][phase];
                 }
-                // 5-frame run cycle
                 const phase = Math.floor(this.animFrame) % 5;
                 return ['run_1', 'run_2', 'run_3', 'run_4', 'run_5'][phase];
             }
+            // 3-pose jump arc keyed off vy: rising (vy < -1.5), peak (-1.5..1.5),
+            // falling (vy > 1.5). Falls back to plain 'jump' for any missing
+            // variant so manifest gaps don't crash the read.
             case STATE.JUMP:
-            case STATE.FALL: return 'jump';
+            case STATE.FALL: {
+                if (this.vy < -1.5) return 'jump';                // rising
+                if (this.vy > 1.5) return sprites.has('fall') ? 'fall' : 'jump';
+                return 'jump';                                     // peak
+            }
             case STATE.SPIN_JUMP: {
                 // 4-frame spin: jump → spin_1 (90°) → spin_2 (180°) → spin_1 mirrored (270°)
                 const phase = Math.floor(this.spinAngle / (Math.PI / 2)) % 4;
