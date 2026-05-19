@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "python3 -m http.server 8765",
-    "test": "node tools/validate-assets.mjs && node tools/smoke-prod.mjs",
+    "test": "node tools/validate-assets.mjs && node tools/smoke-prod.mjs && node tools/run-probes.mjs",
     "test:assets": "node tools/validate-assets.mjs",
     "test:smoke": "node tools/smoke-prod.mjs",
     "test:probes": "node tools/run-probes.mjs",
