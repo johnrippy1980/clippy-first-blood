@@ -1097,7 +1097,14 @@ export class Player {
                 const tierSfx = this.combo >= 30 ? 'combo4' : this.combo >= 20 ? 'combo3' : this.combo >= 10 ? 'combo2' : 'combo';
                 audio.sfx(tierSfx);
                 particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 14, this._comboLabel(), '#ffe070', 80, -0.4, 2);
-                this.score += this.combo * 100;
+                const bonus = this.combo * 100;
+                this.score += bonus;
+                // Surface the bonus value so the player sees the milestone
+                // actually paying out (was silently accruing before).
+                particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 28, '+' + bonus + ' BONUS', '#ff60ff', 70, -0.5, 1);
+                // Shock ring at enemy for the milestone — color matches combo tier
+                const ringColor = this.combo >= 20 ? '#ff60ff' : this.combo >= 10 ? '#ff8050' : '#ffe070';
+                particles.shockRing(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, 26, 18, ringColor);
                 this.requestShake = Math.max(this.requestShake || 0, 3.5);
             }
         }
