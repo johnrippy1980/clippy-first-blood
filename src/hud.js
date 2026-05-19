@@ -346,8 +346,25 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(bx - 2, by - 8, bw + 4, bh + 12);
         drawTextOutlined(ctx, boss.name || 'BOSS', GAME.W / 2, by - 7, '#ff5050', '#1a0000', 1, 'center');
         const bp = boss.hp / boss.maxHp;
+        // Damage-chip ghost bar — track the previous HP we drew. When boss.hp
+        // drops, the ghost bar drains from old → new over ~24 frames so the
+        // player can read the magnitude of the hit. Cached on the boss instance
+        // (so per-boss; clears with the boss).
+        if (boss._ghostHp == null || boss._ghostHp < boss.hp) boss._ghostHp = boss.hp;
+        if (boss._ghostHp > boss.hp) {
+            // Drain at ~maxHp/24 per tick — landing at boss.hp after ~24 frames.
+            const drainRate = boss.maxHp / 24;
+            boss._ghostHp = Math.max(boss.hp, boss._ghostHp - drainRate);
+        }
         ctx.fillStyle = '#1a0810';
         ctx.fillRect(bx, by, bw, bh);
+        // Ghost (white "lost chunk") band — drawn BEFORE the real red bar so
+        // the red bar sits on top and the ghost extends past it.
+        const ghostP = (boss._ghostHp || 0) / boss.maxHp;
+        if (ghostP > bp + 0.005) {
+            ctx.fillStyle = '#fff8c8';
+            ctx.fillRect(bx, by, Math.floor(bw * Math.max(0, ghostP)), bh);
+        }
         // Three-tier color: dark red > 75%, medium red > 25%, bright pulsing
         // red below 25% (boss is nearly dead — telegraphs the finishing window).
         let barColor;
