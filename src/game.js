@@ -1036,10 +1036,12 @@ export class Game {
         ctx.fillRect(barX, barY, Math.floor(barW * pct), barH);
         drawText(ctx, got + ' / ' + total, GAME.W / 2, 30, '#a0c0e0', 1, 'center');
 
-        // Grid: 4 cols × 4 rows, each tile 50×34
-        const cols = 4;
-        const tileW = 50, tileH = 34;
-        const gridW = cols * tileW + (cols - 1) * 4;
+        // Grid: 5 cols × 4 rows so 18 entries fit (last row had 2 tiles
+        // clipping behind the detail strip on the prior 4×4 layout). 40w×34h
+        // keeps the tile glyph + name legible at the smaller width.
+        const cols = 5;
+        const tileW = 40, tileH = 34;
+        const gridW = cols * tileW + (cols - 1) * 3;
         const gridX = Math.floor((GAME.W - gridW) / 2);
         const gridY = 44;
         const cursor = this.achievementsIndex || 0;
@@ -1047,7 +1049,7 @@ export class Game {
             const a = ACHIEVEMENT_LIST[idx];
             const r = Math.floor(idx / cols);
             const c = idx % cols;
-            const x = gridX + c * (tileW + 4);
+            const x = gridX + c * (tileW + 3);
             const y = gridY + r * (tileH + 4);
             const unlocked = achievements.isUnlocked(a.id);
             const isSel = idx === cursor;
@@ -1067,9 +1069,11 @@ export class Game {
             const iconText = unlocked ? a.icon : '?';
             const iconColor = unlocked ? '#ffe070' : '#604068';
             drawTextOutlined(ctx, iconText, x + tileW / 2, y + 6, iconColor, '#1a0000', 1, 'center');
-            // Mini-name (tight truncate — 8 chars max @ 1× pixel font ≈ 48px)
+            // Mini-name (tight truncate — 6 chars max @ 1× pixel font ≈ 36px,
+            // fits the 40px tile with 2px side margin). Full name renders in
+            // the detail strip at the bottom.
             const shortName = unlocked ? a.name : '?????';
-            const truncated = shortName.length > 8 ? shortName.substring(0, 7) + '.' : shortName;
+            const truncated = shortName.length > 6 ? shortName.substring(0, 5) + '.' : shortName;
             drawText(ctx, truncated, x + tileW / 2, y + 22, unlocked ? '#fff' : '#403048', 1, 'center');
         }
         // Detail strip at the bottom — selected achievement name + description.
