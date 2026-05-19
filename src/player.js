@@ -1128,6 +1128,7 @@ export class Player {
             this.score += 50;
             audio.sfx('pickup');
             burstBurst('#50ff70');
+            particles.shockRing(cx, cy, 18, 12, '#50ff70');
             particles.floatingText(cx, this.y - 4, '+1 HP', '#50ff70', 55, -0.8, 1);
             return;
         }
@@ -1137,6 +1138,9 @@ export class Player {
             this.lives = Math.min(9, this.lives + 1);
             audio.sfx('powerup');
             burstBurst('#ffe070', 14);
+            // 1UP is a bigger deal — double ring (white core + gold flare)
+            particles.shockRing(cx, cy, 18, 12, '#fff');
+            particles.shockRing(cx, cy, 30, 18, '#ffe070');
             particles.floatingText(cx, this.y - 4, '1 UP!', '#ffe070', 75, -0.7, 2);
             return;
         }
@@ -1147,6 +1151,7 @@ export class Player {
                     this.weaponLevel++;
                     audio.sfx('powerup');
                     burstBurst(w.color, 12);
+                    particles.shockRing(cx, cy, 20, 14, w.color);
                     particles.floatingText(cx, this.y - 4,
                         'LV ' + this.weaponLevel + '!', w.color, 60, -0.7, 2);
                 } else {
@@ -1154,6 +1159,7 @@ export class Player {
                     this.score += 500;
                     audio.sfx('pickup');
                     burstBurst('#ffe070');
+                    particles.shockRing(cx, cy, 16, 10, '#ffe070');
                     particles.floatingText(cx, this.y - 4, '+500', '#ffe070', 50, -0.7, 1);
                 }
             } else {
@@ -1161,6 +1167,9 @@ export class Player {
                 this.weaponLevel = 1;
                 audio.sfx('powerup');
                 burstBurst(w.color, 14);
+                // New-weapon swap is the showy beat — double ring in weapon color
+                particles.shockRing(cx, cy, 22, 14, w.color);
+                particles.shockRing(cx, cy, 32, 20, '#fff');
                 // Weapon name in its own color — bigger scale
                 const label = type === 'MG' ? 'MACHINE' : type;
                 particles.floatingText(cx, this.y - 4, label, w.color, 80, -0.5, 2);
