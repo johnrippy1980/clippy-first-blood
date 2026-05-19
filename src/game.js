@@ -148,7 +148,7 @@ export class Game {
         // Per-stage stats (resets on _startStage)
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         // Run-level achievement progress (built up across stages)
-        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0 };
+        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0, grenadeUses: 0, grenadeKills: 0 };
         // Pause sub-state
         this.pauseIndex = 0;
         this.optionsIndex = 0;
@@ -2507,7 +2507,7 @@ export class Game {
         // and medal grants become sticky from prior runs.
         this.totalTime = 0;
         this.totalDeaths = 0;
-        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0 };
+        this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0, grenadeUses: 0, grenadeKills: 0 };
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         this._bossEntrance = null;
         this._bossIntro = null;

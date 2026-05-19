@@ -1126,6 +1126,10 @@ export class Player {
         this.grenades--;
         this._everThrewGrenade = true;
         this._grenadeCooldown = 18;  // 0.3s — no chain-throw spam
+        // Track grenade usage in run stats — feeds future GRENADIER-style
+        // achievement gates without changing existing weapon damage tallies.
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        if (game?.runStats) game.runStats.grenadeUses = (game.runStats.grenadeUses || 0) + 1;
         const cx = this.x + this.w / 2;
         const cy = this.y + this.h / 2 - 2;
         const facing = this.facing >= 0 ? 1 : -1;
@@ -1208,6 +1212,7 @@ export class Player {
         // circular import. The grenade is the only path that needs AoE.
         const game = (typeof window !== 'undefined') ? window.__game : null;
         const enemyMgr = game?.enemies;
+        let killCount = 0;
         if (enemyMgr && enemyMgr.enemies) {
             for (const e of enemyMgr.enemies) {
                 if (!e.alive) continue;
@@ -1216,8 +1221,12 @@ export class Player {
                 if (d > R) continue;
                 const falloff = 0.5 + 0.5 * (1 - d / R);  // 1.0 → 0.5
                 const knockDir = ex < cx ? -1 : 1;
-                e.hurt(dmgMax * falloff, knockDir, { knockBack: 1.8 });
+                const killed = e.hurt(dmgMax * falloff, knockDir, { knockBack: 1.8 });
+                if (killed) killCount++;
             }
+        }
+        if (killCount > 0 && game?.runStats) {
+            game.runStats.grenadeKills = (game.runStats.grenadeKills || 0) + killCount;
         }
         // Crates in radius — break + drop contents. Bypass per-hit thunks
         // since the explode SFX already punctuates the moment.
