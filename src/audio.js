@@ -137,6 +137,28 @@ class Audio {
             case 'wade':     return this._waterWade(t);
             case 'whizz':    return this._bulletWhizz(t);
             case 'attract':  return this._attractChime(t);
+            case 'respawn':  return this._respawnReady(t);
+        }
+    }
+
+    // Two soft sine pings (G5 → C6) — "you're back" beat. Quiet enough to
+    // sit under the music so the respawn doesn't feel celebratory; the
+    // upward interval still signals readiness.
+    _respawnReady(t) {
+        const notes = [
+            { f: 784, start: 0,    dur: 0.12 },
+            { f: 1047, start: 0.10, dur: 0.20 },
+        ];
+        for (const n of notes) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(n.f, t + n.start);
+            g.gain.setValueAtTime(0, t + n.start);
+            g.gain.linearRampToValueAtTime(0.10, t + n.start + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.start + n.dur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + n.start); o.stop(t + n.start + n.dur + 0.02);
         }
     }
 

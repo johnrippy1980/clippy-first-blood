@@ -1566,6 +1566,14 @@ export class Game {
         this.player.vx = 0; this.player.vy = 0;
         this.player.state = 'idle';
         this.player.resetForStage();
+        // Materialize beat — outward shock ring + dust + ready chime so the
+        // respawn isn't a silent teleport. The i-frame window is the same;
+        // this just makes it visible/audible.
+        const cx = this.player.x + this.player.w / 2;
+        const cy = this.player.y + this.player.h / 2;
+        particles.shockRing(cx, cy, 18, 16, '#a8d4ff');
+        particles.dust(cx, this.player.y + this.player.h - 2);
+        audio.sfx('respawn');
     }
 
     // ============== stage transitions ==============
