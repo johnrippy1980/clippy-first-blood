@@ -139,7 +139,39 @@ class Audio {
             case 'attract':  return this._attractChime(t);
             case 'respawn':  return this._respawnReady(t);
             case 'unlock':   return this._unlockDing(t);
+            case 'crateHit': return this._crateHit(t);
         }
+    }
+
+    // Wood thunk — bandpassed noise burst + low triangle thump. Short, dry,
+    // dull. Plays per crate hit before destruction; the 'explode' on the
+    // final break still lands the punctuation.
+    _crateHit(t) {
+        const dur = 0.07;
+        // Noise body
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(420, t);
+        filt.Q.value = 3;
+        const ng = this.ctx.createGain();
+        this._envOn(ng, 0.10, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(ng).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        // Triangle thump for body
+        const o = this.ctx.createOscillator();
+        const og = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(140, t);
+        o.frequency.exponentialRampToValueAtTime(80, t + 0.05);
+        this._envOn(og, 0.08, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.08);
     }
 
     // Three-note ascending triangle arpeggio (E5 → G#5 → B5) — golden

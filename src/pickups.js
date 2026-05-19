@@ -29,6 +29,9 @@ class Crate {
                     audio.sfx('explode');
                     return this.drop;
                 }
+                // Per-hit wood thunk so the player feels hits land before the
+                // crate breaks. Final hit is punctuated by 'explode' above.
+                audio.sfx('crateHit');
             }
         }
         return null;
