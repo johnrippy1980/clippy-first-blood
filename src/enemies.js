@@ -470,6 +470,9 @@ class Enemy {
             // grunt type's death reads physically distinct (folder = manila,
             // stapler = chrome, cabinet = grey, holepunch = steel-blue).
             if (this.gibPalette) particles.gibChunks(cx, cy, this.gibPalette);
+            // Outward shock ring — bosses get a bigger second ring on top.
+            particles.shockRing(cx, cy, this.behavior === 'boss' ? 36 : 22, 14, '#fff');
+            if (this.behavior === 'boss') particles.shockRing(cx, cy, 52, 22, '#ffe070');
             audio.sfx('explode');
             return true;
         }
@@ -494,6 +497,7 @@ class Enemy {
                 const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
                 particles.explosion(cx, cy);
                 if (this.gibPalette) particles.gibChunks(cx, cy, this.gibPalette);
+                particles.shockRing(cx, cy, 22, 14, '#ff8050');
                 audio.sfx('explode');
             }
         }

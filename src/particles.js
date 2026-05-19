@@ -63,12 +63,59 @@ class FloatingText {
     }
 }
 
+class ShockRing {
+    constructor() { this.alive = false; }
+    init(x, y, maxR, life, color) {
+        this.x = x; this.y = y;
+        this.maxR = maxR;
+        this.life = life; this.maxLife = life;
+        this.color = color;
+        this.alive = true;
+    }
+    update() {
+        this.life--;
+        if (this.life <= 0) this.alive = false;
+    }
+    draw(ctx, camera) {
+        const dx = (this.x - camera.x) | 0;
+        const dy = (this.y - camera.y) | 0;
+        const t = 1 - (this.life / this.maxLife);   // 0 → 1 as it expands
+        const r = Math.max(1, this.maxR * t);
+        const a = (1 - t) * 0.85;                   // fade as it expands
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(dx, dy, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
 class ParticleSystem {
     constructor() {
         this.pool = Array.from({ length: 512 }, () => new Particle());
         this.next = 0;
         this.floats = Array.from({ length: 32 }, () => new FloatingText());
         this.nextFloat = 0;
+        this.rings = Array.from({ length: 16 }, () => new ShockRing());
+        this.nextRing = 0;
+    }
+
+    _takeRing() {
+        for (let i = 0; i < this.rings.length; i++) {
+            const r = this.rings[this.nextRing];
+            this.nextRing = (this.nextRing + 1) % this.rings.length;
+            if (!r.alive) return r;
+        }
+        return this.rings[0];
+    }
+
+    // Outward-expanding shock ring — pairs with enemy death to sell the
+    // impact beat. Tunable: maxR default 22, life default 14f (~233ms).
+    shockRing(x, y, maxR = 22, life = 14, color = '#fff') {
+        this._takeRing().init(x, y, maxR, life, color);
     }
 
     _take() {
@@ -290,10 +337,12 @@ class ParticleSystem {
     update() {
         for (const p of this.pool) if (p.alive) p.update();
         for (const f of this.floats) if (f.alive) f.update();
+        for (const r of this.rings) if (r.alive) r.update();
     }
 
     draw(ctx, camera) {
         for (const p of this.pool) if (p.alive) p.draw(ctx, camera);
+        for (const r of this.rings) if (r.alive) r.draw(ctx, camera);
     }
 
     drawFloats(ctx, camera, drawText, drawTextOutlined = null) {
