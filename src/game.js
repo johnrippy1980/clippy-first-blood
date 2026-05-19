@@ -1876,6 +1876,27 @@ export class Game {
         ctx.fillRect(20, banY + 19, GAME.W - 40, 1);
         drawText(ctx, 'NEW: ' + a.name, GAME.W / 2, banY + 4,  '#ffe070', 1, 'center');
         drawText(ctx, a.desc,           GAME.W / 2, banY + 13, '#fff',    1, 'center');
+        // Inline icon strip for additional achievements — shows when 2+ unlock
+        // in one stage. Icons sit ABOVE the banner so they don't collide with
+        // the continue prompt at the bottom edge.
+        if (this._newlyUnlocked.length > 1) {
+            const stripY = banY - 22;
+            const iconW = 12, gap = 2;
+            const total = this._newlyUnlocked.length;
+            const totalW = total * iconW + (total - 1) * gap;
+            let ix = (GAME.W - totalW) / 2;
+            for (const ent of this._newlyUnlocked) {
+                ctx.fillStyle = '#3a2010';
+                ctx.fillRect(ix, stripY, iconW, iconW);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(ix, stripY, iconW, 1);
+                ctx.fillRect(ix, stripY + iconW - 1, iconW, 1);
+                drawText(ctx, ent.icon, ix + iconW / 2, stripY + 3, '#ffe070', 1, 'center');
+                ix += iconW + gap;
+            }
+            drawText(ctx, '+' + total + ' UNLOCKED', GAME.W / 2, stripY - 8,
+                     '#a0c0a0', 1, 'center');
+        }
     }
 
     // Beat 7: blinking "X TO CONTINUE" prompt at the bottom edge.
