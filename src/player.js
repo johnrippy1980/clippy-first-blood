@@ -1029,11 +1029,49 @@ export class Player {
                 fire(ndx * sp * cos - ndy * sp * sin, ndx * sp * sin + ndy * sp * cos);
             }
         } else if (this.weapon === 'THUNDER') {
-            // Hit-scan vertical zap on first enemy in line
-            fire(0, 0); // dummy; chain handler resolves the rest
-            this.bullets[this.bullets.length - 1].chainStartX = baseX;
-            this.bullets[this.bullets.length - 1].chainStartY = baseY;
-            this.bullets[this.bullets.length - 1].life = 14;
+            // Hit-scan along the aim ray. Walks `MAX_RANGE` px out from the
+            // muzzle, sampling each `STEP` px. First enemy AABB the ray pierces
+            // becomes the bolt target; if none, the ray dies at end of range
+            // or at the first solid tile. The dummy bullet is stamped to the
+            // target so the standard bullet-vs-enemy intersection picks it up,
+            // and `boltX/Y` records where the visual zigzag terminates.
+            const MAX_RANGE = 220;
+            const STEP = 4;
+            const game = (typeof window !== 'undefined') ? window.__game : null;
+            const lvl = game?.level || null;
+            const enemies = game?.enemies?.enemies || [];
+            let hitX = baseX + ndx * MAX_RANGE;
+            let hitY = baseY + ndy * MAX_RANGE;
+            for (let s = STEP; s <= MAX_RANGE; s += STEP) {
+                const sx = baseX + ndx * s;
+                const sy = baseY + ndy * s;
+                if (lvl && lvl.isSolid && lvl.isSolid(sx, sy)) { hitX = sx; hitY = sy; break; }
+                let found = null;
+                for (const e of enemies) {
+                    if (!e.alive) continue;
+                    if (sx >= e.x && sx <= e.x + e.w && sy >= e.y && sy <= e.y + e.h) {
+                        found = e; break;
+                    }
+                }
+                if (found) {
+                    hitX = found.x + found.w / 2;
+                    hitY = found.y + found.h / 2;
+                    break;
+                }
+            }
+            // Bullet sits ON the target so EnemyManager's AABB check hits it.
+            // piercing=true so the resolved chain can damage anyone the bolt
+            // column actually intersects (resolved in _resolveThunderChain).
+            fire(0, 0);
+            const tb = this.bullets[this.bullets.length - 1];
+            tb.x = hitX;
+            tb.y = hitY;
+            tb.chainStartX = baseX;
+            tb.chainStartY = baseY;
+            tb.boltX = hitX;
+            tb.boltY = hitY;
+            tb.piercing = true;
+            tb.life = 14;
         } else {
             const j = (Math.random() - 0.5) * (w.spread || 0) * sp;
             fire(ndx * sp + (Math.abs(ndy) < 0.1 ? 0 : j), ndy * sp + (Math.abs(ndx) < 0.1 ? 0 : j));
@@ -1915,11 +1953,47 @@ export class Player {
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(bx, by, 1, 1);
             } else if (b.weapon === 'THUNDER') {
-                let ly = by;
+                // Zigzag bolt from muzzle (chainStartX/Y) to resolved hit
+                // point (boltX/Y). Each segment jitters perpendicular to the
+                // ray so the bolt reads as electric, not a straight beam.
+                const sx0 = Math.round((b.chainStartX ?? b.x) - camera.viewX);
+                const sy0 = Math.round((b.chainStartY ?? b.y) - camera.viewY);
+                const ex = Math.round((b.boltX ?? b.x) - camera.viewX);
+                const ey = Math.round((b.boltY ?? b.y) - camera.viewY);
+                const dxL = ex - sx0, dyL = ey - sy0;
+                const lenL = Math.hypot(dxL, dyL) || 1;
+                const ux = dxL / lenL, uy = dyL / lenL;
+                // Perpendicular for jitter
+                const px = -uy, py = ux;
+                const SEGS = Math.max(4, Math.floor(lenL / 6));
                 ctx.fillStyle = '#fffac8';
-                for (let yy = 0; yy < 200; yy += 3) {
-                    ctx.fillRect(bx + (Math.random() * 4 - 2), by + yy, 2, 3);
+                let prevX = sx0, prevY = sy0;
+                for (let i = 1; i <= SEGS; i++) {
+                    const t = i / SEGS;
+                    const jitter = (i === SEGS) ? 0 : (Math.random() * 4 - 2);
+                    const nx = sx0 + dxL * t + px * jitter;
+                    const ny = sy0 + dyL * t + py * jitter;
+                    // 2-wide bolt
+                    this._line(ctx, prevX, prevY, nx, ny, '#fffac8', 2);
+                    prevX = nx; prevY = ny;
                 }
+                // Hot core overlay — 1px white center re-trace
+                prevX = sx0; prevY = sy0;
+                for (let i = 1; i <= SEGS; i++) {
+                    const t = i / SEGS;
+                    const jitter = (i === SEGS) ? 0 : (Math.random() * 3 - 1.5);
+                    const nx = sx0 + dxL * t + px * jitter;
+                    const ny = sy0 + dyL * t + py * jitter;
+                    this._line(ctx, prevX, prevY, nx, ny, '#ffffff', 1);
+                    prevX = nx; prevY = ny;
+                }
+                // Impact burst at the bolt terminus
+                ctx.globalAlpha = 0.7;
+                ctx.fillStyle = '#fffac8';
+                ctx.fillRect(ex - 3, ey - 3, 7, 7);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(ex - 1, ey - 1, 3, 3);
             } else if (b.weapon === 'FLAME') {
                 // Soft flame puff
                 ctx.fillStyle = b.color;
