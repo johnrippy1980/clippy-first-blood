@@ -1129,9 +1129,13 @@ export class Game {
         this.storyTimer++;
         if (this.storyTimer > 240 || (this.storyTimer > 40 && (input.isPressed('shoot') || input.isPressed('jump')))) {
             audio.sfx('select');
-            // _pendingStage was set by stage_clear when routing through the card
+            // _pendingStage was set by stage_clear when routing through the card.
+            // Leave it set so the 30-frame fade-out draw of this card keeps reading
+            // the same upcoming-stage value — _startStage swaps currentStage to
+            // `next`, and without _pendingStage the draw would briefly flash the
+            // card for currentStage+1 (the *following* stage) before the fade
+            // hands off to STAGE_INTRO.
             const next = this._pendingStage || (this.currentStage + 1);
-            this._pendingStage = null;
             this._startStage(next);
         }
     }
@@ -1844,6 +1848,32 @@ export class Game {
         ctx.fillStyle = `rgba(168, 32, 40, ${pulse})`;
         ctx.fillRect(0, 0, GAME.W, GAME.H);
 
+        // Drifting ember field — 24 slow-rising orange motes that pop in/out
+        // with phased pulse alpha. Pure atmosphere; sells "the world is still
+        // burning" while the player reads their stats.
+        if (!this._goEmbers) {
+            this._goEmbers = [];
+            for (let i = 0; i < 24; i++) {
+                this._goEmbers.push({
+                    x: Math.random() * GAME.W,
+                    y: Math.random() * GAME.H,
+                    vy: -0.18 - Math.random() * 0.22,
+                    phase: Math.random() * Math.PI * 2,
+                    hue: Math.random() < 0.4 ? '#ffaa50' : '#ff5040',
+                });
+            }
+        }
+        for (const m of this._goEmbers) {
+            m.y += m.vy;
+            m.phase += 0.05;
+            if (m.y < -2) { m.y = GAME.H + 2; m.x = Math.random() * GAME.W; }
+            const a = 0.25 + Math.sin(m.phase) * 0.25;
+            ctx.globalAlpha = Math.max(0, a);
+            ctx.fillStyle = m.hue;
+            ctx.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
+        }
+        ctx.globalAlpha = 1;
+
         // Title — dramatic 3× outlined, slight settle-down animation
         const titleY = Math.min(28, 16 + this.storyTimer * 0.6);
         drawTextOutlined(ctx, 'GAME OVER', GAME.W / 2, titleY, '#ff5050', '#1a0000', 3, 'center');
@@ -1997,6 +2027,8 @@ export class Game {
         this.player = null;
         this._stageClearTallyDone = false;
         this.gameOverCountdown = null;
+        this._pendingStage = null;
+        this._goEmbers = null;
         this.scene = SCENE.TITLE;
     }
 

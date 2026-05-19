@@ -36,6 +36,7 @@ const TYPES = {
         speed: 0.9, behavior: 'fly_sine',
         amplitude: 14, period: 90, shootInterval: 60, projectileSpeed: 1.9,
         activateRange: 240,
+        gibPalette: ['#c0a060', '#806030', '#403018'],  // manila folder shreds
     },
     stapler: {
         sprite: 'stapler',
@@ -44,6 +45,7 @@ const TYPES = {
         speed: 0.9, behavior: 'hop',
         hopV: -3.4, hopInterval: 32, leapV: -4.6, leapTriggerDx: 64,
         activateRange: 220,
+        gibPalette: ['#b8b8c0', '#808088', '#404048'],  // chrome / steel
     },
     cabinet: {
         sprite: 'cabinet',
@@ -52,6 +54,7 @@ const TYPES = {
         speed: 0.55, behavior: 'charge',
         chargeSpeed: 2.4, chargeWindup: 24,
         activateRange: 200,
+        gibPalette: ['#807068', '#504840', '#302820'],  // dark grey metal
     },
     holepunch: {
         sprite: 'holepunch',
@@ -59,6 +62,7 @@ const TYPES = {
         hp: 3, contactDmg: 1, score: 150,
         speed: 0, behavior: 'hover_sniper',
         hoverY: -2, shootInterval: 70, projectileSpeed: 2.7, beamCharge: 22,
+        gibPalette: ['#7090b0', '#405070', '#202838'],  // cold steel + paper bits
         // Snipers activate inside one screen width (256px), down from 260.
         // Off-screen snipers cannot fire at the player — fair gameplay.
         activateRange: 200,
@@ -175,6 +179,7 @@ class Enemy {
         this.subState = 0;
         this.subTimer = 0;
         this.sprite = t.sprite;
+        this.gibPalette = t.gibPalette;
         // Per-enemy grace counter — frames remaining before this enemy may
         // act after activation. EnemyManager seeds with the stage-start grace.
         this._grace = 30;
@@ -425,6 +430,11 @@ class Enemy {
                     24 + (i & 3), '#604030', 1, 0.03
                 );
             }
+            // Chunky debris — 6 heavier 2px chunks arc out with strong
+            // gravity and fall, using the enemy's body palette so each
+            // grunt type's death reads physically distinct (folder = manila,
+            // stapler = chrome, cabinet = grey, holepunch = steel-blue).
+            if (this.gibPalette) particles.gibChunks(cx, cy, this.gibPalette);
             audio.sfx('explode');
             return true;
         }
@@ -446,7 +456,9 @@ class Enemy {
             }
             if (this.hp <= 0) {
                 this.alive = false;
-                particles.explosion(this.x + this.w / 2, this.y + this.h / 2);
+                const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+                particles.explosion(cx, cy);
+                if (this.gibPalette) particles.gibChunks(cx, cy, this.gibPalette);
                 audio.sfx('explode');
             }
         }
@@ -528,6 +540,22 @@ class Enemy {
             // affect the background within the clip rect.
             ctx.globalCompositeOperation = 'source-atop';
             ctx.fillRect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
+            ctx.restore();
+        }
+        // Imminent-death danger pulse: 1-px red corner ticks on tougher
+        // enemies (maxHp > 2) when down to 1 HP. Lets the player read
+        // "one more shot kills this guy" without needing a HP bar. Skip
+        // during hit-flash so the flash isn't muddied.
+        if (dyingShortly && this.hitFlash === 0) {
+            const pulse = 0.45 + Math.sin(this.timer * 0.35) * 0.35;
+            ctx.save();
+            ctx.globalAlpha = pulse;
+            ctx.fillStyle = '#ff3030';
+            // 1-px tick at each corner of the sprite bbox
+            ctx.fillRect(dx - 1, dy - 1, 2, 1); ctx.fillRect(dx - 1, dy - 1, 1, 2);
+            ctx.fillRect(dx + dims.w - 1, dy - 1, 2, 1); ctx.fillRect(dx + dims.w, dy - 1, 1, 2);
+            ctx.fillRect(dx - 1, dy + dims.h, 2, 1); ctx.fillRect(dx - 1, dy + dims.h - 1, 1, 2);
+            ctx.fillRect(dx + dims.w - 1, dy + dims.h, 2, 1); ctx.fillRect(dx + dims.w, dy + dims.h - 1, 1, 2);
             ctx.restore();
         }
         // Owl-pause cue: small "!" floating above enemy head — distracted

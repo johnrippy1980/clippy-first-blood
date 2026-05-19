@@ -1337,12 +1337,29 @@ export class Player {
                 ctx.fillRect(bx - 1, by - 1, 3, 3);
             } else {
                 // HOMING gets a curve-revealing trail — its path is non-linear so the trail adds info.
-                // MG/SPREAD skip the trail — too many bullets at once turns the screen to mush.
                 if (b.weapon === 'HOMING' && b.prevX != null) {
                     const px = Math.round(b.prevX - camera.viewX);
                     const py = Math.round(b.prevY - camera.viewY);
                     ctx.globalAlpha = 0.45;
                     this._line(ctx, px, py, bx, by, b.color, 1);
+                    ctx.globalAlpha = 1;
+                }
+                // MG/SPREAD get a short directional motion-streak — 3px behind
+                // the bullet along its velocity vector. Sells the "hot pellet
+                // ripping through the air" read without crowding the screen
+                // (the streak is only 3px, not a full prev→curr line).
+                if ((b.weapon === 'MG' || b.weapon === 'SPREAD') && (b.vx || b.vy)) {
+                    const sp = Math.hypot(b.vx, b.vy) || 1;
+                    const ux = b.vx / sp, uy = b.vy / sp;
+                    const tailX = bx - Math.round(ux * 3);
+                    const tailY = by - Math.round(uy * 3);
+                    ctx.strokeStyle = b.color;
+                    ctx.globalAlpha = 0.55;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(tailX + 0.5, tailY + 0.5);
+                    ctx.lineTo(bx + 0.5, by + 0.5);
+                    ctx.stroke();
                     ctx.globalAlpha = 1;
                 }
                 // Outer glow

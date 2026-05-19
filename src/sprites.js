@@ -565,8 +565,25 @@ const EP = [
     '#d8b890',          // e (manila yellow)
 ];
 
-export function drawEnemyFrame(ctx, frameName, x, y, flipH = false) {
-    if (sprites.has(frameName) && sprites.draw(ctx, frameName, x, y, flipH)) return;
+export function drawEnemyFrame(ctx, frameName, x, y, flipH = false, outline = true) {
+    const hasImg = sprites.has(frameName);
+    if (outline && hasImg && typeof ctx.filter === 'string') {
+        // Black silhouette halo for enemies — sits 1px around the sprite so
+        // the silhouette reads against painted backgrounds without competing
+        // with Clippy's cream-white halo (visual hierarchy: friendly = bright,
+        // hostile = dark). Same offset-stamp technique as drawClippyFrame.
+        ctx.save();
+        ctx.filter = 'brightness(0)';
+        ctx.globalAlpha = 0.65;
+        sprites.draw(ctx, frameName, x - 1, y, flipH);
+        sprites.draw(ctx, frameName, x + 1, y, flipH);
+        sprites.draw(ctx, frameName, x, y - 1, flipH);
+        sprites.draw(ctx, frameName, x, y + 1, flipH);
+        ctx.filter = 'none';
+        ctx.globalAlpha = 1;
+        ctx.restore();
+    }
+    if (hasImg && sprites.draw(ctx, frameName, x, y, flipH)) return;
     const frame = ENEMY_FRAMES[frameName] || ENEMY_FRAMES.folder;
     drawPixelString(ctx, frame, x, y, flipH, EP);
 }

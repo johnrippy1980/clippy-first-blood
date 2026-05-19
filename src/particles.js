@@ -255,6 +255,25 @@ class ParticleSystem {
         }
     }
 
+    // Chunky death debris — heavier 2-wide squares with strong gravity that
+    // arc outward and fall. Sits on top of explosion + dust ring to give the
+    // grunt-death beat physical weight. Colors should match the enemy's body
+    // palette (folder = manila, stapler = silver, cabinet = grey, etc.).
+    gibChunks(x, y, palette = ['#806040', '#a08060', '#403028']) {
+        for (let i = 0; i < 6; i++) {
+            const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4; // upward fan
+            const sp = 1.4 + Math.random() * 1.6;
+            const color = palette[i % palette.length];
+            this.spawn(
+                x, y,
+                Math.cos(a) * sp + (Math.random() - 0.5) * 0.6,
+                Math.sin(a) * sp,
+                34 + Math.random() * 16,
+                color, 2, 0.18  // gravity strong → debris falls quickly
+            );
+        }
+    }
+
     blood(x, y, dir = 1) {
         for (let i = 0; i < 10; i++) {
             this.spawn(
