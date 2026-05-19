@@ -124,7 +124,10 @@ await page.evaluate(() => {
     g.scene = 'play';
     g.player.x = (g.level.data.width - 6) * 16;
     g.camera.x = Math.max(0, g.player.x - 128);
+    // _spawnBoss routes through BOSS_INTRO cinematic (r75). Skip straight
+    // to _finishBossIntro so the smoke test still gets a live boss.
     g._spawnBoss();
+    g._finishBossIntro();
 });
 await page.waitForTimeout(300);
 const killInfo = await page.evaluate(() => {
