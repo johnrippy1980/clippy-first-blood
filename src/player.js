@@ -132,6 +132,16 @@ export class Player {
         this.mgHeat = 0;
         this.mgVentLock = 0;
 
+        // Grapple line — fires on mid-air SPECIAL. _grappleAnchor stores the
+        // world-space attach point (or null). _grappleVx/Vy is the constant
+        // pull velocity. _grapplePhase = 'travel' (line shoots out) or
+        // 'pull' (Clippy reels in toward anchor). Cooldown prevents spam.
+        this._grappleAnchor = null;
+        this._grapplePhase = null;
+        this._grappleTipX = 0;
+        this._grappleTipY = 0;
+        this._grappleCooldown = 0;
+
         // Score/stats
         this.score = 0;
         this.kills = 0;
@@ -277,6 +287,8 @@ export class Player {
             if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
         } else if (this.state === STATE.CLIMB) {
             this._handleClimb(level);
+        } else if (this.state === STATE.GRAPPLE) {
+            this._tickGrapple(level);
         } else if (this.state === STATE.COVER) {
             this.vx = 0; this.vy = 0;
             this.iFrames = Math.max(this.iFrames, 2);
@@ -310,6 +322,13 @@ export class Player {
                     this._squashFrames = Math.min(10, 4 + Math.floor(this.vy));
                 }
                 this.onGround = true;
+                // Grapple ends on ground contact — release cleanly and pivot
+                // to IDLE/RUN so the regular state machine takes over.
+                if (this.state === STATE.GRAPPLE) {
+                    this._grappleAnchor = null;
+                    this._grapplePhase = null;
+                    this.state = STATE.IDLE;
+                }
             } else {
                 // Ceiling hit
             }
@@ -500,6 +519,14 @@ export class Player {
             audio.sfx('slide');
             particles.dust(this.x + this.w / 2, this.y + this.h);
             return;
+        }
+
+        // Grapple hook: SPECIAL (C) while airborne fires a line in the aim
+        // direction. If it finds a solid tile within 80px, Clippy reels in
+        // with i-frames during the pull. Boss-fight reposition tool.
+        if (input.isPressed('special') && !this.onGround && this._grappleCooldown <= 0
+            && this.state !== STATE.GRAPPLE && this.state !== STATE.HURT) {
+            if (this._fireGrapple(level)) return;
         }
 
         // Back-dash: special button (C). Defensive — backwards, brief i-frames.
@@ -1351,8 +1378,37 @@ export class Player {
         // 8-way aim coverage without needing a sprite-frame per direction.
         if (this.state !== STATE.DIE && this.state !== STATE.HURT &&
             this.state !== STATE.SPIN_JUMP && this.state !== STATE.DASH_ATTACK &&
-            this.state !== STATE.BACKDASH && this.state !== STATE.ROLL) {
+            this.state !== STATE.BACKDASH && this.state !== STATE.ROLL &&
+            this.state !== STATE.GRAPPLE) {
             this._drawAimArm(ctx, cx, cy);
+        }
+
+        // Grapple line — taut diagonal line from Clippy's torso to the anchor.
+        // Dark navy outline + cream-yellow core so it reads against painted
+        // backgrounds. Anchor pulses at the tile to show "you're attached here".
+        if (this.state === STATE.GRAPPLE && this._grappleAnchor) {
+            const ax = Math.round(this._grappleAnchor.x - camera.viewX);
+            const ay = Math.round(this._grappleAnchor.y - camera.viewY);
+            const px = Math.round(cx);
+            const py = Math.round(cy - 2);
+            ctx.save();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#1a1828';
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(ax, ay);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#ffe070';
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(ax, ay);
+            ctx.stroke();
+            // Anchor pulse
+            const pulse = (performance.now() % 200) < 100 ? '#fff' : '#ffe070';
+            ctx.fillStyle = pulse;
+            ctx.fillRect(ax - 1, ay - 1, 3, 3);
+            ctx.restore();
         }
 
         // Dash-attack: render a quick knife slash arc out in front
@@ -1406,6 +1462,7 @@ export class Player {
         // outpaces the per-frame -1.5 when held).
         if (this.mgHeat > 0) this.mgHeat = Math.max(0, this.mgHeat - 1.5);
         if (this.mgVentLock > 0) this.mgVentLock--;
+        if (this._grappleCooldown > 0) this._grappleCooldown--;
 
         // Bullets
         for (const b of this.bullets) {
@@ -1489,6 +1546,83 @@ export class Player {
                 ctx.fillRect(bx, by, 1, 1);
             }
         }
+    }
+
+    // Grapple fire — line-traces from Clippy's body center along the aim
+    // vector up to MAX_RANGE px, sampling each 4px step. The first SOLID tile
+    // along that ray becomes the anchor. Returns true if anchored (and sets
+    // STATE.GRAPPLE), false otherwise. Failed throws cost a brief cooldown.
+    _fireGrapple(level) {
+        const MAX_RANGE = 96;
+        const STEP = 4;
+        const ax = this.aim?.x ?? this.facing;
+        const ay = this.aim?.y ?? -0.4;
+        // Normalize
+        const norm = Math.hypot(ax, ay) || 1;
+        const nx = ax / norm, ny = ay / norm;
+        const ox = this.x + this.w / 2;
+        const oy = this.y + this.h / 2;
+        let foundX = null, foundY = null;
+        for (let d = STEP; d <= MAX_RANGE; d += STEP) {
+            const px = ox + nx * d;
+            const py = oy + ny * d;
+            if (level && level.isSolid(px, py)) {
+                foundX = px; foundY = py;
+                break;
+            }
+        }
+        if (foundX == null) {
+            // Failed throw — short cooldown so the player can retry quickly
+            this._grappleCooldown = 12;
+            audio.sfx('select');
+            return false;
+        }
+        this._grappleAnchor = { x: foundX, y: foundY };
+        this._grapplePhase = 'pull';
+        this._grappleTipX = foundX;
+        this._grappleTipY = foundY;
+        this.state = STATE.GRAPPLE;
+        this.iFrames = Math.max(this.iFrames, 18);
+        audio.sfx('slide');
+        // Tiny anchor-impact burst at the hit tile
+        for (let i = 0; i < 3; i++) {
+            particles.spawn(
+                foundX, foundY,
+                (Math.random() - 0.5) * 0.8,
+                (Math.random() - 0.5) * 0.8 - 0.2,
+                10, '#fff', 1, 0.04
+            );
+        }
+        return true;
+    }
+
+    // Grapple tick — pulls Clippy toward the anchor at a fixed speed.
+    // Releases on: arrival (within 8px), hit ceiling/wall, ground contact,
+    // or player presses jump/special again. Sets vx/vy each frame from the
+    // unit vector toward the anchor.
+    _tickGrapple(level) {
+        if (!this._grappleAnchor) {
+            this.state = STATE.JUMP;
+            return;
+        }
+        const ax = this._grappleAnchor.x - (this.x + this.w / 2);
+        const ay = this._grappleAnchor.y - (this.y + this.h / 2);
+        const d = Math.hypot(ax, ay);
+        const PULL_SPEED = 3.4;
+        if (d < 10 || input.isPressed('jump') || input.isPressed('special')) {
+            // Release: short upward kick if we ended high so the player can
+            // chain a jump out of the grapple cleanly.
+            this._grappleAnchor = null;
+            this._grapplePhase = null;
+            this.state = STATE.JUMP;
+            this.vy = Math.min(this.vy, -2);
+            this._grappleCooldown = 6;
+            return;
+        }
+        this.vx = (ax / d) * PULL_SPEED;
+        this.vy = (ay / d) * PULL_SPEED;
+        // Cap drift to a max so vertical pulls don't snap-teleport
+        this.iFrames = Math.max(this.iFrames, 4);
     }
 
     // Canonical muzzle position in WORLD coordinates. Single source of truth

@@ -58,6 +58,7 @@ export const STATE = Object.freeze({
     BACKDASH: 'backdash',   // defensive dash backwards with i-frames
     CLIMB: 'climb',         // on ladder/vine
     COVER: 'cover',         // pressed up at a cover spot — invulnerable but can't move
+    GRAPPLE: 'grapple',     // mid-air grapple line pulling Clippy toward anchor
     HURT: 'hurt',
     DIE: 'die',
 });
