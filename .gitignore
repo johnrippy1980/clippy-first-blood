@@ -11,6 +11,10 @@ _reference/
 screenshot.png
 tools/screenshots/
 
+# Python bytecode (sprite processing scripts)
+__pycache__/
+*.pyc
+
 # Legacy patterns (kept for safety with older artifacts)
 ChatGPT*.png
 Image_*.png
