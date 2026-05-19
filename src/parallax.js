@@ -247,19 +247,21 @@ export class Parallax {
         // when the painted asset hasn't loaded yet.
         const key = BG_KEY_FOR_THEME[this.theme];
         if (key && this._paintedBg(ctx, camera, key)) {
-            // Per-theme overlay tuning. Stages 3/5/7 (server, keynote, boss-rush)
-            // have very dark painted plates — we lift their darken pass + add a
-            // subtle warm/cool tint band so Clippy + enemies pop without losing
-            // mood. Stages 1/2/4/6/8 keep the original deeper darken.
+            // Per-theme overlay tuning. r100 — the painted plates are already
+            // dark-toned by design; the old 0.18/0.32 darken-on-top was
+            // doubling that and combining with the corner vignette + depth
+            // haze to push the bg into near-invisible. Halved across the
+            // bright themes; servers/keynote stay at their gentler r137
+            // values since those plates were extra-dark to begin with.
             const tune = {
-                [THEME.JUNGLE]:     { topA: 0.18, botA: 0.32, tint: null },
-                [THEME.BREAKROOM]:  { topA: 0.18, botA: 0.32, tint: null },
+                [THEME.JUNGLE]:     { topA: 0.08, botA: 0.18, tint: null },
+                [THEME.BREAKROOM]:  { topA: 0.10, botA: 0.20, tint: null },
                 [THEME.SERVERROOM]: { topA: 0.08, botA: 0.18, tint: 'rgba(60, 90, 120, 0.06)' },
-                [THEME.BOARDROOM]:  { topA: 0.18, botA: 0.32, tint: null },
+                [THEME.BOARDROOM]:  { topA: 0.10, botA: 0.20, tint: null },
                 [THEME.KEYNOTE]:    { topA: 0.08, botA: 0.20, tint: 'rgba(120, 90, 60, 0.05)' },
-                [THEME.FOUNDER]:    { topA: 0.18, botA: 0.32, tint: null },
-                [THEME.CLOUD]:      { topA: 0.18, botA: 0.32, tint: null },
-            }[this.theme] || { topA: 0.18, botA: 0.32, tint: null };
+                [THEME.FOUNDER]:    { topA: 0.10, botA: 0.20, tint: null },
+                [THEME.CLOUD]:      { topA: 0.08, botA: 0.16, tint: null },
+            }[this.theme] || { topA: 0.10, botA: 0.20, tint: null };
             ctx.fillStyle = `rgba(0,0,0,${tune.topA})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H * 0.55);
             ctx.fillStyle = `rgba(0,0,0,${tune.botA})`;
