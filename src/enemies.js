@@ -1292,18 +1292,26 @@ export class EnemyManager {
         // Bosses excluded — too cheesy.
         const isHidden = player.grassHidden || player.waterHidden || player.state === 'cover';
         if (isHidden) {
-            let best = null, bestD = 72 * 72;
+            // Two-pass scan: prefer fresh (non-stunned) enemies. Only fall
+            // back to a stunned enemy if no fresh ones are in range.
+            const MAX_D2 = 72 * 72;
             const px = player.x + player.w / 2;
             const py = player.y + player.h / 2;
+            let bestFresh = null, bestFreshD = MAX_D2;
+            let bestStunned = null, bestStunnedD = MAX_D2;
             for (const e of this.enemies) {
                 if (!e.alive || !e.activated) continue;
                 if (e.behavior === 'boss') continue;
                 const dx = (e.x + e.w / 2) - px;
                 const dy = (e.y + e.h / 2) - py;
                 const d2 = dx * dx + dy * dy;
-                if (d2 < bestD) { bestD = d2; best = e; }
+                if ((e._stunTimer || 0) > 0) {
+                    if (d2 < bestStunnedD) { bestStunnedD = d2; bestStunned = e; }
+                } else {
+                    if (d2 < bestFreshD) { bestFreshD = d2; bestFresh = e; }
+                }
             }
-            player._pounceTarget = best;
+            player._pounceTarget = bestFresh || bestStunned;
         } else {
             player._pounceTarget = null;
         }
