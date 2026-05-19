@@ -111,6 +111,28 @@ class Pickup {
                     this.x = nx;
                     this.y = ny;
                 }
+                // Tug trail — drop a colored mote behind the pickup (opposite
+                // the pull direction) every ~3 frames so the magnet reads
+                // visually, not just via the attract chime.
+                this._tugTick = (this._tugTick || 0) + 1;
+                if (this._tugTick >= 3) {
+                    this._tugTick = 0;
+                    // dx/dy points from pickup → player. Negate to drop the
+                    // mote behind the pickup, opposite the pull direction.
+                    const tx = this.x + this.w / 2 - (dx / d) * 4;
+                    const ty = this.y + this.h / 2 - (dy / d) * 4;
+                    particles.spawn(
+                        tx, ty,
+                        (Math.random() - 0.5) * 0.3,
+                        (Math.random() - 0.5) * 0.3,
+                        10 + (Math.random() * 4 | 0),
+                        this._color(), 1, 0
+                    );
+                }
+            } else if (this._attracting) {
+                // Out of pull range — reset so re-entering the magnet zone
+                // triggers a fresh attract chime instead of staying silent.
+                this._attracting = false;
             }
         }
         // Pickup collision
