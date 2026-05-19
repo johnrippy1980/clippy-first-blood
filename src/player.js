@@ -1363,13 +1363,19 @@ export class Player {
             const before = this.grenades || 0;
             this.grenades = Math.min(AMBIENT.GRENADE_MAX, before + AMBIENT.GRENADE_PER_PICKUP);
             const gained = this.grenades - before;
-            this.score += 100 * gained;
+            // Score: +100 per grenade actually added; if maxed, +250 consolation
+            // (matches the weapon-max-pickup pattern just below).
+            if (gained > 0) {
+                this.score += 100 * gained;
+            } else {
+                this.score += 250;
+            }
             this.grenadePickupFlash = 30;
             audio.sfx('pickup');
             burstBurst('#80ff40', 12);
             particles.shockRing(cx, cy, 18, 12, '#80ff40');
             particles.floatingText(cx, this.y - 4,
-                gained > 0 ? `+${gained} GRENADE` : 'MAX',
+                gained > 0 ? `+${gained} GRENADE` : '+250',
                 '#80ff40', 60, -0.7, 1);
             return;
         }
