@@ -602,6 +602,32 @@ export class Player {
             this.spinAngle = 0;
             audio.sfx('jump');
         }
+        // Wall-jump — if airborne and touching a wall on either side, jump
+        // kicks off horizontally + restores the air-jump slot. Higher
+        // priority than double-jump so chained walls don't waste the slot.
+        // Walls detected by probing 2px beyond each side at chest height;
+        // direction-from-wall determines the kick vector.
+        else if (input.isPressed('jump') && !this.onGround
+                 && this.state !== STATE.SLIDE && this.state !== STATE.BACKDASH
+                 && this.state !== STATE.GRAPPLE && level) {
+            const chestY = this.y + this.h / 2;
+            const leftWall = level.isSolid(this.x - 2, chestY);
+            const rightWall = level.isSolid(this.x + this.w + 2, chestY);
+            if (leftWall || rightWall) {
+                input.consume('jump');
+                const kickDir = leftWall ? 1 : -1;  // away from wall
+                this.vx = kickDir * 2.6;
+                this.vy = JUMP_V * 0.88;
+                this.facing = kickDir;
+                this.airJumpsLeft = 1; // refresh — chain wall-jumps along a tall surface
+                this.state = STATE.SPIN_JUMP;
+                this.spinAngle = 0;
+                audio.sfx('jump');
+                // Dust puff at the wall-contact point
+                const dustX = this.x + (leftWall ? 0 : this.w);
+                particles.dust(dustX, this.y + this.h - 4);
+            }
+        }
         // Double-jump — one extra mid-air leap with a burst puff. Slightly weaker.
         else if (input.isPressed('jump') && !this.onGround && (this.airJumpsLeft || 0) > 0
                  && this.state !== STATE.SLIDE && this.state !== STATE.BACKDASH) {

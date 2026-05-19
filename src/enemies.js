@@ -1138,6 +1138,22 @@ export class EnemyManager {
             const b = this.bullets[i];
             b.update(level);
             if (b.life <= 0) { this.bullets.splice(i, 1); continue; }
+            // Parried bullets check enemy hitboxes — a parried shot now
+            // damages the side that fired it (or any enemy in its path).
+            if (b._parried && !b.stuck) {
+                let consumed = false;
+                for (const e of this.enemies) {
+                    if (!e.alive) continue;
+                    if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+                        e.hurt(b.dmg, b.vx > 0 ? 1 : -1);
+                        particles.hitSpark(b.x, b.y, '#ffffff');
+                        this.bullets.splice(i, 1);
+                        consumed = true;
+                        break;
+                    }
+                }
+                if (consumed) continue;
+            }
             // Ducked-in-water, inside tall grass / hide spot, OR actively
             // crouched/prone/sliding: shrink the hittable region to the lower
             // body only so bullets at chest/head pass over you. Lets the
@@ -1148,9 +1164,27 @@ export class EnemyManager {
                 || player.state === STATE.SLIDE
                 || player.state === STATE.ROLL;
             const hitTop = ducked ? player.y + player.h - 4 : player.y;
-            if (!b.stuck && player.iFrames === 0 &&
-                b.x > player.x && b.x < player.x + player.w &&
-                b.y > hitTop && b.y < player.y + player.h) {
+            const inHitBox = !b.stuck && !b._parried
+                && b.x > player.x && b.x < player.x + player.w
+                && b.y > hitTop && b.y < player.y + player.h;
+            // KNIFE PARRY: during DASH_ATTACK the knife deflects incoming
+            // enemy bullets — vector mirrored back at the firing direction,
+            // ownership flipped so it now damages enemies. Reward for
+            // perfectly-timed dash-attacks into a barrage. Skill expression.
+            if (inHitBox && player.state === STATE.DASH_ATTACK) {
+                const dx = (b.x - (player.x + player.w / 2));
+                // Reflect: keep magnitude, flip toward where the bullet came from
+                b.vx = -b.vx * 1.2;
+                b.vy = -b.vy * 1.2;
+                b.color = '#ffffff';
+                b._parried = true;       // Marks for player-bullet collision check
+                b.dmg = (b.dmg || 1) * 1.5;
+                particles.hitSpark(b.x, b.y, '#ffffff');
+                // Brief slow-mo beat to sell the moment.
+                if (player.requestHitPause) player.requestHitPause = Math.max(player.requestHitPause, 3);
+                continue;
+            }
+            if (inHitBox && player.iFrames === 0) {
                 // Bullet-impact spark at the strike point. The blood splatter
                 // inside hurt() fires too, but the small spark sells where
                 // the projectile actually struck (often offset from sprite
