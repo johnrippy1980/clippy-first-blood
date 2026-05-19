@@ -138,6 +138,29 @@ class Audio {
             case 'whizz':    return this._bulletWhizz(t);
             case 'attract':  return this._attractChime(t);
             case 'respawn':  return this._respawnReady(t);
+            case 'unlock':   return this._unlockDing(t);
+        }
+    }
+
+    // Three-note ascending triangle arpeggio (E5 → G#5 → B5) — golden
+    // "you unlocked" beat. Bright, brief, and slightly louder than the
+    // respawn chime so it cuts through gunfire when the banner slides in.
+    _unlockDing(t) {
+        const notes = [
+            { f: 659.25, start: 0,    dur: 0.10 },
+            { f: 830.61, start: 0.08, dur: 0.10 },
+            { f: 987.77, start: 0.16, dur: 0.18 },
+        ];
+        for (const n of notes) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(n.f, t + n.start);
+            g.gain.setValueAtTime(0, t + n.start);
+            g.gain.linearRampToValueAtTime(0.16, t + n.start + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.start + n.dur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + n.start); o.stop(t + n.start + n.dur + 0.02);
         }
     }
 

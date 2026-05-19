@@ -1729,6 +1729,9 @@ export class Game {
             pounceKills: (this.player.pounceKills || 0),
         });
         this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
+        // Fanfare when at least one achievement unlocks this clear. Single
+        // ding regardless of count — the banner queue handles per-entry display.
+        if (newlyUnlocked.length > 0) audio.sfx('unlock');
 
         // Save high score
         if (this.player.score > achievements.stats.bestScore) {
