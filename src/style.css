@@ -141,9 +141,12 @@ body {
 #touch-overlay .dpad-left  { top: 33%; left: 0; }
 #touch-overlay .dpad-right { top: 33%; right: 0; }
 
-/* Action buttons: triangle layout (jump top, shoot right, special bottom) */
+/* Action buttons: triangle layout (jump top, shoot right, special bottom).
+   Grenade tucks left of the triangle as a fourth circle so the triangle's
+   muscle-memory stays intact. */
 #touch-overlay .act-btn { width: 38%; height: 38%; }
 #touch-overlay .act-jump    { top: 0; right: 31%; }
 #touch-overlay .act-shoot   { top: 31%; right: 0; background: rgba(60, 16, 16, 0.65); }
 #touch-overlay .act-special { bottom: 0; right: 31%; }
+#touch-overlay .act-grenade { top: 31%; left: 0; width: 30%; height: 30%; background: rgba(16, 60, 16, 0.65); }
 #touch-overlay .act-pause   { top: 4%; right: 4%; width: 8%; aspect-ratio: 1; font-size: 12px; }
