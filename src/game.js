@@ -1813,6 +1813,7 @@ export class Game {
         // stage so its boss-clear path doesn't try to spawn the next rush boss.
         this._gauntletQueue = null;
         this._bossEntrance = null;
+        this._bossIntro = null;
         this._lastBossPhase = null;
         const data = STAGE_LOADERS[n]();
         this.level = new Level(data);
@@ -2509,6 +2510,7 @@ export class Game {
         this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0 };
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         this._bossEntrance = null;
+        this._bossIntro = null;
         this._clearScheduled = false;
         this._clearBursts = [];
         this.slowMoFrames = 0;
