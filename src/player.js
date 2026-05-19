@@ -511,16 +511,21 @@ export class Player {
     _updateAfterimages() {
         const speedState = this.state === STATE.SLIDE
             || this.state === STATE.DASH_ATTACK
-            || this.state === STATE.BACKDASH;
-        if (speedState && (this._afterimageTick = (this._afterimageTick || 0) + 1) % 2 === 0) {
+            || this.state === STATE.BACKDASH
+            || this.state === STATE.POUNCE;
+        // Pounce captures every frame (arc is fast); other states every other.
+        const interval = this.state === STATE.POUNCE ? 1 : 2;
+        if (speedState && (this._afterimageTick = (this._afterimageTick || 0) + 1) % interval === 0) {
             this._afterimages.push({
                 frame: this._frameForState(),
                 x: this.x, y: this.y,
                 facing: this.facing,
                 age: 0,
-                // Color tint: dash-attack gets warm orange, slide tan, backdash cool blue
+                // Color tint: dash-attack gets warm orange, slide tan, backdash cool blue,
+                // pounce gets a cold cyan (matches the parry-tier "stealth strike" palette).
                 tint: this.state === STATE.DASH_ATTACK ? '#ff9050'
                     : this.state === STATE.BACKDASH    ? '#80a0ff'
+                    : this.state === STATE.POUNCE      ? '#80e0ff'
                                                        : '#ffd080',
             });
         }
@@ -2001,7 +2006,8 @@ export class Player {
                 if (this.vy > 1.5) return sprites.has('fall') ? 'fall' : 'jump';
                 return 'jump';                                     // peak
             }
-            case STATE.SPIN_JUMP: {
+            case STATE.SPIN_JUMP:
+            case STATE.POUNCE: {
                 // 4-frame spin: jump → spin_1 (90°) → spin_2 (180°) → spin_1 mirrored (270°)
                 const phase = Math.floor(this.spinAngle / (Math.PI / 2)) % 4;
                 const seq = ['jump', 'spin_1', 'spin_2', 'spin_1'];
