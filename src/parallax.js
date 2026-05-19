@@ -291,10 +291,89 @@ export class Parallax {
     _drawSignatureEffect(ctx) {
         switch (this.theme) {
             case THEME.JUNGLE:    this._jungleGodRay(ctx); break;
-            case THEME.FOUNDER:   this._founderEmberGlow(ctx); break;
-            case THEME.KEYNOTE:   this._keynoteSpotBeam(ctx); break;
+            case THEME.BREAKROOM: this._breakroomFluo(ctx); break;
             case THEME.SERVERROOM:this._serverFlicker(ctx); break;
+            case THEME.BOARDROOM: this._boardroomSparkle(ctx); break;
+            case THEME.KEYNOTE:   this._keynoteSpotBeam(ctx); break;
+            case THEME.FOUNDER:   this._founderEmberGlow(ctx); break;
+            case THEME.CLOUD:     this._cloudMatrixRain(ctx); break;
         }
+    }
+
+    // Failing fluorescent strip across the ceiling — occasional brief dim
+    // pass with a 1-pixel-tall pale-yellow bar. Sells dying office lights.
+    _breakroomFluo(ctx) {
+        // Brief dim every ~80 frames, lasting 5 frames. Inverted at peak.
+        const phase = this.t % 80;
+        if (phase < 5) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.globalAlpha = 0.45;
+            ctx.fillStyle = '#404040';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            ctx.restore();
+        }
+        // Ceiling tube glow — thin pale-yellow stripe near top
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.10;
+        ctx.fillStyle = '#fff8a0';
+        ctx.fillRect(0, 6, GAME.W, 2);
+        ctx.restore();
+    }
+
+    // Chandelier crystal twinkle — 3 deterministic-position sparkle pixels
+    // that fade in/out at offset phases. Drawn at ceiling-band height.
+    _boardroomSparkle(ctx) {
+        const positions = [
+            { x: GAME.W * 0.22, y: 28 },
+            { x: GAME.W * 0.50, y: 22 },
+            { x: GAME.W * 0.78, y: 30 },
+        ];
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < positions.length; i++) {
+            const p = positions[i];
+            const phase = (this.t * 0.03 + i * 2.1);
+            const tw = Math.max(0, Math.sin(phase));
+            if (tw < 0.3) continue;
+            ctx.globalAlpha = tw * 0.7;
+            ctx.fillStyle = '#fff8d0';
+            // Cross sparkle
+            const x = p.x | 0, y = p.y | 0;
+            ctx.fillRect(x, y - 1, 1, 3);
+            ctx.fillRect(x - 1, y, 3, 1);
+        }
+        ctx.restore();
+    }
+
+    // Matrix-rain digital drip — vertical 1px green streamers that fall and
+    // wrap. Cheap: 5 streamers, each at a stable column, varying speed/phase.
+    _cloudMatrixRain(ctx) {
+        if (!this._matrixCols) {
+            this._matrixCols = [];
+            for (let i = 0; i < 5; i++) {
+                this._matrixCols.push({
+                    x: ((i * 53 + 17) % GAME.W) | 0,
+                    speed: 0.4 + (i & 1) * 0.3,
+                    phase: i * 23,
+                });
+            }
+        }
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const c of this._matrixCols) {
+            const tipY = ((this.t * c.speed + c.phase) % (GAME.H + 40)) - 20;
+            // 8-pixel tail, brightest at the tip
+            for (let i = 0; i < 8; i++) {
+                const y = (tipY - i) | 0;
+                if (y < 0 || y >= GAME.H) continue;
+                ctx.globalAlpha = (1 - i / 8) * 0.45;
+                ctx.fillStyle = i === 0 ? '#d0ffd0' : '#a0ffa0';
+                ctx.fillRect(c.x, y, 1, 1);
+            }
+        }
+        ctx.restore();
     }
 
     // Slow diagonal moonlight god-ray from upper-right corner.
