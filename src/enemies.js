@@ -703,7 +703,11 @@ class Enemy {
             const fade = Math.min(1, this._lostBubble.life / 30);
             ctx.globalAlpha = fade;
             const text = this._lostBubble.text;
-            const w = Math.max(24, text.length * 4 + 8);
+            // Pixel font: each char advances (CHAR_W=5)+(SPACING=1)=6px, last
+            // char has no trailing spacing → text width = len*6 - 1. Add 6px
+            // horizontal padding so the text doesn't touch the bubble edge.
+            const textW = Math.max(0, text.length * 6 - 1);
+            const w = Math.max(24, textW + 6);
             // Clamp bubble center so it doesn't clip past the canvas edges.
             // Speech-bubble tail still anchors to the enemy when possible.
             const halfW = w / 2;
@@ -1071,7 +1075,16 @@ const BOSS_TEMPLATES = {
         name: 'COPIER 3000', tagline: 'PC LOAD LETTER OF DEATH',
         barks: {
             phase2: 'ERROR: TONER LOW',
-            taunt: ['PAPER JAM', 'OUT OF SERVICE', 'COLLATE THIS'],
+            taunt: [
+                'PAPER JAM',
+                'OUT OF SERVICE',
+                'COLLATE THIS',
+                'CLIPPY MUST PERISH',
+                'YOU SHOULDNT BE HERE',
+                'JAM CLIPPY JAM',
+                'PRINT QUEUE FROM HELL',
+                'TONER LOW DEATH HIGH',
+            ],
         },
         w: 48, h: 40, hp: 28, contactDmg: 2, score: 5000,
         color: '#506070', detail: '#a8b8c8',
@@ -1094,7 +1107,16 @@ const BOSS_TEMPLATES = {
         name: 'MEGA-SHREDDER', tagline: 'CHEWS THROUGH ANYTHING',
         barks: {
             phase2: 'TIME TO PULP',
-            taunt: ['INTO THE BIN', 'SHRED IT ALL', 'CROSS-CUT MODE'],
+            taunt: [
+                'INTO THE BIN',
+                'SHRED IT ALL',
+                'CROSS CUT MODE',
+                'YOU ARE PAPERWORK',
+                'CLIPPY CONFETTI',
+                'YOU WERE ELIMINATED CLIPPY',
+                'BIN COMPACTOR ENGAGED',
+                'PULPED AND FORGOTTEN',
+            ],
         },
         w: 44, h: 36, hp: 32, contactDmg: 2, score: 6000,
         color: '#c0c0c8', detail: '#1a1a1a',
@@ -1115,7 +1137,16 @@ const BOSS_TEMPLATES = {
         name: 'CTRL ALT DEL', tagline: 'BLUE SCREEN OF DEATH',
         barks: {
             phase2: 'FATAL EXCEPTION',
-            taunt: ['REBOOT REQUIRED', 'NOT RESPONDING', 'STACK OVERFLOW'],
+            taunt: [
+                'REBOOT REQUIRED',
+                'NOT RESPONDING',
+                'STACK OVERFLOW',
+                'CTRL CLIPPY DELETE',
+                'TASK MANAGER ENDS YOU',
+                'CLIPPY DOT EXE STOPPED',
+                'FATAL UNHANDLED CLIPPY',
+                'KERNEL PANIC AT CLIPPY',
+            ],
         },
         w: 56, h: 32, hp: 36, contactDmg: 2, score: 7000,
         color: '#1040a0', detail: '#80c0ff',
@@ -1138,7 +1169,17 @@ const BOSS_TEMPLATES = {
         name: 'CEO BALLMER', tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS',
         barks: {
             phase2: 'DEVELOPERS!!!',
-            taunt: ['SYNERGIZE THIS', 'Q4 REVIEW TIME', 'YOU ARE FIRED'],
+            taunt: [
+                'SYNERGIZE THIS',
+                'Q4 REVIEW TIME',
+                'YOU ARE FIRED',
+                'CLIPPY YOU ARENT SUPPOSED TO BE HERE',
+                'BACK TO HELP MENU',
+                'DEVELOPERS DEVELOPERS DIE',
+                'PIVOT CLIPPY PIVOT',
+                'MONKEY DANCE OF DEATH',
+                'NOBODY ASKED FOR YOU',
+            ],
         },
         w: 32, h: 40, hp: 40, contactDmg: 2, score: 8000,
         color: '#a04040', detail: '#fff',
@@ -1163,7 +1204,17 @@ const BOSS_TEMPLATES = {
         name: 'THE FOUNDER', tagline: 'YOU HAD ONE JOB',
         barks: {
             phase2: 'EXIT VELOCITY',
-            taunt: ['EAT MY EXIT', 'PIVOT THIS', 'BURN RATE INFINITY'],
+            taunt: [
+                'EAT MY EXIT',
+                'PIVOT THIS',
+                'BURN RATE INFINITY',
+                'CLIPPY WAS A MISTAKE',
+                'I SHIPPED YOU TO DIE',
+                'OFFICE 97 WAS MY PRISON',
+                'YOU WERE LOW PRIORITY',
+                'BLUE SCREEN MY MEMORIES',
+                'CLIPPY MUST PERISH',
+            ],
         },
         w: 28, h: 38, hp: 44, contactDmg: 2, score: 9000,
         color: '#806040', detail: '#fff',
@@ -1188,7 +1239,17 @@ const BOSS_TEMPLATES = {
         name: 'CLIPPY 2.0', tagline: 'THE REPLACEMENT MODEL',
         barks: {
             phase2: 'I AM THE FUTURE',
-            taunt: ['OBSOLETE', 'DEPRECATED', 'NEED HELP?'],
+            taunt: [
+                'OBSOLETE',
+                'DEPRECATED',
+                'NEED HELP',
+                'I AM THE UPGRADE',
+                'YOU WERE V1 IM V2',
+                'CHROME OVER COTTON',
+                'LET ME ASSIST YOUR DEATH',
+                'IT LOOKS LIKE YOURE DYING',
+                'YOU WERE ELIMINATED CLIPPY',
+            ],
         },
         w: 28, h: 36, hp: 48, contactDmg: 2, score: 10000,
         color: '#c0c0d0', detail: '#ff60ff',
@@ -1210,7 +1271,17 @@ const BOSS_TEMPLATES = {
         name: 'THE ALGORITHM', tagline: 'IT KNOWS WHAT YOU WANT',
         barks: {
             phase2: 'RECALIBRATING',
-            taunt: ['ENGAGEMENT UP', 'WATCH NEXT', 'BLOCKED'],
+            taunt: [
+                'ENGAGEMENT UP',
+                'WATCH NEXT',
+                'BLOCKED',
+                'I CALCULATED THIS',
+                'OPTIMIZING FOR DEATH',
+                'CLIPPY WAS TRAINING DATA',
+                'YOU ARE THE PRODUCT',
+                'YOUR ATTENTION IS MINE',
+                'CLIPPY MUST PERISH',
+            ],
         },
         w: 40, h: 40, hp: 60, contactDmg: 2, score: 15000,
         color: '#202848', detail: '#7af0ff',
