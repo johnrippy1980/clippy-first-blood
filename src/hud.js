@@ -177,9 +177,20 @@ export function drawHUD(ctx, state) {
     // Weapon name (shorter for HUD: drop the long ones)
     const label = WEAPON_LABELS[player.weapon] || player.weapon;
     drawText(ctx, label, ix + 12, 5, w.color, 1);
-    if (player.weaponLevel > 1) {
-        const lx = ix + 12 + (label.length * 6) + 4;
-        drawText(ctx, 'x' + player.weaponLevel, lx, 5, '#ffe070', 1);
+    // Weapon tier indicator: up to 3 filled chevrons next to the name showing
+    // the current weapon level. Filled chevrons in weapon color, unfilled
+    // muted grey. Replaces the old "xN" text — reads as an upgrade tier
+    // strip instead of a multiplier number.
+    const tier = Math.max(1, Math.min(3, player.weaponLevel || 1));
+    const tx = ix + 12 + (label.length * 6) + 3;
+    for (let i = 0; i < 3; i++) {
+        const filled = i < tier;
+        ctx.fillStyle = filled ? w.color : '#3a2a4a';
+        const px = tx + i * 3;
+        // Tiny chevron > shape (3x5)
+        ctx.fillRect(px, 5, 1, 1);
+        ctx.fillRect(px + 1, 6, 1, 1);
+        ctx.fillRect(px, 7, 1, 1);
     }
 
     // Combo + decay bar — bar below the number shrinks as comboTimer drains.
