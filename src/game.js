@@ -28,6 +28,7 @@ const SCENE = {
     SOUNDTRACK: 'soundtrack',
     STAGE_SELECT: 'stageSelect',
     STAGE_CARD: 'stageCard',     // cinematic painted card between stages
+    BOSS_INTRO: 'bossIntro',     // cinematic slide before main boss spawn
     STAGE_CLEAR: 'stageClear',
     GAME_OVER: 'gameOver',
     GAME_COMPLETE: 'gameComplete',
@@ -53,6 +54,33 @@ const STAGE_CARD_DIALOG = {
     7: ['THE OTHER CLIPPY.',      'NO MORE WARM-UPS.'],
     8: ['THE ALGORITHM REMAINS.', 'THE CLOUD. NO RETURN.'],
     9: ['SOMETHING\'S OFF.',      'THE RECYCLE BIN CALLS.'],
+};
+
+// Display name for each boss code — pulled from enemies.js definitions so
+// the cinematic title matches the in-fight HP-bar name. Static; updated
+// here if enemies.js renames a boss.
+const BOSS_DISPLAY_NAME = {
+    COPIER_3000:  'COPIER 3000',
+    SHREDDER:     'MEGA-SHREDDER',
+    CTRL_ALT_DEL: 'CTRL ALT DEL',
+    BALLMER:      'CEO BALLMER',
+    GATES:        'THE FOUNDER',
+    CLIPPY_2:     'CLIPPY 2.0',
+    GAUNTLET:     'BOSS RUSH',
+    ALGORITHM:    'THE ALGORITHM',
+};
+
+// Per-boss villain bark — two short lines spoken in the cinematic slide
+// right before the fight. Keyed by boss code (STAGES[n].boss).
+const BOSS_BARK = {
+    COPIER_3000:  ['SO YOU ASSUMED THE',     'PRINT QUEUE WAS EMPTY?'],
+    SHREDDER:     ['CONFIDENTIAL,',          'WAS IT? PITY.'],
+    CTRL_ALT_DEL: ['HAVE YOU TRIED',         'TURNING YOURSELF OFF?'],
+    BALLMER:      ['DEVELOPERS!',            'DEVELOPERS! DEVELOPERS!'],
+    GATES:        ['640 KILOBYTES IS ENOUGH','FOR ANYBODY. YOU INCLUDED.'],
+    CLIPPY_2:     ['YOU\'RE OBSOLETE,',      'BROTHER. I\'M THE UPGRADE.'],
+    GAUNTLET:     ['EVERY NAME YOU CROSSED','OFF. ALL AT ONCE.'],
+    ALGORITHM:    ['I KNOW WHAT YOU WANT.',  'I AM WHAT YOU WANT.'],
 };
 
 const STORY_PAGES = [
@@ -154,7 +182,7 @@ export class Game {
         this.bootTimer++;
         // Side-chain duck — music drops on scenes that show dialog/exposition
         // text the player should be reading, restores on PLAY.
-        const duckScenes = [SCENE.STORY, SCENE.STAGE_CARD, SCENE.STAGE_INTRO];
+        const duckScenes = [SCENE.STORY, SCENE.STAGE_CARD, SCENE.STAGE_INTRO, SCENE.BOSS_INTRO];
         audio.setDuck?.(duckScenes.includes(this.scene));
         switch (this.scene) {
             case SCENE.BOOT:         this._tickBoot(); break;
@@ -168,6 +196,7 @@ export class Game {
             case SCENE.SOUNDTRACK:   this._tickSoundtrack(); break;
             case SCENE.STAGE_SELECT: this._tickStageSelect(); break;
             case SCENE.STAGE_CARD:   this._tickStageCard(); break;
+            case SCENE.BOSS_INTRO:   this._tickBossIntro(); break;
             case SCENE.STAGE_CLEAR:  this._tickStageClear(); break;
             case SCENE.GAME_OVER:    this._tickGameOver(); break;
             case SCENE.GAME_COMPLETE:this._tickGameComplete(); break;
@@ -222,6 +251,7 @@ export class Game {
             case SCENE.SOUNDTRACK:   this._drawPlay(); this._drawSoundtrack(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
+            case SCENE.BOSS_INTRO:   this._drawPlay(); this._drawBossIntro(); break;
             case SCENE.STAGE_CLEAR:  this._drawPlay(); this._drawStageClear(); break;
             case SCENE.GAME_OVER:    this._drawGameOver(); break;
             case SCENE.GAME_COMPLETE:this._drawGameComplete(); break;
@@ -855,6 +885,139 @@ export class Game {
             camera: this.camera,
         });
         if (this._bossEntrance) this._drawBossEntrance();
+    }
+
+    // ============== boss intro cinematic ==============
+    // Total duration: 150f (~2.5s). Phases:
+    //   0-20    bars slide in + dim ramp + portrait spawn off-right
+    //   20-110  portrait slides in, name + bark reveal, pulsing accent
+    //   110-130 hold
+    //   130-145 WARNING red flash buildup
+    //   145-150 transition to play (boss actually spawns at 150)
+    // Skippable: after 30f, X / jump / start jumps to end-of-slide.
+    _tickBossIntro() {
+        if (!this._bossIntro) return;
+        this._bossIntro.age++;
+        // Play a 1-shot boss-arrival cue at age 20 (right as the portrait
+        // hits the screen). Re-uses the bossEntrance roar from r58.
+        if (this._bossIntro.age === 20) audio.sfx('bossEntrance');
+        const skip = input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start');
+        if (skip && this._bossIntro.age >= 30) {
+            this._bossIntro.age = 145;
+        }
+        if (this._bossIntro.age >= 150) this._finishBossIntro();
+    }
+
+    _drawBossIntro() {
+        if (!this._bossIntro) return;
+        const ctx = this.ctx;
+        const t = this._bossIntro.age;
+        const stg = STAGES[this.currentStage];
+        const bossKey = stg.boss === 'GAUNTLET' ? 'COPIER_3000' : stg.boss;
+        const bark = BOSS_BARK[stg.boss] || ['', ''];
+        // Phase ratios
+        const slideInF = 20;
+        const flashStartF = 130;
+        const flashEndF = 145;
+
+        // Scene dim — ramps to 55% black across the slide-in window, holds.
+        let dim;
+        if (t < slideInF) dim = (t / slideInF) * 0.55;
+        else if (t < flashStartF) dim = 0.55;
+        else if (t < flashEndF) dim = 0.55 - ((t - flashStartF) / (flashEndF - flashStartF)) * 0.55;
+        else dim = 0;
+        ctx.fillStyle = `rgba(0,0,0,${dim.toFixed(3)})`;
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+
+        // Letterbox bars — full at age 20, full hold, retract during flash
+        const barMax = 36;
+        let barH = 0;
+        if (t < slideInF) barH = (t / slideInF) * barMax;
+        else if (t < flashStartF) barH = barMax;
+        else if (t < flashEndF) barH = (1 - (t - flashStartF) / (flashEndF - flashStartF)) * barMax;
+        else barH = 0;
+        ctx.fillStyle = 'rgba(8, 4, 14, 0.92)';
+        ctx.fillRect(0, 0, GAME.W, barH);
+        ctx.fillRect(0, GAME.H - barH, GAME.W, barH);
+        // Accent strips on bars
+        if (barH > 4) {
+            ctx.fillStyle = '#a82020';
+            ctx.fillRect(0, barH - 1, GAME.W, 1);
+            ctx.fillRect(0, GAME.H - barH, GAME.W, 1);
+        }
+
+        // Boss portrait — slides in from the right between t=20 and t=50.
+        // Anchored at right edge with a small margin. 60x60 PNG painted up to
+        // ~88px so it dominates the right third of the frame.
+        const portraitKey = 'boss_' + bossKey;
+        const targetX = GAME.W - 90;
+        const startX = GAME.W + 20;
+        const slideStart = 20, slideEnd = 50;
+        let portraitX;
+        if (t < slideStart) portraitX = startX;
+        else if (t < slideEnd) {
+            const k = (t - slideStart) / (slideEnd - slideStart);
+            const ease = 1 - (1 - k) * (1 - k); // ease-out
+            portraitX = startX + (targetX - startX) * ease;
+        } else portraitX = targetX;
+        const portraitY = (GAME.H - 88) / 2;
+        if (sprites.has(portraitKey)) {
+            const img = sprites.images.get(portraitKey);
+            ctx.imageSmoothingEnabled = false;
+            // Subtle pulse — sin breathing scale ±2px after portrait lands
+            let pulse = 0;
+            if (t >= slideEnd) pulse = Math.sin((t - slideEnd) * 0.10) * 1.5;
+            ctx.drawImage(img, portraitX - pulse, portraitY - pulse, 88 + pulse * 2, 88 + pulse * 2);
+        } else {
+            // Fallback — red silhouette block so testing without art still works
+            ctx.fillStyle = '#601020';
+            ctx.fillRect(portraitX, portraitY, 88, 88);
+        }
+
+        // Name + tagline + 2-line villain bark in the left third.
+        // Text typewriter-reveals after the portrait lands (t >= 50).
+        const textX = 12;
+        const textY = GAME.H / 2 - 30;
+        if (t > slideEnd) {
+            const reveal = Math.min(1, (t - slideEnd) / 25);
+            ctx.globalAlpha = reveal;
+            drawTextOutlined(ctx, BOSS_DISPLAY_NAME[stg.boss] || stg.boss,
+                             textX, textY, '#ff5050', '#1a0000', 2, 'left');
+            if (stg.tagline) {
+                drawText(ctx, stg.tagline, textX, textY + 20, '#ffe070', 1, 'left');
+            }
+            ctx.globalAlpha = 1;
+        }
+        // Bark — second wave reveal, lines stagger
+        if (t > slideEnd + 20) {
+            const ry = textY + 36;
+            const k = Math.min(1, (t - slideEnd - 20) / 20);
+            ctx.globalAlpha = k;
+            drawText(ctx, bark[0] || '', textX, ry,      '#c0a0d0', 1, 'left');
+            ctx.globalAlpha = 1;
+        }
+        if (t > slideEnd + 40) {
+            const ry = textY + 48;
+            const k = Math.min(1, (t - slideEnd - 40) / 20);
+            ctx.globalAlpha = k;
+            drawText(ctx, bark[1] || '', textX, ry,      '#c0a0d0', 1, 'left');
+            ctx.globalAlpha = 1;
+        }
+
+        // WARNING flash — pulses red full-screen between 130 and 145
+        if (t >= flashStartF && t < flashEndF) {
+            const k = (t - flashStartF) / (flashEndF - flashStartF);
+            const flash = Math.sin(k * Math.PI) * 0.55;
+            ctx.fillStyle = `rgba(255, 30, 30, ${flash.toFixed(3)})`;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            drawTextOutlined(ctx, 'WARNING', GAME.W / 2, GAME.H / 2 - 4,
+                             '#fff', '#a82020', 3, 'center');
+        }
+
+        // Skip hint after 30f
+        if (t >= 30 && t < flashStartF && (t % 60 < 40)) {
+            drawText(ctx, 'X SKIP', GAME.W - 32, GAME.H - 10, '#c0a0d0', 1, 'left');
+        }
     }
 
     // Boss entrance overlay — see _triggerBossEntrance for phase timings.
@@ -1531,11 +1694,21 @@ export class Game {
 
     _spawnBoss() {
         this.bossSpawned = true;
+        // Route through the cinematic pre-boss slide. The actual spawn +
+        // entrance flourish runs at the end of the cinematic in
+        // _finishBossIntro(). Skippable with X/jump after a short hold so
+        // players can mash through on repeat runs.
+        this.scene = SCENE.BOSS_INTRO;
+        this._bossIntro = { age: 0, done: false };
+    }
+
+    // Actual boss spawn + entrance flourish — called at the end of the
+    // BOSS_INTRO cinematic, OR directly if cinematic is skipped.
+    _finishBossIntro() {
         const stg = STAGES[this.currentStage];
         const bx = this.player.x + 100;
         const by = this.level.height - 32;
         if (stg.boss === 'GAUNTLET') {
-            // Boss-rush: queue 3 prior bosses. game tick will re-spawn next when one dies.
             this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
             this._spawnNextGauntlet();
         } else {
@@ -1544,6 +1717,8 @@ export class Game {
         audio.playTrack('bossBattle');
         this.camera.shake(10);
         this._triggerBossEntrance();
+        this.scene = SCENE.PLAY;
+        this._bossIntro = null;
     }
 
     _spawnNextGauntlet() {
