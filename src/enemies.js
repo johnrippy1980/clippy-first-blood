@@ -669,6 +669,19 @@ class Boss extends Enemy {
         // Phase 2 at half hp — boss enrages: explosion FX, brief invuln-ish
         // pause, screen shake, "RAGE" floating label, and an extended hitFlash
         // so the player can read the threshold beat clearly.
+        // Mini-boss guard cycle: every ~3s a 24-frame guard window opens.
+        // While guardActive, incoming player bullets get deflected and the
+        // boss flashes a blue arc tell. Telegraph: 12-frame "winding up"
+        // pre-flash so it doesn't feel cheap.
+        if (this.isMini) {
+            this._guardCycle = (this._guardCycle | 0) + 1;
+            const cycleLen = 180; // 3s at 60Hz
+            const c = this._guardCycle % cycleLen;
+            // Pre-flash 12f, guard 24f, then idle for the rest of the cycle.
+            this._guardTell = (c >= cycleLen - 36 && c < cycleLen - 24);
+            this._guardActive = (c >= cycleLen - 24 && c < cycleLen);
+        }
+
         if (this.phase === 1 && this.hp <= this.maxHp / 2) {
             this.phase = 2;
             this.attackTimer = 60;
@@ -864,6 +877,40 @@ class Boss extends Enemy {
                 ctx.restore();
             }
             sprites.draw(ctx, spriteKey, dx, dy, false);
+            // Mini-boss parry tell: a brief cyan pre-flash (12f) then a thick
+            // cyan ring during the 24f guard window. The ring tells the player
+            // "shoot now and your bullet bounces back" — must be readable.
+            if (this.isMini && (this._guardTell || this._guardActive)) {
+                const cx = dx + dims.w / 2;
+                const cy = dy + dims.h / 2;
+                const baseR = Math.max(dims.w, dims.h) / 2 + 4;
+                ctx.save();
+                if (this._guardActive) {
+                    // Solid pulsing ring during guard
+                    const pulse = 0.7 + Math.sin(this.timer * 0.6) * 0.3;
+                    ctx.strokeStyle = '#80e0ff';
+                    ctx.globalAlpha = pulse;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, baseR + 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 0.35;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, baseR + 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else {
+                    // Pre-flash: dashed thin ring "winding up"
+                    ctx.strokeStyle = '#80e0ff';
+                    ctx.globalAlpha = 0.7;
+                    ctx.setLineDash([3, 2]);
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
             // Attack telegraph — red wash on the boss silhouette in the 8
             // frames before each pattern fires. Sells the AI's wind-up and
             // gives the player a fair-warning beat. Uses source-atop so the
@@ -1178,6 +1225,24 @@ export class EnemyManager {
                 if (b.stuck) continue; // Wall-stuck bullets are inert decoration
                 if (b.piercing && b.hits.has(e)) continue;
                 if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+                    // Mini-boss parry: if guardActive, deflect this bullet back
+                    // toward the player instead of taking damage. Move it from
+                    // player.bullets → this.bullets (enemy bullet list) so it
+                    // can damage the player on contact.
+                    if (e.isMini && e._guardActive && !b._enemyParried) {
+                        b.vx = -b.vx; b.vy = -b.vy;
+                        b._enemyParried = true;
+                        b.color = '#80e0ff';
+                        b.dmg = b.dmg ?? b.damage ?? 1;
+                        // Splice out of player bullets, push onto enemy bullets
+                        player.bullets.splice(bi, 1);
+                        this.bullets.push(b);
+                        // Tell + sfx
+                        particles.hitSpark(b.x, b.y, '#80e0ff');
+                        particles.floatingText(e.x + e.w / 2, e.y - 4, 'PARRY', '#80e0ff', 36, -0.4, 1);
+                        audio.sfx('bossHit');
+                        continue;
+                    }
                     // Weapon-specific impact opts: knockback / burn DOT
                     const opts = {};
                     if (b.weapon === 'SPREAD') opts.knockBack = 1.4;
