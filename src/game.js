@@ -1189,6 +1189,7 @@ export class Game {
             // card for currentStage+1 (the *following* stage) before the fade
             // hands off to STAGE_INTRO.
             const next = this._pendingStage || (this.currentStage + 1);
+            this._secretDiscoveryCard = false;
             this._startStage(next);
         }
     }
@@ -1279,6 +1280,27 @@ export class Game {
                 const k = Math.min(1, (t - 80) / 30);
                 ctx.globalAlpha = k;
                 drawText(ctx, stg.tagline, GAME.W / 2, GAME.H - 10, '#c0a0d0', 1, 'center');
+                ctx.globalAlpha = 1;
+            }
+        }
+        // Secret-discovery flourish — when the no-damage stage-1 clear routes
+        // the player to stage 9, paint a cyan "SECRET FOUND" overlay across
+        // the center of the card so the moment lands. Cyan keeps it visually
+        // distinct from the normal red/gold stage palette.
+        if (this._secretDiscoveryCard) {
+            // Flash band — full-width across the middle of the canvas
+            const flash = Math.max(0, 1 - t / 90);   // fades over first 1.5s
+            if (flash > 0) {
+                ctx.fillStyle = `rgba(122, 240, 255, ${(flash * 0.45).toFixed(3)})`;
+                ctx.fillRect(0, GAME.H / 2 - 20, GAME.W, 40);
+            }
+            // Label appears just after the flash starts
+            if (t > 12) {
+                const k = Math.min(1, (t - 12) / 25);
+                const pulse = (Math.sin(t * 0.16) + 1) * 0.5;
+                ctx.globalAlpha = k * (0.65 + pulse * 0.35);
+                drawTextOutlined(ctx, 'SECRET FOUND', GAME.W / 2, GAME.H / 2 - 8, '#7af0ff', '#0a1a24', 2, 'center');
+                drawText(ctx, 'OFF THE GRID', GAME.W / 2, GAME.H / 2 + 6, '#80a0c0', 1, 'center');
                 ctx.globalAlpha = 1;
             }
         }
@@ -1668,6 +1690,10 @@ export class Game {
                 achievements.stats.secretStageDiscovered = true;
                 achievements._save();
                 nextStage = 9;
+                // Flag this stage-card frame as the secret-discovery moment so
+                // the card render adds a "SECRET FOUND" overlay + flash. One
+                // shot — cleared when the card exits.
+                this._secretDiscoveryCard = true;
             } else if (this.currentStage === 9) {
                 // After secret, drop back to stage 2
                 nextStage = 2;
