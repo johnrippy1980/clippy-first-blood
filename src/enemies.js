@@ -849,6 +849,16 @@ class Boss extends Enemy {
         } else {
             this._telegraph = 0;
         }
+        // Spatial telegraph — at the start of a 30-frame warning, spawn
+        // a contracting ring that follows the boss. Player reads the
+        // shrinking ring as "incoming." Phase-2 gets a tighter red ring.
+        if (this.attackTimer === 30) {
+            const cx = this.x + this.w / 2;
+            const cy = this.y + this.h / 2;
+            const startR = Math.max(this.w, this.h) * 0.9 + 8;
+            const color = this.phase === 2 ? '#ff3030' : '#ff8030';
+            particles.chargeRing(cx, cy, startR, 30, color, this);
+        }
         if (this.attackTimer <= 0) {
             this._runPattern(level, player);
         }

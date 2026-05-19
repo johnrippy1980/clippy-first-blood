@@ -65,23 +65,39 @@ class FloatingText {
 
 class ShockRing {
     constructor() { this.alive = false; }
-    init(x, y, maxR, life, color) {
+    init(x, y, maxR, life, color, inward = false, follow = null) {
         this.x = x; this.y = y;
         this.maxR = maxR;
         this.life = life; this.maxLife = life;
         this.color = color;
+        this.inward = inward;
+        // Optional follow target — keep ring centered on a moving entity
+        // (used by boss attack telegraphs so the ring tracks the wind-up).
+        this.follow = follow;
         this.alive = true;
     }
     update() {
+        if (this.follow && this.follow.alive !== false) {
+            this.x = this.follow.x + (this.follow.w || 0) / 2;
+            this.y = this.follow.y + (this.follow.h || 0) / 2;
+        }
         this.life--;
         if (this.life <= 0) this.alive = false;
     }
     draw(ctx, camera) {
         const dx = (this.x - camera.x) | 0;
         const dy = (this.y - camera.y) | 0;
-        const t = 1 - (this.life / this.maxLife);   // 0 → 1 as it expands
-        const r = Math.max(1, this.maxR * t);
-        const a = (1 - t) * 0.85;                   // fade as it expands
+        const t = 1 - (this.life / this.maxLife);   // 0 → 1 over lifetime
+        let r, a;
+        if (this.inward) {
+            // Contracting: starts at maxR, shrinks toward 0; ramps brightness
+            // UP as it converges — signals "incoming impact at this point."
+            r = Math.max(1, this.maxR * (1 - t));
+            a = 0.35 + t * 0.55;
+        } else {
+            r = Math.max(1, this.maxR * t);
+            a = (1 - t) * 0.85;
+        }
         ctx.save();
         ctx.globalAlpha = a;
         ctx.strokeStyle = this.color;
@@ -115,7 +131,14 @@ class ParticleSystem {
     // Outward-expanding shock ring — pairs with enemy death to sell the
     // impact beat. Tunable: maxR default 22, life default 14f (~233ms).
     shockRing(x, y, maxR = 22, life = 14, color = '#fff') {
-        this._takeRing().init(x, y, maxR, life, color);
+        this._takeRing().init(x, y, maxR, life, color, false, null);
+    }
+
+    // Contracting telegraph ring — opposite direction. Used for boss attack
+    // wind-up so the player gets a spatial "incoming" beat. Optional follow
+    // target keeps the ring pinned to a moving entity.
+    chargeRing(x, y, maxR, life, color, follow = null) {
+        this._takeRing().init(x, y, maxR, life, color, true, follow);
     }
 
     _take() {
