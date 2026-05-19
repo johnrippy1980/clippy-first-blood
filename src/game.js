@@ -362,13 +362,31 @@ export class Game {
         drawTextOutlined(ctx, 'CLIPPY', GAME.W / 2, 28, '#ff5050', '#1a0000', 4, 'center');
         drawTextOutlined(ctx, 'FIRST BLOOD', GAME.W / 2, 68, '#ffe070', '#a82020', 2, 'center');
 
-        // Scrolling subtitle marquee — "A REVENGE STORY" drifts left
+        // Scrolling subtitle marquee — "A REVENGE STORY" drifts left.
+        // Wrap-safe: anchor sx in the negative-subW window so we always have
+        // at least one full repeat covering GAME.W on the right. Triple the
+        // string so the wrap is invisible even at large widths.
         const sub = 'A REVENGE STORY  -  EIGHT TARGETS  -  ONE PAPERCLIP  -  ';
         const subW = sub.length * 6;
-        const sx = -(tb * 0.7) % subW;
+        const sx = -((tb * 0.7) % subW);
         ctx.globalAlpha = 0.65;
-        drawText(ctx, sub + sub, sx, 90, '#c0a0d0', 1, 'left');
+        drawText(ctx, sub + sub + sub, sx, 90, '#c0a0d0', 1, 'left');
         ctx.globalAlpha = 1;
+        // Edge fade — paint short black gradients at the left + right ends
+        // of the marquee band so half-letters disappear into the dark
+        // instead of being clipped mid-glyph by the canvas edge.
+        const fadeW = 22;
+        const fadeY = 88, fadeH = 11;
+        let fadeL = ctx.createLinearGradient(0, 0, fadeW, 0);
+        fadeL.addColorStop(0, 'rgba(0,0,0,1)');
+        fadeL.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = fadeL;
+        ctx.fillRect(0, fadeY, fadeW, fadeH);
+        let fadeR = ctx.createLinearGradient(GAME.W - fadeW, 0, GAME.W, 0);
+        fadeR.addColorStop(0, 'rgba(0,0,0,0)');
+        fadeR.addColorStop(1, 'rgba(0,0,0,1)');
+        ctx.fillStyle = fadeR;
+        ctx.fillRect(GAME.W - fadeW, fadeY, fadeW, fadeH);
 
         // Press to start (pulsing glow + blink)
         if (this.titleBlink % 60 < 40) {
