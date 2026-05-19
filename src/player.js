@@ -25,10 +25,11 @@ const RIM_BY_THEME = {
     cloud:      { color: '#a0ffff', alpha: 0.26, side:  1, top: true  }, // ambient cloud light
 };
 
-const COYOTE_FRAMES = 6;     // jump-after-edge grace
-const JUMP_BUFFER_MS = 110;  // matched to input buffer
+const COYOTE_FRAMES = 8;     // jump-after-edge grace (~135ms @ 60fps; standard forgiving feel)
+const JUMP_BUFFER_MS = 130;  // matched to input buffer; slightly bumped so press-just-before-land registers
 const MAX_SPEED = 2.0;
 const RUN_ACCEL = 0.36;
+const TURN_SNAP = 0.55;      // when reversing direction, instantly kill this fraction of opposing momentum
 const JUMP_V = -7.5;         // ~3 tiles of vertical clearance; reaches platforms reliably
 const JUMP_CUT = 0.42;       // velocity * this when jump released early
 const SLIDE_V = 3.2;
@@ -505,6 +506,14 @@ export class Player {
             this.facing = lookX;
             const accel = (this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL;
             const cap = (this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED;
+            // Turn-snap: when input reverses against current momentum, kill a
+            // chunk of the opposing velocity so the player doesn't ice-skate
+            // through their own turnaround. Only applies on ground — keeps
+            // air-control deliberate. Skip when slowing through zero so we
+            // don't double-impulse.
+            if (this.onGround && Math.sign(lookX) !== Math.sign(this.vx) && Math.abs(this.vx) > 0.4) {
+                this.vx *= (1 - TURN_SNAP);
+            }
             this.vx += lookX * accel;
             this.vx = Math.max(-cap, Math.min(cap, this.vx));
         } else {
@@ -719,10 +728,15 @@ export class Player {
         const rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
         this.fireCooldown = rate;
 
-        // Bullet emerges from the rifle tip — radius 10 from center body.
-        const muzzleR = 12;
-        const baseX = this.x + this.w / 2 + this.aim.x * muzzleR;
-        const baseY = this.y + this.h / 2 + this.aim.y * muzzleR;
+        // World-space muzzle position — derived from the SAME shoulder + arm +
+        // barrel offsets as the visible procedural barrel (_drawAimArm). The
+        // shoulder anchor lives slightly above-center and toward the facing
+        // direction; total reach is armLen (5) + barrelLen (8) = 13px along
+        // the aim. Keeping bullet spawn, muzzle flash, and visible barrel tip
+        // sharing one anchor means the projectile actually leaves the gun the
+        // player sees — not the body center.
+        const mz = this._muzzleWorldPos();
+        const baseX = mz.x, baseY = mz.y;
 
         const fire = (vx, vy) => {
             const b = {
@@ -1375,17 +1389,41 @@ export class Player {
         }
     }
 
+    // Canonical muzzle position in WORLD coordinates. Single source of truth
+    // shared by bullet spawn (fire), muzzle-flash particles, and the visible
+    // procedural barrel (_drawAimArm). Before this was unified, bullet origin
+    // sat at body-center+12 while the visible barrel sat at shoulder+13 —
+    // bullets looked like they came from Clippy's chest, not his rifle.
+    _muzzleWorldPos() {
+        // Shoulder offset: (+facing*2, -3) from sprite center. Sprite center
+        // sits at (x + w/2, y + h/2 - 1) — the +1 below matches the render-time
+        // offset in render() so the world-space anchor lines up with the
+        // visible sprite when no recoil is applied.
+        const cx = this.x + this.w / 2;
+        const cy = this.y + this.h / 2 - 1;
+        const sx = cx + this.facing * 2;
+        const sy = cy - 3;
+        const ax = this.aim?.x ?? this.facing;
+        const ay = this.aim?.y ?? 0;
+        const armLen = 5, barrelLen = 8;
+        const recoilPull = this.recoilTimer > 0 ? Math.min(3, this.recoilTimer / 2) : 0;
+        return {
+            x: sx + ax * (armLen + barrelLen - recoilPull),
+            y: sy + ay * (armLen + barrelLen - recoilPull),
+        };
+    }
+
     // Procedural arm + gun barrel pointing along the aim vector.
     // Avoids needing 8-direction sprite sheets while still showing aim direction.
+    // Visible barrel is anchored from sprite-screen (cx, cy) so the recoil
+    // jiggle moves the gun along with the sprite. The MUZZLE TIP, however,
+    // mirrors _muzzleWorldPos exactly (same offsets, same lengths, same
+    // recoil pull) — bullets are guaranteed to leave the visible barrel.
     _drawAimArm(ctx, cx, cy) {
         const ax = this.aim?.x, ay = this.aim?.y;
         if (ax == null) return;
-        // Don't draw arm when aim is essentially still (close to ±forward without much vertical)
-        // — let the painted sprite speak. We still draw barrel for clarity.
-        // Shoulder anchor — slightly above center, in front of body
         const sx = Math.round(cx + this.facing * 2);
         const sy = Math.round(cy - 3);
-        // Arm extends 5px along the aim, then barrel 8px
         const armLen = 5;
         const barrelLen = 8;
         const recoilPull = this.recoilTimer > 0 ? Math.min(3, this.recoilTimer / 2) : 0;
