@@ -1101,7 +1101,10 @@ export class Player {
                 this.score += bonus;
                 // Surface the bonus value so the player sees the milestone
                 // actually paying out (was silently accruing before).
-                particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 28, '+' + bonus + ' BONUS', '#ff60ff', 70, -0.5, 1);
+                // y offset = -36 to clear the combo label (scale=2, ~12px tall
+                // starting at y=-14); faster vy=-0.9 so it floats up out of
+                // the way before the combo label finishes its intro bounce.
+                particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 36, '+' + bonus + ' BONUS', '#ff60ff', 70, -0.9, 1);
                 // Shock ring at enemy for the milestone — color matches combo tier
                 const ringColor = this.combo >= 20 ? '#ff60ff' : this.combo >= 10 ? '#ff8050' : '#ffe070';
                 particles.shockRing(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, 26, 18, ringColor);
