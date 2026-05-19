@@ -148,4 +148,11 @@ export const AMBIENT = Object.freeze({
     SLOWMO_BOSS_PHASE_F:  30,               // boss phase-2 slow-mo
     SLOWMO_SECOND_CHANCE_F: 45,             // bullet-time rescue slow-mo
     SLOWMO_BOSS_KILL_F:   50,               // dramatic beat on boss kill before stage clear
+    GRENADE_MAX:          4,                // inventory cap
+    GRENADE_PER_PICKUP:   2,                // each pickup grants this many
+    GRENADE_FUSE_F:       50,               // ~0.83s until auto-detonate if no contact
+    GRENADE_RADIUS:       28,               // AoE radius in px
+    GRENADE_DAMAGE:       3,                // per-enemy damage at center; falloff to ~50% at edge
+    GRENADE_THROW_VX:     2.8,              // horizontal throw speed (× facing)
+    GRENADE_THROW_VY:    -3.4,              // initial upward velocity
 });

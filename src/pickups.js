@@ -186,11 +186,13 @@ class Pickup {
     _letter() {
         if (this.type === 'LIFE') return '+';
         if (this.type === '1UP') return '1';
+        if (this.type === 'GRENADE') return 'G';
         return this.type[0];
     }
     _color() {
         if (this.type === 'LIFE') return '#50ff70';
         if (this.type === '1UP') return '#ff60ff';
+        if (this.type === 'GRENADE') return '#80ff40';
         return WEAPON[this.type]?.color || '#fff';
     }
     // Convert #rgb / #rrggbb to "rgba(r,g,b,a)". Cheap, no validation —
@@ -212,6 +214,7 @@ const GLYPHS = {
     'F': [0b111,0b100,0b110,0b100,0b100],
     'H': [0b101,0b101,0b111,0b101,0b101],
     'T': [0b111,0b010,0b010,0b010,0b010],
+    'G': [0b111,0b100,0b101,0b101,0b111],
     '+': [0b000,0b010,0b111,0b010,0b000],
     '1': [0b010,0b110,0b010,0b010,0b111],
     '?': [0b110,0b001,0b010,0b000,0b010],

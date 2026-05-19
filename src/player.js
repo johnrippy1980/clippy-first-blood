@@ -92,6 +92,14 @@ export class Player {
         this.bullets = [];
         this.shotsFired = 0;
 
+        // Hand grenades — held inventory, NOT a weapon swap. Player presses
+        // V (or gamepad Y) to throw one. Persists across stage transitions so
+        // a saved grenade can be brought to a boss fight. Pickup grants
+        // GRENADE_PER_PICKUP each (capped at GRENADE_MAX).
+        this.grenades = 0;
+        this.thrownGrenades = [];
+        this._grenadeCooldown = 0;
+
         // Aim — continuous angle in radians. 0 = right, -PI/2 = up, +PI/2 = down.
         this.aim = AIM.RIGHT;        // legacy 8-way pointer (kept for compat)
         this.aimAngle = 0;           // 360-degree aim angle
@@ -168,6 +176,11 @@ export class Player {
         this.combo = 0;
         this.bullets.length = 0;
         this.iFrames = 30;
+        // Grenade count persists across stages — player can save them for a
+        // boss. Only clear thrown-in-flight ones (no orphan grenades carry
+        // into the next stage).
+        this.thrownGrenades.length = 0;
+        this._grenadeCooldown = 0;
     }
 
     // ---------- update ----------
@@ -510,6 +523,10 @@ export class Player {
 
         // Update bullets
         this._updateBullets(level);
+        // Update thrown grenades (arc + collision + detonation)
+        this._updateGrenades(level);
+        // Grenade throw input — gated on cooldown to prevent dump-spam.
+        this._handleGrenadeInput();
 
         // Animation
         this._updateAnim();
@@ -1086,6 +1103,114 @@ export class Player {
         }
     }
 
+    // Throw a grenade. Decrements inventory and spawns an arcing projectile
+    // that detonates on contact with any solid OR enemy, or after a short
+    // fuse if it misses. No-op when count <= 0; the player still gets a
+    // soft fail chirp so the input isn't silently ignored.
+    _throwGrenade() {
+        if (this.grenades <= 0) {
+            audio.sfx('comboBreak');  // dull fail beat
+            particles.floatingText(
+                this.x + this.w / 2, this.y - 4, 'NO GRENADES',
+                '#ff8050', 36, -0.5, 1);
+            return;
+        }
+        this.grenades--;
+        this._grenadeCooldown = 18;  // 0.3s — no chain-throw spam
+        const cx = this.x + this.w / 2;
+        const cy = this.y + this.h / 2 - 2;
+        const facing = this.facing >= 0 ? 1 : -1;
+        // Slight upward arc — throw responds to aim if held high/low
+        const aimUp = input.isHeld('up') ? -1 : (input.isHeld('down') ? 0.4 : 0);
+        const vx = AMBIENT.GRENADE_THROW_VX * facing;
+        const vy = AMBIENT.GRENADE_THROW_VY + aimUp * 1.4;
+        this.thrownGrenades.push({
+            x: cx, y: cy, vx, vy,
+            fuse: AMBIENT.GRENADE_FUSE_F,
+            spin: 0,
+            spinSpeed: facing * 0.32,
+            alive: true,
+        });
+        audio.sfx('slide');  // re-use slide whoosh — close enough to a throw grunt
+        particles.dust(cx, cy + 4);
+    }
+
+    _handleGrenadeInput() {
+        if (this._grenadeCooldown > 0) this._grenadeCooldown--;
+        if (input.isPressed('grenade') && this._grenadeCooldown <= 0) {
+            // Block during death / cinematic states
+            if (this.state === STATE.DIE || this.state === STATE.POUNCE
+                || this.state === STATE.GRAPPLE) return;
+            this._throwGrenade();
+        }
+    }
+
+    _updateGrenades(level) {
+        for (let i = this.thrownGrenades.length - 1; i >= 0; i--) {
+            const g = this.thrownGrenades[i];
+            g.fuse--;
+            g.spin += g.spinSpeed;
+            // Physics — gravity + air drag
+            g.vy += 0.22;
+            g.vx *= 0.99;
+            g.x += g.vx;
+            g.y += g.vy;
+            // Ground / wall bounce — soft bounce on solid floor
+            if (level.isSolid(g.x, g.y + 2)) {
+                g.y -= 1;
+                g.vy = -g.vy * 0.4;
+                g.vx *= 0.78;
+                // Once nearly stopped, detonate to avoid sitting forever.
+                if (Math.abs(g.vy) < 0.4 && Math.abs(g.vx) < 0.2) {
+                    this._detonateGrenade(g);
+                    this.thrownGrenades.splice(i, 1);
+                    continue;
+                }
+            }
+            // Wall bounce
+            if (level.isSolid(g.x + (g.vx > 0 ? 2 : -2), g.y)) {
+                g.vx = -g.vx * 0.5;
+            }
+            // Fuse expired — detonate in place
+            if (g.fuse <= 0) {
+                this._detonateGrenade(g);
+                this.thrownGrenades.splice(i, 1);
+                continue;
+            }
+        }
+    }
+
+    // AoE explosion at grenade position. Damages all enemies within
+    // GRENADE_RADIUS with damage that falls off linearly to ~50% at the
+    // edge. Bosses + miniboss take the same hit. Big visual: explosion,
+    // double shock ring, chunky shake.
+    _detonateGrenade(g) {
+        const cx = g.x, cy = g.y;
+        const R = AMBIENT.GRENADE_RADIUS;
+        const dmgMax = AMBIENT.GRENADE_DAMAGE;
+        // Reach into the global enemy manager via window.__game — avoids a
+        // circular import. The grenade is the only path that needs AoE.
+        const enemyMgr = (typeof window !== 'undefined') ? window.__game?.enemies : null;
+        if (enemyMgr && enemyMgr.enemies) {
+            for (const e of enemyMgr.enemies) {
+                if (!e.alive) continue;
+                const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+                const d = Math.hypot(ex - cx, ey - cy);
+                if (d > R) continue;
+                const falloff = 0.5 + 0.5 * (1 - d / R);  // 1.0 → 0.5
+                const knockDir = ex < cx ? -1 : 1;
+                e.hurt(dmgMax * falloff, knockDir, { knockBack: 1.8 });
+            }
+        }
+        // Visual fireworks
+        particles.explosion(cx, cy, '#ffe070', 22);
+        particles.explosion(cx, cy, '#ff5050', 14);
+        particles.shockRing(cx, cy, R, 18, '#ffe070');
+        particles.shockRing(cx, cy, R + 8, 24, '#ff8030');
+        audio.sfx('explode');
+        this.requestShake = Math.max(this.requestShake || 0, 5);
+    }
+
     // Called by EnemyManager when a bullet hits an enemy.
     onBulletHit(bullet, enemy, killed) {
         if (!bullet.piercing) {
@@ -1187,6 +1312,21 @@ export class Player {
             particles.shockRing(cx, cy, 18, 12, '#fff');
             particles.shockRing(cx, cy, 30, 18, '#ffe070');
             particles.floatingText(cx, this.y - 4, '1 UP!', '#ffe070', 75, -0.7, 2);
+            return;
+        }
+        if (type === 'GRENADE') {
+            // Held inventory — +GRENADE_PER_PICKUP capped at GRENADE_MAX.
+            // Doesn't swap weapon; player decides when to throw.
+            const before = this.grenades || 0;
+            this.grenades = Math.min(AMBIENT.GRENADE_MAX, before + AMBIENT.GRENADE_PER_PICKUP);
+            const gained = this.grenades - before;
+            this.score += 100 * gained;
+            audio.sfx('pickup');
+            burstBurst('#80ff40', 12);
+            particles.shockRing(cx, cy, 18, 12, '#80ff40');
+            particles.floatingText(cx, this.y - 4,
+                gained > 0 ? `+${gained} GRENADE` : 'MAX',
+                '#80ff40', 60, -0.7, 1);
             return;
         }
         if (WEAPON[type]) {
@@ -1752,6 +1892,26 @@ export class Player {
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(bx, by, 1, 1);
             }
+        }
+
+        // Thrown grenades — small olive-green pellet with a red blink in the
+        // last 15 frames so the player can read "about to detonate". Spins
+        // visibly so it's not mistaken for a bullet.
+        for (const g of this.thrownGrenades) {
+            const gx = Math.round(g.x - camera.viewX);
+            const gy = Math.round(g.y - camera.viewY);
+            // Blink when fuse is almost up
+            const blink = g.fuse < 15 && Math.floor(g.fuse / 3) % 2 === 0;
+            // Pin/body
+            ctx.fillStyle = blink ? '#ff5050' : '#406030';
+            ctx.fillRect(gx - 2, gy - 2, 4, 4);
+            ctx.fillStyle = blink ? '#ffe070' : '#80a040';
+            ctx.fillRect(gx - 1, gy - 1, 2, 2);
+            // Spin tail
+            const tx = gx + Math.round(Math.cos(g.spin) * 3);
+            const ty = gy + Math.round(Math.sin(g.spin) * 3);
+            ctx.fillStyle = '#1a1208';
+            ctx.fillRect(tx, ty, 1, 1);
         }
     }
 

@@ -287,6 +287,7 @@ function makeStage2() {
         crateSpawns: [
             { x:  8 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'SPREAD' },
             { x: 28 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'LIFE' },
+            { x: 40 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'GRENADE' },
             { x: 53 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'HOMING' },
         ]
     };

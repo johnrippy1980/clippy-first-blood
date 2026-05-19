@@ -226,6 +226,23 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(hx, hy, fillW, hh);
     }
 
+    // Grenade inventory slot — top-right, beside the lives icon. Shows a
+    // small green pellet + "x{N}" count. Only renders if player has at
+    // least one grenade. Pellet flashes when the player just picked up.
+    if ((player.grenades || 0) > 0) {
+        const gx = GAME.W - 36, gy = 5;
+        // Pellet body
+        ctx.fillStyle = '#406030';
+        ctx.fillRect(gx, gy, 4, 5);
+        ctx.fillStyle = '#80a040';
+        ctx.fillRect(gx + 1, gy + 1, 2, 3);
+        // Pin/lever
+        ctx.fillStyle = '#a0a0a0';
+        ctx.fillRect(gx + 1, gy - 1, 2, 1);
+        // Count text
+        drawText(ctx, 'x' + player.grenades, gx + 6, gy + 1, '#80ff40', 1);
+    }
+
     // Weapon inventory dots — small color-keyed pips to the right of the
     // weapon icon block showing held weapons. Active slot gets a 2px halo;
     // inactive slots are 1px dots in the weapon's color. Only renders if

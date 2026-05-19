@@ -12,6 +12,7 @@ const KEYMAP = {
     ' ': 'jump',           'z': 'jump',  'Z': 'jump',
     'x': 'shoot',          'X': 'shoot',
     'c': 'special',        'C': 'special',
+    'v': 'grenade',        'V': 'grenade',
     'Shift': 'aimlock',
     'Enter': 'start',
     'Escape': 'pause',     'p': 'pause', 'P': 'pause',
@@ -162,6 +163,7 @@ class Input {
         this._set('jump',  gp.buttons[0]?.pressed);     // A
         this._set('shoot', gp.buttons[2]?.pressed);     // X
         this._set('special', gp.buttons[1]?.pressed);   // B
+        this._set('grenade', gp.buttons[3]?.pressed);   // Y
         this._set('aimlock', gp.buttons[5]?.pressed);   // RB
         this._set('start', gp.buttons[9]?.pressed);
         this._set('pause', gp.buttons[9]?.pressed);
@@ -217,6 +219,7 @@ class Input {
         bind('jump', 'jump');
         bind('shoot', 'shoot');
         bind('special', 'special');
+        bind('grenade', 'grenade');
         bind('pause', 'pause');
     }
 }
