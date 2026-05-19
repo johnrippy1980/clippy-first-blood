@@ -1259,6 +1259,24 @@ export class Player {
             drawText(ctx, '^ HIDE', px, py + 1, '#ffe070', 1, 'center');
             ctx.restore();
         }
+        // Pounce prompt: when player is hidden AND a pounce target is in
+        // range, show a pulsing cyan "C POUNCE" hint so they discover the move.
+        // Cyan palette matches the parry-tier visual language.
+        const hiddenForPrompt = this.grassHidden || this.waterHidden || this.state === STATE.COVER;
+        if (hiddenForPrompt && this._pounceTarget && this.state !== STATE.POUNCE) {
+            const px = Math.round(this.x + this.w / 2 - camera.viewX);
+            const py = Math.round(this.y - 36 - camera.viewY);
+            const pulse = (Math.sin(performance.now() * 0.018) + 1) * 0.5;
+            ctx.save();
+            ctx.globalAlpha = 0.6 + pulse * 0.4;
+            ctx.fillStyle = 'rgba(4, 12, 24, 0.9)';
+            ctx.fillRect(px - 26, py - 2, 52, 11);
+            ctx.fillStyle = '#80e0ff';
+            ctx.fillRect(px - 26, py - 2, 52, 1);
+            ctx.fillRect(px - 26, py + 8, 52, 1);
+            drawText(ctx, 'C POUNCE', px, py + 1, '#80e0ff', 1, 'center');
+            ctx.restore();
+        }
 
         // Ground-contact drop shadow. Anchored to _lastGroundY so it stays
         // on the floor while the player jumps, growing slightly larger and
