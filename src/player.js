@@ -2502,6 +2502,7 @@ export class Player {
                     // cycle but the upper body matches aim direction.
                     if (aimBand === 'up' && sprites.has('aim_up')) return 'aim_up';
                     if (aimBand === 'diag-up' && sprites.has('aim_diag')) return 'aim_diag';
+                    if (aimBand === 'diag-down' && sprites.has('aim_diag_down')) return 'aim_diag_down';
                     const phase = Math.floor(this.animFrame / 2) % 3;
                     return ['run_shoot_1', 'run_shoot_2', 'run_shoot_3'][phase];
                 }
@@ -2510,9 +2511,11 @@ export class Player {
             }
             // 3-pose jump arc keyed off vy: rising (vy < -1.5), peak (-1.5..1.5),
             // falling (vy > 1.5). Falls back to plain 'jump' for any missing
-            // variant so manifest gaps don't crash the read.
+            // variant so manifest gaps don't crash the read. Shooting mid-air
+            // swaps to the painted rifle-overhead jump pose.
             case STATE.JUMP:
             case STATE.FALL: {
+                if (shooting && sprites.has('jump_aim')) return 'jump_aim';
                 if (this.vy < -1.5) return 'jump';                // rising
                 if (this.vy > 1.5) return sprites.has('fall') ? 'fall' : 'jump';
                 return 'jump';                                     // peak
@@ -2527,8 +2530,8 @@ export class Player {
             case STATE.CROUCH: return 'crouch';
             case STATE.PRONE:
             case STATE.SLIDE:
-            case STATE.CRAWL:
-            case STATE.ROLL: return 'prone';
+            case STATE.ROLL: return shooting && sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
+            case STATE.CRAWL: return sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
             case STATE.BACKDASH: return 'backdash';
             case STATE.CLIMB: return Math.floor(this.animFrame) % 2 === 0 ? 'run_1' : 'run_2';
             case STATE.COVER: return 'crouch';
@@ -2543,9 +2546,9 @@ export class Player {
                 // Procedural arm overlay handles fine-grained aim direction on top.
                 if (aimBand === 'up') return 'aim_up';
                 if (aimBand === 'diag-up') return 'aim_diag';
+                if (aimBand === 'diag-down' && sprites.has('aim_diag_down')) return 'aim_diag_down';
                 if (aimBand === 'down' || aimBand === 'diag-down') {
-                    // No down-aim sprite — use crouch as a crude approximation.
-                    // Arm overlay still points correctly.
+                    // Straight-down: no painted variant yet, use crouch + arm overlay.
                     return shooting ? 'crouch_shoot' : 'crouch';
                 }
                 if (shooting) return 'shoot';

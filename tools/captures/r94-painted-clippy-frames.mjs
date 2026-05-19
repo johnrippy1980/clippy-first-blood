@@ -18,7 +18,11 @@ const result = await page.evaluate(async () => {
     // sprites singleton is exposed via the module graph through __game
     const g = window.__game;
     const sprites = g.sprites || (await import('/src/sprites.js')).sprites;
-    const required = ['backdash', 'hurt', 'spin_1', 'spin_2', 'aim_diag'];
+    const required = [
+        'backdash', 'hurt', 'spin_1', 'spin_2', 'aim_diag',
+        'run_5', 'run_shoot_1', 'prone_shoot',
+        'aim_diag_down', 'jump_aim',
+    ];
     const loaded = {};
     for (const k of required) loaded[k] = sprites.has(k);
     // Also verify the underlying image dimensions look right (not 0×0)
