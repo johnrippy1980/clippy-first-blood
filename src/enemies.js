@@ -1232,11 +1232,13 @@ export class EnemyManager {
                         player.score += points;
                         player.requestShake = Math.max(player.requestShake || 0, 2.5);
                         // Score popup so the dash-attack kill reads — matches
-                        // the bullet-kill popup style.
+                        // the bullet-kill popup style, including tier-scaled size.
                         const tier = player.combo >= 20 ? '#ff60ff'
                                    : player.combo >= 10 ? '#ff8050'
                                    : player.combo >= 5  ? '#ffe070' : '#fff';
-                        particles.floatingText(e.x + e.w / 2, e.y - 2, '+' + points, tier, 45, -0.8, 1);
+                        const popScale = player.combo >= 20 ? 2 : player.combo >= 10 ? 1.6 : player.combo >= 5 ? 1.3 : 1;
+                        const popLife = player.combo >= 20 ? 70 : player.combo >= 10 ? 60 : 45;
+                        particles.floatingText(e.x + e.w / 2, e.y - 2, '+' + points, tier, popLife, -0.8, popScale);
                     }
                 }
             }

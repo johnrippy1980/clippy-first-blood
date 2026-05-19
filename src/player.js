@@ -1061,9 +1061,13 @@ export class Player {
             // Game-feel: short hit-pause + screen-shake on every kill.
             this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_KILL_F);
             this.requestShake = Math.max(this.requestShake || 0, 1.6);
-            // Per-kill score popup — color by combo tier
+            // Per-kill score popup — color, scale, and lifetime ramp by tier.
+            // Streak kills produce chunkier popups so the player feels each
+            // combo step land.
             const tier = this.combo >= 20 ? '#ff60ff' : this.combo >= 10 ? '#ff8050' : this.combo >= 5 ? '#ffe070' : '#fff';
-            particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 2, '+' + points, tier, 45, -0.8, 1);
+            const popScale = this.combo >= 20 ? 2 : this.combo >= 10 ? 1.6 : this.combo >= 5 ? 1.3 : 1;
+            const popLife = this.combo >= 20 ? 70 : this.combo >= 10 ? 60 : 45;
+            particles.floatingText(enemy.x + enemy.w / 2, enemy.y - 2, '+' + points, tier, popLife, -0.8, popScale);
             // Combo milestones — big bouncy label + tiered audio escalation
             if (this.combo === 5 || this.combo === 10 || this.combo === 20 || this.combo === 30) {
                 const tierSfx = this.combo >= 30 ? 'combo4' : this.combo >= 20 ? 'combo3' : this.combo >= 10 ? 'combo2' : 'combo';
