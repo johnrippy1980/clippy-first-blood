@@ -945,13 +945,16 @@ export class Game {
             this._drawPlay();
         }
 
-        // Scene dim — ramps to 35% black across the slide-in window so the
-        // painted backdrop reads as a moody establishing shot (lighter than
-        // the pre-paint version since the art carries its own atmosphere).
+        // Scene dim — r101 dropped from 0.35 → 0.18 peak. The painted
+        // backdrops already carry their own moody darkness; another 35%
+        // black overlay made them ghostly and pushed the boss-name text
+        // into near-invisible territory. 0.18 keeps a hint of cinematic
+        // press-down without occluding the painted detail.
+        const PEAK = 0.18;
         let dim;
-        if (t < slideInF) dim = (t / slideInF) * 0.35;
-        else if (t < flashStartF) dim = 0.35;
-        else if (t < flashEndF) dim = 0.35 - ((t - flashStartF) / (flashEndF - flashStartF)) * 0.35;
+        if (t < slideInF) dim = (t / slideInF) * PEAK;
+        else if (t < flashStartF) dim = PEAK;
+        else if (t < flashEndF) dim = PEAK - ((t - flashStartF) / (flashEndF - flashStartF)) * PEAK;
         else dim = 0;
         ctx.fillStyle = `rgba(0,0,0,${dim.toFixed(3)})`;
         ctx.fillRect(0, 0, GAME.W, GAME.H);
