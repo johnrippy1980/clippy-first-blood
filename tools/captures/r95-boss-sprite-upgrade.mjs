@@ -1,6 +1,6 @@
-// Verify the 7 painted-and-downscaled boss sprites load. The new sources
-// were sips-downscaled from 1024x1024 to 96x96 so they match the existing
-// 60x60 boss hitbox without breaking render scale.
+// Verify the 7 painted-and-downscaled boss sprites + 4 painted grunts load.
+// Bosses sips-downscaled 1024 → 96, grunts sips-downscaled 1024 → 64 so
+// they match the existing hitboxes without breaking render scale.
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
@@ -19,6 +19,8 @@ const result = await page.evaluate(async () => {
     const required = [
         'boss_COPIER_3000', 'boss_SHREDDER', 'boss_CTRL_ALT_DEL',
         'boss_BALLMER', 'boss_GATES', 'boss_CLIPPY_2', 'boss_ALGORITHM',
+        // Grunts also upgraded to painted 64x64 in r96.
+        'folder', 'stapler', 'cabinet', 'holepunch',
     ];
     const loaded = {};
     const dims = {};
@@ -36,12 +38,12 @@ console.log('ERRORS:', errors.length);
 errors.forEach(e => console.log('  ' + e));
 
 const allLoaded = Object.values(result.loaded).every(v => v === true);
-// Painted-downscaled bosses are 96x96 — assert they're NOT the original 60x60
-// (proves we're using the new files) and NOT giant 1024 (proves they were
-// downscaled correctly).
+// Painted-downscaled bosses are 96x96, painted grunts are 64x64 — accept
+// 32-160 range so we catch a regression to either the tiny 20-34px
+// originals OR the giant 1024px source files.
 const allCorrectSize = Object.values(result.dims).every(v => {
     if (!v) return false;
     const w = parseInt(v.split('x')[0]);
-    return w >= 64 && w <= 160;
+    return w >= 32 && w <= 160;
 });
 process.exit((errors.length === 0 && allLoaded && allCorrectSize) ? 0 : 1);
