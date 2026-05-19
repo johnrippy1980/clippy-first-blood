@@ -1607,6 +1607,7 @@ export class Game {
             bulletTimeUses: this.runStats.bulletTimeUses,
             bestScore: this.player.score,
             enemiesLost: this.runStats.enemiesLost,
+            pounceKills: (this.player.pounceKills || 0),
         });
         this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
 

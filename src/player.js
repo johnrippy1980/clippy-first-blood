@@ -1848,6 +1848,7 @@ export class Player {
                     this.kills++;
                     this.combo++;
                     this.maxCombo = Math.max(this.maxCombo, this.combo);
+                    this.pounceKills = (this.pounceKills || 0) + 1;
                     const points = 200 + this.combo * 12;
                     this.score += points;
                     particles.floatingText(
