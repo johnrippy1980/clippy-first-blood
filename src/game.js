@@ -519,6 +519,11 @@ export class Game {
     // ============== stage intro ==============
     _tickStageIntro() {
         this.storyTimer++;
+        // Audio cues match the visual slide-ins so the cinematic isn't silent:
+        // tick 12 = STAGE number lands, tick 24 = stage name slides in. Both
+        // small UI clicks so they don't fight the gameplay-track swap below.
+        if (this.storyTimer === 12) audio.sfx('select');
+        if (this.storyTimer === 24) audio.sfx('menu');
         if (this.storyTimer > 90 || input.isPressed('shoot') || input.isPressed('jump')) {
             audio.sfx('select');
             audio.playTrack(STAGES[this.currentStage].music);
