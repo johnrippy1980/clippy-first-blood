@@ -228,9 +228,20 @@ export function drawHUD(ctx, state) {
 
     // Grenade inventory slot — top-right, beside the lives icon. Shows a
     // small green pellet + "x{N}" count. Only renders if player has at
-    // least one grenade. Pellet flashes when the player just picked up.
+    // least one grenade. Pellet flashes a green halo for ~30 frames after
+    // a pickup so the player sees the count tick up.
     if ((player.grenades || 0) > 0) {
         const gx = GAME.W - 36, gy = 5;
+        // Pickup flash — green halo behind the pellet, decays over 30f
+        if ((player.grenadePickupFlash || 0) > 0) {
+            const t = player.grenadePickupFlash / 30;
+            ctx.globalAlpha = t;
+            ctx.fillStyle = '#80ff40';
+            ctx.fillRect(gx - 2, gy - 2, 8, 9);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(gx - 1, gy - 1, 6, 7);
+            ctx.globalAlpha = 1;
+        }
         // Pellet body
         ctx.fillStyle = '#406030';
         ctx.fillRect(gx, gy, 4, 5);

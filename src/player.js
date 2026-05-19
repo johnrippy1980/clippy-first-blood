@@ -209,6 +209,7 @@ export class Player {
         // Decrement timers
         if (this.iFrames > 0) this.iFrames--;
         if (this.weaponPickupFlash > 0) this.weaponPickupFlash--;
+        if (this.grenadePickupFlash > 0) this.grenadePickupFlash--;
         // Tick the damage-indicator countdown on the update path, not the draw path
         if (this.lastHurtSrc && this.lastHurtSrc.frames > 0) this.lastHurtSrc.frames--;
         if (this.hurtTimer > 0) this.hurtTimer--;
@@ -1363,6 +1364,7 @@ export class Player {
             this.grenades = Math.min(AMBIENT.GRENADE_MAX, before + AMBIENT.GRENADE_PER_PICKUP);
             const gained = this.grenades - before;
             this.score += 100 * gained;
+            this.grenadePickupFlash = 30;
             audio.sfx('pickup');
             burstBurst('#80ff40', 12);
             particles.shockRing(cx, cy, 18, 12, '#80ff40');
