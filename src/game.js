@@ -227,6 +227,37 @@ export class Game {
             case SCENE.GAME_COMPLETE:this._drawGameComplete(); break;
         }
 
+        // Hit-pause emphasis: while time is frozen for a few frames, paint a
+        // radial vignette pulse + tint overlay. Pure "this hit mattered" beat;
+        // the underlying game state has already paused via hitPauseFrames in
+        // _tick, so this layer only runs during the existing freeze window.
+        const hp = this.player?.hitPauseFrames || 0;
+        if (hp > 0 && this.scene === SCENE.PLAY) {
+            const t = hp / 8;          // initial flash within ~8 frames, fades to 0
+            const k = Math.min(1, t);
+            // Bright center → dark edge — instant "punch-in" without an
+            // actual scale transform (avoids pixel-art aliasing).
+            if (!this._hpGrad) {
+                this._hpGrad = ctx.createRadialGradient(
+                    GAME.W / 2, GAME.H / 2, 0,
+                    GAME.W / 2, GAME.H / 2, GAME.W * 0.7
+                );
+                this._hpGrad.addColorStop(0, 'rgba(255,240,200,0)');
+                this._hpGrad.addColorStop(0.5, 'rgba(80,20,40,0)');
+                this._hpGrad.addColorStop(1, 'rgba(0,0,0,1)');
+            }
+            ctx.save();
+            ctx.globalAlpha = 0.30 * k;
+            ctx.fillStyle = this._hpGrad;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            ctx.restore();
+            // White center pop on the very first frame
+            if (hp >= 6) {
+                ctx.fillStyle = `rgba(255,255,255,${(0.15 * k).toFixed(3)})`;
+                ctx.fillRect(0, 0, GAME.W, GAME.H);
+            }
+        }
+
         // Transition fade overlay
         if (this.transition !== 0) {
             // Scene fade: positive = fading OUT (clear → black) as it counts
