@@ -1842,8 +1842,10 @@ export class Player {
                 p.struck = true;
                 // Visual stab + score
                 particles.hitSpark(p.target.x + p.target.w / 2, p.target.y, '#ffffff');
-                this.requestShake = Math.max(this.requestShake || 0, 3);
-                this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, 4);
+                // Shake scales by outcome — kills jolt harder than stuns.
+                const shakeMag = killed ? 5 : 3;
+                this.requestShake = Math.max(this.requestShake || 0, shakeMag);
+                this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, killed ? 6 : 4);
                 if (killed) {
                     this.kills++;
                     this.combo++;
@@ -1863,7 +1865,7 @@ export class Player {
                         'STUNNED', '#80e0ff', 50, -0.4, 1
                     );
                 }
-                audio.sfx('bossHit');
+                audio.sfx('pounceStab');
             }
             p.phase = 'VAULT';
             p.timer = 0;

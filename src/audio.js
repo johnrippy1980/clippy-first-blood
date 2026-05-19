@@ -113,6 +113,7 @@ class Audio {
             case 'slide':    return this._slideRush(t);
             case 'backdash': return this._backdashWhoosh(t);
             case 'bossHit':  return this._bossHit(t);
+            case 'pounceStab': return this._pounceStab(t);
             case 'bossExplode': return this._bossExplode(t);
             case 'comboBreak': return this._comboBreakRoar(t);
             case 'combo':    return this._comboHit(t, 1);
@@ -619,6 +620,16 @@ class Audio {
         // Hi metallic clang + noise crunch
         this._tonal(t, 'square', 880, 480, 0.10, 0.26);
         this._noise(t, 0.10, 0.20, 1800, 'bp', 4);
+    }
+
+    _pounceStab(t) {
+        // Two-beat stealth strike: rising air-cut whoosh then sharp blade clack.
+        // Whoosh: descending bp-noise sweep
+        this._noise(t,         0.08, 0.18, 3200, 'bp', 6);
+        this._noise(t + 0.04,  0.06, 0.18, 1400, 'bp', 6);
+        // Blade clack: sharp square stab at 2.5kHz dropping to 600Hz
+        this._tonal(t + 0.08, 'square', 2500, 600, 0.06, 0.30);
+        this._noise(t + 0.08,  0.05, 0.10, 5000, 'hp', 2);
     }
 
     _bossExplode(t) {
