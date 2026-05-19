@@ -833,19 +833,20 @@ export class Game {
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);
         // Soft corner vignette — subtly darkens the screen edges so the eye
-        // gravitates to the gameplay center. Cached gradient; alpha is
-        // intentionally low (~0.22) so it adds depth-framing without crowding.
+        // gravitates to the gameplay center. r102: peak edge alpha dropped
+        // from 0.22 (0.55 × 0.4) to ~0.15 (0.42 × 0.35) after the r100/r101
+        // darken cuts. Vignette is now framing, not the dominant dim layer.
         if (!this._playVignette) {
             const g = ctx.createRadialGradient(
                 GAME.W / 2, GAME.H / 2, GAME.H * 0.35,
                 GAME.W / 2, GAME.H / 2, GAME.W * 0.75
             );
             g.addColorStop(0, 'rgba(0,0,0,0)');
-            g.addColorStop(1, 'rgba(0,0,0,0.55)');
+            g.addColorStop(1, 'rgba(0,0,0,0.42)');
             this._playVignette = g;
         }
         ctx.save();
-        ctx.globalAlpha = 0.4;
+        ctx.globalAlpha = 0.35;
         ctx.fillStyle = this._playVignette;
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         ctx.restore();
