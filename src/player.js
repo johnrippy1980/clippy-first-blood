@@ -1112,6 +1112,9 @@ export class Player {
     // soft fail chirp so the input isn't silently ignored.
     _throwGrenade() {
         if (this.grenades <= 0) {
+            // Cooldown on the FAIL too so V-spam doesn't flood the screen with
+            // "NO GRENADES" text + audio. 30f gap between fail messages.
+            this._grenadeCooldown = 30;
             audio.sfx('comboBreak');  // dull fail beat
             particles.floatingText(
                 this.x + this.w / 2, this.y - 4, 'NO GRENADES',
