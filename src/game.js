@@ -1496,7 +1496,10 @@ export class Game {
     // fully wired this.boss yet at the moment we trigger.
     _triggerBossEntrance(isMini = false) {
         this._bossEntrance = { age: 0, isMini };
-        if (!isMini) audio.sfx('bossHit');
+        // Full boss gets the heavy entrance roar; mini-boss stays on the
+        // smaller bossHit cue so the two arrivals stay tonally distinct.
+        if (!isMini) audio.sfx('bossEntrance');
+        else audio.sfx('bossHit');
     }
 
     _respawn() {

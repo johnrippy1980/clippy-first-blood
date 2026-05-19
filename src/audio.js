@@ -116,6 +116,7 @@ class Audio {
             case 'pounceStab': return this._pounceStab(t);
             case 'bossChargeTell': return this._bossChargeTell(t);
             case 'secretFound':   return this._secretFound(t);
+            case 'bossEntrance':  return this._bossEntrance(t);
             case 'bossExplode': return this._bossExplode(t);
             case 'comboBreak': return this._comboBreakRoar(t);
             case 'combo':    return this._comboHit(t, 1);
@@ -632,6 +633,28 @@ class Audio {
         // Blade clack: sharp square stab at 2.5kHz dropping to 600Hz
         this._tonal(t + 0.08, 'square', 2500, 600, 0.06, 0.30);
         this._noise(t + 0.08,  0.05, 0.10, 5000, 'hp', 2);
+    }
+
+    _bossEntrance(t) {
+        // Heavy thunderous arrival — descending saw bass + low-noise rumble +
+        // sharp metallic stab. ~1.2s total so it covers the red-flash + title
+        // slide-in beats of the visual flourish.
+        // Bass roar
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(50, t + 1.0);
+        this._envOn(g, 0.45, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+        o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 1.25);
+        // Low rumble bed
+        this._noise(t,        0.20, 0.95, 180, 'lp', 1.2);
+        this._noise(t + 0.10, 0.18, 0.85, 220, 'lp', 1.0);
+        // Sharp metallic stab on the front for the "arrived!" beat
+        this._tonal(t,        'square',  880, 220, 0.10, 0.20);
+        this._tonal(t + 0.04, 'sawtooth', 660, 110, 0.12, 0.16);
+        // Rising siren tail in the back third
+        this._tonal(t + 0.5, 'triangle', 110, 440, 0.50, 0.10);
     }
 
     _secretFound(t) {
