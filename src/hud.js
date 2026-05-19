@@ -237,13 +237,15 @@ export function drawHUD(ctx, state) {
     const scoreFlash = drawHUD._scoreFlash || 0;
     if (scoreFlash > 0) drawHUD._scoreFlash = scoreFlash - 1;
     const scoreColor = scoreFlash > 6 ? '#fff' : '#ffe070';
-    drawText(ctx, ('000000' + score).slice(-6), GAME.W - 4, 5, scoreColor, 1, 'right');
+    // Outlined score so it stays readable across all painted bgs — same
+    // treatment as the floating damage numbers.
+    drawTextOutlined(ctx, ('000000' + score).slice(-6), GAME.W - 4, 5, scoreColor, '#1a0800', 1, 'right');
 
     // Speedrun timer (small, under bar)
     const min = Math.floor(time / 3600);
     const sec = Math.floor((time / 60) % 60);
     const t = `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-    drawText(ctx, t, GAME.W - 4, 18, '#7af0ff', 1, 'right');
+    drawTextOutlined(ctx, t, GAME.W - 4, 18, '#7af0ff', '#001020', 1, 'right');
 
     // Controller icon (small) when gamepad connected
     if (input.gamepadIndex != null) {
