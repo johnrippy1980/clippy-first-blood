@@ -115,6 +115,7 @@ class Audio {
             case 'bossHit':  return this._bossHit(t);
             case 'pounceStab': return this._pounceStab(t);
             case 'bossChargeTell': return this._bossChargeTell(t);
+            case 'secretFound':   return this._secretFound(t);
             case 'bossExplode': return this._bossExplode(t);
             case 'comboBreak': return this._comboBreakRoar(t);
             case 'combo':    return this._comboHit(t, 1);
@@ -631,6 +632,20 @@ class Audio {
         // Blade clack: sharp square stab at 2.5kHz dropping to 600Hz
         this._tonal(t + 0.08, 'square', 2500, 600, 0.06, 0.30);
         this._noise(t + 0.08,  0.05, 0.10, 5000, 'hp', 2);
+    }
+
+    _secretFound(t) {
+        // Triumphant ascending arpeggio — perfect-fifth pattern (C → G → C → G)
+        // played on a sine + triangle pair for a clean cyan-palette feel. Longer
+        // tail than _powerupChime so it lands as a discovery moment, not a
+        // mundane pickup.
+        this._tonal(t,        'sine',     523, 784, 0.12, 0.18);   // C5 → G5
+        this._tonal(t + 0.12, 'sine',     784, 1047, 0.12, 0.20);  // G5 → C6
+        this._tonal(t + 0.24, 'sine',     1047, 1568, 0.14, 0.22); // C6 → G6
+        this._tonal(t + 0.40, 'triangle', 1568, 2093, 0.40, 0.18); // G6 → C7 (long tail)
+        // Sparkle layer — high-freq triangle pings on the offbeats
+        this._tonal(t + 0.06, 'triangle', 2093, 2349, 0.08, 0.10);
+        this._tonal(t + 0.30, 'triangle', 2349, 2637, 0.10, 0.10);
     }
 
     _bossChargeTell(t) {

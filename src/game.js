@@ -1694,6 +1694,9 @@ export class Game {
                 // the card render adds a "SECRET FOUND" overlay + flash. One
                 // shot — cleared when the card exits.
                 this._secretDiscoveryCard = true;
+                // Triumphant chime — fires once as the card opens, layers on
+                // top of the regular 'select' SFX above.
+                audio.sfx('secretFound');
             } else if (this.currentStage === 9) {
                 // After secret, drop back to stage 2
                 nextStage = 2;
