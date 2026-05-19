@@ -43,6 +43,7 @@ class Achievements {
             bestScore: 0,
             enemiesLost: 0,    // count of "target lost" thought-bubbles triggered
             pounceKills: 0,    // stealth pounce kills (Round 38)
+            stageBestScores: {}, // { 1: 12000, 2: ... } per-stage best (Round 42)
         };
         this._load();
     }
@@ -60,6 +61,9 @@ class Achievements {
             if (data.stats) {
                 this.stats.bestScore = data.stats.bestScore || 0;
                 this.stats.secretStageDiscovered = data.stats.secretStageDiscovered === true;
+                if (data.stats.stageBestScores && typeof data.stats.stageBestScores === 'object') {
+                    this.stats.stageBestScores = { ...data.stats.stageBestScores };
+                }
             }
         } catch (e) {
             console.warn('Achievement load failed:', e);
@@ -70,7 +74,11 @@ class Achievements {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 unlocked: Array.from(this.unlocked),
-                stats: { bestScore: this.stats.bestScore, secretStageDiscovered: this.stats.secretStageDiscovered },
+                stats: {
+                    bestScore: this.stats.bestScore,
+                    secretStageDiscovered: this.stats.secretStageDiscovered,
+                    stageBestScores: this.stats.stageBestScores,
+                },
             }));
         } catch (e) {}
     }

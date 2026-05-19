@@ -1565,6 +1565,17 @@ export class Game {
         this.storyTimer = 0;
         this._stageClearTallyDone = false;
         this._stageClearRank = null;
+        // New-best score detection — compare current run score (which acts as
+        // the cumulative-up-to-this-stage score) against per-stage best.
+        // Show the NEW BEST tag in the SCORE row of the stats panel.
+        const sBest = achievements.stats.stageBestScores || {};
+        const prevBest = sBest[this.currentStage] || 0;
+        this._stageNewBest = this.player.score > prevBest;
+        if (this._stageNewBest) {
+            sBest[this.currentStage] = this.player.score;
+            achievements.stats.stageBestScores = sBest;
+            achievements._save?.();
+        }
 
         // Per-stage medals — 3 medals per stage that drive replay value
         const earned = {
@@ -1782,6 +1793,16 @@ export class Game {
             const y = panelTop + 8 + i * 14;
             drawText(ctx, k, 30,          y, '#c0a0d0', 1, 'left');
             drawText(ctx, v, GAME.W - 30, y, c,         1, 'right');
+            // NEW BEST tag on the SCORE row — pulses gold when the player
+            // beats their previous best for this stage. Only appears once
+            // the score count-up has finished so the reveal lands.
+            if (k === 'SCORE' && this._stageNewBest && scoreT >= 1) {
+                const pulse = (Math.sin(panelT * 0.18) + 1) * 0.5;
+                ctx.save();
+                ctx.globalAlpha = 0.65 + pulse * 0.35;
+                drawText(ctx, 'NEW BEST!', GAME.W / 2, y, '#ffe070', 1, 'center');
+                ctx.restore();
+            }
         }
         // Kill-marker row: "BOSS NAME [DOWN]" with a red strike-through bar
         // sweeping across the name. Pure payoff beat — confirms the kill in
