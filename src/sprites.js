@@ -184,13 +184,13 @@ export const ENEMY_MANIFEST = {
     'cabinet_death':    'v2_cabinet.png',
     'holepunch':        'v2_holepunch.png',
     // Bosses (painted PNGs already in place)
-    'boss_COPIER_3000': 'boss_copier.png',
-    'boss_SHREDDER':    'boss_shredder.png',
-    'boss_CTRL_ALT_DEL':'boss_bsod.png',
-    'boss_BALLMER':     'boss_ballmer.png',
-    'boss_GATES':       'boss_founder.png',
-    'boss_CLIPPY_2':    'boss_clippy2.png',
-    'boss_ALGORITHM':   'boss_algorithm.png',
+    'boss_COPIER_3000': 'boss_copier_painted.png',
+    'boss_SHREDDER':    'boss_shredder_painted.png',
+    'boss_CTRL_ALT_DEL':'boss_bsod_painted.png',
+    'boss_BALLMER':     'boss_ballmer_painted.png',
+    'boss_GATES':       'boss_founder_painted.png',
+    'boss_CLIPPY_2':    'boss_clippy2_painted.png',
+    'boss_ALGORITHM':   'boss_algorithm_painted.png',
 };
 
 // ============================================================
