@@ -462,6 +462,17 @@ export class Game {
         audio.playTrack('story');
         this.storyTimer++;
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            // If the typewriter is still revealing, first press skips to the
+            // end of the page; only the second press advances. Stops players
+            // who tap eagerly from blowing past pages they haven't read.
+            const lines = STORY_PAGES[this.storyPage] || [];
+            const totalChars = lines.reduce((a, l) => a + l.length, 0);
+            const shownChars = Math.floor(this.storyTimer * 6);
+            if (shownChars < totalChars) {
+                audio.sfx('select');
+                this.storyTimer = Math.ceil(totalChars / 6) + 1;   // snap to full reveal
+                return;
+            }
             audio.sfx('select');
             this.storyPage++;
             this.storyTimer = 0;
@@ -493,13 +504,27 @@ export class Game {
             ctx.fillStyle = '#000';
             ctx.fillRect(0, finalH, GAME.W, GAME.H - finalH);
 
-            // Text block at bottom over the black panel
+            // Text block at bottom over the black panel. Typewriter reveal —
+            // step 6 chars/frame so a 60-char line lands in ~10 frames (~170ms).
+            // Fast enough that eager players don't notice; slow enough that
+            // sitting back gives a satisfying type-out feel.
             const lines = STORY_PAGES[this.storyPage] || [];
             const startY = GAME.H - lines.length * 10 - 22;
+            // Cumulative chars to reveal across all lines
+            const CHARS_PER_FRAME = 6;
+            const totalChars = lines.reduce((a, l) => a + l.length, 0);
+            const shown = Math.min(totalChars, Math.floor(this.storyTimer * CHARS_PER_FRAME));
+            let budget = shown;
             for (let i = 0; i < lines.length; i++) {
-                drawText(this.ctx, lines[i], GAME.W / 2, startY + i * 10, '#d8c8e0', 1, 'center');
+                const full = lines[i];
+                const take = Math.min(budget, full.length);
+                const partial = full.slice(0, take);
+                budget -= take;
+                drawText(this.ctx, partial, GAME.W / 2, startY + i * 10, '#d8c8e0', 1, 'center');
+                if (take < full.length) break;   // don't render later lines yet
             }
-            if (this.storyTimer > 30 && this.storyTimer % 60 < 40) {
+            // Continue hint only after the full block has rendered
+            if (shown >= totalChars && this.storyTimer % 60 < 40) {
                 drawText(this.ctx, 'X TO CONTINUE', GAME.W - 4, GAME.H - 8, '#a08090', 1, 'right');
             }
             return;
