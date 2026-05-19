@@ -299,7 +299,21 @@ export class Player {
                     8 + Math.random() * 4, '#a0c0ff', 1, -0.02
                 );
             }
-            if (this.backdashTimer <= 0) this.state = STATE.IDLE;
+            if (this.backdashTimer <= 0) {
+                this.state = STATE.IDLE;
+                // Settling cyan puff — matches the trail color so the end
+                // reads as the same effect coming to rest, not a different beat.
+                const cx = this.x + this.w / 2;
+                const cy = this.y + this.h - 1;
+                for (let i = 0; i < 4; i++) {
+                    particles.spawn(
+                        cx, cy,
+                        this.facing * (0.4 + Math.random() * 0.3) + (Math.random() - 0.5) * 0.3,
+                        -0.3 - Math.random() * 0.3,
+                        10 + Math.random() * 4, '#a0c0ff', 1, 0.04
+                    );
+                }
+            }
             // Can shoot while backdashing — Contra style
             if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
         } else if (this.state === STATE.CLIMB) {
@@ -849,6 +863,16 @@ export class Player {
     _endSlide() {
         this.state = STATE.IDLE;
         this.h = STAND_HEIGHT;
+        // Settling dust puff at the stop point — sells the "skidded to a halt"
+        // beat. Small burst centered at feet, biased opposite the slide
+        // direction so the dust kicks back behind the player.
+        const cx = this.x + this.w / 2;
+        const cy = this.y + this.h - 1;
+        for (let i = 0; i < 5; i++) {
+            const dx = -this.facing * (0.6 + Math.random() * 0.4) + (Math.random() - 0.5) * 0.3;
+            const dy = -0.4 - Math.random() * 0.3;
+            particles.spawn(cx, cy, dx, dy, 10 + Math.random() * 4, '#c0a080', 1, 0.05);
+        }
     }
 
     _updateState() {
