@@ -1197,7 +1197,8 @@ export class Player {
         const dmgMax = AMBIENT.GRENADE_DAMAGE;
         // Reach into the global enemy manager via window.__game — avoids a
         // circular import. The grenade is the only path that needs AoE.
-        const enemyMgr = (typeof window !== 'undefined') ? window.__game?.enemies : null;
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        const enemyMgr = game?.enemies;
         if (enemyMgr && enemyMgr.enemies) {
             for (const e of enemyMgr.enemies) {
                 if (!e.alive) continue;
@@ -1207,6 +1208,22 @@ export class Player {
                 const falloff = 0.5 + 0.5 * (1 - d / R);  // 1.0 → 0.5
                 const knockDir = ex < cx ? -1 : 1;
                 e.hurt(dmgMax * falloff, knockDir, { knockBack: 1.8 });
+            }
+        }
+        // Crates in radius — break + drop contents. Bypass per-hit thunks
+        // since the explode SFX already punctuates the moment.
+        const pickupMgr = game?.pickups;
+        if (pickupMgr && pickupMgr.crates) {
+            for (let i = pickupMgr.crates.length - 1; i >= 0; i--) {
+                const c = pickupMgr.crates[i];
+                if (!c.alive) continue;
+                const ccx = c.x + c.w / 2, ccy = c.y + c.h / 2;
+                const d = Math.hypot(ccx - cx, ccy - cy);
+                if (d > R) continue;
+                c.alive = false;
+                particles.explosion(ccx, ccy, '#604030', 10);
+                if (c.drop) pickupMgr.spawn(ccx - 6, ccy, c.drop);
+                pickupMgr.crates.splice(i, 1);
             }
         }
         // Visual fireworks
