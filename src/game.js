@@ -1375,6 +1375,15 @@ export class Game {
                     ctx.fillRect(sx + 1, sy + 3, 6, 2);
                 }
             }
+            // Best-score pip — small gold star top-right of tile when stage
+            // has a recorded best. Marks NEW BEST runs permanently.
+            const stageBest = achievements.stats?.stageBestScores?.[stage] || 0;
+            if (unlocked && stageBest > 0) {
+                ctx.fillStyle = '#ffe070';
+                const sx = tx + tileW - 7, sy = ty + 3;
+                ctx.fillRect(sx + 1, sy, 2, 4);
+                ctx.fillRect(sx, sy + 1, 4, 2);
+            }
             // Secret stage shimmer
             if (stage === 9) {
                 ctx.fillStyle = '#7af0ff';
@@ -1393,6 +1402,10 @@ export class Game {
             drawTextOutlined(ctx, unlocked ? selData.name : '? ? ?', GAME.W / 2, detY, '#fff', '#1a0010', 1, 'center');
             if (unlocked) {
                 drawText(ctx, selData.tagline, GAME.W / 2, detY + 10, '#c0a0d0', 1, 'center');
+                const selBest = achievements.stats?.stageBestScores?.[sel] || 0;
+                if (selBest > 0) {
+                    drawText(ctx, 'BEST ' + selBest.toLocaleString(), GAME.W / 2, detY + 20, '#ffe070', 1, 'center');
+                }
             }
         }
         drawText(ctx, 'ARROWS SELECT   X START   P BACK', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
