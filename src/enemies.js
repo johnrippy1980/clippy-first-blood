@@ -209,6 +209,10 @@ class Enemy {
                 const a = (i / 5) * Math.PI * 2;
                 particles.spawn(cx, cy, Math.cos(a) * 0.6, Math.sin(a) * 0.6 - 0.2, 12 + Math.random() * 4, '#604030', 1, -0.02);
             }
+            // First-spot alert — red "!" bubble above the head for 40 frames.
+            // Telegraphs incoming threats so the player isn't surprised by
+            // off-camera enemies suddenly opening fire.
+            this._alertBubble = 40;
         }
         if (!this.activated) return;
         // Honor the global stage-start grace — set by EnemyManager on _startStage.
@@ -583,6 +587,28 @@ class Enemy {
                 ctx.fillStyle = '#ff5050';
                 ctx.fillRect(dx, dy - 4, this.w, 2);
             }
+        }
+        // Alert "!" bubble — fires on first activation. Telegraphs that this
+        // enemy has spotted the player so off-camera threats don't surprise.
+        if (this._alertBubble && this._alertBubble > 0) {
+            const bx = dx + this.w / 2;
+            const by = dy - 12;
+            const t = this._alertBubble;
+            // First 8 frames pop in, last 8 frames fade out
+            const popIn = Math.min(1, (40 - t) / 8);
+            const fade = Math.min(1, t / 8);
+            ctx.globalAlpha = Math.min(popIn, fade);
+            // Drop-shadow + red exclamation block
+            ctx.fillStyle = '#1a0810';
+            ctx.fillRect(bx - 3, by - 6, 6, 9);
+            ctx.fillStyle = '#ff4040';
+            ctx.fillRect(bx - 2, by - 6, 4, 5);
+            ctx.fillRect(bx - 1, by + 1, 2, 2);
+            // Bright top highlight
+            ctx.fillStyle = '#ffd0d0';
+            ctx.fillRect(bx - 1, by - 5, 1, 2);
+            ctx.globalAlpha = 1;
+            this._alertBubble--;
         }
         // Thought bubble — "where did he go?" when the player is hidden.
         // _lostBubble is set by _noticeTargetLost(); fades over 120 frames so
