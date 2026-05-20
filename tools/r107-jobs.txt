@@ -1,0 +1,6 @@
+# R107 — Local Howl universal tile gens, queued 2026-05-20
+# Each line: job_id | tile_kind | target_filename | target_height_px
+mcp-1779235932768-fdde7c71 | ladder | tile_ladder.png | 16
+mcp-1779235946152-35ceca97 | spike  | tile_spike.png  | 16
+mcp-1779235959175-11bcda8f | crate  | tile_crate.png  | 14
+mcp-1779235972544-9774b6bb | door   | tile_door.png   | 32

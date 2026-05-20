@@ -117,6 +117,10 @@ export const BG_MANIFEST = {
     'ground_keynote':    'ground_keynote.png',
     'ground_founder':    'ground_founder.png',
     'ground_cloud':      'ground_cloud.png',
+    // r107 tile sprites (ladder/spike/crate/door) — queued on Local Howl;
+    // manifest entries will be re-added in the follow-up round once the
+    // PNGs land on disk (validate-assets.mjs fails the build if a manifest
+    // entry has no backing file).
 };
 
 // Manifest: what we expect on disk. Missing files are non-fatal.
