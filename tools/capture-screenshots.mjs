@@ -236,6 +236,43 @@ await shot('stage-clear', () => {
     g.player.shotsFired = 45;  // accuracy = kills/shots = 27% not 0%
 });
 
+// Achievements + Soundtrack + Stage-select menus — execs may browse
+// these from the pause menu. Each is its own scene with a framed panel.
+await shot('menu-achievements', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
+    g.scene = 'achievements';
+    g._achAnim = 30;  // skip fade-in
+});
+
+await shot('menu-soundtrack', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
+    g.scene = 'soundtrack';
+    g._soundAnim = 30;
+});
+
+await shot('menu-stage-select', () => {
+    const g = window.__game;
+    g.transition = 0; g.transitionTarget = null;
+    g.scene = 'stageSelect';
+    g.stageSelectIndex = 0;
+});
+
+await shot('menu-options', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
+    g.scene = 'options';
+    g.optionsIndex = 0;
+    g._optionsAnim = 30;
+});
+
 // Ending cutscene — painted scene + path-specific palette/title. The
 // path is computed by _endingPath() from run stats; force VENGEANCE
 // (most common) by setting kills high and damage non-zero.

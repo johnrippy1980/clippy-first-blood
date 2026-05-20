@@ -1495,9 +1495,12 @@ export class Game {
             }
         }
 
-        // Footer count + controls
+        // Footer count + controls. Default soundtrackIndex to 0 in the
+        // unlikely-but-real case the scene is entered before _tickSoundtrack
+        // ran once (e.g. a screenshot probe or a deep-link). Previously
+        // rendered "NAN / 2 TRACKS" if undefined.
         drawText(ctx,
-            (this.soundtrackIndex + 1) + ' / ' + TRACK_MANIFEST.length + ' TRACKS',
+            ((this.soundtrackIndex | 0) + 1) + ' / ' + TRACK_MANIFEST.length + ' TRACKS',
             GAME.W / 2, GAME.H - 26, '#a08090', 1, 'center');
         drawText(ctx, 'UP/DOWN SELECT   X PLAY/STOP   P CLOSE', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
     }
