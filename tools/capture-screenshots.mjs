@@ -122,6 +122,14 @@ for (const stage of [1, 2, 3, 4, 5, 6, 7, 8]) {
     }, stage);
 }
 
+// Note: per-aim-angle probes were tried but Player._handleInput
+// unconditionally overwrites player.aim from current input state every
+// tick, so a one-shot setter from the probe is wiped on the next frame.
+// Would need to inject keyboard events to drive aim. The aim+barrel
+// composition is already covered by the per-weapon shots above (they
+// set aim:0.866,0.5 inside the shot's evaluate which fires before the
+// snapshot — and they look correct).
+
 // 7. Clippy back-dashing — verifies new v2_backdash.png in motion
 await shot('07-clippy-backdash', () => {
     const g = window.__game;
