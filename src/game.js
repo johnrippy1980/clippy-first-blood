@@ -12,7 +12,7 @@ import { PickupManager } from './pickups.js';
 import { Parallax } from './parallax.js';
 import { drawHUD } from './hud.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
-import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST } from './sprites.js';
+import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST } from './sprites.js';
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { options } from './options.js';
 
@@ -199,6 +199,7 @@ export class Game {
     async preload() {
         await sprites.loadAll(CLIPPY_MANIFEST, 'assets/sprites');
         await sprites.loadAll(ENEMY_MANIFEST, 'assets/sprites');
+        await sprites.loadAll(WEAPON_MANIFEST, 'assets/sprites');
         await sprites.loadAll(SCENE_MANIFEST, 'assets/scenes');
         await sprites.loadAll(BG_MANIFEST, 'assets/bg');
         this.assetsReady = true;

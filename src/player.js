@@ -2694,6 +2694,35 @@ export class Player {
         const sx = Math.round(cx + this.facing * 2);
         const sy = Math.round(cy - 3);
         const armLen = 5;
+        // R155: composite the PAINTED weapon sprite at the grip point. Each
+        // weapon has its own PNG (WEAPON_MANIFEST) drawn side-on with the
+        // barrel pointing right. We translate to the grip point, rotate to
+        // aim direction, and flip vertically when facing left (so the gun
+        // bottom stays down). Falls through to the procedural barrel below
+        // if the sprite hasn't loaded yet.
+        const weaponKey = 'weapon_' + (this.weapon || 'mg').toLowerCase();
+        if (sprites.has(weaponKey)) {
+            const img = sprites.images.get(weaponKey);
+            const gripX = sx + ax * armLen;
+            const gripY = sy + ay * armLen;
+            const angle = Math.atan2(ay, ax);
+            // Aim vector inherently flips with `facing` (since ax sign tracks
+            // facing). When facing left the angle is in the +PI hemisphere,
+            // so the sprite's "up" still reads as up after rotation. Only
+            // mirror when facing left so the gun-bottom doesn't end up on top.
+            const flipY = this.facing < 0;
+            const recoilPull = this.recoilTimer > 0 ? Math.min(3, this.recoilTimer / 2) : 0;
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            ctx.translate(gripX, gripY);
+            ctx.rotate(angle);
+            if (flipY) ctx.scale(1, -1);
+            // Draw with grip at left edge, vertically centered. Pull back by
+            // `recoilPull` along the aim vector while firing for kickback.
+            ctx.drawImage(img, -recoilPull, -img.height / 2);
+            ctx.restore();
+            return;
+        }
         // Chainsaw: a longer, fatter blade with spinning teeth instead of
         // the rifle barrel. Reads as melee/spin instead of a rifle muzzle.
         if (this.weapon === 'CHAINSAW') {

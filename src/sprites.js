@@ -192,17 +192,21 @@ export const BG_MANIFEST = {
 // v2_*.png frames come from the new title-art-quality batch generated via
 // gpt-image-2; pack_*.png are the prior pre-existing pack as fallback.
 export const CLIPPY_MANIFEST = {
-    'idle':            'v2_idle.png',
-    'idle_alt':        'v2_idle.png',
+    // R155: v3 clean Clippy — body sprite WITHOUT a baked weapon. Weapons
+    // are now separate sprite overlays (WEAPON_MANIFEST below), letting
+    // the body proportions stay consistent across poses regardless of
+    // which weapon Clippy is holding.
+    'idle':            'v3_idle.png',
+    'idle_alt':        'v3_idle.png',
     // 5-frame run cycle. Until additional painted run frames arrive we just
     // alternate run-pose with idle-pose — gives a 2-frame stride bob that
     // reads as motion without mixing in grungy pack frames.
-    'run_1':           'v2_run.png',
-    'run_2':           'v2_run2.png',
-    'run_3':           'v2_run.png',
-    'run_4':           'v2_run2.png',
-    'run_5':           'v2_run_5.png',
-    'jump':            'v2_jump.png',
+    'run_1':           'v3_run.png',
+    'run_2':           'v3_run.png',
+    'run_3':           'v3_run.png',
+    'run_4':           'v3_run.png',
+    'run_5':           'v3_run.png',
+    'jump':            'v3_jump.png',
     // r99: painted poses re-integrated after running them through
     // process-v2-sprites.py (white-bg knockout + crop + 56h downscale).
     // Files are now proper game-resolution PNGs with alpha, not 1024x1024
@@ -241,6 +245,25 @@ export const CLIPPY_MANIFEST = {
     'ledge_hang':      'v2_ledge_hang.png',
     'ledge_climb_1':   'v2_ledge_climb_1.png',
     'ledge_climb_2':   'v2_ledge_climb_2.png',
+};
+
+// R155: separate painted weapon sprites composited onto Clippy's hand at
+// render time. Each PNG is a side-view weapon with the barrel pointing
+// RIGHT. The compositor anchors the weapon's left edge to Clippy's grip
+// point, flips horizontally when facing left, and rotates around the grip
+// per the aim vector. Replaces the procedural barrel that used to draw on
+// top of baked-weapon Clippy sprites (two weapons rendered at once).
+export const WEAPON_MANIFEST = {
+    'weapon_shotgun':   'weapon_shotgun.png',
+    'weapon_spread':    'weapon_spread.png',
+    'weapon_laser':     'weapon_laser.png',
+    'weapon_flame':     'weapon_flame.png',
+    'weapon_homing':    'weapon_homing.png',
+    'weapon_thunder':   'weapon_thunder.png',
+    'weapon_chainsaw':  'weapon_chainsaw.png',
+    // weapon_mg.png lands when its Local Howl job completes; manifest entry
+    // pre-registered so first-load picks it up.
+    'weapon_mg':        'weapon_mg.png',
 };
 
 export const ENEMY_MANIFEST = {
