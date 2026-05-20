@@ -1,6 +1,7 @@
 import { WEAPON } from './constants.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
+import { sprites } from './sprites.js';
 
 // ----- Destructible crate. Sits in the world, takes shots, drops a pickup.
 class Crate {
@@ -51,7 +52,14 @@ class Crate {
             ctx.fillRect(dx + inset, dy + inset, this.w - inset * 2, this.h - inset * 2);
             return;
         }
-        // Wood crate
+        // r109: prefer painted tile_crate sprite when loaded. Falls back
+        // to the procedural fillRect crate (X-brace + dark border) when
+        // the asset is missing.
+        if (sprites.has('tile_crate')) {
+            sprites.draw(ctx, 'tile_crate', dx, dy, false, this.w / 13);
+            return;
+        }
+        // Wood crate (procedural fallback)
         ctx.fillStyle = '#3a2418'; ctx.fillRect(dx, dy, this.w, this.h);
         ctx.fillStyle = '#5a3820'; ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
         ctx.fillStyle = '#3a2418';
