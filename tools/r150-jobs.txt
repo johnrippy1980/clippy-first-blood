@@ -1,0 +1,8 @@
+# R150 — Local Howl Clippy ledge-grab pose gens, queued 2026-05-20
+# Speculative: user playtesting current grapple-perch before deciding whether
+# to wire the ledge-grab state machine. Sprites pre-generated so they're
+# ready if the green-light comes.
+# Each line: job_id | pose | target_filename | target_height_px
+mcp-1779299593566-8c8a2044 | ledge_hang     | ledge_hang.png     | 56
+mcp-1779299605354-b8017594 | ledge_climb_1  | ledge_climb_1.png  | 56
+mcp-1779299618877-9c95d0e1 | ledge_climb_2  | ledge_climb_2.png  | 56

@@ -1465,6 +1465,14 @@ export class EnemyManager {
             // Contact damage (skip during dash i-frames already handled by player.iFrames)
             if (player.iFrames === 0 && e.intersects(player)) {
                 player.hurt(e.contactDmg, e.x < player.x ? 1 : -1, e.x + e.w / 2, e.y + e.h / 2);
+                // Training/godMode soft-separate: hurt() short-circuited, but
+                // the bodies are still overlapping. Without a push, the player
+                // appears "stuck" against the dummy. Nudge the player away so
+                // contact resolves visually each frame.
+                if (player.godMode && e.intersects(player)) {
+                    const dir = (e.x + e.w / 2) < (player.x + player.w / 2) ? 1 : -1;
+                    player.x += dir * 1.2;
+                }
             }
 
             // Player bullets vs enemy

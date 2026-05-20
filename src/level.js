@@ -835,8 +835,8 @@ function makeTraining() {
                                           'BULLETS PASS OVER YOU',     'PEEK OUT TO RETURN FIRE'] },
             { x:  44 * GAME.TILE, lines: ['ZONE 4 — GRAPPLE',          'JUMP OVER THE PIT',
                                           'PRESS C MID-AIR TO REEL',   'AIM AT THE HIGH WALL'] },
-            { x:  60 * GAME.TILE, lines: ['ZONE 5 — KNIFE DASH',       'PRESS C WHILE FACING ENEMY',
-                                          'DASH THROUGH THE CABINETS', 'CHAIN HITS FOR COMBO'] },
+            { x:  60 * GAME.TILE, lines: ['ZONE 5 — KNIFE DASH',       'PRESS C ON THE GROUND',
+                                          'DASH THROUGH THE CABINETS', 'HOLD DOWN + C TO BACKDASH'] },
             { x:  74 * GAME.TILE, lines: ['ZONE 6 — GRENADE',          'PICK UP THE GRENADE',
                                           'V TO THROW',                'AOE CLEARS CRATES + ENEMIES'] },
             { x:  90 * GAME.TILE, lines: ['ZONE 7 — STEALTH POUNCE',   'HIDE BEHIND THE TREE',
@@ -1051,6 +1051,16 @@ export class Level {
         const sign = Math.sign(dx);
         if (sign === 0) return { x: box.x, hit: false };
         const newX = box.x + dx;
+        // Level-bounds clamp — backdash/dash/grapple at the left edge would
+        // drift the player into negative-x where camera + parallax both go
+        // dark, and there's no way to walk back into the playable area.
+        // Treat the outer walls as solid: snap the box flush to the edge.
+        if (sign < 0 && newX < 0) {
+            return { x: 0, hit: true };
+        }
+        if (sign > 0 && newX + box.w > this.width) {
+            return { x: this.width - box.w, hit: true };
+        }
         const probeX = sign > 0 ? newX + box.w - 1 : newX;
         // Probe at every tile row the box overlaps (same fix as moveY).
         const T = GAME.TILE;

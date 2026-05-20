@@ -661,13 +661,29 @@ export class Player {
             if (this._fireGrapple(level)) return;
         }
 
-        // Back-dash: special button (C). Defensive — backwards, brief i-frames.
-        if (input.isPressed('special') && this.onGround && this.state !== STATE.BACKDASH) {
-            this.state = STATE.BACKDASH;
-            this.backdashTimer = BACKDASH_FRAMES;
-            this.iFrames = Math.max(this.iFrames, BACKDASH_FRAMES);
-            audio.sfx('slide');
-            particles.dust(this.x + this.w / 2, this.y + this.h);
+        // C button on ground — context-sensitive:
+        //   1. Holding DOWN  → BACKDASH (defensive, retreat with i-frames).
+        //   2. Otherwise     → KNIFE DASH attack (forward, brief i-frames,
+        //      melee damage to enemies in path). The dash-attack was
+        //      previously only accessible via double-tap-forward, which most
+        //      players never discovered; backdash was eating every C press.
+        //      Down+C keeps the defensive option for skilled play.
+        if (input.isPressed('special') && this.onGround
+            && this.state !== STATE.BACKDASH && this.state !== STATE.DASH_ATTACK) {
+            if (input.isHeld('down')) {
+                this.state = STATE.BACKDASH;
+                this.backdashTimer = BACKDASH_FRAMES;
+                this.iFrames = Math.max(this.iFrames, BACKDASH_FRAMES);
+                audio.sfx('slide');
+                particles.dust(this.x + this.w / 2, this.y + this.h);
+            } else {
+                this.state = STATE.DASH_ATTACK;
+                this.dashAtkTimer = DASH_ATK_FRAMES;
+                this.dashAtkHits = new Set();
+                this.iFrames = Math.max(this.iFrames, DASH_ATK_FRAMES - 4);
+                audio.sfx('slide');
+                particles.dust(this.x + this.w / 2, this.y + this.h);
+            }
             return;
         }
 
@@ -2228,24 +2244,40 @@ export class Player {
     // along that ray becomes the anchor. Returns true if anchored (and sets
     // STATE.GRAPPLE), false otherwise. Failed throws cost a brief cooldown.
     _fireGrapple(level) {
-        const MAX_RANGE = 96;
+        // Extended range + aim-assist fan: previously a single 96px ray meant
+        // any aim drift missed entirely, leading to "9 in 10 throws don't
+        // even try" feel. Now we sweep a ±25° cone of rays around the aim
+        // vector at 144px range and pick the closest hit. Cheap (15 rays *
+        // 36 samples = ~540 isSolid calls, runs once per press).
+        const MAX_RANGE = 144;
         const STEP = 4;
         const ax = this.aim?.x ?? this.facing;
         const ay = this.aim?.y ?? -0.4;
-        // Normalize
         const norm = Math.hypot(ax, ay) || 1;
-        const nx = ax / norm, ny = ay / norm;
+        const aimAngle = Math.atan2(ay / norm, ax / norm);
         const ox = this.x + this.w / 2;
         const oy = this.y + this.h / 2;
-        let foundX = null, foundY = null;
-        for (let d = STEP; d <= MAX_RANGE; d += STEP) {
-            const px = ox + nx * d;
-            const py = oy + ny * d;
-            if (level && level.isSolid(px, py)) {
-                foundX = px; foundY = py;
-                break;
+        // Aim-assist cone: 15 rays from -25° to +25° around aim. Picks the
+        // closest hit by distance, so the player feels like they auto-locked
+        // onto the nearest grappleable surface in roughly the right direction.
+        const CONE = (25 * Math.PI) / 180;
+        const RAYS = 15;
+        let bestX = null, bestY = null, bestD = Infinity;
+        for (let r = 0; r < RAYS; r++) {
+            const t = RAYS === 1 ? 0.5 : r / (RAYS - 1);
+            const angle = aimAngle + (t * 2 - 1) * CONE;
+            const nx = Math.cos(angle);
+            const ny = Math.sin(angle);
+            for (let d = STEP; d <= MAX_RANGE; d += STEP) {
+                const px = ox + nx * d;
+                const py = oy + ny * d;
+                if (level && level.isSolid(px, py)) {
+                    if (d < bestD) { bestX = px; bestY = py; bestD = d; }
+                    break;
+                }
             }
         }
+        const foundX = bestX, foundY = bestY;
         if (foundX == null) {
             // Failed throw — short cooldown so the player can retry quickly
             this._grappleCooldown = 12;

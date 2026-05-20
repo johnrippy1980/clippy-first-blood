@@ -1,4 +1,4 @@
-import { WEAPON } from './constants.js';
+import { GAME, WEAPON } from './constants.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { sprites } from './sprites.js';
@@ -237,8 +237,23 @@ export class PickupManager {
     clear() { this.pickups.length = 0; this.crates.length = 0; }
     spawn(x, y, type) { this.pickups.push(new Pickup(x, y, type)); }
     spawnCrate(x, y, drop) { this.crates.push(new Crate(x, y, drop)); }
-    loadFromLevel(data) {
-        if (data?.pickupSpawns) for (const p of data.pickupSpawns) this.spawn(p.x, p.y, p.type);
+    loadFromLevel(data, level) {
+        if (data?.pickupSpawns) for (const p of data.pickupSpawns) {
+            this.spawn(p.x, p.y, p.type);
+            // Ground-snap: hand-placed pickup coords across stages used a
+            // mix of "-8" and "-12" offsets, leaving some half-buried. Walk
+            // the freshly-spawned pickup up tile-by-tile until its bottom
+            // edge clears the floor, so a hand-placement bug at the level
+            // layer can't trap a weapon below collision.
+            if (level) {
+                const pk = this.pickups[this.pickups.length - 1];
+                let guard = 0;
+                while (level.isSolid(pk.x + pk.w / 2, pk.y + pk.h - 1) && guard < 4) {
+                    pk.y -= GAME.TILE;
+                    guard++;
+                }
+            }
+        }
         if (data?.crateSpawns)  for (const c of data.crateSpawns)  this.spawnCrate(c.x, c.y, c.drop);
     }
     update(level, player) {

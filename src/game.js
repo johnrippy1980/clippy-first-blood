@@ -751,6 +751,14 @@ export class Game {
                 e.alive && Math.abs(e.x - slot.x) < 16 && Math.abs(e.y - slot.y) < 32
             );
             if (occupied) { slot.cooldown = 90; continue; }
+            // Don't respawn while the player is standing in the slot — would
+            // pop a dummy on top of them and read as "stuck in place" because
+            // the new enemy contacts repeatedly while iFrames cycle.
+            const px = this.player.x + this.player.w / 2;
+            const py = this.player.y + this.player.h / 2;
+            if (Math.abs(px - (slot.x + 8)) < 28 && Math.abs(py - (slot.y + 8)) < 32) {
+                slot.cooldown = 30; continue;
+            }
             slot.cooldown--;
             if (slot.cooldown <= 0) {
                 this.enemies.spawn(slot.x, slot.y, slot.type);
@@ -2107,7 +2115,7 @@ export class Game {
         // Stash totals so the stage-clear medals know what 100% looks like
         this.stageStats.totalEnemies = data.enemySpawns.length;
         this.stageStats.hasSecret = !!data.secretAlcove;
-        this.pickups.loadFromLevel(data);
+        this.pickups.loadFromLevel(data, this.level);
         if (!this.player) {
             this.player = new Player(data.playerStart.x, data.playerStart.y);
         } else {
