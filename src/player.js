@@ -2489,7 +2489,14 @@ export class Player {
             ctx.fillRect(Math.round(elbowX - this.facing * 2 + 1), Math.round(elbowY - 1), 2, 2);
             return;
         }
-        const barrelLen = 8;
+        // Per-weapon barrel length — MG/SHOTGUN are short stocks, LASER is
+        // a long sci-fi tube, HOMING is a chunky launcher, THUNDER is a fat
+        // coil. Game-zoom silhouette has to read at a glance, so the lengths
+        // are intentionally spaced apart.
+        const BARREL_LEN = {
+            MG: 9, SHOTGUN: 7, SPREAD: 8, LASER: 13, FLAME: 6, HOMING: 11, THUNDER: 8, CHAINSAW: 14,
+        };
+        const barrelLen = BARREL_LEN[this.weapon] ?? 9;
         const recoilPull = this.recoilTimer > 0 ? Math.min(3, this.recoilTimer / 2) : 0;
         const elbowX = sx + ax * armLen;
         const elbowY = sy + ay * armLen;
@@ -2501,22 +2508,26 @@ export class Player {
         // barrel/emitter differently so each pickup feels distinct.
         this._line(ctx, sx, sy, elbowX, elbowY, '#b0b0c0', 2);
         if (this.weapon === 'SHOTGUN') {
-            // Double-stacked barrel + wood stock at the elbow. Stubbier than
-            // the MG rifle. Two parallel barrels offset 1px on the cross axis.
-            const sBarrelLen = 7;
-            const tipX = elbowX + ax * (sBarrelLen - recoilPull);
-            const tipY = elbowY + ay * (sBarrelLen - recoilPull);
-            // Upper barrel
-            this._line(ctx, elbowX + px, elbowY + py, tipX + px, tipY + py, '#101018', 2);
-            this._line(ctx, elbowX + px, elbowY + py, tipX + px, tipY + py, '#a08070', 1);
+            // Double-stacked side-by-side barrels — both 3px thick, 3px apart.
+            // Silhouette: short FAT brown rectangle, clearly thicker than MG.
+            const tipX = muzzleX, tipY = muzzleY;
+            // Upper barrel (+2 on cross axis)
+            this._line(ctx, elbowX + px * 2, elbowY + py * 2, tipX + px * 2, tipY + py * 2, '#101018', 3);
+            this._line(ctx, elbowX + px * 2, elbowY + py * 2, tipX + px * 2, tipY + py * 2, '#a08070', 1);
             // Lower barrel
-            this._line(ctx, elbowX - px, elbowY - py, tipX - px, tipY - py, '#101018', 2);
-            this._line(ctx, elbowX - px, elbowY - py, tipX - px, tipY - py, '#a08070', 1);
-            // Brown wood stock behind the grip
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#101018', 3);
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#a08070', 1);
+            // Big brown wood stock behind the grip — chunky 6x5
             ctx.fillStyle = '#5a2c0a';
-            ctx.fillRect(Math.round(elbowX - this.facing * 3), Math.round(elbowY - 2), 3, 4);
+            ctx.fillRect(Math.round(elbowX - this.facing * 6), Math.round(elbowY - 2), 6, 5);
             ctx.fillStyle = '#8a4818';
-            ctx.fillRect(Math.round(elbowX - this.facing * 3 + 1), Math.round(elbowY - 1), 1, 2);
+            ctx.fillRect(Math.round(elbowX - this.facing * 6 + 1), Math.round(elbowY - 1), 4, 3);
+            ctx.fillStyle = '#c08030';
+            ctx.fillRect(Math.round(elbowX - this.facing * 6 + 2), Math.round(elbowY), 2, 1);
+            // Muzzle: bright orange double-flash for shotgun signature
+            ctx.fillStyle = '#ff8030';
+            ctx.fillRect(Math.round(tipX), Math.round(tipY), 1, 1);
+            ctx.fillRect(Math.round(tipX + px * 2), Math.round(tipY + py * 2), 1, 1);
         } else if (this.weapon === 'SPREAD') {
             // Triple-tube fan that flares out at the muzzle.
             for (let lane = -1; lane <= 1; lane++) {
@@ -2527,13 +2538,24 @@ export class Player {
                            muzzleX + offX * 2, muzzleY + offY * 2, '#80d0ff', 1);
             }
         } else if (this.weapon === 'LASER') {
-            // Thin glowing emitter — single cyan line with a hot core.
+            // Sci-fi emitter — LONG cyan beam tube. Length is the read here:
+            // a 13px barrel reaches well past Clippy's silhouette so the
+            // outline screams "long sniper" vs MG's stubby 9.
             this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
-            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#a0fff0', 1);
-            // Pulsing emitter ring at the elbow
-            const pulse = ((this.timer || 0) % 8) < 4 ? '#80ffe0' : '#40c8a8';
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#80ffe0', 1);
+            // Big pulsing emitter ring at the elbow — 6x6 box with cyan core
+            const pulse = ((this.timer || 0) % 8) < 4 ? '#80ffe0' : '#20a888';
+            ctx.fillStyle = '#101018';
+            ctx.fillRect(Math.round(elbowX - 3), Math.round(elbowY - 3), 6, 6);
             ctx.fillStyle = pulse;
-            ctx.fillRect(Math.round(elbowX - 1), Math.round(elbowY - 1), 3, 3);
+            ctx.fillRect(Math.round(elbowX - 2), Math.round(elbowY - 2), 4, 4);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(Math.round(elbowX), Math.round(elbowY), 1, 1);
+            // Cyan glow ball at the muzzle tip — signature of a beam weapon
+            ctx.fillStyle = '#80ffe0';
+            ctx.fillRect(Math.round(muzzleX - 1), Math.round(muzzleY - 1), 3, 3);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(Math.round(muzzleX), Math.round(muzzleY), 1, 1);
         } else if (this.weapon === 'FLAME') {
             // Chunky fuel-tank backpack + wide nozzle. Shorter barrel, wider tip.
             const fBarrelLen = 6;
@@ -2550,31 +2572,53 @@ export class Player {
             ctx.fillStyle = '#a05030';
             ctx.fillRect(Math.round(sx - this.facing * 4 + 1), Math.round(sy), 1, 4);
         } else if (this.weapon === 'HOMING') {
-            // Bulky tube launcher with a cone tip — magenta glow.
-            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 4);
-            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#5a2858', 2);
-            // Cone tip
+            // Bulky rocket launcher — wide 5px dark tube, magenta tip, side
+            // fin. Silhouette is FAT and ends in a big diamond cone tip.
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 5);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#3a1838', 3);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#7a3878', 1);
+            // Big magenta diamond tip — 3x3 cluster reads at game zoom
             ctx.fillStyle = '#ff60ff';
+            ctx.fillRect(Math.round(muzzleX - 1), Math.round(muzzleY - 1), 3, 3);
+            ctx.fillStyle = '#ffaaff';
             ctx.fillRect(Math.round(muzzleX), Math.round(muzzleY), 1, 1);
-            // Sight bump on top
+            // Top-side launcher fin — 3-wide block sitting on the tube
             ctx.fillStyle = '#a040a0';
-            ctx.fillRect(Math.round(elbowX + ax * 3 + px * 2), Math.round(elbowY + ay * 3 + py * 2), 2, 1);
+            ctx.fillRect(Math.round(elbowX + ax * 3 + px * 3),
+                         Math.round(elbowY + ay * 3 + py * 3), 3, 2);
+            ctx.fillStyle = '#ff60ff';
+            ctx.fillRect(Math.round(elbowX + ax * 4 + px * 3),
+                         Math.round(elbowY + ay * 4 + py * 3), 1, 1);
         } else if (this.weapon === 'THUNDER') {
-            // Tesla coil — short fat barrel with crackling sparks.
-            const tBarrelLen = 6;
-            const tipX = elbowX + ax * (tBarrelLen - recoilPull);
-            const tipY = elbowY + ay * (tBarrelLen - recoilPull);
-            this._line(ctx, elbowX, elbowY, tipX, tipY, '#101018', 4);
-            this._line(ctx, elbowX, elbowY, tipX, tipY, '#c0a8ff', 2);
-            // Crackle sparks at the tip
-            const crackle = ((this.timer || 0) % 4) < 2;
+            // Tesla coil — fat purple barrel + spherical coil tip + crackling
+            // arc above. Color (purple/yellow) instantly separates from MG.
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 5);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#6840a8', 3);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#c0a8ff', 1);
+            // Globe coil at the tip — 3x3 bright sphere, signature shape
+            ctx.fillStyle = '#101018';
+            ctx.fillRect(Math.round(muzzleX - 1), Math.round(muzzleY - 1), 3, 3);
+            ctx.fillStyle = '#fffac8';
+            ctx.fillRect(Math.round(muzzleX), Math.round(muzzleY), 1, 1);
+            // Crackle arc above the globe — animated zigzag
+            const crackle = ((this.timer || 0) % 6) < 3;
             ctx.fillStyle = crackle ? '#ffffff' : '#fffac8';
-            ctx.fillRect(Math.round(tipX + px), Math.round(tipY + py), 1, 1);
-            ctx.fillRect(Math.round(tipX - px), Math.round(tipY - py), 1, 1);
+            ctx.fillRect(Math.round(muzzleX + px * 2), Math.round(muzzleY + py * 2), 1, 1);
+            ctx.fillRect(Math.round(muzzleX + px * 3 + ax), Math.round(muzzleY + py * 3 + ay), 1, 1);
+            ctx.fillRect(Math.round(muzzleX + px * 4 - ax), Math.round(muzzleY + py * 4 - ay), 1, 1);
         } else {
-            // MG (default) — single rifle barrel as before.
+            // MG (default) — single rifle barrel + side magazine. Adds a
+            // tiny block hanging off the cross axis so the silhouette
+            // reads as a real gun, not just a stick.
             this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
             this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 1);
+            // Magazine — small block hanging below the receiver
+            ctx.fillStyle = '#202028';
+            ctx.fillRect(Math.round(elbowX + ax * 2 - px * 2),
+                         Math.round(elbowY + ay * 2 - py * 2), 2, 3);
+            ctx.fillStyle = '#404048';
+            ctx.fillRect(Math.round(elbowX + ax * 2 - px * 2),
+                         Math.round(elbowY + ay * 2 - py * 2 + 1), 1, 1);
         }
         // Muzzle tip — bright starburst when fireCooldown is fresh (just fired).
         // Cross-pattern + hot center reads as a real muzzle flash instead of a

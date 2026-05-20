@@ -105,6 +105,26 @@ await shot('08-clippy-jump-aim', () => {
     g.player.fireCooldown = 5;  // looks like just fired
 });
 
+// 8a-8h. Per-weapon visual baseline — each weapon's procedural barrel
+// renders distinctly so a pickup feels different from the previous one.
+for (const w of ['MG', 'SHOTGUN', 'SPREAD', 'LASER', 'FLAME', 'HOMING', 'THUNDER', 'CHAINSAW']) {
+    await shot(`weapon-${w.toLowerCase()}`, (weapon) => {
+        const g = window.__game;
+        g._startStage(1);
+        g.transition = 0; g.transitionTarget = null;
+        g.storyTimer = 9999;
+        g.scene = 'play';
+        g.player.weapon = weapon;
+        g.player.weaponLevel = 1;
+        g.player.facing = 1;
+        // Aim ~30° down-right so the barrel reads at a recognizable angle
+        g.player.aim = { x: 0.866, y: 0.5 };
+        g.player.aimAngle = 0.5;
+        g.player.fireCooldown = 5; // muzzle flash visible
+        g.player.recoilTimer = 5;
+    }, w);
+}
+
 // 9-13. Per-stage mid-play captures so every painted bg + tile theme +
 // player position has a baseline. Used to catch regressions like the
 // "stuck on cover" stage-2 freeze the user reported.

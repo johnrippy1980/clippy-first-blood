@@ -68,6 +68,7 @@ export const sprites = new SpriteSet();
 // and story pages. Loaded lazily, drawn full-width with letterboxing.
 export const SCENE_MANIFEST = {
     'title_bg':     'scene_title.png',
+    'story_fired':  'scene_story_fired.png',
     'story_home':   'scene_story_1_home.png',
     'story_bomb':   'scene_story_2_bomb.png',
     'story_boardroom': 'scene_story_boardroom.png',
