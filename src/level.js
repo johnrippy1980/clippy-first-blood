@@ -744,14 +744,18 @@ function makeTraining() {
     // Z3 COVER: tree on lower platform — the cover sprite (C tile id)
     setT(g, h - 3, 30, C);
 
-    // Z4 GRAPPLE: pit, then high wall the player can reel onto.
-    // Floor cuts out at x=46..52 (6-tile pit), with platform on far side.
+    // Z4 GRAPPLE: pit, then a high overhang the player must grapple onto.
+    // Floor cuts out at x=46..52 (6-tile pit), with the far edge restored
+    // from x=53 onward. A wide perch platform sits high above the pit's far
+    // side — too high to reach with a double-jump, just within grapple range.
+    // Landing surface is 3 tiles wide so the player can actually stand on it
+    // after the grapple releases, instead of bouncing off a 1-tile spike.
     for (let x = 46; x <= 52; x++) {
         setT(g, h - 1, x, E);
         setT(g, h - 2, x, E);
     }
-    // High wall tower at x=50 that's reachable only by grappling
-    rectT(g, 5, 50, 1, 5, W);
+    // Grapple-only perch at y=4, x=49-51 (3 wide, with the LASER pickup atop)
+    rectT(g, 4, 49, 3, 1, W);
 
     // Z5 DASH: low cabinets every 3 tiles to dash through
     platT(g, 11, 58, 2);
@@ -794,8 +798,9 @@ function makeTraining() {
         pickupSpawns: [
             // Z2: free SPREAD weapon next to the first dummy
             { x: 22 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SPREAD' },
-            // Z4 reward: a LASER on the high wall the player grappled up to
-            { x: 50 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'LASER' },
+            // Z4 reward: a LASER sitting on top of the grapple-only perch.
+            // Perch tiles are at row 4; pickup sits one tile above (row 3).
+            { x: 50 * GAME.TILE, y: ( 3) * GAME.TILE - 4, type: 'LASER' },
             // Z6 grenade pickup so the lesson has grenades to throw
             { x: 72 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
             // WEAPON RANGE — full 6 firearms scattered along the course so

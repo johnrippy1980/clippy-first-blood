@@ -1600,6 +1600,18 @@ export class Player {
 
     kill() {
         if (this.state === STATE.DIE) return;
+        // Training-mode invincibility — same short-circuit as hurt() so pit
+        // falls + other instant-death paths don't bypass god mode. The game
+        // layer detects this via godMode + isDead() and teleports back to
+        // playerStart instead of decrementing lives.
+        if (this.godMode) {
+            this.iFrames = Math.max(this.iFrames, 30);
+            particles.floatingText(this.x + this.w / 2, this.y - 4, 'NOPE', '#80e0ff', 30);
+            // Mark for game-layer respawn — uses a one-shot flag rather than
+            // STATE.DIE so the death-fanfare animation doesn't play.
+            this._godModeRespawn = true;
+            return;
+        }
         this.state = STATE.DIE;
         this.deathTimer = 0;
         // Bigger pop-up — Clippy launches dramatically before gravity yanks him
@@ -2285,14 +2297,17 @@ export class Player {
         else this._grappleStuck = 0;
         const wallStuck = this._grappleStuck > 6;
         if (d < 10 || stuck || wallStuck || input.isPressed('jump') || input.isPressed('special')) {
-            // Release: short upward kick if we ended high so the player can
-            // chain a jump out of the grapple cleanly.
+            // Release: meaningful upward kick so the arrival lands on top of
+            // the grappled surface instead of pinging off and falling. Also
+            // grant a fresh air-jump so the player has an out if the anchor
+            // was a wall mid-pit (chain a double-jump to safety).
             this._grappleAnchor = null;
             this._grapplePhase = null;
             this._grappleTimer = 0;
             this._grappleStuck = 0;
             this.state = STATE.JUMP;
-            this.vy = Math.min(this.vy, -2);
+            this.vy = Math.min(this.vy, -4.2);
+            this.airJumpsLeft = Math.max(this.airJumpsLeft, 1);
             this._grappleCooldown = 6;
             return;
         }

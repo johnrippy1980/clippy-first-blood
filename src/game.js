@@ -939,6 +939,13 @@ export class Game {
     // Death handler: decrement lives, route to GAME_OVER if exhausted,
     // otherwise respawn at the stage's playerStart.
     _tickPlayHandleDeath() {
+        // God-mode respawn path — pit-fall in training mode flags the player
+        // for a silent teleport-back without touching lives/totalDeaths.
+        if (this.player._godModeRespawn) {
+            this.player._godModeRespawn = false;
+            this._respawn();
+            return;
+        }
         if (!this.player.isDead()) return;
         this.totalDeaths++;
         this.player.lives--;
