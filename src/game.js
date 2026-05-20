@@ -927,7 +927,11 @@ export class Game {
         // First-stage demo hint — execs see this on their first play.
         // Shows ARROWS/Z/X labels for ~6 seconds, then fades. Stage-1 only,
         // first run only (gated on stageTime < 360f && currentStage === 1).
-        if (this.scene === SCENE.PLAY && this.currentStage === 1 && this.stageTime > 30 && this.stageTime < 420) {
+        // Hide unconditionally during boss / mini-boss encounters — boss
+        // name + HP bar live in the bottom strip and the hint collides
+        // with both. By the time a boss spawns the exec has read the hint.
+        const _bossActive = (this.boss && this.boss.alive) || this._bossEntrance;
+        if (!_bossActive && this.scene === SCENE.PLAY && this.currentStage === 1 && this.stageTime > 30 && this.stageTime < 420) {
             const t = this.stageTime;
             // Fade in 30-90, hold 90-330, fade out 330-420
             let alpha = 0;
