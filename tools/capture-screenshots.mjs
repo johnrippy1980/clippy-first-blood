@@ -230,8 +230,10 @@ await shot('stage-clear', () => {
     g.storyTimer = 9999;
     g.scene = 'stageClear';
     g._clearScheduled = true;
+    g.stageTime = 60 * 47;   // 0:47 — exec-friendly run time, not 0:00
     g.stageStats = { kills: 12, deaths: 0, damageTaken: 1, secrets: 0, weaponDamage: { MG: 120 }, shotsFired: 45, totalEnemies: 14 };
     g.player.score = 12500;
+    g.player.shotsFired = 45;  // accuracy = kills/shots = 27% not 0%
 });
 
 // Ending cutscene — painted scene + path-specific palette/title. The
