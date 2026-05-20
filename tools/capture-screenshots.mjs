@@ -45,6 +45,8 @@ await shot('02-stage1-play', () => {
 await shot('03-grunt-folder', () => {
     const g = window.__game;
     g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
     // Spawn a folder near the player
     g.enemies.spawn(g.player.x + 30, g.player.y, 'folder');
@@ -94,6 +96,8 @@ await shot('06-boss-algorithm', () => {
 await shot('07-clippy-backdash', () => {
     const g = window.__game;
     g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
     g.player.state = 'backdash';
     g.player.backdashTimer = 12;
@@ -104,6 +108,8 @@ await shot('07-clippy-backdash', () => {
 await shot('08-clippy-jump-aim', () => {
     const g = window.__game;
     g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
     g.player.state = 'jump';
     g.player.y -= 30;
