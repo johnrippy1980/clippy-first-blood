@@ -1561,6 +1561,14 @@ export class Player {
 
     hurt(dmg, knockDir = 0, srcX = null, srcY = null) {
         if (this.iFrames > 0 || this.state === STATE.DIE) return;
+        // Training-ground god mode — show a brief deflect particle so the
+        // player sees that an enemy *would* have hit them, but the run
+        // continues uninterrupted. Critical for the tutorial flow.
+        if (this.godMode) {
+            this.iFrames = Math.max(this.iFrames, 12);
+            particles.floatingText(this.x + this.w / 2, this.y - 4, 'NOPE', '#80e0ff', 30);
+            return;
+        }
         // Remember the damage source for the off-screen indicator
         if (srcX != null) {
             this.lastHurtSrc = { x: srcX, y: srcY, frames: AMBIENT.DAMAGE_INDICATOR_F };

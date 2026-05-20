@@ -392,6 +392,12 @@ export class Game {
             this.stageSelectIndex = 0;
             this.scene = SCENE.STAGE_SELECT;
         }
+        // UP at title — training ground. Always accessible; great for first-
+        // time players to learn moves without dying.
+        if (input.isPressed('up')) {
+            audio.sfx('select');
+            this._startStage(10);
+        }
     }
     _drawTitle() {
         const ctx = this.ctx;
@@ -487,8 +493,10 @@ export class Game {
         }
         // Stage-select hint once stage 2 is unlocked
         if (this.unlockedStage > 1) {
-            drawText(ctx, 'DOWN: STAGE SELECT', GAME.W / 2, GAME.H - 24, '#c0a0d0', 1, 'center');
+            drawText(ctx, 'DOWN: STAGE SELECT', GAME.W / 2, GAME.H - 28, '#c0a0d0', 1, 'center');
         }
+        // Training-ground hint — always shown so new players find it.
+        drawText(ctx, 'UP: TRAINING GROUND', GAME.W / 2, GAME.H - 20, '#7af0bf', 1, 'center');
         // Personal best — TOP TIER achievement gates on >=100k, but the
         // player never saw their current best until they hit it. Show it on
         // the title once they've scored at least once so the goal feels real.
@@ -496,7 +504,7 @@ export class Game {
         if (best > 0) {
             drawText(ctx, 'HI-SCORE  ' + best.toLocaleString(), GAME.W / 2, GAME.H - 50, '#ffe070', 1, 'center');
         }
-        drawText(ctx, '(C) 2026 OFFICE WARFARE LTD  v1.0', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
+        drawText(ctx, '(C) 2026 OFFICE WARFARE LTD  v1.0', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
 
     // ============== story ==============
@@ -662,6 +670,7 @@ export class Game {
     // helper so this method reads as a timeline.
     _tickPlay() {
         if (this._tickPlayHandlePause()) return;
+        if (this.trainingMode) this._tickPlayTrainingUpkeep();
         const slowMoSkipEnemies = this._tickPlayAdvanceSlowMo();
         const snap = this._tickPlayCaptureSnapshot();
         this._tickPlayUpdateWorld(slowMoSkipEnemies);
@@ -679,6 +688,43 @@ export class Game {
         if (this.scene !== SCENE.PLAY) return;
         this._tickPlayHandleStageClear();
         this._tickPlayHandleDeath();
+    }
+
+    // Training-ground per-frame upkeep. Keeps the player armed and full
+    // of grenades so the lessons can be replayed without scavenging.
+    // Dummy respawning: every enemy spawn position in the training stage
+    // is repopulated 90 frames (~1.5s) after the kill so the player can
+    // chain practice attempts on the same target.
+    _tickPlayTrainingUpkeep() {
+        if (!this.player) return;
+        // Top up grenades every 30 frames so the player can spam-test the
+        // grenade lesson. Cap at GRENADE_MAX so the HUD reads correctly.
+        if ((this.player.grenades || 0) < AMBIENT.GRENADE_MAX && this.stageTime % 30 === 0) {
+            this.player.grenades = AMBIENT.GRENADE_MAX;
+        }
+        // Grenade discovery hint fires the first time you pick one up;
+        // training auto-pickup pre-empts it. Suppress the hint by setting
+        // the seen flag.
+        this.player._grenadeHintShown = true;
+        // Dummy respawn — only the originally-placed enemies, not boss
+        // wave spawns. Each entry gets a respawnCooldown counter that
+        // ticks down; when it hits 0 we respawn at the original position.
+        if (!this._trainingRespawn) {
+            const data = STAGE_LOADERS[this.currentStage]();
+            this._trainingRespawn = data.enemySpawns.map(s => ({ ...s, cooldown: 0 }));
+        }
+        for (const slot of this._trainingRespawn) {
+            // Is this slot currently occupied by an alive enemy near its origin?
+            const occupied = this.enemies.enemies.some(e =>
+                e.alive && Math.abs(e.x - slot.x) < 16 && Math.abs(e.y - slot.y) < 32
+            );
+            if (occupied) { slot.cooldown = 90; continue; }
+            slot.cooldown--;
+            if (slot.cooldown <= 0) {
+                this.enemies.spawn(slot.x, slot.y, slot.type);
+                slot.cooldown = 90;
+            }
+        }
     }
 
     // Watchdog: clamps every per-frame counter that should never exceed its
@@ -801,11 +847,17 @@ export class Game {
     // Mini-boss + full-boss + boss-rush spawn gates. Returns true if the
     // boss-rush early-return fires so the caller bails the rest of the tick.
     _tickPlayHandleBossTriggers() {
+        // Training ground has no boss/mini-boss; skip both triggers cleanly.
+        const bossTrigger = this.level.data.bossTrigger;
+        if (this.trainingMode || !bossTrigger) {
+            this.boss = this.enemies.activeBoss();
+            return false;
+        }
         const miniTrigger = this.level.data.miniBossTrigger;
         if (!this.miniBossSpawned && miniTrigger != null && this.player.x > miniTrigger) {
             this._spawnMiniBoss();
         }
-        if (!this.bossSpawned && this.player.x > this.level.data.bossTrigger.x) {
+        if (!this.bossSpawned && this.player.x > bossTrigger.x) {
             this._spawnBoss();
         }
         this.boss = this.enemies.activeBoss();
@@ -839,7 +891,17 @@ export class Game {
         }
         const ex = this.player.x + this.player.w / 2;
         const ey = this.player.y + this.player.h;
-        if (this.level.isExit(ex, ey)) this._onStageClear();
+        if (this.level.isExit(ex, ey)) {
+            // Training ground exits straight back to TITLE — no stage-clear
+            // panel because nothing was earned. _restartRun resets player
+            // state and currentStage cleanly.
+            if (this.trainingMode) {
+                audio.sfx('select');
+                this._restartRun();
+                return;
+            }
+            this._onStageClear();
+        }
     }
 
     // Death handler: decrement lives, route to GAME_OVER if exhausted,
@@ -928,6 +990,8 @@ export class Game {
             camera: this.camera,
         });
         if (this._bossEntrance) this._drawBossEntrance();
+        // Training-ground zone banners — floating instructional text per zone.
+        if (this.trainingMode) this._drawTrainingBanners();
         // First-stage demo hint — execs see this on their first play.
         // Shows ARROWS/Z/X labels for ~6 seconds, then fades. Stage-1 only,
         // first run only (gated on stageTime < 360f && currentStage === 1).
@@ -1171,6 +1235,46 @@ export class Game {
             drawText(ctx, boss.tagline, GAME.W / 2, tagY, '#ffe070', 1, 'center');
         }
         ctx.globalAlpha = 1;
+    }
+
+    // Training-ground floating banners. Each banner is anchored at a world-x
+    // and fades in as the player approaches, holds while in zone, fades out
+    // when they leave. Drawn above the play area, below the HUD.
+    _drawTrainingBanners() {
+        if (!this._trainingBanners || !this._trainingBanners.length) return;
+        if (!this.player) return;
+        const ctx = this.ctx;
+        const px = this.player.x + this.player.w / 2;
+        // Find the nearest banner within ~7-tile (112px) window
+        let active = null;
+        let bestDist = Infinity;
+        for (const b of this._trainingBanners) {
+            const d = Math.abs(b.x - px);
+            if (d < 112 && d < bestDist) { bestDist = d; active = b; }
+        }
+        if (!active) return;
+        // Fade in based on distance — full alpha within 48px, 0 at 112px
+        const alpha = Math.max(0, Math.min(1, (112 - bestDist) / 64));
+        // Position: top center of viewport, below the HUD strip
+        const py = 24;
+        const lines = active.lines;
+        const lineH = 10;
+        const panelW = 200;
+        const panelH = 8 + lines.length * lineH;
+        const px2 = GAME.W / 2;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(8, 4, 14, 0.85)';
+        ctx.fillRect(px2 - panelW / 2, py - 4, panelW, panelH);
+        ctx.fillStyle = '#a82020';
+        ctx.fillRect(px2 - panelW / 2, py - 4, panelW, 1);
+        ctx.fillRect(px2 - panelW / 2, py - 4 + panelH - 1, panelW, 1);
+        // Title in red, body lines in cream
+        for (let i = 0; i < lines.length; i++) {
+            const color = i === 0 ? '#ff5050' : '#ffe070';
+            drawText(ctx, lines[i], px2, py + i * lineH, color, 1, 'center');
+        }
+        ctx.restore();
     }
 
     _drawPauseOverlay() {
@@ -1894,7 +1998,11 @@ export class Game {
             n = 1;
         }
         this.currentStage = n;
-        this.unlockedStage = Math.max(this.unlockedStage, n);
+        // Stage 10 (training) doesn't unlock anything — would inflate the
+        // stage-select grid past the actual campaign max of 9 (incl. secret).
+        if (n !== 10) {
+            this.unlockedStage = Math.max(this.unlockedStage, n);
+        }
         // Reset per-stage counters
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         // Defensive reset: stage-clear gate, in case the previous stage death-handled
@@ -1949,6 +2057,15 @@ export class Game {
         this._bossKillBeatFired = false;
         this.stageTime = 0;
         this.storyTimer = 0;
+        // Training-ground god mode: invincible player, unlimited ammo,
+        // grenades top up every frame. Banners + dummy respawn handled in
+        // the per-frame play tick. Flag is read by Player._hurt to early-return
+        // and by the HUD to add a "TRAINING" badge.
+        this.trainingMode = !!data.training;
+        this._trainingBanners = data.banners || [];
+        if (this.player) {
+            this.player.godMode = this.trainingMode;
+        }
         this._fadeTo(SCENE.STAGE_INTRO);
     }
 
@@ -2642,6 +2759,11 @@ export class Game {
         this._pendingStage = null;
         this._goEmbers = null;
         this.scene = SCENE.TITLE;
+        // Training-mode flag clears with the run so the next stage 1 start
+        // doesn't inherit god mode.
+        this.trainingMode = false;
+        this._trainingBanners = null;
+        this._trainingRespawn = null;
     }
 
     _fadeTo(scene) {

@@ -176,6 +176,22 @@ for (const w of ['MG', 'SHOTGUN', 'SPREAD', 'LASER', 'FLAME', 'HOMING', 'THUNDER
     }, w);
 }
 
+// Training ground — verifies the new stage 10 loads, banners render,
+// god-mode badge etc. Sample the player at zone 1 (movement) and zone 4
+// (grapple, the one execs most want to see).
+for (const zoneTile of [4, 16, 44, 60, 90]) {
+    await shot(`training-zone${zoneTile}`, (x) => {
+        const g = window.__game;
+        g._startStage(10);
+        g.transition = 0; g.transitionTarget = null;
+        g.storyTimer = 9999;
+        g.scene = 'play';
+        g.player.x = x * 16;
+        g.player.y = (14 - 4) * 16;
+        g.camera.x = Math.max(0, g.player.x - 128);
+    }, zoneTile);
+}
+
 // 9-13. Per-stage mid-play captures so every painted bg + tile theme +
 // player position has a baseline. Used to catch regressions like the
 // "stuck on cover" stage-2 freeze the user reported.

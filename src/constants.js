@@ -117,6 +117,10 @@ export const STAGES = [
     { id: 8, name: 'THE CLOUD',              theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
     // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
     { id: 9, name: 'THE RECYCLE BIN',        theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
+    // Training ground — god mode + unlimited ammo + scripted lessons. Accessible
+    // from the title screen by holding UP. Not a "real" stage; never shows in
+    // stage select or counts toward achievements.
+    { id: 10, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
 ];
 
 // Damage flash colors per source.

@@ -719,6 +719,118 @@ function makeStage9() {
     };
 }
 
+// Training Ground — stage index 10. Player is invincible, ammo unlimited,
+// grenades capped+refilling, scripted zone banners. Long flat hallway with
+// 7 lessons spaced ~16 tiles apart. Each zone has the prop the lesson
+// needs (wall for grapple, cover tree, dummy enemy, weapon pickup, crate).
+//
+// Zones (x ranges in tiles):
+//   0-12   : Z1 MOVEMENT  — arrows + jump + double-jump platforms
+//   12-26  : Z2 SHOOTING  — first dummy enemy + free weapon pickup
+//   26-40  : Z3 COVER     — cover prop + sniper above
+//   40-56  : Z4 GRAPPLE   — overhang wall + pit; grapple to cross
+//   56-70  : Z5 DASH      — knife dash through a row of dummies
+//   70-86  : Z6 GRENADE   — 3 crates clumped, throw to clear
+//   86-100 : Z7 POUNCE    — cover + stunned dummy; cover→jump→stab
+//   100-108: EXIT door (returns to title)
+function makeTraining() {
+    const w = 108, h = 14;
+    const { g } = blankStage(w, h, THEME.JUNGLE);
+
+    // Z1 MOVEMENT: two ascending platforms for the double-jump lesson
+    platT(g, 10,  6, 3);
+    platT(g,  7, 10, 3);
+
+    // Z3 COVER: tree on lower platform — the cover sprite (C tile id)
+    setT(g, h - 3, 30, C);
+
+    // Z4 GRAPPLE: pit, then high wall the player can reel onto.
+    // Floor cuts out at x=46..52 (6-tile pit), with platform on far side.
+    for (let x = 46; x <= 52; x++) {
+        setT(g, h - 1, x, E);
+        setT(g, h - 2, x, E);
+    }
+    // High wall tower at x=50 that's reachable only by grappling
+    rectT(g, 5, 50, 1, 5, W);
+
+    // Z5 DASH: low cabinets every 3 tiles to dash through
+    platT(g, 11, 58, 2);
+    platT(g, 11, 62, 2);
+    platT(g, 11, 66, 2);
+
+    // Z6 GRENADE: stack of 3 crates close together (placed via crateSpawns below)
+    // Z7 POUNCE: cover for stealth pounce setup
+    setT(g, h - 3, 90, C);
+
+    // Exit door
+    setT(g, h - 3, w - 4, X);
+
+    // Ladders are nice teach moments — one at the start to climb back if
+    // they fell into the grapple pit. Place ladder bridging pit base to
+    // surface so a fall isn't terminal.
+    ladderT(g, h - 2, 48, 1);   // tiny — just enough to teach climb
+
+    return {
+        tiles: g, width: w, height: h, theme: THEME.JUNGLE,
+        playerStart: { x: 32, y: (h - 4) * GAME.TILE },
+        // No boss in training
+        bossTrigger: null,
+        miniBossTrigger: null,
+        owlRoosts: [],
+        enemySpawns: [
+            // Z2: a dummy stapler — easy first kill
+            { x: 20 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // Z3: sniper above the cover prop — teaches duck-behind
+            { x: 32 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            // Z5: 3 cabinet dummies arranged for the dash combo
+            { x: 60 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            { x: 64 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            { x: 68 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // Z6: a folder near the crate stack — teaches grenade AoE
+            { x: 76 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'folder' },
+            // Z7: a stapler dummy for the pounce target
+            { x: 94 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+        ],
+        pickupSpawns: [
+            // Z2: free SPREAD weapon next to the first dummy
+            { x: 22 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SPREAD' },
+            // Z4 reward: a LASER on the high wall the player grappled up to
+            { x: 50 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'LASER' },
+            // Z6 grenade pickup so the lesson has grenades to throw
+            { x: 72 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+        ],
+        crateSpawns: [
+            // Z6: cluster of 3 crates — throw one grenade to chain-pop them
+            { x: 78 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'LIFE' },
+            { x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'HOMING' },
+            { x: 82 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'THUNDER' },
+        ],
+        // Flag picked up by the game/player code to enable god mode + infinite
+        // ammo + zone banners. STAGE_LOADERS index 10 maps to this.
+        training: true,
+        // Floating zone banners — drawn from game.js _drawPlay when training
+        // is active. Each is { x: world-x in px, lines: [string, ...] }.
+        banners: [
+            { x:   4 * GAME.TILE, lines: ['ZONE 1 — MOVEMENT',         'ARROWS TO MOVE',
+                                          'Z TO JUMP',                 'Z AGAIN MID-AIR FOR DOUBLE JUMP'] },
+            { x:  16 * GAME.TILE, lines: ['ZONE 2 — SHOOTING',         'X TO FIRE',
+                                          'PICK UP THE WEAPON',        'SHOOT THE STAPLER'] },
+            { x:  30 * GAME.TILE, lines: ['ZONE 3 — COVER',            'HOLD UP NEAR THE TREE',
+                                          'BULLETS PASS OVER YOU',     'PEEK OUT TO RETURN FIRE'] },
+            { x:  44 * GAME.TILE, lines: ['ZONE 4 — GRAPPLE',          'JUMP OVER THE PIT',
+                                          'PRESS C MID-AIR TO REEL',   'AIM AT THE HIGH WALL'] },
+            { x:  60 * GAME.TILE, lines: ['ZONE 5 — KNIFE DASH',       'PRESS C WHILE FACING ENEMY',
+                                          'DASH THROUGH THE CABINETS', 'CHAIN HITS FOR COMBO'] },
+            { x:  74 * GAME.TILE, lines: ['ZONE 6 — GRENADE',          'PICK UP THE GRENADE',
+                                          'V TO THROW',                'AOE CLEARS CRATES + ENEMIES'] },
+            { x:  90 * GAME.TILE, lines: ['ZONE 7 — STEALTH POUNCE',   'HIDE BEHIND THE TREE',
+                                          'JUMP STRAIGHT UP',          'C MID-AIR TO STAB DOWN'] },
+            { x: 102 * GAME.TILE, lines: ['TRAINING COMPLETE',         'WALK THROUGH THE DOOR',
+                                          'YOU ARE READY.',            ''] },
+        ],
+    };
+}
+
 export const STAGE_LOADERS = [
     null,
     () => makeStage1(),
@@ -730,6 +842,7 @@ export const STAGE_LOADERS = [
     () => makeStage7(),
     () => makeStage8(),
     () => makeStage9(),  // Secret
+    () => makeTraining(),  // Training ground — stage 10
 ];
 
 // Tile palette per theme — dark painted tones, NOT bright video-game colors.
