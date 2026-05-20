@@ -1599,14 +1599,18 @@ export class Game {
             if (t > 20) {
                 const k = Math.min(1, (t - 20) / 30);
                 ctx.globalAlpha = k;
-                drawText(ctx, 'STAGE ' + stg.id, GAME.W / 2, GAME.H - 26, '#ffe070', 1, 'center');
+                // 7-px font + 1-px outline = ~9px tall glyphs. Stack with
+                // 10px vertical pitch so STAGE N / NAME / TAGLINE read as
+                // distinct rows. Earlier 8-px pitch fused stage-name with
+                // STAGE-N row when both had outline pixels.
+                drawText(ctx, 'STAGE ' + stg.id, GAME.W / 2, GAME.H - 28, '#ffe070', 1, 'center');
                 drawTextOutlined(ctx, stg.name, GAME.W / 2, GAME.H - 18, '#ff5050', '#1a0000', 1, 'center');
                 ctx.globalAlpha = 1;
             }
             if (t > 80) {
                 const k = Math.min(1, (t - 80) / 30);
                 ctx.globalAlpha = k;
-                drawText(ctx, stg.tagline, GAME.W / 2, GAME.H - 10, '#c0a0d0', 1, 'center');
+                drawText(ctx, stg.tagline, GAME.W / 2, GAME.H - 8, '#c0a0d0', 1, 'center');
                 ctx.globalAlpha = 1;
             }
         }

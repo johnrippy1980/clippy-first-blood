@@ -92,6 +92,20 @@ await shot('06-boss-algorithm', () => {
     g._finishBossIntro();
 });
 
+// Inter-stage cards — painted cinematic shown between stage clear and
+// the next stage intro. Sample at storyTimer=120 so both dialog beats
+// have animated in and the Ken-Burns pan is mid-travel.
+for (const next of [2, 3, 4, 5, 6, 7, 8]) {
+    await shot(`card-stage${next}`, (n) => {
+        const g = window.__game;
+        g._startStage(n - 1);  // load previous stage so currentStage is set
+        g.transition = 0; g.transitionTarget = null;
+        g._pendingStage = n;
+        g.scene = 'stageCard';
+        g.storyTimer = 120;
+    }, next);
+}
+
 // 6a-6c. Boss-intro cinematic — painted backdrop + slide-in portrait +
 // boss name + bark. Sample at age 70 so portrait has settled and dim
 // is at peak. Stages 1, 6, 8 cover the three boss-intro plate styles
