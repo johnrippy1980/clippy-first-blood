@@ -176,9 +176,10 @@ export const ENEMY_MANIFEST = {
     // the downscaled high-res alts lost too much detail and read as ambiguous
     // blobs in-game (folder looked like a shoe). The painted PNGs stay on disk
     // for future iteration at a different scale or with sharper source art.
-    // r105: per-state painted enemy frames. Folder + stapler + cabinet now
-    // have full walk/attack/hurt/death; holepunch frames are still cooking
-    // on Local Howl and will be wired in r106.
+    // r105/r106: per-state painted enemy frames. All 4 grunt types now
+    // have full walk/attack/hurt/death animation sets — each enemy reads
+    // visibly different in each gameplay action (jaws wide on attack,
+    // crumpled on hurt, shredded on death) instead of one static pose.
     'folder':           'v2_folder.png',
     'folder_walk':      'v2_folder_walk.png',
     'folder_attack':    'v2_folder_attack.png',
@@ -195,6 +196,10 @@ export const ENEMY_MANIFEST = {
     'cabinet_hurt':     'v2_cabinet_hurt.png',
     'cabinet_death':    'v2_cabinet_death.png',
     'holepunch':        'v2_holepunch.png',
+    'holepunch_walk':   'v2_holepunch_walk.png',
+    'holepunch_attack': 'v2_holepunch_attack.png',
+    'holepunch_hurt':   'v2_holepunch_hurt.png',
+    'holepunch_death':  'v2_holepunch_death.png',
     // Bosses (painted PNGs already in place)
     // r99: painted bosses re-integrated through process-v2-sprites.py
     // (white-bg corners auto-detected and knocked out, crop tight, downscale
