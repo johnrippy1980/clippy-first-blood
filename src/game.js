@@ -988,6 +988,7 @@ export class Game {
             time: this.totalTime,
             boss: showBoss ? (this.boss || this.enemies.activeMiniBoss()) : null,
             camera: this.camera,
+            training: this.trainingMode,
         });
         if (this._bossEntrance) this._drawBossEntrance();
         // Training-ground zone banners — floating instructional text per zone.

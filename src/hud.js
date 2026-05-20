@@ -7,7 +7,7 @@ import { input } from './input.js';
 import { achievements } from './achievements.js';
 
 export function drawHUD(ctx, state) {
-    const { player, score, time, boss, camera } = state;
+    const { player, score, time, boss, camera, training } = state;
     // Lazy-build a single radial gradient cached on the function (geometry is constant)
     if (!drawHUD._vignetteGrad) {
         const g = ctx.createRadialGradient(GAME.W / 2, GAME.H / 2, 30, GAME.W / 2, GAME.H / 2, GAME.W * 0.7);
@@ -462,6 +462,23 @@ export function drawHUD(ctx, state) {
                 ctx.fill();
             }
         }
+    }
+    // Training-ground badge — small green pulsing label tucked into the
+    // top-LEFT, just under the HP bar. Won't collide with the score / timer
+    // on the right, the lives icon stack, or the centered zone banners.
+    if (training) {
+        const pulse = 0.65 + Math.sin(performance.now() * 0.005) * 0.25;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        const tx = 4;
+        const ty = 18;
+        ctx.fillStyle = '#0a1a14';
+        ctx.fillRect(tx, ty, 50, 9);
+        ctx.fillStyle = '#7af0bf';
+        ctx.fillRect(tx, ty, 50, 1);
+        ctx.fillRect(tx, ty + 8, 50, 1);
+        drawText(ctx, 'TRAINING', tx + 25, ty + 2, '#7af0bf', 1, 'center');
+        ctx.restore();
     }
 }
 
