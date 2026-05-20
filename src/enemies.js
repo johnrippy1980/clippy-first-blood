@@ -801,12 +801,17 @@ class Boss extends Enemy {
         // boss flashes a blue arc tell. Telegraph: 12-frame "winding up"
         // pre-flash so it doesn't feel cheap.
         if (this.isMini) {
+            const wasGuardActive = this._guardActive;
             this._guardCycle = (this._guardCycle | 0) + 1;
             const cycleLen = 180; // 3s at 60Hz
             const c = this._guardCycle % cycleLen;
             // Pre-flash 12f, guard 24f, then idle for the rest of the cycle.
             this._guardTell = (c >= cycleLen - 36 && c < cycleLen - 24);
             this._guardActive = (c >= cycleLen - 24 && c < cycleLen);
+            // Reset parry-count cap when the guard window re-opens. Without
+            // this, _parryCount would persist forever and after 2 lifetime
+            // parries the guard would never reflect again.
+            if (this._guardActive && !wasGuardActive) this._parryCount = 0;
         }
 
         if (this.phase === 1 && this.hp <= this.maxHp / 2) {
@@ -1472,19 +1477,30 @@ export class EnemyManager {
                     // toward the player instead of taking damage. Move it from
                     // player.bullets → this.bullets (enemy bullet list) so it
                     // can damage the player on contact.
+                    // Mini-boss parry: cap at 2 reflections per guard window.
+                    // Without the cap, holding shoot into a parry-active boss
+                    // turns every bullet into incoming fire and the player
+                    // can't escape the loop. Past the cap, bullets just pass
+                    // through and damage the boss normally — the player gets
+                    // rewarded for keeping pressure on instead of being
+                    // punished by their own fire.
                     if (e.isMini && e._guardActive && !b._enemyParried) {
-                        b.vx = -b.vx; b.vy = -b.vy;
-                        b._enemyParried = true;
-                        b.color = '#80e0ff';
-                        b.dmg = b.dmg ?? b.damage ?? 1;
-                        // Splice out of player bullets, push onto enemy bullets
-                        player.bullets.splice(bi, 1);
-                        this.bullets.push(b);
-                        // Tell + sfx
-                        particles.hitSpark(b.x, b.y, '#80e0ff');
-                        particles.floatingText(e.x + e.w / 2, e.y - 4, 'PARRY', '#80e0ff', 36, -0.4, 1);
-                        audio.sfx('bossHit');
-                        continue;
+                        e._parryCount = (e._parryCount || 0) + 1;
+                        if (e._parryCount <= 2) {
+                            b.vx = -b.vx; b.vy = -b.vy;
+                            b._enemyParried = true;
+                            b.color = '#80e0ff';
+                            b.dmg = b.dmg ?? b.damage ?? 1;
+                            player.bullets.splice(bi, 1);
+                            this.bullets.push(b);
+                            particles.hitSpark(b.x, b.y, '#80e0ff');
+                            particles.floatingText(e.x + e.w / 2, e.y - 4, 'PARRY', '#80e0ff', 36, -0.4, 1);
+                            audio.sfx('bossHit');
+                            continue;
+                        }
+                        // Past the cap: bullet passes through, damages the
+                        // boss as normal (falls through to the regular hit
+                        // path below). Reset parry-cap on next guard cycle.
                     }
                     // Weapon-specific impact opts: knockback / burn DOT
                     const opts = {};
