@@ -789,6 +789,13 @@ export class Game {
     // Stage-clear gate: fires if the (real) boss is dead, or the player
     // crossed an exit tile (debug fallback for no-boss stages).
     _tickPlayHandleStageClear() {
+        // Stash boss position every tick while alive — _tickPlayHandleBossTriggers
+        // (earlier in the tick) nulls this.boss the same frame the kill is
+        // detected, so _onStageClear needs the prior position to know where to
+        // spawn the 8-burst boss-kill payoff.
+        if (this.boss) {
+            this._lastBossPos = { x: this.boss.x + this.boss.w / 2, y: this.boss.y + this.boss.h / 2 };
+        }
         if (this.bossSpawned && !this.boss) {
             // Boss-kill beat — once per stage, before _onStageClear schedules
             // the panel. Gauntlet swap-outs short-circuit earlier in the tick
@@ -1853,6 +1860,8 @@ export class Game {
         this.bossSpawned = false;
         this.miniBossSpawned = false;
         this.boss = null;
+        this._lastBossPos = null;
+        this._bossKillBeatFired = false;
         this.stageTime = 0;
         this.storyTimer = 0;
         this._fadeTo(SCENE.STAGE_INTRO);
@@ -1871,10 +1880,14 @@ export class Game {
         // Big payoff: schedule 8 explosion bursts at boss position via the game's
         // own frame counter (NOT setTimeout — those survive scene transitions and
         // could fire in the next stage).
-        if (this.boss) {
+        // Boss is null by the time this fires (enemyManager spliced the kill
+        // earlier in the same tick), so use the position stashed by
+        // _tickPlayHandleStageClear. Falls back to powerup chirp on no-boss
+        // stage-clear paths (debug exit-tile, etc.).
+        if (this._lastBossPos) {
             this._clearBursts = [];
-            const bx = this.boss.x + this.boss.w / 2;
-            const by = this.boss.y + this.boss.h / 2;
+            const bx = this._lastBossPos.x;
+            const by = this._lastBossPos.y;
             for (let i = 0; i < 8; i++) {
                 this._clearBursts.push({
                     fireAt: i * 5, // every 5 frames (~83ms)
@@ -1883,6 +1896,7 @@ export class Game {
                 });
             }
             this.camera.shake?.(8);
+            this._lastBossPos = null;
         } else {
             audio.sfx('powerup');
             this._clearBursts = [];
