@@ -1261,22 +1261,30 @@ export class Level {
                         ctx.fillRect(x + 10, y - 19 + i * 6, 2, 2);
                     }
                 } else if (theme === THEME.BOARDROOM) {
-                    // Heavy wooden door
-                    ctx.fillStyle = '#2a1408';
-                    ctx.fillRect(x + 2, y - 26, 12, 38);
-                    ctx.fillStyle = '#3a1c0a';
-                    ctx.fillRect(x + 3, y - 25, 10, 1);
-                    ctx.fillRect(x + 3, y + 10, 10, 1);
-                    // Panels
-                    ctx.fillStyle = '#1a0a04';
-                    ctx.fillRect(x + 4, y - 22, 8, 1);
-                    ctx.fillRect(x + 4, y - 10, 8, 1);
-                    ctx.fillRect(x + 4, y + 2, 8, 1);
-                    // Brass knob
-                    ctx.fillStyle = '#a06030';
-                    ctx.fillRect(x + 11, y - 6, 2, 2);
-                    ctx.fillStyle = '#ffe070';
-                    ctx.fillRect(x + 11, y - 6, 1, 1);
+                    // r111: prefer painted tile_door sprite — falls back to
+                    // procedural wooden-door render when the asset is missing.
+                    if (sprites.has('tile_door')) {
+                        // Door is 32px tall in source; draw it rising above the
+                        // tile so the silhouette reads as a full doorway.
+                        sprites.draw(ctx, 'tile_door', x - 1, y - 28, false);
+                    } else {
+                        // Heavy wooden door
+                        ctx.fillStyle = '#2a1408';
+                        ctx.fillRect(x + 2, y - 26, 12, 38);
+                        ctx.fillStyle = '#3a1c0a';
+                        ctx.fillRect(x + 3, y - 25, 10, 1);
+                        ctx.fillRect(x + 3, y + 10, 10, 1);
+                        // Panels
+                        ctx.fillStyle = '#1a0a04';
+                        ctx.fillRect(x + 4, y - 22, 8, 1);
+                        ctx.fillRect(x + 4, y - 10, 8, 1);
+                        ctx.fillRect(x + 4, y + 2, 8, 1);
+                        // Brass knob
+                        ctx.fillStyle = '#a06030';
+                        ctx.fillRect(x + 11, y - 6, 2, 2);
+                        ctx.fillStyle = '#ffe070';
+                        ctx.fillRect(x + 11, y - 6, 1, 1);
+                    }
                 } else if (theme === THEME.KEYNOTE) {
                     // Podium / lectern
                     ctx.fillStyle = '#1a1818';
