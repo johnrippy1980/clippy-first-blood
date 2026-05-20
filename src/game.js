@@ -1779,6 +1779,13 @@ export class Game {
 
     _spawnNextGauntlet() {
         if (!this._gauntletQueue || !this._gauntletQueue.length) return false;
+        // Mid-gauntlet kill payoff — previous boss just died, gauntlet swap
+        // is happening this tick. Without this, gauntlet boss kills land
+        // without slow-mo/shake while the final boss kill gets the full
+        // payoff. Inconsistent. Smaller magnitudes than final kill so the
+        // last one still feels biggest.
+        this.triggerSlowMo(Math.floor(AMBIENT.SLOWMO_BOSS_KILL_F * 0.5));
+        this.camera.shake(4);
         const kind = this._gauntletQueue.shift();
         const bx = this.player.x + 100;
         const by = this.level.height - 32;
