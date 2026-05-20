@@ -2495,11 +2495,87 @@ export class Player {
         const elbowY = sy + ay * armLen;
         const muzzleX = elbowX + ax * (barrelLen - recoilPull);
         const muzzleY = elbowY + ay * (barrelLen - recoilPull);
-        // Arm — thicker, light steel grey
+        // Perpendicular vector for cross-axis offsets (e.g. double-barrel rake)
+        const px = -ay, py = ax;
+        // Arm — always rendered the same; weapon variants below paint the
+        // barrel/emitter differently so each pickup feels distinct.
         this._line(ctx, sx, sy, elbowX, elbowY, '#b0b0c0', 2);
-        // Barrel — dark outline + bright core (reads against painted bgs)
-        this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
-        this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 1);
+        if (this.weapon === 'SHOTGUN') {
+            // Double-stacked barrel + wood stock at the elbow. Stubbier than
+            // the MG rifle. Two parallel barrels offset 1px on the cross axis.
+            const sBarrelLen = 7;
+            const tipX = elbowX + ax * (sBarrelLen - recoilPull);
+            const tipY = elbowY + ay * (sBarrelLen - recoilPull);
+            // Upper barrel
+            this._line(ctx, elbowX + px, elbowY + py, tipX + px, tipY + py, '#101018', 2);
+            this._line(ctx, elbowX + px, elbowY + py, tipX + px, tipY + py, '#a08070', 1);
+            // Lower barrel
+            this._line(ctx, elbowX - px, elbowY - py, tipX - px, tipY - py, '#101018', 2);
+            this._line(ctx, elbowX - px, elbowY - py, tipX - px, tipY - py, '#a08070', 1);
+            // Brown wood stock behind the grip
+            ctx.fillStyle = '#5a2c0a';
+            ctx.fillRect(Math.round(elbowX - this.facing * 3), Math.round(elbowY - 2), 3, 4);
+            ctx.fillStyle = '#8a4818';
+            ctx.fillRect(Math.round(elbowX - this.facing * 3 + 1), Math.round(elbowY - 1), 1, 2);
+        } else if (this.weapon === 'SPREAD') {
+            // Triple-tube fan that flares out at the muzzle.
+            for (let lane = -1; lane <= 1; lane++) {
+                const offX = px * lane, offY = py * lane;
+                this._line(ctx, elbowX + offX, elbowY + offY,
+                           muzzleX + offX * 2, muzzleY + offY * 2, '#101018', 2);
+                this._line(ctx, elbowX + offX, elbowY + offY,
+                           muzzleX + offX * 2, muzzleY + offY * 2, '#80d0ff', 1);
+            }
+        } else if (this.weapon === 'LASER') {
+            // Thin glowing emitter — single cyan line with a hot core.
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#a0fff0', 1);
+            // Pulsing emitter ring at the elbow
+            const pulse = ((this.timer || 0) % 8) < 4 ? '#80ffe0' : '#40c8a8';
+            ctx.fillStyle = pulse;
+            ctx.fillRect(Math.round(elbowX - 1), Math.round(elbowY - 1), 3, 3);
+        } else if (this.weapon === 'FLAME') {
+            // Chunky fuel-tank backpack + wide nozzle. Shorter barrel, wider tip.
+            const fBarrelLen = 6;
+            const tipX = elbowX + ax * (fBarrelLen - recoilPull);
+            const tipY = elbowY + ay * (fBarrelLen - recoilPull);
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#101018', 4);
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#a05030', 2);
+            // Wide nozzle — 3-wide tip
+            ctx.fillStyle = '#101018';
+            ctx.fillRect(Math.round(tipX + px - 1), Math.round(tipY + py - 1), 3, 3);
+            // Fuel tank on Clippy's back
+            ctx.fillStyle = '#3a1a08';
+            ctx.fillRect(Math.round(sx - this.facing * 4), Math.round(sy - 1), 3, 6);
+            ctx.fillStyle = '#a05030';
+            ctx.fillRect(Math.round(sx - this.facing * 4 + 1), Math.round(sy), 1, 4);
+        } else if (this.weapon === 'HOMING') {
+            // Bulky tube launcher with a cone tip — magenta glow.
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 4);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#5a2858', 2);
+            // Cone tip
+            ctx.fillStyle = '#ff60ff';
+            ctx.fillRect(Math.round(muzzleX), Math.round(muzzleY), 1, 1);
+            // Sight bump on top
+            ctx.fillStyle = '#a040a0';
+            ctx.fillRect(Math.round(elbowX + ax * 3 + px * 2), Math.round(elbowY + ay * 3 + py * 2), 2, 1);
+        } else if (this.weapon === 'THUNDER') {
+            // Tesla coil — short fat barrel with crackling sparks.
+            const tBarrelLen = 6;
+            const tipX = elbowX + ax * (tBarrelLen - recoilPull);
+            const tipY = elbowY + ay * (tBarrelLen - recoilPull);
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#101018', 4);
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#c0a8ff', 2);
+            // Crackle sparks at the tip
+            const crackle = ((this.timer || 0) % 4) < 2;
+            ctx.fillStyle = crackle ? '#ffffff' : '#fffac8';
+            ctx.fillRect(Math.round(tipX + px), Math.round(tipY + py), 1, 1);
+            ctx.fillRect(Math.round(tipX - px), Math.round(tipY - py), 1, 1);
+        } else {
+            // MG (default) — single rifle barrel as before.
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 1);
+        }
         // Muzzle tip — bright starburst when fireCooldown is fresh (just fired).
         // Cross-pattern + hot center reads as a real muzzle flash instead of a
         // flat yellow square. Decays with recoilTimer.
