@@ -1778,19 +1778,30 @@ export class Player {
         // composited at fading alpha. Without the tint a straight low-alpha
         // draw reads as a ghost-of-self rather than a speed streak; the
         // colored silhouette sells the motion blur.
-        if (typeof ctx.filter === 'string') {
-            for (const a of this._afterimages) {
-                const aDims = spriteDims(a.frame);
-                const acx = a.x + this.w / 2 - camera.viewX;
-                const acy = a.y + this.h - aDims.h / 2 - camera.viewY + 1;
-                const aAlpha = (1 - a.age / 14) * 0.55;
-                if (aAlpha <= 0.03) continue;
-                const drawX = Math.round(acx - aDims.w / 2);
-                const drawY = Math.round(acy - aDims.h / 2);
-                ctx.save();
-                ctx.globalAlpha = aAlpha;
-                // Stamp the sprite as a black silhouette, then color it via
-                // source-atop fill clipped to the sprite's drawn region.
+        // R153 pre-baked silhouettes: resolve the frame name from the
+        // afterimage's stored frame string. Falls back to the cached
+        // `sprites.drawSilhouette` path which keys by (name, color) so a
+        // weapon tint we've seen before reuses the same offscreen canvas
+        // forever. Eliminates the per-frame ctx.filter=brightness(0) pipeline
+        // state change for the trail.
+        for (const a of this._afterimages) {
+            const aDims = spriteDims(a.frame);
+            const acx = a.x + this.w / 2 - camera.viewX;
+            const acy = a.y + this.h - aDims.h / 2 - camera.viewY + 1;
+            const aAlpha = (1 - a.age / 14) * 0.55;
+            if (aAlpha <= 0.03) continue;
+            const drawX = Math.round(acx - aDims.w / 2);
+            const drawY = Math.round(acy - aDims.h / 2);
+            // The frame name in CLIPPY_MANIFEST is the same name we pass to
+            // the silhouette cache. Failed lookups (procedural-only frames)
+            // fall through to the legacy non-cached path.
+            ctx.save();
+            ctx.globalAlpha = aAlpha;
+            const baked = sprites.drawSilhouette(ctx, a.frame, a.tint, drawX, drawY, a.facing < 0, 1);
+            if (!baked && typeof ctx.filter === 'string') {
+                // No baked sprite for this frame — fall back to the original
+                // clip+filter+source-atop technique so we don't lose afterimages
+                // on procedural-only frames.
                 ctx.beginPath();
                 ctx.rect(drawX - 2, drawY - 2, aDims.w + 4, aDims.h + 4);
                 ctx.clip();
@@ -1800,8 +1811,8 @@ export class Player {
                 ctx.globalCompositeOperation = 'source-atop';
                 ctx.fillStyle = a.tint;
                 ctx.fillRect(drawX - 2, drawY - 2, aDims.w + 4, aDims.h + 4);
-                ctx.restore();
             }
+            ctx.restore();
         }
 
         const frame = this._frameForState();

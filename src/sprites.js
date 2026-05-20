@@ -9,10 +9,70 @@ class SpriteSet {
     constructor() {
         this.images = new Map();     // frameName -> HTMLImageElement
         this.dims = new Map();       // frameName -> {w, h}
+        // Silhouette canvas cache — keyed by `${name}::${color}`. Built on
+        // first request (lazy), reused forever. Replaces the old per-frame
+        // ctx.filter='brightness(0)' / 'invert(1)' draw path, which forces a
+        // GPU pipeline state change on every halo stamp (4×/sprite, 60Hz =
+        // 240 filter changes/sec for just Clippy). Pre-baked silhouettes
+        // blit as plain images — ~10x cheaper on low-end GPUs and Safari.
+        this._silhouettes = new Map();
         // Aggregate loading counters across all loadAll() calls. Boot screen
         // reads these for a progress bar. settled = loaded+failed.
         this.totalAssets = 0;
         this.settledAssets = 0;
+    }
+
+    // Build (and cache) a silhouette canvas: same shape as the sprite, but
+    // every visible pixel filled with `color`. Alpha is preserved from the
+    // source. `color` is any CSS color string ('#000', '#fff', etc).
+    _bakeSilhouette(name, color) {
+        const img = this.images.get(name);
+        if (!img) return null;
+        const off = document.createElement('canvas');
+        off.width = img.width;
+        off.height = img.height;
+        const octx = off.getContext('2d');
+        // Step 1: draw the sprite normally. We need its alpha mask.
+        octx.imageSmoothingEnabled = false;
+        octx.drawImage(img, 0, 0);
+        // Step 2: tint everything in-place using `source-in`, which keeps
+        // only pixels that already exist (the sprite's alpha mask) but
+        // recolors them to the fillStyle. No filter, no GPU state change.
+        octx.globalCompositeOperation = 'source-in';
+        octx.fillStyle = color;
+        octx.fillRect(0, 0, off.width, off.height);
+        return off;
+    }
+
+    // Get-or-bake. Returns null if the source sprite isn't loaded.
+    silhouette(name, color) {
+        if (!this.images.has(name)) return null;
+        const key = name + '::' + color;
+        let canv = this._silhouettes.get(key);
+        if (!canv) {
+            canv = this._bakeSilhouette(name, color);
+            if (canv) this._silhouettes.set(key, canv);
+        }
+        return canv;
+    }
+
+    // Draw a pre-baked silhouette at (x, y). Mirrors the public `draw`
+    // signature so callers can swap them 1:1. Returns false if the sprite
+    // hasn't loaded yet (caller can skip the halo cleanly).
+    drawSilhouette(ctx, name, color, x, y, flipH = false, scale = 1) {
+        const canv = this.silhouette(name, color);
+        if (!canv) return false;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        if (flipH) {
+            ctx.translate(Math.round(x) + canv.width * scale, Math.round(y));
+            ctx.scale(-1, 1);
+            ctx.drawImage(canv, 0, 0, canv.width * scale, canv.height * scale);
+        } else {
+            ctx.drawImage(canv, Math.round(x), Math.round(y), canv.width * scale, canv.height * scale);
+        }
+        ctx.restore();
+        return true;
     }
 
     async loadAll(manifest, basePath) {
@@ -520,18 +580,16 @@ export function drawClippyFrame(ctx, frameName, x, y, flipH = false, scale = 1, 
         // poorly with image alpha. Fall back to drawing the sprite with reduced
         // brightness as a stamp. Canvas filter is widely supported in evergreen
         // browsers (Chrome/Firefox/Safari/Edge); fall back to skipping outline.
-        if (typeof ctx.filter === 'string') {
-            // Bright cream-white halo for max contrast against dark painted bgs.
-            // brightness(0) gives a pure-black silhouette, invert() flips to white.
-            ctx.filter = 'brightness(0) invert(1)';
-            ctx.globalAlpha = 0.55;
-            sprites.draw(ctx, frameName, x - 1, y, flipH, scale);
-            sprites.draw(ctx, frameName, x + 1, y, flipH, scale);
-            sprites.draw(ctx, frameName, x, y - 1, flipH, scale);
-            sprites.draw(ctx, frameName, x, y + 1, flipH, scale);
-            ctx.filter = 'none';
-            ctx.globalAlpha = 1;
-        }
+        // Pre-baked white-silhouette canvas — replaces the old per-frame
+        // ctx.filter='brightness(0) invert(1)' which was ~10x more expensive
+        // on Safari + low-end GPUs (forces pipeline state change per call,
+        // and we call it 4× per Clippy frame).
+        ctx.globalAlpha = 0.55;
+        sprites.drawSilhouette(ctx, frameName, '#ffffff', x - 1, y, flipH, scale);
+        sprites.drawSilhouette(ctx, frameName, '#ffffff', x + 1, y, flipH, scale);
+        sprites.drawSilhouette(ctx, frameName, '#ffffff', x, y - 1, flipH, scale);
+        sprites.drawSilhouette(ctx, frameName, '#ffffff', x, y + 1, flipH, scale);
+        ctx.globalAlpha = 1;
         ctx.restore();
         ctx.globalCompositeOperation = prev;
     }
@@ -622,19 +680,15 @@ const EP = [
 
 export function drawEnemyFrame(ctx, frameName, x, y, flipH = false, outline = true) {
     const hasImg = sprites.has(frameName);
-    if (outline && hasImg && typeof ctx.filter === 'string') {
-        // Black silhouette halo for enemies — sits 1px around the sprite so
-        // the silhouette reads against painted backgrounds without competing
-        // with Clippy's cream-white halo (visual hierarchy: friendly = bright,
-        // hostile = dark). Same offset-stamp technique as drawClippyFrame.
+    if (outline && hasImg) {
+        // Pre-baked black-silhouette canvas (R153 cached path). Visual
+        // hierarchy stays the same: enemies = dark halo, Clippy = bright.
         ctx.save();
-        ctx.filter = 'brightness(0)';
         ctx.globalAlpha = 0.65;
-        sprites.draw(ctx, frameName, x - 1, y, flipH);
-        sprites.draw(ctx, frameName, x + 1, y, flipH);
-        sprites.draw(ctx, frameName, x, y - 1, flipH);
-        sprites.draw(ctx, frameName, x, y + 1, flipH);
-        ctx.filter = 'none';
+        sprites.drawSilhouette(ctx, frameName, '#000000', x - 1, y, flipH);
+        sprites.drawSilhouette(ctx, frameName, '#000000', x + 1, y, flipH);
+        sprites.drawSilhouette(ctx, frameName, '#000000', x, y - 1, flipH);
+        sprites.drawSilhouette(ctx, frameName, '#000000', x, y + 1, flipH);
         ctx.globalAlpha = 1;
         ctx.restore();
     }

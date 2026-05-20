@@ -495,15 +495,21 @@ export class Game {
         // instead of being clipped mid-glyph by the canvas edge.
         const fadeW = 22;
         const fadeY = 88, fadeH = 11;
-        let fadeL = ctx.createLinearGradient(0, 0, fadeW, 0);
-        fadeL.addColorStop(0, 'rgba(0,0,0,1)');
-        fadeL.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = fadeL;
+        // Cache the two gradient fills — pure black, never animate, no need
+        // to rebuild every frame. Was allocating 2 gradients per title tick
+        // (~120 GC pressure/sec on the title screen).
+        if (!this._titleMarqueeFades) {
+            const fL = ctx.createLinearGradient(0, 0, fadeW, 0);
+            fL.addColorStop(0, 'rgba(0,0,0,1)');
+            fL.addColorStop(1, 'rgba(0,0,0,0)');
+            const fR = ctx.createLinearGradient(GAME.W - fadeW, 0, GAME.W, 0);
+            fR.addColorStop(0, 'rgba(0,0,0,0)');
+            fR.addColorStop(1, 'rgba(0,0,0,1)');
+            this._titleMarqueeFades = { L: fL, R: fR };
+        }
+        ctx.fillStyle = this._titleMarqueeFades.L;
         ctx.fillRect(0, fadeY, fadeW, fadeH);
-        let fadeR = ctx.createLinearGradient(GAME.W - fadeW, 0, GAME.W, 0);
-        fadeR.addColorStop(0, 'rgba(0,0,0,0)');
-        fadeR.addColorStop(1, 'rgba(0,0,0,1)');
-        ctx.fillStyle = fadeR;
+        ctx.fillStyle = this._titleMarqueeFades.R;
         ctx.fillRect(GAME.W - fadeW, fadeY, fadeW, fadeH);
 
         // Press to start (pulsing glow + blink)
@@ -1739,12 +1745,16 @@ export class Game {
         } else {
             // Asset-missing fallback: deep navy gradient + faint stage label badge.
             // Far better than a flat black screen — tells the player something
-            // intentional is happening even when art fails to load.
-            const grad = ctx.createLinearGradient(0, 0, 0, GAME.H);
-            grad.addColorStop(0, '#1a0a1a');
-            grad.addColorStop(0.5, '#0a0612');
-            grad.addColorStop(1, '#1a0a1a');
-            ctx.fillStyle = grad;
+            // intentional is happening even when art fails to load. Gradient
+            // is static — cache after first build to avoid per-frame allocation.
+            if (!this._stageCardFallbackGrad) {
+                const grad = ctx.createLinearGradient(0, 0, 0, GAME.H);
+                grad.addColorStop(0, '#1a0a1a');
+                grad.addColorStop(0.5, '#0a0612');
+                grad.addColorStop(1, '#1a0a1a');
+                this._stageCardFallbackGrad = grad;
+            }
+            ctx.fillStyle = this._stageCardFallbackGrad;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             // Pulsing center diamond as a visual placeholder
             const pulse = 0.4 + Math.sin(t * 0.08) * 0.2;

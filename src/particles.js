@@ -33,8 +33,12 @@ class Particle {
         if (this.life <= 0) this.alive = false;
     }
     draw(ctx, camera) {
-        const dx = (this.x - camera.x) | 0;
-        const dy = (this.y - camera.y) | 0;
+        // Use viewX/viewY (camera.x + shakeX) so particles track screen shake
+        // along with the rest of the world. Raw camera.x/y is the smoothed
+        // target, NOT the rendered position — using it left explosions and
+        // floating "+points" sitting still while the world juddered around them.
+        const dx = (this.x - camera.viewX) | 0;
+        const dy = (this.y - camera.viewY) | 0;
         ctx.fillStyle = this.color;
         if (this.fade) {
             const a = this.life / this.maxLife;
@@ -85,8 +89,9 @@ class ShockRing {
         if (this.life <= 0) this.alive = false;
     }
     draw(ctx, camera) {
-        const dx = (this.x - camera.x) | 0;
-        const dy = (this.y - camera.y) | 0;
+        // viewX/viewY so the shock ring rides screen shake on enemy kills.
+        const dx = (this.x - camera.viewX) | 0;
+        const dy = (this.y - camera.viewY) | 0;
         const t = 1 - (this.life / this.maxLife);   // 0 → 1 over lifetime
         let r, a;
         if (this.inward) {
@@ -391,8 +396,9 @@ class ParticleSystem {
     drawFloats(ctx, camera, drawText, drawTextOutlined = null) {
         for (const f of this.floats) {
             if (!f.alive) continue;
-            const dx = Math.round(f.x - camera.x);
-            const dy = Math.round(f.y - camera.y);
+            // viewX/viewY so floating score/combo text tracks shake on hits.
+            const dx = Math.round(f.x - camera.viewX);
+            const dy = Math.round(f.y - camera.viewY);
             const a = f.life / f.maxLife;
             // Bouncy intro: scale up over first ~6 frames then settle
             const age = f.maxLife - f.life;
