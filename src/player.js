@@ -930,6 +930,15 @@ export class Player {
     }
 
     _updateState() {
+        // HURT has a timer — when it drains, fall through to normal state
+        // routing instead of leaving the player frozen-in-pain forever.
+        // _hurt() sets hurtTimer = HURT_FRAMES (36); when it ticks to 0
+        // physics resumes normally but the visual stuck in 'hurt' pose
+        // and any state-gated input (e.g. grapple) stays blocked.
+        if (this.state === STATE.HURT && this.hurtTimer <= 0) {
+            this.state = STATE.IDLE;
+            // fall through to the standard physics-driven router below
+        }
         // States that own themselves
         const owned = [STATE.SLIDE, STATE.CROUCH, STATE.PRONE, STATE.CRAWL,
                        STATE.HURT, STATE.DIE, STATE.ROLL, STATE.DASH_ATTACK,
