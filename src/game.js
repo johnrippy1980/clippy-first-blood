@@ -2432,12 +2432,16 @@ export class Game {
                 }
                 drawText(ctx, GAME_OVER_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
             }
-            // Countdown — last 10s feels urgent; flashes red under 5s
+            // Countdown — last 10s feels urgent; flashes red under 5s.
+            // Positioned to the RIGHT of the menu rows (was at GAME.H-22 which
+            // landed on top of the QUIT TO TITLE row, looking like a typo in
+            // the menu text). Top-right corner of the menu band keeps it
+            // visible without colliding with either option.
             if (this.gameOverCountdown != null && this.gameOverCountdown > 0) {
                 const urgent = this.gameOverCountdown <= 5;
                 const flash = urgent && (this.storyTimer % 30 < 15);
                 const color = !urgent ? '#c0a0d0' : flash ? '#ff5050' : '#ffe070';
-                drawText(ctx, String(this.gameOverCountdown), GAME.W / 2, GAME.H - 22, color, 2, 'center');
+                drawText(ctx, String(this.gameOverCountdown), GAME.W - 8, baseY + 4, color, 2, 'right');
             }
         }
     }

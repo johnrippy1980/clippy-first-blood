@@ -118,5 +118,55 @@ for (const s of [2, 3, 5, 7, 8]) {
     }, s);
 }
 
+// 14-18. Story cards 1-5 — every page execs see before the first stage
+for (let p = 0; p < 5; p++) {
+    await shot(`story-page${p + 1}`, (page) => {
+        const g = window.__game;
+        g.scene = 'story';
+        g.storyPage = page;
+        // Past-end storyTimer so typewriter is fully revealed for the screenshot
+        g.storyTimer = 999;
+    }, p);
+}
+
+// 19. Pause menu — execs may pause to ask a question
+await shot('pause-menu', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
+    g.scene = 'pause';
+    g.pauseIndex = 0;
+    g._pauseAnim = 30; // skip the fade-in animation
+});
+
+// 20. Game-over screen — execs may see this if Clippy dies during demo
+await shot('game-over', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.player.lives = 0;
+    g.player.score = 4250;
+    g.player.kills = 12;
+    g.player.maxCombo = 6;
+    g.totalTime = 1860;  // 31s
+    g.runStats.stagesCleared.add(1);
+    g.scene = 'gameOver';
+    g.gameOverIndex = 0;
+    g.storyTimer = 120;  // past panel + menu reveal threshold
+});
+
+// 21. Stage-clear panel — the payoff beat after killing boss 1
+await shot('stage-clear', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
+    g.scene = 'stageClear';
+    g._clearScheduled = true;
+    g.stageStats = { kills: 12, deaths: 0, damageTaken: 1, secrets: 0, weaponDamage: { MG: 120 }, shotsFired: 45, totalEnemies: 14 };
+    g.player.score = 12500;
+});
+
 await browser.close();
 console.log('done — screenshots in', outDir);
