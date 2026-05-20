@@ -1487,12 +1487,19 @@ export class EnemyManager {
                     if (e.isMini && e._guardActive && !b._enemyParried) {
                         e._parryCount = (e._parryCount || 0) + 1;
                         if (e._parryCount <= 2) {
-                            b.vx = -b.vx; b.vy = -b.vy;
-                            b._enemyParried = true;
-                            b.color = '#80e0ff';
-                            b.dmg = b.dmg ?? b.damage ?? 1;
+                            // Player bullets are plain objects with no
+                            // .update() method. The enemy bullet update loop
+                            // (line ~1533) calls b.update(level) every frame,
+                            // so pushing a player bullet directly crashes the
+                            // tick with "b.update is not a function" — bug
+                            // shipped since the parry mechanic landed in
+                            // task #233. Wrap into a real Bullet so the enemy
+                            // bullet pipeline can handle it.
+                            const reflected = new Bullet(b.x, b.y, -b.vx, -b.vy, b.damage ?? 1);
+                            reflected.color = '#80e0ff';
+                            reflected._enemyParried = true;
                             player.bullets.splice(bi, 1);
-                            this.bullets.push(b);
+                            this.bullets.push(reflected);
                             particles.hitSpark(b.x, b.y, '#80e0ff');
                             particles.floatingText(e.x + e.w / 2, e.y - 4, 'PARRY', '#80e0ff', 36, -0.4, 1);
                             audio.sfx('bossHit');
