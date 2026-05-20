@@ -653,6 +653,7 @@ export class Game {
         const slowMoSkipEnemies = this._tickPlayAdvanceSlowMo();
         const snap = this._tickPlayCaptureSnapshot();
         this._tickPlayUpdateWorld(slowMoSkipEnemies);
+        this._tickPlayWatchdog();
         this._tickPlayHandleHeartbeat();
         achievements.tickBanner();
         this._tickPlayAdvanceBossEntrance();
@@ -666,6 +667,23 @@ export class Game {
         if (this.scene !== SCENE.PLAY) return;
         this._tickPlayHandleStageClear();
         this._tickPlayHandleDeath();
+    }
+
+    // Watchdog: clamps every per-frame counter that should never exceed its
+    // intended max. A bug-path that bumps hitPause/slowMo/iFrames/etc. into
+    // the thousands would otherwise lock the world. Last-resort safety net —
+    // if the watchdog ever clamps something, that's the bug to fix at the
+    // source, but the player won't be stuck while we diagnose.
+    _tickPlayWatchdog() {
+        // hitPause caps at HURT_F * 2 = 8 frames. If anything is >30, reset.
+        if (this.player.hitPauseFrames > 30) this.player.hitPauseFrames = 0;
+        // SlowMo caps at SLOWMO_BOSS_KILL_F (~120). If >240, reset.
+        if (this.slowMoFrames > 240) this.slowMoFrames = 0;
+        // iFrames caps at IFRAMES (60). Hurt sets 60; nothing should exceed.
+        if (this.player.iFrames > 240) this.player.iFrames = 60;
+        // bulletTimeFrames is set to 60 on second-chance. Anything beyond
+        // 240 is runaway.
+        if (this.player.bulletTimeFrames > 240) this.player.bulletTimeFrames = 0;
     }
 
     // Pause is a hard return — drop the rest of the tick if pressed.
