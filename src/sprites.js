@@ -177,6 +177,10 @@ export const CLIPPY_MANIFEST = {
     'death_hit':       'v2_hurt2.png',
     'death_explode':   'v2_death.png',
     'death_burning':   'v2_death.png',
+    // R152: ledge-grab poses — hang from edge, mid-pullup, settled atop.
+    'ledge_hang':      'v2_ledge_hang.png',
+    'ledge_climb_1':   'v2_ledge_climb_1.png',
+    'ledge_climb_2':   'v2_ledge_climb_2.png',
 };
 
 export const ENEMY_MANIFEST = {

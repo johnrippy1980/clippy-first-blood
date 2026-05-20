@@ -162,6 +162,13 @@ export class Player {
         this._grappleTipX = 0;
         this._grappleTipY = 0;
         this._grappleCooldown = 0;
+        // Ledge-grab — STATE.LEDGE_HANG anchors to (x, y) of the top-left
+        // corner of the ledge tile. STATE.LEDGE_CLIMB tweens from hang
+        // position to landing position over LEDGE_CLIMB_F frames.
+        this._ledgeAnchor = null;
+        this._ledgeFacing = 0;
+        this._ledgeClimbT = 0;
+        this._ledgeCooldown = 0;
 
         // Score/stats
         this.score = 0;
@@ -359,6 +366,10 @@ export class Player {
             this._tickGrapple(level);
         } else if (this.state === STATE.POUNCE) {
             this._tickPounce(level);
+        } else if (this.state === STATE.LEDGE_HANG) {
+            this._tickLedgeHang(level);
+        } else if (this.state === STATE.LEDGE_CLIMB) {
+            this._tickLedgeClimb(level);
         } else if (this.state === STATE.COVER) {
             this.vx = 0; this.vy = 0;
             this.iFrames = Math.max(this.iFrames, 2);
@@ -389,7 +400,15 @@ export class Player {
             this.vy = Math.min(this.vy, GAME.MAX_FALL);
             // Spin animation in air
             if (this.state === STATE.SPIN_JUMP) this.spinAngle += 0.42;
+            // Ledge-grab probe: airborne + falling + moving toward a wall whose
+            // top edge is at head height. If the geometry matches, snap into
+            // STATE.LEDGE_HANG with the player hanging just below the lip.
+            if (!this.onGround && this.state !== STATE.GRAPPLE
+                && this.state !== STATE.POUNCE && this._ledgeCooldown <= 0) {
+                this._probeLedgeGrab(level);
+            }
         }
+        if (this._ledgeCooldown > 0) this._ledgeCooldown--;
 
         // Move and resolve collision
         const prevY = this.y + this.h;
@@ -969,7 +988,8 @@ export class Player {
         const owned = [STATE.SLIDE, STATE.CROUCH, STATE.PRONE, STATE.CRAWL,
                        STATE.HURT, STATE.DIE, STATE.ROLL, STATE.DASH_ATTACK,
                        STATE.BACKDASH, STATE.CLIMB, STATE.COVER, STATE.SPIN_JUMP,
-                       STATE.GRAPPLE, STATE.POUNCE];
+                       STATE.GRAPPLE, STATE.POUNCE,
+                       STATE.LEDGE_HANG, STATE.LEDGE_CLIMB];
         if (owned.includes(this.state)) {
             // Reset spin-jump if we land
             if (this.state === STATE.SPIN_JUMP && this.onGround) {
@@ -2359,6 +2379,101 @@ export class Player {
         this.iFrames = Math.max(this.iFrames, 4);
     }
 
+    // ===================== Ledge grab =====================
+    // R152: cling to a ledge edge when falling/jumping past it. Probe samples
+    // the tile column at Clippy's leading edge:
+    //   - tile at HEAD height must be SOLID (the wall)
+    //   - tile one row ABOVE the head must be EMPTY (the ledge top has open space)
+    //   - player must be moving horizontally toward the wall OR aim is held that way
+    // On match, snap into LEDGE_HANG with the player aligned so the top of his
+    // sprite sits one pixel BELOW the ledge top line.
+    _probeLedgeGrab(level) {
+        const T = GAME.TILE;
+        // Only fire while descending or slowly rising — avoids cancelling a
+        // fresh jump take-off the same frame.
+        if (this.vy < -1.5) return;
+        // Pick the side to probe: positive vx → right wall, negative → left
+        // wall, zero → use facing. Allows a held-jump-into-wall to grab.
+        const side = (this.vx > 0.3) ? 1 : (this.vx < -0.3) ? -1 : this.facing;
+        // Probe column: just outside Clippy's leading edge
+        const probeX = side > 0 ? this.x + this.w + 1 : this.x - 1;
+        // Probe rows: at head and one row above
+        const headY = this.y + 6;          // ~5px below top of sprite
+        const aboveY = this.y - 4;
+        const wallSolid = level.isSolid(probeX, headY);
+        const lipClear  = !level.isSolid(probeX, aboveY);
+        if (!wallSolid || !lipClear) return;
+        // Find the exact top edge of the wall tile so we can snap precisely.
+        // Walk up from headY until we exit the solid; that y is the ledge top.
+        let ty = Math.floor(headY / T);
+        while (ty > 0 && level.isSolid(probeX, ty * T + 2)) ty--;
+        const ledgeTopY = (ty + 1) * T;  // pixel y of the empty row's bottom
+        // Anchor for the hang pose: player's TOP edge sits at (ledgeTopY + 2),
+        // so the top sliver of sprite peeks above the ledge — reads as a hand-
+        // grip on the lip.
+        this.y = ledgeTopY + 2;
+        this.x = side > 0 ? (Math.floor(probeX / T) * T - this.w)
+                          : ((Math.floor(probeX / T) + 1) * T);
+        this.vx = 0; this.vy = 0;
+        this.state = STATE.LEDGE_HANG;
+        this._ledgeAnchor = { x: this.x, y: this.y, ledgeY: ledgeTopY };
+        this._ledgeFacing = side;
+        this.facing = side;
+        this.airJumpsLeft = 1;             // fresh air-jump granted on release
+        this.iFrames = Math.max(this.iFrames, 6);
+        audio.sfx('land');
+        particles.dust(this.x + this.w / 2, this.y + 4);
+    }
+
+    // While hanging: gravity off, can release with DOWN, pull up with UP/jump.
+    _tickLedgeHang(level) {
+        if (!this._ledgeAnchor) { this.state = STATE.FALL; return; }
+        this.vx = 0; this.vy = 0;
+        // Re-anchor: in case of camera shake or jitter, keep snapping back.
+        this.x = this._ledgeAnchor.x;
+        this.y = this._ledgeAnchor.y;
+        if (input.isPressed('jump') || input.isHeld('up')) {
+            // Start the climb-up animation
+            this.state = STATE.LEDGE_CLIMB;
+            this._ledgeClimbT = 0;
+            audio.sfx('select');
+            return;
+        }
+        if (input.isHeld('down')) {
+            // Drop off the ledge
+            this.state = STATE.FALL;
+            this._ledgeAnchor = null;
+            this.vy = 1.0;
+            this._ledgeCooldown = 18;
+            return;
+        }
+    }
+
+    // Climb sequence: lerp player from hang pos to "standing on top" over
+    // LEDGE_CLIMB_F frames, then drop to IDLE.
+    _tickLedgeClimb(level) {
+        const LEDGE_CLIMB_F = 22;
+        if (!this._ledgeAnchor) { this.state = STATE.IDLE; return; }
+        this._ledgeClimbT++;
+        const t = Math.min(1, this._ledgeClimbT / LEDGE_CLIMB_F);
+        const startX = this._ledgeAnchor.x;
+        const startY = this._ledgeAnchor.y;
+        const endY = this._ledgeAnchor.ledgeY - this.h + 1;
+        const endX = this._ledgeAnchor.x + this._ledgeFacing * (this.w * 0.6);
+        // Ease-in-quad pull, then settle: takes effort to mount, then smooth set
+        const ease = t * t;
+        this.x = startX + (endX - startX) * ease;
+        this.y = startY + (endY - startY) * ease;
+        this.vx = 0; this.vy = 0;
+        if (t >= 1) {
+            this.state = STATE.IDLE;
+            this._ledgeAnchor = null;
+            this._ledgeCooldown = 18;       // brief cooldown so we don't re-grab
+            this.onGround = true;
+            particles.dust(this.x + this.w / 2, this.y + this.h);
+        }
+    }
+
     // Stealth pounce — launch a spin-jump arc from cover onto an enemy's head.
     // Phases:
     //   ARC_UP (frames 0-7)   — rising arc toward enemy head
@@ -2797,6 +2912,15 @@ export class Player {
             case STATE.BACKDASH: return 'backdash';
             case STATE.CLIMB: return Math.floor(this.animFrame) % 2 === 0 ? 'run_1' : 'run_2';
             case STATE.COVER: return 'crouch';
+            case STATE.LEDGE_HANG:
+                return sprites.has('ledge_hang') ? 'ledge_hang' : 'jump';
+            case STATE.LEDGE_CLIMB: {
+                // First half: pull-up frame. Second half: settled-on-top frame.
+                const halfway = this._ledgeClimbT >= 11;
+                if (halfway && sprites.has('ledge_climb_2')) return 'ledge_climb_2';
+                if (sprites.has('ledge_climb_1')) return 'ledge_climb_1';
+                return 'jump';
+            }
             case STATE.HURT: return 'hurt';
             case STATE.DIE: {
                 if (this.deathTimer < 30) return 'death_hit';

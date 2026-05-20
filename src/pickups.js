@@ -90,9 +90,18 @@ class Pickup {
         this.bob += 0.1;
         if (this.vy < 1.5) this.vy += 0.06;
         this.y += this.vy * 0.5;
-        // Stop on ground
+        // Stop on ground — and snap so the pickup rests ON TOP of the floor
+        // instead of sinking into it. Previously the check `y + h + 1` set
+        // vy=0 while the body still overlapped the floor by up to a tile,
+        // leaving weapon pickups half-buried + unreachable. Now we snap the
+        // bottom to the tile's top edge whenever we collide.
         if (level.isSolid(this.x + this.w / 2, this.y + this.h + 1)) {
             this.vy = 0;
+            // Snap bottom to the top of whichever tile we landed on
+            const T = GAME.TILE;
+            const probeY = this.y + this.h + 1;
+            const tileTop = Math.floor(probeY / T) * T;
+            this.y = tileTop - this.h;
         }
         // Magnet: tight always-on pull within 28px so brushing past a pickup
         // grabs it instead of needing a pixel-perfect touch. Stronger long-

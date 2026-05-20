@@ -60,6 +60,8 @@ export const STATE = Object.freeze({
     COVER: 'cover',         // pressed up at a cover spot — invulnerable but can't move
     GRAPPLE: 'grapple',     // mid-air grapple line pulling Clippy toward anchor
     POUNCE: 'pounce',       // stealth-pounce arc from cover onto an enemy's head, then vault past
+    LEDGE_HANG: 'ledgehang',   // hanging from a ledge edge by one arm — gravity off, can release with DOWN
+    LEDGE_CLIMB: 'ledgeclimb', // animated pull-up onto the ledge top
     HURT: 'hurt',
     DIE: 'die',
 });
