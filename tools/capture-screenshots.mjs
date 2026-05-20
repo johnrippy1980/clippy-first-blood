@@ -50,10 +50,13 @@ await shot('03-grunt-folder', () => {
     g.enemies.spawn(g.player.x + 30, g.player.y, 'folder');
 });
 
-// 4. Boss spawn — first boss
+// 4. Boss spawn — first boss. _startStage routes through STAGE_INTRO
+// splash; bypass it so the screenshot lands on the actual boss room.
 await shot('04-boss-copier', () => {
     const g = window.__game;
     g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
     g.player.x = (g.level.data.width - 6) * 16;
     g.camera.x = Math.max(0, g.player.x - 128);
@@ -65,6 +68,8 @@ await shot('04-boss-copier', () => {
 await shot('05-boss-founder', () => {
     const g = window.__game;
     g._startStage(6);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
     g.player.x = (g.level.data.width - 6) * 16;
     g.camera.x = Math.max(0, g.player.x - 128);
@@ -76,6 +81,8 @@ await shot('05-boss-founder', () => {
 await shot('06-boss-algorithm', () => {
     const g = window.__game;
     g._startStage(8);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
     g.player.x = (g.level.data.width - 6) * 16;
     g.camera.x = Math.max(0, g.player.x - 128);

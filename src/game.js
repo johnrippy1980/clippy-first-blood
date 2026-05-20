@@ -2232,9 +2232,12 @@ export class Game {
             }
         }
         // Rank letter — large outlined grade in the upper-right corner of the
-        // panel. Pops in once the stats finish animating, with a brief scale-up
-        // bounce. Tier colors mirror combo-tier palette: S=white, A=gold,
-        // B=orange, C=red, D=grey.
+        // SCREEN (above the stats panel, beside the STAGE CLEAR title). Was
+        // previously inside the panel at panelTop+12 and overlapped the KILLS
+        // row (panelTop+22) once the scale-3 outline drew, looking like a
+        // glitched glyph crossed with the kill count. Pops in once the stats
+        // finish animating, with a brief scale-up bounce. Tier colors mirror
+        // combo-tier palette: S=white, A=gold, B=orange, C=red, D=grey.
         const rankT = panelT - (12 + stats.length * 8);
         if (rankT > 10) {
             const rk = this._stageClearRank;
@@ -2246,10 +2249,12 @@ export class Game {
             const introT = Math.min(1, (rankT - 10) / 12);
             const bounce = 1 + Math.sin(introT * Math.PI) * 0.5;
             const scale = Math.round(3 * bounce);
-            const rx = GAME.W - 40;
-            const ry = panelTop + 12;
+            // Park above panel, tucked into the top-right corner of the
+            // screen so the letter and KILLS row never share vertical space.
+            const rx = GAME.W - 18;
+            const ry = 28;
             drawTextOutlined(ctx, rk.letter, rx, ry, RANK_COLOR[rk.letter] || '#fff', '#1a0820', scale, 'center');
-            // Small label
+            // Small "RANK" label above the letter
             if (introT >= 1) {
                 drawText(ctx, 'RANK', rx, ry - 12, '#a0a0c0', 1, 'center');
             }
