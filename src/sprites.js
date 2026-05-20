@@ -176,20 +176,24 @@ export const ENEMY_MANIFEST = {
     // the downscaled high-res alts lost too much detail and read as ambiguous
     // blobs in-game (folder looked like a shoe). The painted PNGs stay on disk
     // for future iteration at a different scale or with sharper source art.
+    // r105: per-state painted enemy frames. Folder + stapler + cabinet now
+    // have full walk/attack/hurt/death; holepunch frames are still cooking
+    // on Local Howl and will be wired in r106.
     'folder':           'v2_folder.png',
-    'folder_walk':      'v2_folder.png',
-    'folder_attack':    'v2_folder.png',
-    'folder_hurt':      'v2_folder.png',
-    'folder_death':     'v2_folder.png',
+    'folder_walk':      'v2_folder_walk.png',
+    'folder_attack':    'v2_folder_attack.png',
+    'folder_hurt':      'v2_folder_hurt.png',
+    'folder_death':     'v2_folder_death.png',
     'stapler':          'v2_stapler.png',
-    'stapler_attack':   'v2_stapler.png',
-    'stapler_hurt':     'v2_stapler.png',
-    'stapler_death':    'v2_stapler.png',
+    'stapler_walk':     'v2_stapler_walk.png',
+    'stapler_attack':   'v2_stapler_attack.png',
+    'stapler_hurt':     'v2_stapler_hurt.png',
+    'stapler_death':    'v2_stapler_death.png',
     'cabinet':          'v2_cabinet.png',
-    'cabinet_walk':     'v2_cabinet.png',
-    'cabinet_attack':   'v2_cabinet.png',
-    'cabinet_hurt':     'v2_cabinet.png',
-    'cabinet_death':    'v2_cabinet.png',
+    'cabinet_walk':     'v2_cabinet_walk.png',
+    'cabinet_attack':   'v2_cabinet_attack.png',
+    'cabinet_hurt':     'v2_cabinet_hurt.png',
+    'cabinet_death':    'v2_cabinet_death.png',
     'holepunch':        'v2_holepunch.png',
     // Bosses (painted PNGs already in place)
     // r99: painted bosses re-integrated through process-v2-sprites.py

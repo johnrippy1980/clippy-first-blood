@@ -1,0 +1,18 @@
+# R105 — Local Howl per-state enemy gens, queued 2026-05-19
+# Each line: job_id | enemy_state | target_filename | target_height_px
+mcp-1779233842840-89545d12 | folder_walk     | v2_folder_walk.png      | 24
+mcp-1779233855011-0c2d9cd6 | folder_attack   | v2_folder_attack.png    | 24
+mcp-1779233866678-d1742fc7 | folder_hurt     | v2_folder_hurt.png      | 24
+mcp-1779233878698-32b5dfb0 | folder_death    | v2_folder_death.png     | 24
+mcp-1779233892715-f9fe887d | stapler_walk    | v2_stapler_walk.png     | 18
+mcp-1779233904713-4efa8610 | stapler_attack  | v2_stapler_attack.png   | 18
+mcp-1779233915972-abde9beb | stapler_hurt    | v2_stapler_hurt.png     | 18
+mcp-1779233928455-5939af33 | stapler_death   | v2_stapler_death.png    | 18
+mcp-1779233943635-a1e3c894 | cabinet_walk    | v2_cabinet_walk.png     | 36
+mcp-1779233957093-a4547305 | cabinet_attack  | v2_cabinet_attack.png   | 36
+mcp-1779233968430-4b23a8f8 | cabinet_hurt    | v2_cabinet_hurt.png     | 36
+mcp-1779233979214-6de48b36 | cabinet_death   | v2_cabinet_death.png    | 36
+mcp-1779233991398-cc730a4c | holepunch_walk  | v2_holepunch_walk.png   | 20
+mcp-1779234002158-776dafb5 | holepunch_attack| v2_holepunch_attack.png | 20
+mcp-1779234013569-de9b807f | holepunch_hurt  | v2_holepunch_hurt.png   | 20
+mcp-1779234024878-f0122d17 | holepunch_death | v2_holepunch_death.png  | 20
