@@ -2035,10 +2035,17 @@ export class Player {
         // Aim-direction arm overlay: small procedural arm + gun barrel that points
         // in the actual aim direction. Layered on top of the base sprite so we get
         // 8-way aim coverage without needing a sprite-frame per direction.
+        // Aim-direction arm overlay: small procedural arm + gun barrel that
+        // points in the actual aim direction. Layered on top of the base
+        // sprite so we get 8-way aim coverage without needing a sprite-frame
+        // per direction. Suppressed for states with hand-specific painted
+        // poses (ledge grab, mid-pounce, dash slash, etc).
         if (this.state !== STATE.DIE && this.state !== STATE.HURT &&
             this.state !== STATE.SPIN_JUMP && this.state !== STATE.DASH_ATTACK &&
             this.state !== STATE.BACKDASH && this.state !== STATE.ROLL &&
-            this.state !== STATE.GRAPPLE) {
+            this.state !== STATE.GRAPPLE &&
+            this.state !== STATE.LEDGE_HANG && this.state !== STATE.LEDGE_CLIMB &&
+            this.state !== STATE.POUNCE) {
             this._drawAimArm(ctx, cx, cy);
         }
 

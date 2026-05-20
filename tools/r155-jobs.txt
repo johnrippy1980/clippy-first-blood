@@ -1,0 +1,22 @@
+# R155 — Local Howl clean Clippy + separate weapon sprites, queued 2026-05-20
+# Goal: split body sprite from weapon sprite. Each weapon gets its own PNG
+# composited onto Clippy's hand at render time. Solves the size-inconsistent
+# Clippy sprites (different baked weapons varied his body proportions) and
+# the "weapons need work" feedback.
+#
+# Each line: job_id | pose_or_weapon | target_filename | target_height_px
+#
+# === Clean Clippy poses (no weapon) ===
+mcp-1779307874033-8dec60be | idle        | v3_idle.png        | 56
+mcp-1779307887727-7b1fb6e0 | run         | v3_run.png         | 56
+mcp-1779307901337-b5b8715c | jump        | v3_jump.png        | 56
+
+# === Weapon sprites (side view, barrel right, transparent bg) ===
+mcp-1779307919114-785fed2f | weapon_mg       | weapon_mg.png       | 8
+mcp-1779307931030-062e8852 | weapon_shotgun  | weapon_shotgun.png  | 10
+mcp-1779307959847-ff6ec789 | weapon_spread   | weapon_spread.png   | 9
+mcp-1779307971763-28ca1f5e | weapon_laser    | weapon_laser.png    | 7
+mcp-1779307984190-716c9c79 | weapon_flame    | weapon_flame.png    | 10
+mcp-1779307996969-654ec801 | weapon_homing   | weapon_homing.png   | 11
+mcp-1779308009745-b39c7c14 | weapon_thunder  | weapon_thunder.png  | 11
+mcp-1779308022864-d545e21f | weapon_chainsaw | weapon_chainsaw.png | 10
