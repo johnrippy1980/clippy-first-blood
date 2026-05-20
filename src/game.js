@@ -2206,6 +2206,10 @@ export class Game {
         const rankT = panelT - (12 + stats.length * 8);
         if (rankT > 10) {
             const rk = this._stageClearRank;
+            // Defensive guard — rank is computed earlier in this draw call, but
+            // any future restructure could call this method before stats run.
+            // Bail rather than crash on .letter access.
+            if (!rk) return;
             const RANK_COLOR = { S: '#fff8c8', A: '#ffe070', B: '#ff9030', C: '#ff5050', D: '#a08080' };
             const introT = Math.min(1, (rankT - 10) / 12);
             const bounce = 1 + Math.sin(introT * Math.PI) * 0.5;
