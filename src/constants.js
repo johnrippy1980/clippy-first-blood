@@ -90,7 +90,7 @@ export const WEAPON = Object.freeze({
     // CHAINSAW: melee weapon. No projectile — a tick-based hitbox in front
     // of Clippy chews any enemy in arc every `tickRate` frames while shoot
     // is held. range/dmg/arc tuned by _shoot dispatch + chainsaw tick code.
-    CHAINSAW: { name: 'CHAINSAW', damage: 1.0, fireRate: 4,  bulletSpeed: 0, color: '#ff5050', melee: true, range: 22, arcDeg: 70, sound: 'chainsaw' },
+    CHAINSAW: { name: 'CHAINSAW', damage: 2.5, fireRate: 3,  bulletSpeed: 0, color: '#ff5050', melee: true, range: 38, arcDeg: 110, sound: 'chainsaw' },
 });
 
 // Themes per stage, used for tile palettes + parallax + music.

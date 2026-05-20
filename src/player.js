@@ -2455,6 +2455,40 @@ export class Player {
         const sx = Math.round(cx + this.facing * 2);
         const sy = Math.round(cy - 3);
         const armLen = 5;
+        // Chainsaw: a longer, fatter blade with spinning teeth instead of
+        // the rifle barrel. Reads as melee/spin instead of a rifle muzzle.
+        if (this.weapon === 'CHAINSAW') {
+            const barLen = 14;
+            const elbowX = sx + ax * armLen;
+            const elbowY = sy + ay * armLen;
+            const tipX = elbowX + ax * barLen;
+            const tipY = elbowY + ay * barLen;
+            // Arm — grip
+            this._line(ctx, sx, sy, elbowX, elbowY, '#604030', 2);
+            // Saw bar — dark outline + grey core
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#101018', 4);
+            this._line(ctx, elbowX, elbowY, tipX, tipY, '#d8d8e0', 2);
+            // Spinning-teeth animation along the blade — alternating dots
+            const spin = (this.timer || 0) % 4;
+            ctx.fillStyle = spin < 2 ? '#ffe070' : '#ff9030';
+            const steps = 5;
+            for (let i = 1; i <= steps; i++) {
+                const t = i / (steps + 1);
+                const px = Math.round(elbowX + ax * barLen * t);
+                const py = Math.round(elbowY + ay * barLen * t);
+                // Tooth-side offset perpendicular to aim
+                const px2 = Math.round(px + (-ay) * 2);
+                const py2 = Math.round(py + ax * 2);
+                if ((i + spin) & 1) ctx.fillRect(px2, py2, 1, 1);
+                else ctx.fillRect(Math.round(px - (-ay) * 2), Math.round(py - ax * 2), 1, 1);
+            }
+            // Engine block — small block at the elbow side
+            ctx.fillStyle = '#5a3018';
+            ctx.fillRect(Math.round(elbowX - this.facing * 2), Math.round(elbowY - 2), 4, 4);
+            ctx.fillStyle = '#a05828';
+            ctx.fillRect(Math.round(elbowX - this.facing * 2 + 1), Math.round(elbowY - 1), 2, 2);
+            return;
+        }
         const barrelLen = 8;
         const recoilPull = this.recoilTimer > 0 ? Math.min(3, this.recoilTimer / 2) : 0;
         const elbowX = sx + ax * armLen;
