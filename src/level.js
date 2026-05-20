@@ -798,6 +798,14 @@ function makeTraining() {
             { x: 50 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'LASER' },
             // Z6 grenade pickup so the lesson has grenades to throw
             { x: 72 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // WEAPON RANGE — full 6 firearms scattered along the course so
+            // players can try each. Placed on small platforms or on the floor
+            // between zones so they don't crowd the lesson props.
+            { x: 24 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SHOTGUN' },
+            { x: 38 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'FLAME' },
+            { x: 56 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
+            { x: 70 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'THUNDER' },
+            { x: 86 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'CHAINSAW' },
         ],
         crateSpawns: [
             // Z6: cluster of 3 crates — throw one grenade to chain-pop them
@@ -811,6 +819,9 @@ function makeTraining() {
         // Floating zone banners — drawn from game.js _drawPlay when training
         // is active. Each is { x: world-x in px, lines: [string, ...] }.
         banners: [
+            // Welcome banner at spawn — sets expectation before lessons start.
+            { x:   2 * GAME.TILE, lines: ['TRAINING GROUND',           'YOU CANNOT DIE HERE',
+                                          'AMMO IS UNLIMITED',         'WALK RIGHT TO LEARN'] },
             { x:   4 * GAME.TILE, lines: ['ZONE 1 — MOVEMENT',         'ARROWS TO MOVE',
                                           'Z TO JUMP',                 'Z AGAIN MID-AIR FOR DOUBLE JUMP'] },
             { x:  16 * GAME.TILE, lines: ['ZONE 2 — SHOOTING',         'X TO FIRE',

@@ -179,7 +179,7 @@ for (const w of ['MG', 'SHOTGUN', 'SPREAD', 'LASER', 'FLAME', 'HOMING', 'THUNDER
 // Training ground — verifies the new stage 10 loads, banners render,
 // god-mode badge etc. Sample the player at zone 1 (movement) and zone 4
 // (grapple, the one execs most want to see).
-for (const zoneTile of [4, 16, 44, 60, 90]) {
+for (const zoneTile of [2, 4, 16, 44, 60, 90]) {
     await shot(`training-zone${zoneTile}`, (x) => {
         const g = window.__game;
         g._startStage(10);
