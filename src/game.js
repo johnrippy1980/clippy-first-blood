@@ -945,15 +945,18 @@ export class Game {
             alpha *= 0.7; // never fully opaque; ghostly overlay
             ctx.save();
             ctx.globalAlpha = alpha;
-            // Bottom-center semi-transparent panel
+            // Bottom-center semi-transparent panel — two-line hint covers
+            // the core moves + the special button so execs don't have to
+            // dig through the readme to find grapple/dash/grenade.
             const px = GAME.W / 2;
             const py = GAME.H - 24;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-            ctx.fillRect(px - 80, py - 6, 160, 14);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(px - 96, py - 12, 192, 22);
             ctx.fillStyle = '#604068';
-            ctx.fillRect(px - 80, py - 6, 160, 1);
-            ctx.fillRect(px - 80, py + 7, 160, 1);
-            drawText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT', px, py, '#ffe070', 1, 'center');
+            ctx.fillRect(px - 96, py - 12, 192, 1);
+            ctx.fillRect(px - 96, py + 9,  192, 1);
+            drawText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT',   px, py - 6, '#ffe070', 1, 'center');
+            drawText(ctx, 'C GRAPPLE / DASH   V GRENADE',     px, py + 2, '#c0a0d0', 1, 'center');
             ctx.restore();
         }
     }
