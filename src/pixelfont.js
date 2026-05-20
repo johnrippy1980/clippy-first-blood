@@ -70,6 +70,10 @@ def(']', 0b01110,0b00010,0b00010,0b00010,0b00010,0b00010,0b01110);
 def(';', 0,0b00100,0,0,0b00100,0b00100,0b01000);
 def('~', 0,0,0,0b01001,0b10110,0,0);
 def('^', 0b00100,0b01010,0b10001,0,0,0,0);
+// R159: em-dash (—) used as section separators in banner titles like
+// "ZONE 2 — SHOOTING". Without this glyph the font fell back to '?',
+// reading as "ZONE 2 ? SHOOTING" in training tips and elsewhere.
+def('—', 0,0,0,0b11111,0,0,0);
 
 const CHAR_W = 5;
 const CHAR_H = 7;

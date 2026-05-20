@@ -35,10 +35,22 @@ await page.screenshot({ path: '/tmp/r75/intro-bark.png' });
 // Tick to warning flash
 await page.evaluate(() => {
     const g = window.__game;
-    while (g._bossIntro && g._bossIntro.age < 138) g._tickBossIntro();
+    while (g._bossIntro && g._bossIntro.age < 138 && (g._bossIntro.phase || 'villain') === 'villain') g._tickBossIntro();
 });
 await page.waitForTimeout(120);
 await page.screenshot({ path: '/tmp/r75/intro-warning.png' });
+
+// R157: counter-slide phase — tick villain to completion, then sample
+// counter at mid-reveal to verify Clippy portrait + bark composition.
+await page.evaluate(() => {
+    const g = window.__game;
+    while (g._bossIntro && (g._bossIntro.phase || 'villain') === 'villain') g._tickBossIntro();
+    // Now in counter phase, age 0. Walk to ~age 35 — past portrait land
+    // and into bark reveal.
+    for (let i = 0; i < 35; i++) g._tickBossIntro();
+});
+await page.waitForTimeout(120);
+await page.screenshot({ path: '/tmp/r75/intro-counter.png' });
 
 await browser.close();
 console.log('ERRORS:', errors.length);

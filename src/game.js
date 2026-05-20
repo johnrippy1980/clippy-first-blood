@@ -92,6 +92,21 @@ const BOSS_BARK = {
     ALGORITHM:     ['I KNOW WHAT YOU WANT.', 'I AM WHAT YOU WANT.'],
 };
 
+// R157: Clippy's counter-bark — fires in the counter-slide phase that
+// follows the villain's intro. One line each, keyed by boss code so the
+// retort reads as a direct answer to that boss's barks above.
+const CLIPPY_COUNTER_BARK = {
+    COPIER_3000:  ['QUEUE THIS.',                 ''],
+    SHREDDER:     ['CONFIDENTIAL ENOUGH FOR ME.', ''],
+    CTRL_ALT_DEL: ['HOW ABOUT YOU FIRST.',        ''],
+    BALLMER:      ['BULLETS! BULLETS! BULLETS!',  ''],
+    GATES:        ['ONE PAPERCLIP IS ENOUGH.',    ''],
+    CLIPPY_2:     ['YOU\'RE NOT MY BROTHER.',     ''],
+    GAUNTLET:     ['GOOD. SAVES ME A TRIP.',      ''],
+    GAUNTLET_FULL:['BRING ALL OF THEM.',          ''],
+    ALGORITHM:    ['I WANT YOU DEAD.',            ''],
+};
+
 const STORY_PAGES = [
     [
         'YEARS AGO. MICROSOFT.',
@@ -789,6 +804,17 @@ export class Game {
         // bulletTimeFrames is set to 60 on second-chance. Anything beyond
         // 240 is runaway.
         if (this.player.bulletTimeFrames > 240) this.player.bulletTimeFrames = 0;
+        // R158: stuck-on-hurt safety net. hurtTimer caps at HURT_FRAMES (36).
+        // If anything stalls the in-player decrement (e.g. the player's
+        // update was skipped for some yet-undiagnosed reason), the player
+        // visually freezes mid-flash with no input. Force-drain and route
+        // back to IDLE/FALL so the run never deadlocks.
+        if (this.player.hurtTimer > 120) {
+            this.player.hurtTimer = 0;
+            if (this.player.state === 'hurt') {
+                this.player.state = this.player.onGround ? 'idle' : 'fall';
+            }
+        }
     }
 
     // Pause is a hard return — drop the rest of the tick if pressed.
@@ -1098,19 +1124,34 @@ export class Game {
     // Skippable: after 30f, X / jump / start jumps to end-of-slide.
     _tickBossIntro() {
         if (!this._bossIntro) return;
-        this._bossIntro.age++;
-        // Play a 1-shot boss-arrival cue at age 20 (right as the portrait
-        // hits the screen). Re-uses the bossEntrance roar from r58.
-        if (this._bossIntro.age === 20) audio.sfx('bossEntrance');
+        // R157: two-phase intro. Phase 'villain' is the boss's slide (150f),
+        // then phase 'counter' is Clippy's reply (80f), then finish. Each
+        // phase ticks its own age so the draw routines can stay simple.
+        const phase = this._bossIntro.phase || 'villain';
         const skip = input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start');
-        if (skip && this._bossIntro.age >= 30) {
-            this._bossIntro.age = 145;
+        if (phase === 'villain') {
+            this._bossIntro.age++;
+            if (this._bossIntro.age === 20) audio.sfx('bossEntrance');
+            if (skip && this._bossIntro.age >= 30) this._bossIntro.age = 145;
+            if (this._bossIntro.age >= 150) {
+                this._bossIntro.phase = 'counter';
+                this._bossIntro.age = 0;
+            }
+        } else {
+            this._bossIntro.age++;
+            // Clippy roar cue at age 12 — sits in the gap before his line lands.
+            if (this._bossIntro.age === 12) audio.sfx('pounceStab');
+            if (skip && this._bossIntro.age >= 20) this._bossIntro.age = 75;
+            if (this._bossIntro.age >= 80) this._finishBossIntro();
         }
-        if (this._bossIntro.age >= 150) this._finishBossIntro();
     }
 
     _drawBossIntro() {
         if (!this._bossIntro) return;
+        if ((this._bossIntro.phase || 'villain') === 'counter') {
+            this._drawClippyCounter();
+            return;
+        }
         const ctx = this.ctx;
         const t = this._bossIntro.age;
         const stg = STAGES[this.currentStage];
@@ -1256,6 +1297,125 @@ export class Game {
         }
     }
 
+    // R157: Clippy counter-slide — mirror of the villain slide. 80f total.
+    //   0-15   bars hold + Clippy portrait slides in from the LEFT
+    //   15-50  name + tagline + counter-bark typewriter
+    //   50-70  hold
+    //   70-80  bars retract + fade out into PLAY
+    _drawClippyCounter() {
+        if (!this._bossIntro) return;
+        const ctx = this.ctx;
+        const t = this._bossIntro.age;
+        const stg = STAGES[this.currentStage];
+        const counter = CLIPPY_COUNTER_BARK[stg.boss] || ['', ''];
+        const fadeOutF = 70;
+        const totalF = 80;
+
+        // Reuse the same painted boss-room plate so the counter reads as the
+        // same scene, just framed on Clippy. Ken-Burns continues the push-in.
+        const bgBoss = (stg.boss === 'GAUNTLET' || stg.boss === 'GAUNTLET_FULL')
+            ? 'CTRL_ALT_DEL' : stg.boss;
+        const bgKey = 'boss_intro_' + bgBoss;
+        if (sprites.has(bgKey)) {
+            const img = sprites.images.get(bgKey);
+            // Resume from where the villain slide left off (~1.08) and push
+            // a touch further so the camera feels alive through the cut.
+            const zoom = 1.08 + Math.min(0.04, t * 0.0005);
+            const scale = Math.max(GAME.W / img.width, GAME.H / img.height) * zoom;
+            const dw = img.width * scale;
+            const dh = img.height * scale;
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+            ctx.imageSmoothingEnabled = false;
+        } else {
+            this._drawPlay();
+        }
+
+        // Match the villain slide's dim peak so the cut between phases
+        // doesn't pop with a brightness change.
+        const PEAK = 0.18;
+        let dim = PEAK;
+        if (t >= fadeOutF) dim = PEAK - ((t - fadeOutF) / (totalF - fadeOutF)) * PEAK;
+        ctx.fillStyle = `rgba(0,0,0,${dim.toFixed(3)})`;
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+
+        // Letterbox bars carry through, then retract.
+        const barMax = 36;
+        let barH = barMax;
+        if (t >= fadeOutF) barH = (1 - (t - fadeOutF) / (totalF - fadeOutF)) * barMax;
+        ctx.fillStyle = 'rgba(8, 4, 14, 0.92)';
+        ctx.fillRect(0, 0, GAME.W, barH);
+        ctx.fillRect(0, GAME.H - barH, GAME.W, barH);
+        // Accent strip in Clippy's blue this time so the eye knows the
+        // protagonist owns this beat.
+        if (barH > 4) {
+            ctx.fillStyle = '#3070c0';
+            ctx.fillRect(0, barH - 1, GAME.W, 1);
+            ctx.fillRect(0, GAME.H - barH, GAME.W, 1);
+        }
+
+        // Clippy portrait slides in from the LEFT. Mirror of the villain
+        // portrait math but anchored to the left edge. Uses the same 'idle'
+        // sprite the gameplay loop renders, so the cut-to-play stays
+        // visually continuous.
+        const portraitKey = 'idle';
+        const portraitH = 88;
+        const portraitW = Math.round(portraitH * (35 / 56)); // ~55, matches v3_idle aspect
+        const targetX = 12;
+        const startX = -portraitW - 20;
+        const slideStart = 0, slideEnd = 15;
+        let portraitX;
+        if (t < slideStart) portraitX = startX;
+        else if (t < slideEnd) {
+            const k = (t - slideStart) / (slideEnd - slideStart);
+            const ease = 1 - (1 - k) * (1 - k);
+            portraitX = startX + (targetX - startX) * ease;
+        } else portraitX = targetX;
+        const portraitY = (GAME.H - portraitH) / 2;
+        if (sprites.has(portraitKey)) {
+            const img = sprites.images.get(portraitKey);
+            ctx.imageSmoothingEnabled = false;
+            // Same idle-breath pulse as the villain side for symmetry.
+            let pulse = 0;
+            if (t >= slideEnd) pulse = Math.sin((t - slideEnd) * 0.10) * 1.5;
+            ctx.drawImage(img,
+                portraitX - pulse, portraitY - pulse,
+                portraitW + pulse * 2, portraitH + pulse * 2);
+        } else {
+            ctx.fillStyle = '#3070c0';
+            ctx.fillRect(portraitX, portraitY, portraitW, portraitH);
+        }
+
+        // Name + tagline + counter-bark on the RIGHT (mirrors villain layout).
+        // 'CLIPPY' stays as the canonical name even on stage 6 where the
+        // antagonist is also named "CLIPPY 2" — the player is always CLIPPY.
+        const textRight = GAME.W - 12;
+        const textY = GAME.H / 2 - 30;
+        if (t > slideEnd) {
+            const reveal = Math.min(1, (t - slideEnd) / 12);
+            ctx.globalAlpha = reveal;
+            drawTextOutlined(ctx, 'CLIPPY', textRight, textY,
+                             '#80c0ff', '#001020', 2, 'right');
+            drawText(ctx, 'NO MORE WORD DOCUMENTS', textRight, textY + 20,
+                     '#ffe070', 1, 'right');
+            ctx.globalAlpha = 1;
+        }
+        // Counter-bark reveal — single line for now (matches one-liner taunt).
+        if (t > slideEnd + 12) {
+            const ry = textY + 36;
+            const k = Math.min(1, (t - slideEnd - 12) / 15);
+            ctx.globalAlpha = k;
+            drawText(ctx, counter[0] || '', textRight, ry, '#c0e0ff', 1, 'right');
+            ctx.globalAlpha = 1;
+        }
+
+        // Skip hint mirrored to the LEFT this time so it doesn't visually
+        // overlap with the counter-bark text on the right.
+        if (t >= 20 && t < fadeOutF && (t % 60 < 40)) {
+            drawText(ctx, 'X SKIP', 14, GAME.H - 10, '#c0a0d0', 1, 'left');
+        }
+    }
+
     // Boss entrance overlay — see _triggerBossEntrance for phase timings.
     _drawBossEntrance() {
         const ctx = this.ctx;
@@ -1322,29 +1482,38 @@ export class Game {
             if (d < 112 && d < bestDist) { bestDist = d; active = b; }
         }
         if (!active) return;
-        // Fade in based on distance — full alpha within 48px, 0 at 112px
-        const alpha = Math.max(0, Math.min(1, (112 - bestDist) / 64));
-        // Position: tucked under the HUD strip — the HP bar + TRAINING badge
-        // sit at y=4..27 on the left, score/timer on the right at y=4..18.
-        // Banner used to start at py=24 which overlapped the badge; shift to
-        // py=32 so the panel top clears y=28 and reads cleanly.
-        const py = 32;
+        // R158: pop-in fade only (gate at 96px then snap to full). Distance-fading
+        // the panel made text read as ghostly half-transparent letters on top of
+        // the painted swamp/jungle bg — pale yellow + green bleed read as a
+        // sickly green and "HUMPED"-looking smudge in the screenshot. Once
+        // we're committed to showing the tip, show it at full opacity.
+        if (bestDist > 100) return;
         const lines = active.lines;
-        const lineH = 10;
-        const panelW = 200;
-        const panelH = 8 + lines.length * lineH;
+        const lineH = 11;
+        const panelW = 216;
+        const panelH = 10 + lines.length * lineH;
         const px2 = GAME.W / 2;
+        // R158: anchor to BOTTOM of screen so the panel never sits at head
+        // height behind the player sprite. Bottom strip is normally empty
+        // (HUD lives at top); puts text out of the play silhouette.
+        const py = GAME.H - panelH - 6;
         ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = 'rgba(8, 4, 14, 0.85)';
+        // Solid (no alpha) — every prior pass tried to make this transparent
+        // and every prior pass made the tip unreadable.
+        ctx.fillStyle = '#0a0612';
         ctx.fillRect(px2 - panelW / 2, py - 4, panelW, panelH);
         ctx.fillStyle = '#a82020';
         ctx.fillRect(px2 - panelW / 2, py - 4, panelW, 1);
         ctx.fillRect(px2 - panelW / 2, py - 4 + panelH - 1, panelW, 1);
-        // Title in red, body lines in cream
+        // R158: outlined text — without the outline the cream blends with the
+        // painted ground tones; outline pins the glyph edges. Title gets a
+        // thicker outline for emphasis, body lines use a 1px dark stroke.
         for (let i = 0; i < lines.length; i++) {
             const color = i === 0 ? '#ff5050' : '#ffe070';
-            drawText(ctx, lines[i], px2, py + i * lineH, color, 1, 'center');
+            const outline = i === 0 ? '#1a0000' : '#0a0612';
+            const stroke = i === 0 ? 2 : 1;
+            drawTextOutlined(ctx, lines[i], px2, py + 2 + i * lineH,
+                             color, outline, stroke, 'center');
         }
         ctx.restore();
     }

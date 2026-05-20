@@ -50,6 +50,33 @@ const PLAYER_W = 12;
 const CLIMB_SPEED = 1.4;
 const WEAPON_DURATION = 600;  // frames (not infinite; encourages variety)
 
+// R156: Clippy taunts. Random short barks on kill, low frequency. Separate
+// pools for grunt vs boss kills — boss taunts are punchier / more personal.
+// Tuning: 15% per grunt kill, 100% per boss kill (boss kills are rare enough
+// to always pay off), 90-frame cooldown so consecutive kills don't spam.
+const TAUNT_CHANCE = 0.15;
+const TAUNT_COOLDOWN_F = 90;
+const CLIPPY_TAUNTS_GRUNT = [
+    'IT LOOKS LIKE',
+    "YOU'RE TRYING TO DIE.",
+    'NEED HELP WITH THAT?',
+    'AUTOSAVED.',
+    'DRAFT DELETED.',
+    'NEXT.',
+    'PAPERWORK FILED.',
+    'PRINT QUEUE: 1 LESS.',
+    'DISMISSED.',
+    'CLIPPED.',
+];
+const CLIPPY_TAUNTS_BOSS = [
+    'STAY DOWN.',
+    'YOU WERE DEPRECATED.',
+    "THAT'S A WRAP.",
+    'EOL: CONFIRMED.',
+    'NO REVISIONS.',
+    'TICKET CLOSED.',
+];
+
 export class Player {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -174,6 +201,9 @@ export class Player {
         this.score = 0;
         this.kills = 0;
         this.dmgDealt = { MG: 0, SPREAD: 0, LASER: 0, FLAME: 0, HOMING: 0, THUNDER: 0, SHOTGUN: 0, CHAINSAW: 0 };
+        // R156: taunt cooldown frame counter. Ticks down per frame; tauntKill
+        // only fires when this hits 0. Prevents spammed taunts on combo runs.
+        this._tauntCooldown = 0;
     }
 
     resetForStage() {
@@ -1480,6 +1510,7 @@ export class Player {
         }
         if (killed) {
             this.kills++;
+            this.tauntKill(enemy.maxHp >= 10);
             this.combo++;
             this.maxCombo = Math.max(this.maxCombo, this.combo);
             this.comboTimer = 90;
@@ -1714,6 +1745,22 @@ export class Player {
 
     isDead() {
         return this.state === STATE.DIE && this.deathTimer > 90;
+    }
+
+    // R156: pick a random taunt line on kill, floated above Clippy's head.
+    // Gated by cooldown + chance so combos don't turn into a wall of text.
+    // Boss kills always taunt (cooldown still applies so a boss-then-grunt
+    // chain doesn't double up).
+    tauntKill(isBoss = false) {
+        if (this._tauntCooldown > 0) return;
+        if (!isBoss && Math.random() >= TAUNT_CHANCE) return;
+        const pool = isBoss ? CLIPPY_TAUNTS_BOSS : CLIPPY_TAUNTS_GRUNT;
+        const line = pool[Math.floor(Math.random() * pool.length)];
+        particles.floatingText(
+            this.x + this.w / 2, this.y - 4,
+            line, isBoss ? '#ffe070' : '#80e0ff', 70, -0.45, 1,
+        );
+        this._tauntCooldown = TAUNT_COOLDOWN_F;
     }
 
     // ---------- drawing ----------
@@ -2133,6 +2180,7 @@ export class Player {
         if (this.mgHeat > 0) this.mgHeat = Math.max(0, this.mgHeat - 1.5);
         if (this.mgVentLock > 0) this.mgVentLock--;
         if (this._grappleCooldown > 0) this._grappleCooldown--;
+        if (this._tauntCooldown > 0) this._tauntCooldown--;
 
         // Bullets
         for (const b of this.bullets) {
@@ -2611,6 +2659,7 @@ export class Player {
                 this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, killed ? 6 : 4);
                 if (killed) {
                     this.kills++;
+                    this.tauntKill(p.target.maxHp >= 10);
                     this.combo++;
                     this.maxCombo = Math.max(this.maxCombo, this.combo);
                     this.pounceKills = (this.pounceKills || 0) + 1;

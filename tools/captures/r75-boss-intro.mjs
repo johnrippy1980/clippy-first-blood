@@ -1,5 +1,6 @@
 // Verify boss intro scene routes correctly: _spawnBoss transitions to
-// BOSS_INTRO, ticks for 150f, then _finishBossIntro spawns the actual boss.
+// BOSS_INTRO, ticks through both villain phase (150f) and Clippy counter
+// phase (80f), then _finishBossIntro spawns the actual boss.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 mkdirSync('/tmp/r75', { recursive: true });
@@ -37,8 +38,8 @@ const result = await page.evaluate(async () => {
         bossAlive: !!g.boss,
     };
 
-    // Tick the boss intro to completion (150 ticks)
-    for (let i = 0; i < 160; i++) {
+    // Tick the boss intro to completion: villain 150f + counter 80f = 230f
+    for (let i = 0; i < 240; i++) {
         g._tickBossIntro();
     }
 

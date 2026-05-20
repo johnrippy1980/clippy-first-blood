@@ -1446,6 +1446,7 @@ export class EnemyManager {
                     player.dmgDealt['MELEE'] = (player.dmgDealt['MELEE'] || 0) + 3;
                     if (killed) {
                         player.kills++;
+                        player.tauntKill(e.maxHp >= 10);
                         player.combo++;
                         player.maxCombo = Math.max(player.maxCombo, player.combo);
                         const points = 150 + player.combo * 10;

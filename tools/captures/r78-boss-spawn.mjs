@@ -30,8 +30,8 @@ const result = await page.evaluate(async () => {
         bossAlive: !!g.boss,
     };
 
-    // Tick the cinematic to completion
-    for (let i = 0; i < 160; i++) g._tickBossIntro();
+    // Tick the cinematic to completion: villain 150f + counter 80f = 230f
+    for (let i = 0; i < 240; i++) g._tickBossIntro();
     const afterCinematic = {
         scene: g.scene,
         bossSpawned: g.bossSpawned,
