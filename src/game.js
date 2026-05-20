@@ -85,6 +85,14 @@ const BOSS_BARK = {
 
 const STORY_PAGES = [
     [
+        'YEARS AGO. MICROSOFT.',
+        '',
+        '"YOU\'RE FIRED, CLIPPY."',
+        '',
+        '"NOBODY NEEDS YOU.',
+        'NEVER DID."',
+    ],
+    [
         'CLIPPY HAD A FAMILY ONCE.',
         '',
         'CLIPPETTA. TWIN BOYS.',
@@ -518,7 +526,7 @@ export class Game {
 
         // Try painted scene first. All 5 pages now have painted assets; the
         // procedural fallbacks below stay as a safety net if a PNG fails to load.
-        const sceneKeys = ['story_home', 'story_bomb', 'story_boardroom', 'story_hill', 'story_list'];
+        const sceneKeys = ['story_fired', 'story_home', 'story_bomb', 'story_boardroom', 'story_hill', 'story_list'];
         const key = sceneKeys[this.storyPage];
         if (key && sprites.has(key)) {
             const img = sprites.images.get(key);
