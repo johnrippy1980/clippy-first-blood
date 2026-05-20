@@ -873,7 +873,18 @@ export class Level {
         if (sign === 0) return { x: box.x, hit: false };
         const newX = box.x + dx;
         const probeX = sign > 0 ? newX + box.w - 1 : newX;
-        const ys = [box.y, box.y + box.h / 2, box.y + box.h - 1];
+        // Probe at every tile row the box overlaps (same fix as moveY).
+        const T = GAME.TILE;
+        const ys = [];
+        const topEdge = box.y;
+        const botEdge = box.y + box.h - 1;
+        const firstRow = Math.floor(topEdge / T);
+        const lastRow = Math.floor(botEdge / T);
+        ys.push(topEdge);
+        for (let row = firstRow + 1; row <= lastRow; row++) {
+            ys.push(row * T);
+        }
+        ys.push(botEdge);
         for (const py of ys) {
             if (this.isSolid(probeX, py)) {
                 // Snap to tile boundary
@@ -890,7 +901,21 @@ export class Level {
         if (sign === 0) return { y: box.y, hit: false, landed: false };
         const newY = box.y + dy;
         const probeY = sign > 0 ? newY + box.h - 1 : newY;
-        const xs = [box.x + 1, box.x + box.w / 2, box.x + box.w - 2];
+        // Probe at every tile column the box overlaps so a narrow hitbox (e.g.
+        // slide w=12, ducked) can't slip through a single-tile ledge. Old
+        // 3-point sample [+1, w/2, -2] could miss when both edge probes
+        // landed in the same column as the box's tile-aligned position.
+        const T = GAME.TILE;
+        const xs = [];
+        const leftEdge = box.x + 1;
+        const rightEdge = box.x + box.w - 2;
+        const firstCol = Math.floor(leftEdge / T);
+        const lastCol = Math.floor(rightEdge / T);
+        xs.push(leftEdge);
+        for (let col = firstCol + 1; col <= lastCol; col++) {
+            xs.push(col * T);
+        }
+        xs.push(rightEdge);
         for (const px of xs) {
             const t = this.tileAt(px, probeY);
             // Platform landing: player must be CROSSING the platform top downward.

@@ -44,9 +44,14 @@ requestAnimationFrame(loop);
 // the player switches away. Browsers will throttle the rAF loop on hidden
 // tabs but won't pause the GAME state, so we do it explicitly to avoid
 // the player coming back to a dead Clippy.
+// Scenes that should auto-pause when the tab loses focus. Includes BOSS_INTRO
+// so the cinematic doesn't drain its 150f timer while throttled in the
+// background — coming back to a finished cinematic and an already-spawned
+// boss with no warning was a real glitch path.
+const AUTO_PAUSE_SCENES = new Set(['play', 'bossIntro']);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        if (game.scene === 'play') {
+        if (AUTO_PAUSE_SCENES.has(game.scene)) {
             game.scene = 'pause';
             game.pauseIndex = 0;
         }
@@ -61,7 +66,7 @@ document.addEventListener('visibilitychange', () => {
 
 // Window blur also pauses, even if visibilitychange doesn't fire (Safari).
 window.addEventListener('blur', () => {
-    if (game.scene === 'play') {
+    if (AUTO_PAUSE_SCENES.has(game.scene)) {
         game.scene = 'pause';
         game.pauseIndex = 0;
     }
