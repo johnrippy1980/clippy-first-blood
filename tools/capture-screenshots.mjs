@@ -92,6 +92,22 @@ await shot('06-boss-algorithm', () => {
     g._finishBossIntro();
 });
 
+// 6a-6c. Boss-intro cinematic — painted backdrop + slide-in portrait +
+// boss name + bark. Sample at age 70 so portrait has settled and dim
+// is at peak. Stages 1, 6, 8 cover the three boss-intro plate styles
+// (jungle copier, founder lair, cloud algorithm).
+for (const stage of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    await shot(`bossintro-stage${stage}`, (s) => {
+        const g = window.__game;
+        g._startStage(s);
+        g.transition = 0; g.transitionTarget = null;
+        g.storyTimer = 9999;
+        g._spawnBoss();
+        // Fast-forward into the held middle frame (post slide-in, pre flash)
+        if (g._bossIntro) g._bossIntro.age = 70;
+    }, stage);
+}
+
 // 7. Clippy back-dashing — verifies new v2_backdash.png in motion
 await shot('07-clippy-backdash', () => {
     const g = window.__game;

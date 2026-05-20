@@ -1041,7 +1041,11 @@ export class Game {
         // Boss portrait — slides in from the right between t=20 and t=50.
         // Anchored at right edge with a small margin. 60x60 PNG painted up to
         // ~88px so it dominates the right third of the frame.
-        const portraitKey = 'boss_' + bossKey;
+        // GAUNTLET has no painted portrait (it's a meta-boss made of three
+        // earlier bosses). Show the first gauntlet boss (COPIER_3000) so the
+        // intro reads as "the parade begins" instead of a red blank.
+        const portraitBoss = bossKey === 'GAUNTLET' ? 'COPIER_3000' : bossKey;
+        const portraitKey = 'boss_' + portraitBoss;
         const targetX = GAME.W - 90;
         const startX = GAME.W + 20;
         const slideStart = 20, slideEnd = 50;
