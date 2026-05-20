@@ -16,7 +16,12 @@ import { chromium } from 'playwright';
 
 const STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
 const SAMPLE_F = 30;        // sample every 30 frames (~500ms)
-const FREEZE_F = 120;       // 120 frames of no change = freeze
+// Real player-reported freezes (R112 grapple wedge, R121 parry crash) left
+// state frozen literally forever — playerState never advances, hitPause
+// never decays. 8 samples × 250ms = 2s was over-flagging slow boss kills
+// where the player is alive but not progressing. Bumping to 16 samples =
+// 4s so the detector only fires on genuine state-machine lockups.
+const FREEZE_F = 16;        // sample count (~4s of no state change)
 const PLAY_DURATION = 8000; // 8s of run+shoot per stage
 const BOSS_DURATION = 6000; // 6s vs boss
 
@@ -72,19 +77,26 @@ async function freezeCheck(label, durationMs) {
         // stageClear from a boss kill, gameOver from death) is a win for
         // this test. Stop sampling there.
         if (cur.scene !== 'play') return true;
-        // Detect change in any of: position, scene, hp, bullet count, enemy count,
-        // boss hp. If nothing changes for FREEZE_F frames worth of samples, freeze.
+        // Detect change in any of: position, scene, hp, bullet count, enemy
+        // count, boss hp. Plus state (idle↔hurt↔run cycling) and lives
+        // (death+respawn). If a sim run can't kill the boss but the world is
+        // still alive (player state ticking, hurt frames decrementing, lives
+        // dropping on death), that's slow gameplay, not a freeze. The real
+        // freezes the user reported leave the WHOLE state ledger frozen for
+        // >2s including playerState.
         const changed = !deepEqual(
             { x: prev.playerX, scene: prev.scene, hp: prev.playerHp,
+              lives: prev.playerLives, state: prev.playerState,
               bullets: prev.bulletsActive, enemies: prev.enemyCount,
               bossHp: prev.bossHp },
             { x: cur.playerX, scene: cur.scene, hp: cur.playerHp,
+              lives: cur.playerLives, state: cur.playerState,
               bullets: cur.bulletsActive, enemies: cur.enemyCount,
               bossHp: cur.bossHp }
         );
         if (changed) lastChange = i;
         prev = cur;
-        if ((i - lastChange) >= 8) {
+        if ((i - lastChange) >= FREEZE_F) {
             errors.push(`FREEZE in ${label}: no change for ${(i - lastChange) * interval}ms — final state: ${JSON.stringify(cur)}`);
             return false;
         }
