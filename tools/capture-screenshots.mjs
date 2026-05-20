@@ -173,7 +173,7 @@ for (const w of ['MG', 'SHOTGUN', 'SPREAD', 'LASER', 'FLAME', 'HOMING', 'THUNDER
 // "stuck on cover" stage-2 freeze the user reported.
 // Bypass the stage-intro splash + fade-transition state machine that
 // _startStage routes through, jumping straight to PLAY.
-for (const s of [2, 3, 5, 7, 8]) {
+for (const s of [2, 3, 4, 5, 6, 7, 8]) {
     await shot(`stage${s}-play`, (stage) => {
         const g = window.__game;
         g._startStage(stage);
