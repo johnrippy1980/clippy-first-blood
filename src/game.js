@@ -916,6 +916,30 @@ export class Game {
             camera: this.camera,
         });
         if (this._bossEntrance) this._drawBossEntrance();
+        // First-stage demo hint — execs see this on their first play.
+        // Shows ARROWS/Z/X labels for ~6 seconds, then fades. Stage-1 only,
+        // first run only (gated on stageTime < 360f && currentStage === 1).
+        if (this.scene === SCENE.PLAY && this.currentStage === 1 && this.stageTime > 30 && this.stageTime < 420) {
+            const t = this.stageTime;
+            // Fade in 30-90, hold 90-330, fade out 330-420
+            let alpha = 0;
+            if (t < 90) alpha = (t - 30) / 60;
+            else if (t < 330) alpha = 1;
+            else alpha = Math.max(0, (420 - t) / 90);
+            alpha *= 0.7; // never fully opaque; ghostly overlay
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            // Bottom-center semi-transparent panel
+            const px = GAME.W / 2;
+            const py = GAME.H - 24;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            ctx.fillRect(px - 80, py - 6, 160, 14);
+            ctx.fillStyle = '#604068';
+            ctx.fillRect(px - 80, py - 6, 160, 1);
+            ctx.fillRect(px - 80, py + 7, 160, 1);
+            drawText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT', px, py, '#ffe070', 1, 'center');
+            ctx.restore();
+        }
     }
 
     // ============== boss intro cinematic ==============

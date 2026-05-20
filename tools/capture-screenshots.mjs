@@ -35,7 +35,10 @@ await shot('01-title', () => { window.__game.scene = 'title'; });
 await shot('02-stage1-play', () => {
     const g = window.__game;
     g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 9999;
     g.scene = 'play';
+    g.stageTime = 180; // inside the controls-hint window
 });
 
 // 3. Grunt enemy close-up — stage 1 has folder enemies
