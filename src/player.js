@@ -955,6 +955,16 @@ export class Player {
             this.state = STATE.IDLE;
             // fall through to the standard physics-driven router below
         }
+        // Defensive grapple-anchor cleanup: any path that leaves GRAPPLE
+        // state without going through the explicit release (e.g. hurt during
+        // pull, state machine fallthrough) would leave a stale anchor that
+        // the draw routine keeps rendering as a line. Drop it here.
+        if (this.state !== STATE.GRAPPLE && this._grappleAnchor) {
+            this._grappleAnchor = null;
+            this._grapplePhase = null;
+            this._grappleTimer = 0;
+            this._grappleStuck = 0;
+        }
         // States that own themselves
         const owned = [STATE.SLIDE, STATE.CROUCH, STATE.PRONE, STATE.CRAWL,
                        STATE.HURT, STATE.DIE, STATE.ROLL, STATE.DASH_ATTACK,

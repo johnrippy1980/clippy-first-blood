@@ -1317,8 +1317,11 @@ export class Game {
         if (!active) return;
         // Fade in based on distance — full alpha within 48px, 0 at 112px
         const alpha = Math.max(0, Math.min(1, (112 - bestDist) / 64));
-        // Position: top center of viewport, below the HUD strip
-        const py = 24;
+        // Position: tucked under the HUD strip — the HP bar + TRAINING badge
+        // sit at y=4..27 on the left, score/timer on the right at y=4..18.
+        // Banner used to start at py=24 which overlapped the badge; shift to
+        // py=32 so the panel top clears y=28 and reads cleanly.
+        const py = 32;
         const lines = active.lines;
         const lineH = 10;
         const panelW = 200;
