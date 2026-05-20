@@ -121,6 +121,10 @@ export const STAGES = [
     // from the title screen by holding UP. Not a "real" stage; never shows in
     // stage select or counts toward achievements.
     { id: 10, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
+    // Post-game unlock modes. Gated on achievements.unlocked.has('clear_game').
+    // Accessed from title screen via LEFT (BOSS RUSH) / RIGHT (TIME TRIAL).
+    { id: 11, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
+    { id: 12, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
 ];
 
 // Damage flash colors per source.

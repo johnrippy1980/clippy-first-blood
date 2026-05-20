@@ -842,6 +842,52 @@ function makeTraining() {
     };
 }
 
+// Boss Rush Mode — stage 11. Unlocks after first 'clear_game' achievement.
+// Wider arena than stage 7's GAUNTLET, with the full 8-boss queue. No grunts,
+// no pickups between, no stage cards — pure back-to-back boss fights.
+// Three LIFE pickups + a HOMING crate as the only sustain. Best clear time
+// is persisted in achievements.stats.bestBossRushTime.
+function makeBossRushMode() {
+    const w = 42, h = 14;
+    const { g } = blankStage(w, h, THEME.SERVERROOM);
+    rectT(g, 0, 0, 1, h, W);
+    rectT(g, 0, w - 1, 1, h, W);
+    // Same platform layout as stage 7 but slightly wider for the bigger arena
+    platT(g,  9,  6, 4);
+    platT(g,  7, 14, 4);
+    platT(g,  9, 22, 4);
+    platT(g,  7, 30, 4);
+    // Floor grates at edges for line-of-sight breaks
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 4 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 36 + i, G);
+    return {
+        tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
+        playerStart: { x: 48, y: (h - 4) * GAME.TILE },
+        bossTrigger: { x: 6 * GAME.TILE },
+        enemySpawns: [],     // No grunts — pure boss rush
+        pickupSpawns: [
+            { x: 12 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+            { x: 21 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+            { x: 30 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+        ],
+        crateSpawns: [
+            { x: 21 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'HOMING' },
+        ],
+        // Game.js consumes this flag to swap into the 8-boss queue and start
+        // the run timer. The boss field on STAGES[11] is GAUNTLET_FULL.
+        bossRushMode: true,
+    };
+}
+
+// Time Trial — stage 12. Unlocks after first 'clear_game'. Plays stage 1
+// (Office Park Jungle) layout with a prominent clock on the HUD. Best clear
+// time persisted in achievements.stats.bestTimeTrialTime.
+function makeTimeTrial() {
+    const data = makeStage1();
+    data.timeTrialMode = true;
+    return data;
+}
+
 export const STAGE_LOADERS = [
     null,
     () => makeStage1(),
@@ -854,6 +900,8 @@ export const STAGE_LOADERS = [
     () => makeStage8(),
     () => makeStage9(),  // Secret
     () => makeTraining(),  // Training ground — stage 10
+    () => makeBossRushMode(),  // Boss rush — stage 11 (post-game unlock)
+    () => makeTimeTrial(),  // Time trial — stage 12 (post-game unlock)
 ];
 
 // Tile palette per theme — dark painted tones, NOT bright video-game colors.

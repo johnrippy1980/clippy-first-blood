@@ -7,7 +7,9 @@ import { input } from './input.js';
 import { achievements } from './achievements.js';
 
 export function drawHUD(ctx, state) {
-    const { player, score, time, boss, camera, training } = state;
+    const { player, score, time, boss, camera, training,
+            bossRush, timeTrial, stageTime,
+            bestBossRushTime, bestTimeTrialTime } = state;
     // Lazy-build a single radial gradient cached on the function (geometry is constant)
     if (!drawHUD._vignetteGrad) {
         const g = ctx.createRadialGradient(GAME.W / 2, GAME.H / 2, 30, GAME.W / 2, GAME.H / 2, GAME.W * 0.7);
@@ -462,6 +464,39 @@ export function drawHUD(ctx, state) {
                 ctx.fill();
             }
         }
+    }
+    // Boss Rush + Time Trial badges — same top-left slot as training so
+    // mode-flagged runs always show a visible identifier. Boss-rush + time-
+    // trial also surface the current stageTime + best on the right side of
+    // the HUD so progress reads at a glance.
+    if (bossRush || timeTrial) {
+        const pulse = 0.7 + Math.sin(performance.now() * 0.005) * 0.25;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        const tx = 4;
+        const ty = 18;
+        const label = bossRush ? 'BOSS RUSH' : 'TIME TRIAL';
+        const tint = bossRush ? '#ff80a0' : '#80c0ff';
+        const bgTint = bossRush ? '#1a0810' : '#08141a';
+        const labelW = 56;
+        ctx.fillStyle = bgTint;
+        ctx.fillRect(tx, ty, labelW, 9);
+        ctx.fillStyle = tint;
+        ctx.fillRect(tx, ty, labelW, 1);
+        ctx.fillRect(tx, ty + 8, labelW, 1);
+        drawText(ctx, label, tx + labelW / 2, ty + 2, tint, 1, 'center');
+        ctx.restore();
+        // Prominent run-clock + best — drawn under the score / timer column
+        // on the top-right so the player sees their pace as they fight.
+        const m = Math.floor((stageTime || 0) / 3600);
+        const s = Math.floor(((stageTime || 0) / 60) % 60);
+        const runStr = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        const best = bossRush ? (bestBossRushTime || 0) : (bestTimeTrialTime || 0);
+        const bm = Math.floor(best / 3600);
+        const bs = Math.floor((best / 60) % 60);
+        const bestStr = best > 0 ? (String(bm).padStart(2, '0') + ':' + String(bs).padStart(2, '0')) : '--:--';
+        drawText(ctx, 'RUN  ' + runStr, GAME.W - 4, 30, tint, 1, 'right');
+        drawText(ctx, 'BEST ' + bestStr, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
     }
     // Training-ground badge — small green pulsing label tucked into the
     // top-LEFT, just under the HP bar. Won't collide with the score / timer

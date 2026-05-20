@@ -34,6 +34,13 @@ const SCENE = {
     GAME_COMPLETE: 'gameComplete',
 };
 
+// MM:SS format for frame-based timers. Used by mode-best-time displays.
+function _formatTime(frames) {
+    const m = Math.floor(frames / 3600);
+    const s = Math.floor((frames / 60) % 60);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
 const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SOUNDTRACK', 'QUIT TO TITLE'];
 const OPTIONS_ITEMS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
 // Key per OPTIONS_ITEMS index for options.get/set dispatch. BACK has no key.
@@ -398,6 +405,17 @@ export class Game {
             audio.sfx('select');
             this._startStage(10);
         }
+        // LEFT/RIGHT — post-game unlock modes. Gated on clear_game so they
+        // don't clutter the first-time title screen.
+        const gameCleared = achievements.unlocked.has('clear_game');
+        if (gameCleared && input.isPressed('left')) {
+            audio.sfx('select');
+            this._startStage(11);
+        }
+        if (gameCleared && input.isPressed('right')) {
+            audio.sfx('select');
+            this._startStage(12);
+        }
     }
     _drawTitle() {
         const ctx = this.ctx;
@@ -497,6 +515,16 @@ export class Game {
         }
         // Training-ground hint — always shown so new players find it.
         drawText(ctx, 'UP: TRAINING GROUND', GAME.W / 2, GAME.H - 20, '#7af0bf', 1, 'center');
+        // Post-game unlock hints — only after clear_game so the title stays
+        // uncluttered for first-time players. Show best times when set.
+        if (achievements.unlocked.has('clear_game')) {
+            const brTime = achievements.stats?.bestBossRushTime || 0;
+            const ttTime = achievements.stats?.bestTimeTrialTime || 0;
+            const brSuffix = brTime > 0 ? '  ' + _formatTime(brTime) : '';
+            const ttSuffix = ttTime > 0 ? '  ' + _formatTime(ttTime) : '';
+            drawText(ctx, 'LEFT: BOSS RUSH' + brSuffix, 4, GAME.H - 12, '#ff80a0', 1, 'left');
+            drawText(ctx, 'RIGHT: TIME TRIAL' + ttSuffix, GAME.W - 4, GAME.H - 12, '#80c0ff', 1, 'right');
+        }
         // Personal best — TOP TIER achievement gates on >=100k, but the
         // player never saw their current best until they hit it. Show it on
         // the title once they've scored at least once so the goal feels real.
@@ -989,6 +1017,11 @@ export class Game {
             boss: showBoss ? (this.boss || this.enemies.activeMiniBoss()) : null,
             camera: this.camera,
             training: this.trainingMode,
+            bossRush: this.bossRushMode,
+            timeTrial: this.timeTrialMode,
+            stageTime: this.stageTime,
+            bestBossRushTime: achievements.stats?.bestBossRushTime || 0,
+            bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
         });
         if (this._bossEntrance) this._drawBossEntrance();
         // Training-ground zone banners — floating instructional text per zone.
@@ -1932,6 +1965,16 @@ export class Game {
         if (stg.boss === 'GAUNTLET') {
             this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
             this._spawnNextGauntlet();
+        } else if (stg.boss === 'GAUNTLET_FULL') {
+            // Post-game Boss Rush — all 7 unique bosses back-to-back, order
+            // matches campaign progression so the final fight is still
+            // ALGORITHM. (Stage 7 GAUNTLET is itself a 3-boss recap, so we
+            // skip the recap stage and just fight each unique boss once.)
+            this._gauntletQueue = [
+                'COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL',
+                'BALLMER', 'GATES', 'CLIPPY_2', 'ALGORITHM',
+            ];
+            this._spawnNextGauntlet();
         } else {
             this.enemies.spawnBoss(bx, by, stg.boss);
         }
@@ -1999,9 +2042,9 @@ export class Game {
             n = 1;
         }
         this.currentStage = n;
-        // Stage 10 (training) doesn't unlock anything — would inflate the
-        // stage-select grid past the actual campaign max of 9 (incl. secret).
-        if (n !== 10) {
+        // Stage 10 (training) and post-game modes 11/12 don't unlock anything —
+        // would inflate the stage-select grid past the actual campaign max of 9.
+        if (n < 10) {
             this.unlockedStage = Math.max(this.unlockedStage, n);
         }
         // Reset per-stage counters
@@ -2067,6 +2110,12 @@ export class Game {
         if (this.player) {
             this.player.godMode = this.trainingMode;
         }
+        // Boss Rush + Time Trial — stage-level flags consumed by play tick.
+        // bossRushMode swaps the 3-boss gauntlet into the full 8-boss queue
+        // when its bossTrigger fires. timeTrialMode shows the run timer
+        // prominently and compares against bestTimeTrialTime on stage clear.
+        this.bossRushMode = !!data.bossRushMode;
+        this.timeTrialMode = !!data.timeTrialMode;
         this._fadeTo(SCENE.STAGE_INTRO);
     }
 
@@ -2174,6 +2223,25 @@ export class Game {
             achievements.stats.bestScore = this.player.score;
             achievements._save();
         }
+
+        // Mode best-time persistence — boss rush + time trial both save
+        // their stageTime (frames) to achievements stats. 0 means no time
+        // set yet, so any clear is automatically a new best the first time.
+        if (this.bossRushMode) {
+            const prev = achievements.stats.bestBossRushTime || 0;
+            if (prev === 0 || this.stageTime < prev) {
+                achievements.stats.bestBossRushTime = this.stageTime;
+                achievements._save();
+                this._modeNewBest = true;
+            }
+        } else if (this.timeTrialMode) {
+            const prev = achievements.stats.bestTimeTrialTime || 0;
+            if (prev === 0 || this.stageTime < prev) {
+                achievements.stats.bestTimeTrialTime = this.stageTime;
+                achievements._save();
+                this._modeNewBest = true;
+            }
+        }
     }
     _tickStageClear() {
         this.storyTimer++;
@@ -2192,6 +2260,12 @@ export class Game {
         if (this.storyTimer > 130 && (input.isPressed('shoot') || input.isPressed('jump'))) {
             this._clearScheduled = false;
             audio.sfx('select');
+            // Post-game modes route straight back to TITLE — they don't
+            // advance to a next stage. Best time was saved in _onStageClear.
+            if (this.bossRushMode || this.timeTrialMode) {
+                this._restartRun();
+                return;
+            }
             // Secret stage gate: stage 1 cleared with no damage routes to 9 once
             let nextStage;
             if (this.currentStage === 1 && this.stageStats.damageTaken === 0 && !achievements.stats.secretStageDiscovered) {
@@ -2765,6 +2839,11 @@ export class Game {
         this.trainingMode = false;
         this._trainingBanners = null;
         this._trainingRespawn = null;
+        // Post-game mode flags clear too — otherwise the next normal stage
+        // would inherit boss-rush / time-trial routing.
+        this.bossRushMode = false;
+        this.timeTrialMode = false;
+        this._modeNewBest = false;
     }
 
     _fadeTo(scene) {
