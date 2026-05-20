@@ -234,5 +234,22 @@ await shot('stage-clear', () => {
     g.player.score = 12500;
 });
 
+// Ending cutscene — painted scene + path-specific palette/title. The
+// path is computed by _endingPath() from run stats; force VENGEANCE
+// (most common) by setting kills high and damage non-zero.
+await shot('ending-vengeance', () => {
+    const g = window.__game;
+    g._startStage(8);
+    g.transition = 0; g.transitionTarget = null;
+    g.scene = 'gameComplete';
+    g.totalTime = 1860 * 3;  // ~93s
+    g.player.score = 124000;
+    g.player.kills = 47;
+    g.player.maxCombo = 14;
+    g.player.damageTaken = 12;  // not perfect → VENGEANCE not PERFECT
+    g.runStats.stagesCleared = new Set([1,2,3,4,5,6,7,8]);
+    g.storyTimer = 240;  // past intro
+});
+
 await browser.close();
 console.log('done — screenshots in', outDir);
