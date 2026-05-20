@@ -984,6 +984,26 @@ export class Player {
             this._grappleTimer = 0;
             this._grappleStuck = 0;
         }
+        // Same defense for the ledge anchor: hurt during a ledge hang would
+        // set state=HURT but leave the anchor live, causing the next airborne
+        // frame to potentially re-grab the same ledge mid-knockback. Clear
+        // whenever state isn't a ledge state.
+        if (this.state !== STATE.LEDGE_HANG && this.state !== STATE.LEDGE_CLIMB
+            && this._ledgeAnchor) {
+            this._ledgeAnchor = null;
+            this._ledgeFacing = 0;
+            this._ledgeClimbT = 0;
+        }
+        // Self-heal: if state is GRAPPLE but the anchor is missing, OR
+        // LEDGE_HANG/CLIMB without an anchor, the player is "owned" by an
+        // impossible state and cannot move. Force back to a sane state so
+        // input resumes. The "stuck — can only jump" symptom maps to exactly
+        // this trap.
+        if ((this.state === STATE.GRAPPLE && !this._grappleAnchor)
+         || ((this.state === STATE.LEDGE_HANG || this.state === STATE.LEDGE_CLIMB)
+             && !this._ledgeAnchor)) {
+            this.state = this.onGround ? STATE.IDLE : STATE.FALL;
+        }
         // States that own themselves
         const owned = [STATE.SLIDE, STATE.CROUCH, STATE.PRONE, STATE.CRAWL,
                        STATE.HURT, STATE.DIE, STATE.ROLL, STATE.DASH_ATTACK,
@@ -1637,6 +1657,14 @@ export class Player {
         this.knockX = knockDir * 2.4;
         this.vy = -3.0;
         this.combo = 0;
+        // Drop any anchored state when hurt — being knocked off a ledge or
+        // grapple should free Clippy completely, otherwise the anchor can
+        // outlive the hurt and re-trap the player on resume. Self-heal in
+        // _updateState catches the residue.
+        this._grappleAnchor = null;
+        this._ledgeAnchor = null;
+        this._ledgeCooldown = 18;
+        this._grappleCooldown = 12;
         audio.sfx('hurt');
         particles.blood(this.x + this.w / 2, this.y + 6, knockDir > 0 ? -1 : 1);
         // Big game-feel: hit-pause + heavy screen shake on player damage
@@ -2017,7 +2045,11 @@ export class Player {
         // Grapple line — taut diagonal line from Clippy's torso to the anchor.
         // Dark navy outline + cream-yellow core so it reads against painted
         // backgrounds. Anchor pulses at the tile to show "you're attached here".
-        if (this.state === STATE.GRAPPLE && this._grappleAnchor) {
+        // Only draw the grapple line while ACTIVELY in GRAPPLE state with
+        // a live anchor AND phase='pull'. The phase guard catches any stale
+        // anchor leftover after release that the defensive cleanup hasn't
+        // reached yet (draw can fire mid-update on hit-pause frames).
+        if (this.state === STATE.GRAPPLE && this._grappleAnchor && this._grapplePhase === 'pull') {
             const ax = Math.round(this._grappleAnchor.x - camera.viewX);
             const ay = Math.round(this._grappleAnchor.y - camera.viewY);
             const px = Math.round(cx);
