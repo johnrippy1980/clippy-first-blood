@@ -532,13 +532,26 @@ class Enemy {
                         || (this.behavior === 'hover_sniper' && this.subTimer > 0)
                         || (this.behavior === 'hop' && this.vy < -1);
         let useSprite = this.sprite;
-        if (this.hitFlash > 4 || dyingShortly) {
+        if (dyingShortly) {
+            // Prefer painted _death pose for the final hp tick so the kill
+            // stroke reads as a real beat. Falls back to _hurt then base.
+            const d = this.sprite + '_death';
+            const h = this.sprite + '_hurt';
+            if (sprites.has(d)) useSprite = d;
+            else if (sprites.has(h)) useSprite = h;
+        } else if (this.hitFlash > 4) {
             const v = this.sprite + '_hurt';
             if (sprites.has(v)) useSprite = v;
         } else if (attackPose) {
             const v = this.sprite + '_attack';
             if (sprites.has(v)) useSprite = v;
-        } else if (this.behavior === 'charge') {
+        } else if (this.behavior === 'charge'
+                || this.behavior === 'hover_sniper'
+                || (this.behavior === 'hop' && Math.abs(this.vx) > 0.1)
+                || (this.behavior === 'patrol' && Math.abs(this.vx) > 0.1)) {
+            // _walk sprite plays during any locomotion state. hover_sniper
+            // is always in flight; hop/patrol read as walking only while
+            // actually moving (a paused stapler is "idle", not "walking").
             const v = this.sprite + '_walk';
             if (sprites.has(v)) useSprite = v;
         }
