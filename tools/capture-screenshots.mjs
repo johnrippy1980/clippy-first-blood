@@ -18,9 +18,12 @@ await page.waitForTimeout(2500);
 await page.click('#screen');
 await page.waitForTimeout(500);
 
-async function shot(name, setup) {
-    await page.evaluate(setup);
-    await page.waitForTimeout(400);
+async function shot(name, setup, ...args) {
+    await page.evaluate(setup, ...args);
+    // 1200ms post-set so painted bg has 70+ frames to composite. The
+    // earlier 400ms wait sometimes captured a black frame because the
+    // first paint of a new stage hadn't run yet.
+    await page.waitForTimeout(1200);
     await page.locator('#screen').screenshot({ path: `${outDir}/${name}.png` });
     console.log(`captured ${name}`);
 }
@@ -98,6 +101,22 @@ await shot('08-clippy-jump-aim', () => {
     g.player.facing = 1;
     g.player.fireCooldown = 5;  // looks like just fired
 });
+
+// 9-13. Per-stage mid-play captures so every painted bg + tile theme +
+// player position has a baseline. Used to catch regressions like the
+// "stuck on cover" stage-2 freeze the user reported.
+// Bypass the stage-intro splash + fade-transition state machine that
+// _startStage routes through, jumping straight to PLAY.
+for (const s of [2, 3, 5, 7, 8]) {
+    await shot(`stage${s}-play`, (stage) => {
+        const g = window.__game;
+        g._startStage(stage);
+        g.transition = 0;
+        g.transitionTarget = null;
+        g.storyTimer = 9999;
+        g.scene = 'play';
+    }, s);
+}
 
 await browser.close();
 console.log('done — screenshots in', outDir);
