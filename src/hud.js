@@ -492,11 +492,18 @@ export function drawHUD(ctx, state) {
         const s = Math.floor(((stageTime || 0) / 60) % 60);
         const runStr = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
         const best = bossRush ? (bestBossRushTime || 0) : (bestTimeTrialTime || 0);
-        const bm = Math.floor(best / 3600);
-        const bs = Math.floor((best / 60) % 60);
-        const bestStr = best > 0 ? (String(bm).padStart(2, '0') + ':' + String(bs).padStart(2, '0')) : '--:--';
-        drawText(ctx, 'RUN  ' + runStr, GAME.W - 4, 30, tint, 1, 'right');
-        drawText(ctx, 'BEST ' + bestStr, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
+        // Run clock pulses gold when ahead of personal best — feedback that
+        // the player is on PB pace without needing them to do mental math.
+        // No best yet → neutral tint (no pace to beat).
+        const aheadOfBest = best > 0 && (stageTime || 0) < best;
+        const runCol = aheadOfBest ? '#80ff80' : tint;
+        drawText(ctx, 'RUN  ' + runStr, GAME.W - 4, 30, runCol, 1, 'right');
+        if (best > 0) {
+            const bm = Math.floor(best / 3600);
+            const bs = Math.floor((best / 60) % 60);
+            const bestStr = String(bm).padStart(2, '0') + ':' + String(bs).padStart(2, '0');
+            drawText(ctx, 'BEST ' + bestStr, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
+        }
     }
     // Training-ground badge — small green pulsing label tucked into the
     // top-LEFT, just under the HP bar. Won't collide with the score / timer

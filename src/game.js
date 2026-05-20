@@ -67,14 +67,15 @@ const STAGE_CARD_DIALOG = {
 // the cinematic title matches the in-fight HP-bar name. Static; updated
 // here if enemies.js renames a boss.
 const BOSS_DISPLAY_NAME = {
-    COPIER_3000:  'COPIER 3000',
-    SHREDDER:     'MEGA-SHREDDER',
-    CTRL_ALT_DEL: 'CTRL ALT DEL',
-    BALLMER:      'CEO BALLMER',
-    GATES:        'THE FOUNDER',
-    CLIPPY_2:     'CLIPPY 2.0',
-    GAUNTLET:     'BOSS RUSH',
-    ALGORITHM:    'THE ALGORITHM',
+    COPIER_3000:   'COPIER 3000',
+    SHREDDER:      'MEGA-SHREDDER',
+    CTRL_ALT_DEL:  'CTRL ALT DEL',
+    BALLMER:       'CEO BALLMER',
+    GATES:         'THE FOUNDER',
+    CLIPPY_2:      'CLIPPY 2.0',
+    GAUNTLET:      'BOSS RUSH',
+    GAUNTLET_FULL: 'BOSS RUSH',  // post-game 7-boss queue (stage 11)
+    ALGORITHM:     'THE ALGORITHM',
 };
 
 // Per-boss villain bark — two short lines spoken in the cinematic slide
@@ -86,8 +87,9 @@ const BOSS_BARK = {
     BALLMER:      ['DEVELOPERS!',            'DEVELOPERS! DEVELOPERS!'],
     GATES:        ['640 KILOBYTES IS ENOUGH','FOR ANYBODY. YOU INCLUDED.'],
     CLIPPY_2:     ['YOU\'RE OBSOLETE,',      'BROTHER. I\'M THE UPGRADE.'],
-    GAUNTLET:     ['EVERY NAME YOU CROSSED','OFF. ALL AT ONCE.'],
-    ALGORITHM:    ['I KNOW WHAT YOU WANT.',  'I AM WHAT YOU WANT.'],
+    GAUNTLET:      ['EVERY NAME YOU CROSSED','OFF. ALL AT ONCE.'],
+    GAUNTLET_FULL: ['NO STAGES. NO BREAKS.', 'JUST YOU AND THE LIST.'],
+    ALGORITHM:     ['I KNOW WHAT YOU WANT.', 'I AM WHAT YOU WANT.'],
 };
 
 const STORY_PAGES = [
@@ -160,6 +162,12 @@ export class Game {
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
+        // Mode flags — explicit init so HUD reads + title-screen lookups
+        // never see `undefined` before the first _startStage runs.
+        this.trainingMode = false;
+        this.bossRushMode = false;
+        this.timeTrialMode = false;
+        this._modeNewBest = false;
         // Per-stage stats (resets on _startStage)
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         // Run-level achievement progress (built up across stages)
@@ -387,32 +395,28 @@ export class Game {
         audio.init();
         audio.playTrack('title');
         this.titleBlink++;
+        const gameCleared = achievements.unlocked.has('clear_game');
+        // Single-action gate: a held LEFT+DOWN should fire exactly one
+        // transition. Order: start > stage-select > training > modes.
         if (input.isPressed('shoot') || input.isPressed('start') || input.isPressed('jump')) {
             audio.sfx('select');
             this.storyPage = 0;
             this.storyTimer = 0;
             this._fadeTo(SCENE.STORY);
-        }
-        // DOWN at title — stage select (gated on any stage cleared yet)
-        if (input.isPressed('down') && this.unlockedStage > 1) {
+        } else if (input.isPressed('down') && this.unlockedStage > 1) {
+            // DOWN at title — stage select (gated on any stage cleared yet)
             audio.sfx('select');
             this.stageSelectIndex = 0;
             this.scene = SCENE.STAGE_SELECT;
-        }
-        // UP at title — training ground. Always accessible; great for first-
-        // time players to learn moves without dying.
-        if (input.isPressed('up')) {
+        } else if (input.isPressed('up')) {
+            // UP at title — training ground. Always accessible.
             audio.sfx('select');
             this._startStage(10);
-        }
-        // LEFT/RIGHT — post-game unlock modes. Gated on clear_game so they
-        // don't clutter the first-time title screen.
-        const gameCleared = achievements.unlocked.has('clear_game');
-        if (gameCleared && input.isPressed('left')) {
+        } else if (gameCleared && input.isPressed('left')) {
+            // LEFT/RIGHT — post-game unlock modes.
             audio.sfx('select');
             this._startStage(11);
-        }
-        if (gameCleared && input.isPressed('right')) {
+        } else if (gameCleared && input.isPressed('right')) {
             audio.sfx('select');
             this._startStage(12);
         }
@@ -1033,7 +1037,10 @@ export class Game {
         // name + HP bar live in the bottom strip and the hint collides
         // with both. By the time a boss spawns the exec has read the hint.
         const _bossActive = (this.boss && this.boss.alive) || this._bossEntrance;
-        if (!_bossActive && this.scene === SCENE.PLAY && this.currentStage === 1 && this.stageTime > 30 && this.stageTime < 420) {
+        // Suppress in Time Trial — player has already beaten the game, doesn't
+        // need stage-1 controls onboarding, and the hint would clutter the
+        // clock readout.
+        if (!_bossActive && !this.timeTrialMode && this.scene === SCENE.PLAY && this.currentStage === 1 && this.stageTime > 30 && this.stageTime < 420) {
             const t = this.stageTime;
             // Fade in 30-90, hold 90-330, fade out 330-420
             let alpha = 0;
@@ -1096,7 +1103,11 @@ export class Game {
         // cinematic plate. Falls back to gameplay scene + dim if the asset
         // is missing. Slight Ken-Burns push-in over the cinematic gives the
         // shot life.
-        const bgKey = 'boss_intro_' + bossKey;
+        // GAUNTLET / GAUNTLET_FULL don't have a unique boss-room plate;
+        // fall back to the server-room backdrop (matches both stages 7 + 11).
+        const bgBoss = (bossKey === 'GAUNTLET' || bossKey === 'GAUNTLET_FULL')
+            ? 'CTRL_ALT_DEL' : bossKey;
+        const bgKey = 'boss_intro_' + bgBoss;
         if (sprites.has(bgKey)) {
             const img = sprites.images.get(bgKey);
             // Push-in: 1.0 → 1.08 over 150f. Anchor center.
@@ -1146,10 +1157,12 @@ export class Game {
         // Boss portrait — slides in from the right between t=20 and t=50.
         // Anchored at right edge with a small margin. 60x60 PNG painted up to
         // ~88px so it dominates the right third of the frame.
-        // GAUNTLET has no painted portrait (it's a meta-boss made of three
-        // earlier bosses). Show the first gauntlet boss (COPIER_3000) so the
-        // intro reads as "the parade begins" instead of a red blank.
-        const portraitBoss = bossKey === 'GAUNTLET' ? 'COPIER_3000' : bossKey;
+        // GAUNTLET / GAUNTLET_FULL have no painted portrait (they're meta
+        // bosses made of multiple earlier bosses). Show the first queue boss
+        // (COPIER_3000) so the intro reads as "the parade begins" instead
+        // of a red blank.
+        const portraitBoss = (bossKey === 'GAUNTLET' || bossKey === 'GAUNTLET_FULL')
+            ? 'COPIER_3000' : bossKey;
         const portraitKey = 'boss_' + portraitBoss;
         const targetX = GAME.W - 90;
         const startX = GAME.W + 20;
@@ -1966,10 +1979,13 @@ export class Game {
             this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
             this._spawnNextGauntlet();
         } else if (stg.boss === 'GAUNTLET_FULL') {
-            // Post-game Boss Rush — all 7 unique bosses back-to-back, order
-            // matches campaign progression so the final fight is still
-            // ALGORITHM. (Stage 7 GAUNTLET is itself a 3-boss recap, so we
-            // skip the recap stage and just fight each unique boss once.)
+            // Post-game Boss Rush — all 7 UNIQUE campaign bosses back-to-back.
+            // Stages 1-8 = 7 unique kinds (stage 7 is the GAUNTLET recap of
+            // the first 3, so we skip it and fight each unique boss exactly
+            // once). Order matches campaign progression so the final fight
+            // is still ALGORITHM. The first kind is spawned by
+            // _spawnNextGauntlet shifting off the head; the next-boss-on-kill
+            // path in _tickPlayHandleBossTriggers spawns the remainder.
             this._gauntletQueue = [
                 'COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL',
                 'BALLMER', 'GATES', 'CLIPPY_2', 'ALGORITHM',
@@ -2116,6 +2132,9 @@ export class Game {
         // prominently and compares against bestTimeTrialTime on stage clear.
         this.bossRushMode = !!data.bossRushMode;
         this.timeTrialMode = !!data.timeTrialMode;
+        // Mode-best banner clears per stage entry; otherwise a NEW BEST from
+        // a prior mode clear would survive into the next stage-clear panel.
+        this._modeNewBest = false;
         this._fadeTo(SCENE.STAGE_INTRO);
     }
 
@@ -2157,76 +2176,91 @@ export class Game {
         this.storyTimer = 0;
         this._stageClearTallyDone = false;
         this._stageClearRank = null;
-        // New-best score detection — compare current run score (which acts as
-        // the cumulative-up-to-this-stage score) against per-stage best.
-        // Show the NEW BEST tag in the SCORE row of the stats panel.
-        const sBest = achievements.stats.stageBestScores || {};
-        const prevBest = sBest[this.currentStage] || 0;
-        this._stageNewBest = this.player.score > prevBest;
-        if (this._stageNewBest) {
-            sBest[this.currentStage] = this.player.score;
-            achievements.stats.stageBestScores = sBest;
-            achievements._save?.();
-        }
+        // Campaign roll-up — stages 1-9 only. Boss Rush + Time Trial are
+        // post-game replay modes; their clears must NOT contaminate
+        // per-stage best scores, medals, run-level stats, or campaign
+        // achievement gates (would let players farm score/combo in modes
+        // to back-door achievements like TOP TIER they couldn't earn in
+        // a clean campaign run).
+        const isModeRun = this.bossRushMode || this.timeTrialMode;
+        if (!isModeRun) {
+            // New-best score detection — compare current run score (which acts as
+            // the cumulative-up-to-this-stage score) against per-stage best.
+            // Show the NEW BEST tag in the SCORE row of the stats panel.
+            const sBest = achievements.stats.stageBestScores || {};
+            const prevBest = sBest[this.currentStage] || 0;
+            this._stageNewBest = this.player.score > prevBest;
+            if (this._stageNewBest) {
+                sBest[this.currentStage] = this.player.score;
+                achievements.stats.stageBestScores = sBest;
+                achievements._save?.();
+            }
 
-        // Per-stage medals — 3 medals per stage that drive replay value
-        const earned = {
-            noDamage: this.stageStats.damageTaken === 0,
-            allKills: this.stageStats.totalEnemies > 0 &&
-                      this.stageStats.kills >= this.stageStats.totalEnemies,
-            secret: this.stageStats.foundSecret === true,
-        };
-        this.stageStats.medals = earned;
-        // Persist on a per-stage medal record so badges show on stage select
-        if (!this.runStats.medals) this.runStats.medals = {};
-        const slot = this.runStats.medals[this.currentStage] || { noDamage: false, allKills: false, secret: false };
-        slot.noDamage ||= earned.noDamage;
-        slot.allKills ||= earned.allKills;
-        slot.secret   ||= earned.secret;
-        this.runStats.medals[this.currentStage] = slot;
+            // Per-stage medals — 3 medals per stage that drive replay value
+            const earned = {
+                noDamage: this.stageStats.damageTaken === 0,
+                allKills: this.stageStats.totalEnemies > 0 &&
+                          this.stageStats.kills >= this.stageStats.totalEnemies,
+                secret: this.stageStats.foundSecret === true,
+            };
+            this.stageStats.medals = earned;
+            // Persist on a per-stage medal record so badges show on stage select
+            if (!this.runStats.medals) this.runStats.medals = {};
+            const slot = this.runStats.medals[this.currentStage] || { noDamage: false, allKills: false, secret: false };
+            slot.noDamage ||= earned.noDamage;
+            slot.allKills ||= earned.allKills;
+            slot.secret   ||= earned.secret;
+            this.runStats.medals[this.currentStage] = slot;
 
-        // Roll stage stats up to run + achievement system
-        this.runStats.stagesCleared.add(this.currentStage);
-        this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player.maxCombo);
-        for (const [k, v] of Object.entries(this.player.dmgDealt || {})) {
-            this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
-        }
-        if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
-        // Roll the per-stage "target lost" bubble count into the run total
-        // before snapshotting for achievements (GHILLIE SUIT).
-        this.runStats.enemiesLost = (this.runStats.enemiesLost || 0)
-            + (this.enemies.lostBubbleTotal || 0);
+            // Roll stage stats up to run + achievement system
+            this.runStats.stagesCleared.add(this.currentStage);
+            this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player.maxCombo);
+            for (const [k, v] of Object.entries(this.player.dmgDealt || {})) {
+                this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
+            }
+            if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
+            // Roll the per-stage "target lost" bubble count into the run total
+            // before snapshotting for achievements (GHILLIE SUIT).
+            this.runStats.enemiesLost = (this.runStats.enemiesLost || 0)
+                + (this.enemies.lostBubbleTotal || 0);
 
-        // Update achievement snapshot
-        const newlyUnlocked = achievements.update({
-            totalKills: this.player.kills,
-            stagesCleared: this.runStats.stagesCleared,
-            totalDeaths: this.totalDeaths,
-            noDamageStages: this.runStats.noDamageStages,
-            maxCombo: this.runStats.maxCombo,
-            weaponDamage: this.runStats.weaponDamage,
-            totalTime: this.totalTime,
-            secretStageDiscovered: this.runStats.stagesCleared.has(9),
-            bulletTimeUses: this.runStats.bulletTimeUses,
-            bestScore: this.player.score,
-            enemiesLost: this.runStats.enemiesLost,
-            pounceKills: (this.player.pounceKills || 0),
-            grenadeKills: this.runStats.grenadeKills,
-        });
-        this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
-        // Fanfare when at least one achievement unlocks this clear. Single
-        // ding regardless of count — the banner queue handles per-entry display.
-        if (newlyUnlocked.length > 0) audio.sfx('unlock');
+            // Update achievement snapshot
+            const newlyUnlocked = achievements.update({
+                totalKills: this.player.kills,
+                stagesCleared: this.runStats.stagesCleared,
+                totalDeaths: this.totalDeaths,
+                noDamageStages: this.runStats.noDamageStages,
+                maxCombo: this.runStats.maxCombo,
+                weaponDamage: this.runStats.weaponDamage,
+                totalTime: this.totalTime,
+                secretStageDiscovered: this.runStats.stagesCleared.has(9),
+                bulletTimeUses: this.runStats.bulletTimeUses,
+                bestScore: this.player.score,
+                enemiesLost: this.runStats.enemiesLost,
+                pounceKills: (this.player.pounceKills || 0),
+                grenadeKills: this.runStats.grenadeKills,
+            });
+            this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
+            // Fanfare when at least one achievement unlocks this clear. Single
+            // ding regardless of count — the banner queue handles per-entry display.
+            if (newlyUnlocked.length > 0) audio.sfx('unlock');
 
-        // Save high score
-        if (this.player.score > achievements.stats.bestScore) {
-            achievements.stats.bestScore = this.player.score;
-            achievements._save();
+            // Save high score
+            if (this.player.score > achievements.stats.bestScore) {
+                achievements.stats.bestScore = this.player.score;
+                achievements._save();
+            }
+        } else {
+            // Mode runs still need these set so the stage-clear panel doesn't
+            // read stale state from a prior campaign clear.
+            this._stageNewBest = false;
+            this._newlyUnlocked = null;
         }
 
         // Mode best-time persistence — boss rush + time trial both save
         // their stageTime (frames) to achievements stats. 0 means no time
         // set yet, so any clear is automatically a new best the first time.
+        this._modeNewBest = false;
         if (this.bossRushMode) {
             const prev = achievements.stats.bestBossRushTime || 0;
             if (prev === 0 || this.stageTime < prev) {
@@ -2438,7 +2472,13 @@ export class Game {
         const killRowT = panelT - (12 + stats.length * 8);
         if (killRowT > 0) {
             const stg = STAGES[this.currentStage];
-            const bossName = (stg && stg.boss) ? stg.boss.replace(/_/g, ' ') : 'BOSS';
+            // Map gauntlet sentinels to readable labels — GAUNTLET_FULL is a
+            // meta-marker for the 7-boss queue, not a real boss name.
+            const rawBoss = stg && stg.boss;
+            const bossName = !rawBoss ? 'BOSS'
+                          : rawBoss === 'GAUNTLET_FULL' ? 'ALL BOSSES'
+                          : rawBoss === 'GAUNTLET'      ? 'GAUNTLET'
+                          : rawBoss.replace(/_/g, ' ');
             const y = panelTop + 8 + stats.length * 14 + 2;
             // The "[DOWN]" tag pops in after the name is drawn
             drawText(ctx, bossName, 30, y, '#ff5050', 1, 'left');
@@ -2449,6 +2489,17 @@ export class Game {
             ctx.fillRect(28, y + 3, Math.floor((w + 4) * sweep), 1);
             if (killRowT > 22) {
                 drawText(ctx, '[DOWN]', GAME.W - 30, y, '#ff5050', 1, 'right');
+            }
+            // NEW BEST! tag for mode runs — flashes gold under the boss-name
+            // sweep after both have drawn. Boss Rush + Time Trial save best
+            // time on clear; this is the only place the player learns they
+            // beat their PB.
+            if (this._modeNewBest && killRowT > 30) {
+                const pulse = (Math.sin((killRowT - 30) * 0.2) + 1) * 0.5;
+                ctx.save();
+                ctx.globalAlpha = 0.6 + pulse * 0.4;
+                drawTextOutlined(ctx, 'NEW BEST TIME!', GAME.W / 2, y + 10, '#ffe070', '#a82020', 1, 'center');
+                ctx.restore();
             }
         }
         // Rank letter — large outlined grade in the upper-right corner of the
@@ -2844,6 +2895,10 @@ export class Game {
         this.bossRushMode = false;
         this.timeTrialMode = false;
         this._modeNewBest = false;
+        // Defensive: gauntlet queue normally clears in _startStage, but
+        // quit-from-pause skips that path. Drop it here so the queue can't
+        // bleed into a future BOSS RUSH session.
+        this._gauntletQueue = null;
     }
 
     _fadeTo(scene) {

@@ -843,10 +843,12 @@ function makeTraining() {
 }
 
 // Boss Rush Mode — stage 11. Unlocks after first 'clear_game' achievement.
-// Wider arena than stage 7's GAUNTLET, with the full 8-boss queue. No grunts,
-// no pickups between, no stage cards — pure back-to-back boss fights.
-// Three LIFE pickups + a HOMING crate as the only sustain. Best clear time
-// is persisted in achievements.stats.bestBossRushTime.
+// Wider arena than stage 7's GAUNTLET, with the full 7-unique-boss queue
+// (campaign has 7 unique boss kinds; stage 7 is itself a 3-boss recap that
+// we skip here to avoid duplication). No grunts, no pickups between, no
+// stage cards — pure back-to-back boss fights. Three LIFE pickups + a
+// HOMING crate as the only sustain. Best clear time persisted in
+// achievements.stats.bestBossRushTime.
 function makeBossRushMode() {
     const w = 42, h = 14;
     const { g } = blankStage(w, h, THEME.SERVERROOM);
