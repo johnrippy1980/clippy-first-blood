@@ -1039,18 +1039,30 @@ export class Level {
                 ctx.fillRect(x, y + 5, T, 1);
                 break;
             case TILE.LADDER:
-                ctx.fillStyle = pal.accent;
-                ctx.fillRect(x + 1, y, 2, T);
-                ctx.fillRect(x + T - 3, y, 2, T);
-                ctx.fillRect(x + 1, y + 4 + (this.tileAnimTick % 8), T - 2, 1);
+                // r108: prefer painted ladder sprite when loaded. Falls back
+                // to the procedural fillRect rails+rung when the asset is
+                // missing so the game stays playable in any boot state.
+                if (sprites.has('tile_ladder')) {
+                    sprites.draw(ctx, 'tile_ladder', x, y, false, T / 16);
+                } else {
+                    ctx.fillStyle = pal.accent;
+                    ctx.fillRect(x + 1, y, 2, T);
+                    ctx.fillRect(x + T - 3, y, 2, T);
+                    ctx.fillRect(x + 1, y + 4 + (this.tileAnimTick % 8), T - 2, 1);
+                }
                 break;
             case TILE.SPIKE:
-                ctx.fillStyle = '#404040';
-                for (let i = 0; i < 4; i++) {
-                    ctx.fillRect(x + i * 4, y + T - 6, 3, 6);
-                    ctx.fillStyle = '#8a8a90';
-                    ctx.fillRect(x + i * 4 + 1, y + T - 5, 1, 5);
+                // r108: prefer painted spike sprite when loaded.
+                if (sprites.has('tile_spike')) {
+                    sprites.draw(ctx, 'tile_spike', x, y, false, T / 16);
+                } else {
                     ctx.fillStyle = '#404040';
+                    for (let i = 0; i < 4; i++) {
+                        ctx.fillRect(x + i * 4, y + T - 6, 3, 6);
+                        ctx.fillStyle = '#8a8a90';
+                        ctx.fillRect(x + i * 4 + 1, y + T - 5, 1, 5);
+                        ctx.fillStyle = '#404040';
+                    }
                 }
                 break;
             case TILE.WATER: {

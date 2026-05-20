@@ -117,10 +117,14 @@ export const BG_MANIFEST = {
     'ground_keynote':    'ground_keynote.png',
     'ground_founder':    'ground_founder.png',
     'ground_cloud':      'ground_cloud.png',
-    // r107 tile sprites (ladder/spike/crate/door) — queued on Local Howl;
-    // manifest entries will be re-added in the follow-up round once the
-    // PNGs land on disk (validate-assets.mjs fails the build if a manifest
-    // entry has no backing file).
+    // r108 universal tile sprites — painted via Local Howl, processed
+    // through process-v2-sprites.py. Render branches in level.js prefer
+    // these when loaded and fall back to the procedural fillRect path
+    // otherwise, so missing assets are non-fatal during boot.
+    'tile_ladder':       'tile_ladder.png',
+    'tile_spike':        'tile_spike.png',
+    'tile_crate':        'tile_crate.png',
+    'tile_door':         'tile_door.png',
 };
 
 // Manifest: what we expect on disk. Missing files are non-fatal.
