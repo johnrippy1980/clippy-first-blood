@@ -184,6 +184,26 @@ export class Player {
         // into the next stage).
         this.thrownGrenades.length = 0;
         this._grenadeCooldown = 0;
+        // Full state-machine reset. Without this, a boss-kill that fires
+        // while the player is mid-pounce/grapple/roll/slide/cover/dash will
+        // carry that state into the next stage, where input is gated by
+        // state and Clippy ends up frozen or falling through the floor.
+        this.state = STATE.IDLE;
+        this.h = STAND_HEIGHT;
+        this.onGround = false;
+        this.onCover = false;
+        this.coverHp = 5;
+        this.coyote = 0;
+        this.airJumpsLeft = 1;
+        this.rollTimer = 0;
+        this.slideTimer = 0;
+        this.dashAtkTimer = 0;
+        this.backdashTimer = 0;
+        this._grappleAnchor = null;
+        this._grapplePhase = null;
+        this._grappleCooldown = 0;
+        this._grappleTimer = 0;
+        this._grappleStuck = 0;
     }
 
     // ---------- update ----------
@@ -2207,6 +2227,7 @@ export class Player {
         this._grapplePhase = 'pull';
         this._grappleTipX = foundX;
         this._grappleTipY = foundY;
+        this._grappleTimer = 0;
         this.state = STATE.GRAPPLE;
         this.iFrames = Math.max(this.iFrames, 18);
         audio.sfx('slide');
@@ -2235,11 +2256,24 @@ export class Player {
         const ay = this._grappleAnchor.y - (this.y + this.h / 2);
         const d = Math.hypot(ax, ay);
         const PULL_SPEED = 3.4;
-        if (d < 10 || input.isPressed('jump') || input.isPressed('special')) {
+        // Failsafe timeout: 60f (1s) max grapple. Beyond that, the player is
+        // probably wedged against a wall/boss hitbox with no clean release
+        // path. Force release rather than freeze input forever.
+        this._grappleTimer = (this._grappleTimer || 0) + 1;
+        const stuck = this._grappleTimer > 60;
+        // Wall-stuck detect: pulling but barely moving for 6+ frames means
+        // we're jammed against geometry. Release so the player can recover.
+        const moved = Math.abs(this.vx) + Math.abs(this.vy);
+        if (moved < 0.4) this._grappleStuck = (this._grappleStuck || 0) + 1;
+        else this._grappleStuck = 0;
+        const wallStuck = this._grappleStuck > 6;
+        if (d < 10 || stuck || wallStuck || input.isPressed('jump') || input.isPressed('special')) {
             // Release: short upward kick if we ended high so the player can
             // chain a jump out of the grapple cleanly.
             this._grappleAnchor = null;
             this._grapplePhase = null;
+            this._grappleTimer = 0;
+            this._grappleStuck = 0;
             this.state = STATE.JUMP;
             this.vy = Math.min(this.vy, -2);
             this._grappleCooldown = 6;
