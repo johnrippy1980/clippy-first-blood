@@ -161,6 +161,10 @@ export class Game {
         this.pauseIndex = 0;
         this.optionsIndex = 0;
         this.achievementsIndex = 0;
+        // Hub menus also need init or first arrow press computes NaN
+        // (e.g. soundtrack footer rendered "NAN / 2 TRACKS" before this).
+        this.soundtrackIndex = 0;
+        this.stageSelectIndex = 0;
         this._achPulse = 0;
 
         // Story / title progression
@@ -1425,6 +1429,10 @@ export class Game {
             audio.sfx('pause');
             return;
         }
+        // Init guard: matches achievementsIndex / gameOverIndex pattern. Without
+        // this the first up/down press computes (undefined ± n) % n = NaN and
+        // the menu silently locks.
+        if (this.soundtrackIndex == null) this.soundtrackIndex = 0;
         const n = TRACK_MANIFEST.length;
         if (input.isPressed('up'))   { this.soundtrackIndex = (this.soundtrackIndex + n - 1) % n; audio.sfx('select'); }
         if (input.isPressed('down')) { this.soundtrackIndex = (this.soundtrackIndex + 1) % n; audio.sfx('select'); }
@@ -1651,6 +1659,8 @@ export class Game {
         const n = 8; // stages 1..8, secret 9 only shown if unlocked
         const hasSecret = !!achievements.stats?.secretStageDiscovered;
         const total = hasSecret ? 9 : n;
+        // Init guard — first arrow press otherwise computes NaN and locks menu.
+        if (this.stageSelectIndex == null) this.stageSelectIndex = 0;
         if (input.isPressed('left'))  { this.stageSelectIndex = (this.stageSelectIndex + total - 1) % total; audio.sfx('select'); }
         if (input.isPressed('right')) { this.stageSelectIndex = (this.stageSelectIndex + 1) % total; audio.sfx('select'); }
         if (input.isPressed('up'))    { this.stageSelectIndex = Math.max(0, this.stageSelectIndex - 4); audio.sfx('select'); }
