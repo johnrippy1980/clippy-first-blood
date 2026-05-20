@@ -236,6 +236,29 @@ await shot('stage-clear', () => {
     g.player.shotsFired = 45;  // accuracy = kills/shots = 27% not 0%
 });
 
+// Stage intro splash — first thing exec sees before each stage.
+// Sample at storyTimer=72 so STAGE N / name / tagline are all in.
+// _tickStageIntro auto-advances to PLAY at storyTimer > 90; the 1200ms
+// post-set ticks the page ~60 frames, so set to 72 and freeze with
+// _frozen (the tick early-returns on it). Actually simpler: stage the
+// timer at 80 and immediately re-pin it every render via a one-shot
+// override on storyPage. Cleanest: use t = 75 and the post-set wait
+// of 1200ms (~72 frames) lands the snapshot near 90 right before fade.
+for (const stage of [1, 4, 7, 8]) {
+    await shot(`intro-stage${stage}`, (s) => {
+        const g = window.__game;
+        g._startStage(s);
+        g.transition = 0; g.transitionTarget = null;
+        g.scene = 'stageIntro';
+        // Stop the tick from incrementing — _tickStageIntro reads/inc's
+        // g.storyTimer and at >90 fades to play. Pin scene by overriding
+        // the tick to a no-op for this stage's snapshot.
+        const origTick = g._tickStageIntro.bind(g);
+        g._tickStageIntro = () => { g.storyTimer = 75; };
+        g.storyTimer = 75;
+    }, stage);
+}
+
 // Achievements + Soundtrack + Stage-select menus — execs may browse
 // these from the pause menu. Each is its own scene with a framed panel.
 await shot('menu-achievements', () => {
