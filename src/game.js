@@ -233,10 +233,13 @@ export class Game {
     // ============== loop ==============
     tick() {
         this.bootTimer++;
-        // Side-chain duck — music drops on scenes that show dialog/exposition
-        // text the player should be reading, restores on PLAY.
-        const duckScenes = [SCENE.STORY, SCENE.STAGE_CARD, SCENE.STAGE_INTRO, SCENE.BOSS_INTRO];
-        audio.setDuck?.(duckScenes.includes(this.scene));
+        // R200: music duck disabled per user direction — "should be set
+        // to 100% everywhere." The previous side-chain dropped music on
+        // STORY/STAGE_CARD/STAGE_INTRO/BOSS_INTRO so dialog/exposition
+        // text would read clearer over the bed, but the user noticed the
+        // opening cinematic was quieter than the title screen and called
+        // that wrong. Keep music at full bus level on every scene.
+        audio.setDuck?.(false);
         switch (this.scene) {
             case SCENE.BOOT:         this._tickBoot(); break;
             case SCENE.TITLE:        this._tickTitle(); break;
