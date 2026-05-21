@@ -766,17 +766,15 @@ function makeStage5() {
 
 // Stage 6 — Founder's Lair. Forking high/low paths. Vertical server stacks.
 function makeStage6() {
-    // Stage 6 — Founder's Lair. Trimmed from 110→76 wide.
-    // Defining feature is the fork (high catwalks vs. low hazard path),
-    // preserved with three pairs of high/low choices then a converging climb.
-    // Penultimate stage — slightly longer than 1-5 by design.
-    const w = 76, h = 16;
+    // Stage 6 — Founder's Lair. R187 deep-pass: extended 76→104 wide.
+    // Adds a third fork pair (FORK 3) + REACTOR HAZARD section before the
+    // existing convergence climb. Penultimate stage runs longer than 1-5
+    // by design — boss is the founder, this is the gauntlet to reach him.
+    const w = 104, h = 16;
     const { g } = blankStage(w, h, THEME.FOUNDER);
     for (let x = 0; x < w; x++) g[0][x] = W; // ceiling
 
     // Section A (x 0–14): VERTICAL ENTRY — climb up to choose path.
-    // Ladder runs up the LEFT side of the entry column so the player
-    // can actually reach it instead of bonking on the wall.
     rectT(g, 6, 6, 1, 7, W);
     ladderT(g, 4, 5, 10);
     platT(g, 4, 6, 6);
@@ -791,31 +789,53 @@ function makeStage6() {
     platT(g, 4, 32, 6);
     spikeRow(g, h - 3, 36, 3);
     ladderT(g, 5, 40, 8);
-    // Crumble bonus pedestal — bridges the catwalk gap at high-tier height.
-    // Players who try to camp the bonus crate will fall back to the spike row.
+    // Crumble bonus pedestal — bridges the catwalk gap.
     for (let i = 0; i < 4; i++) setT(g, 4, 28 + i, B);
 
-    // Section D (x 48–62): CONVERGENCE — paths meet at a vertical climb.
-    rectT(g, 4, 48, 1, 8, W);
-    ladderT(g, 5, 50, 8);
-    platT(g, 9, 52, 5);
-    rectT(g, 3, 60, 1, 11, W);
-    ladderT(g, 4, 61, 10);
-    platT(g, 6, 62, 4);
+    // Section F (x 48–66): FORK 3 — third high catwalk with crumble mid-bridge,
+    // wider lava pit below. Same dilemma as F1/F2 escalated.
+    platT(g, 4, 48, 6);
+    spikeRow(g, h - 3, 52, 5);                   // wider pit
+    platT(g, 4, 58, 6);
+    ladderT(g, 5, 56, 8);
+    for (let i = 0; i < 4; i++) setT(g, 4, 54 + i, B);   // crumble between
 
-    // Section E (x 62–72): BOSS APPROACH — final descent to arena.
-    platT(g, 9, 66, 4);
-    rectT(g, 9, 72, 1, 3, W);
+    // Section G (x 66–84): REACTOR HAZARD — narrow corridor with vertical
+    // spike pillars (drop tiles from ceiling) and a low-route safe lane.
+    // Reads as the founder's experiment chamber.
+    rectT(g, 1, 68, 1, 4, S);                     // ceiling-spike pillar 1
+    rectT(g, 1, 73, 1, 5, S);                     // ceiling-spike pillar 2 (longer)
+    rectT(g, 1, 79, 1, 4, S);                     // ceiling-spike pillar 3
+    platT(g, 9, 70, 4);
+    platT(g, 7, 76, 4);
+    platT(g, 9, 81, 3);
+
+    // Section D (x 84–96): CONVERGENCE — paths meet at a vertical climb.
+    rectT(g, 4, 84, 1, 8, W);
+    ladderT(g, 5, 86, 8);
+    platT(g, 9, 88, 5);
+    rectT(g, 3, 94, 1, 11, W);
+    ladderT(g, 4, 95, 10);
+    platT(g, 6, 96, 4);
+
+    // Section E (x 96–104): BOSS APPROACH — final descent to arena.
+    platT(g, 9, 98, 4);
+    rectT(g, 9, w - 4, 1, 3, W);
     setT(g, h - 3, w - 4, X);
-    // Crimson statue cover — duck-behind near the holepunch sniper.
+
+    // Crimson statue cover — near the holepunch sniper at col 52.
     setT(g, h - 3, 52, C);
-    // Arcane lab drape — slip behind the founder's velvet curtain.
+    // F: third-fork statue cover at col 60.
+    setT(g, h - 3, 60, C);
+    // Arcane lab drape — velvet curtain hides.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 20 + i, G);
+    // G: stealth at reactor entrance.
+    for (let i = 0; i < 3; i++) setT(g, h - 3, 67 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.FOUNDER,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 68 * GAME.TILE },
+        bossTrigger: { x: 98 * GAME.TILE },
         miniBossTrigger: 32 * GAME.TILE,
         enemySpawns: [
             { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
@@ -824,17 +844,47 @@ function makeStage6() {
             { x: 28 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
             { x: 36 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'folder' },
             { x: 44 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
-            { x: 54 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'holepunch' },
-            { x: 62 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // F: FORK 3 — sniper on high catwalk + folder over the wider pit
+            { x: 56 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'holepunch' },
+            { x: 60 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
+            // G: REACTOR — folder weaving the spike pillars + cabinet at exit
+            { x: 75 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
+            { x: 82 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // D: CONVERGENCE — sniper at vertical climb (was col 54, now 88)
+            { x: 88 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'holepunch' },
+            // E: BOSS APPROACH — last grunt to soak before founder fight
+            { x: 96 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
         ],
         pickupSpawns: [
+            // B top: LASER (unchanged)
             { x: 24 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'LASER' },
+            // Pre-mini-boss LIFE
+            { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-fork-3 SHOTGUN (wider spike pit ahead, heavy hit weapon)
+            { x: 47 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SHOTGUN' },
+            // F: post-fork-3 LIFE on far ledge
+            { x: 64 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // G: pre-reactor GRENADE (clear pillar folder)
+            { x: 67 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // G: post-reactor HOMING (sets up the convergence sniper)
+            { x: 83 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
+            // Pre-boss LIFE
+            { x: 97 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
+            // A SPREAD (unchanged)
             { x: 12 * GAME.TILE, y: ( 3) * GAME.TILE - 14, drop: 'SPREAD' },
+            // C top LIFE (unchanged)
             { x: 36 * GAME.TILE, y: ( 3) * GAME.TILE - 14, drop: 'LIFE' },
-            { x: 54 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'THUNDER' },
-            { x: 66 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'LIFE' },
+            // D mid THUNDER (was col 54, now 88 for the new layout)
+            { x: 88 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'THUNDER' },
+            // E LIFE (was col 66, now 98)
+            { x: 98 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'LIFE' },
+            // F: third-fork high crate (HOMING — risk reward on the
+            // crumble bridge mirrors F2's bonus pedestal)
+            { x: 56 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'HOMING' },
+            // G: reactor mid platform LASER (sniper-prep through pillars)
+            { x: 77 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'LASER' },
         ]
     };
 }
