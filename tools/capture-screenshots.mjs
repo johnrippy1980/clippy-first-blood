@@ -219,6 +219,15 @@ for (let p = 0; p < 5; p++) {
     }, p);
 }
 
+// R209 — pre-level READY card with keymap + don't-show-again toggle
+await shot('ready-screen', () => {
+    const g = window.__game;
+    g._startStage(1);
+    g.transition = 0; g.transitionTarget = null;
+    g.storyTimer = 60;
+    g.scene = 'ready';
+});
+
 // 19. Pause menu — execs may pause to ask a question
 await shot('pause-menu', () => {
     const g = window.__game;

@@ -178,14 +178,25 @@ for (let i = 0; i < 8; i++) {
     await page.waitForTimeout(280);
     sceneTimeline.push(await page.evaluate(() => window.__game.scene));
 }
-// Give stageIntro time to finish its hold + fade-out to play
+// Give stageIntro time to finish its hold + fade-out to ready/play
 await page.waitForTimeout(2000);
-const finalScene = await page.evaluate(() => window.__game.scene);
-sceneTimeline.push(finalScene);
+// R209: STAGE_INTRO now fades into READY (the pre-level keymap card)
+// when the showReady option is on (default). Press X again to clear it
+// and reach play; otherwise the test would always end at "ready" and
+// regressions in PLAY-scene entry would slip past.
+const midScene = await page.evaluate(() => window.__game.scene);
+sceneTimeline.push(midScene);
+if (midScene === 'ready') {
+    // 18-frame breath delay before READY accepts input — wait it out, then press.
+    await page.waitForTimeout(400);
+    await page.keyboard.press('x');
+    await page.waitForTimeout(1500);
+    sceneTimeline.push(await page.evaluate(() => window.__game.scene));
+}
 const inputPath = sceneTimeline.join('→');
-const reached = ['stageIntro', 'play'].some(s => sceneTimeline.includes(s));
+const reached = ['stageIntro', 'ready', 'play'].some(s => sceneTimeline.includes(s));
 if (!reached) {
-    errors.push(`INPUT PATH: never reached stageIntro/play via keyboard. Timeline: ${inputPath}`);
+    errors.push(`INPUT PATH: never reached stageIntro/ready/play via keyboard. Timeline: ${inputPath}`);
 } else {
     console.log(`input path OK (timeline: ${inputPath})`);
 }

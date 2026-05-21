@@ -9,6 +9,11 @@ const DEFAULTS = {
     scanlines: true,
     shakeScale: 1.0,
     crtCurve: true,
+    // R209 — Milos playtest #2: show the READY screen with the keymap
+    // before each stage's first frame. Veterans can flip this off from
+    // the READY screen itself (don't-show-again toggle). New players
+    // see it by default so they get the bindings before getting shot.
+    showReady: true,
 };
 
 class Options {

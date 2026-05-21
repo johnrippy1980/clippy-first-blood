@@ -21,6 +21,7 @@ const SCENE = {
     TITLE: 'title',
     STORY: 'story',
     STAGE_INTRO: 'stageIntro',
+    READY: 'ready',              // R209: pre-level keymap card with don't-show-again
     PLAY: 'play',
     PAUSE: 'pause',
     OPTIONS: 'options',
@@ -245,6 +246,7 @@ export class Game {
             case SCENE.TITLE:        this._tickTitle(); break;
             case SCENE.STORY:        this._tickStory(); break;
             case SCENE.STAGE_INTRO:  this._tickStageIntro(); break;
+            case SCENE.READY:        this._tickReady(); break;
             case SCENE.PLAY:         this._tickPlay(); break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
@@ -302,6 +304,7 @@ export class Game {
             case SCENE.TITLE:        this._drawTitle(); break;
             case SCENE.STORY:        this._drawStory(); break;
             case SCENE.STAGE_INTRO:  this._drawStageIntro(); break;
+            case SCENE.READY:        this._drawReady(); break;
             case SCENE.PLAY:         this._drawPlay(); break;
             case SCENE.PAUSE:        this._drawPlay(); this._drawPauseOverlay(); break;
             case SCENE.OPTIONS:      this._drawPlay(); this._drawOptions(); break;
@@ -691,8 +694,119 @@ export class Game {
         if (this.storyTimer > 90 || input.isPressed('shoot') || input.isPressed('jump')) {
             audio.sfx('select');
             audio.playTrack(STAGES[this.currentStage].music);
+            // R209 — Milos #2: gate PLAY behind READY card unless the
+            // player has flipped showReady off. Veterans skip straight
+            // into the stage; new players see the keymap first.
+            const next = options.get('showReady') ? SCENE.READY : SCENE.PLAY;
+            this.storyTimer = 0;
+            this._fadeTo(next);
+        }
+    }
+
+    // R209 — pre-level READY card. Holds the player on a keymap screen
+    // until they press SHOOT / JUMP / START to launch. A small toggle
+    // at the bottom flips options.showReady so veterans can skip this
+    // permanently after seeing it once.
+    _tickReady() {
+        this.storyTimer++;
+        // Toggle the don't-show-again flag with the special key (C) so
+        // it doesn't conflict with the launch keys.
+        if (input.isPressed('special')) {
+            const cur = !!options.get('showReady');
+            options.set('showReady', !cur);
+            audio.sfx('select');
+        }
+        // Any of the typical "go" inputs launches the stage. Give the
+        // card a minimum 18-frame breath so a held key from STAGE_INTRO
+        // doesn't immediately skip past it.
+        if (this.storyTimer > 18 &&
+            (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start'))) {
+            audio.sfx('menu');
             this._fadeTo(SCENE.PLAY);
         }
+    }
+
+    _drawReady() {
+        const ctx = this.ctx;
+        const stg = STAGES[this.currentStage];
+        const t = this.storyTimer;
+
+        // Dark background with thin scanline shading — reuses the same
+        // palette as the pause menu so it reads as a "system" screen.
+        ctx.fillStyle = '#06040c';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+
+        // Framed panel
+        const panelX = 24, panelY = 20, panelW = GAME.W - 48, panelH = GAME.H - 40;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+        ctx.fillStyle = '#604030';
+        ctx.fillRect(panelX, panelY, panelW, 1);
+        ctx.fillRect(panelX, panelY + panelH - 1, panelW, 1);
+        ctx.fillRect(panelX, panelY, 1, panelH);
+        ctx.fillRect(panelX + panelW - 1, panelY, 1, panelH);
+
+        // Header — pulsing "READY?" to read as an action prompt
+        const pulse = 0.7 + 0.3 * Math.sin(t * 0.18);
+        ctx.globalAlpha = pulse;
+        drawTextOutlined(ctx, 'READY?', GAME.W / 2, panelY + 8, '#ffe070', '#a82020', 2, 'center');
+        ctx.globalAlpha = 1;
+
+        // Stage context — so the player knows which stage they're about to start
+        if (stg) {
+            drawText(ctx, 'STAGE ' + stg.id + ' / ' + stg.name,
+                     GAME.W / 2, panelY + 28, '#80a0c0', 1, 'center');
+        }
+
+        // Two-column keymap, brighter than the pause-menu version since
+        // this is the discovery screen and clarity matters more than
+        // density. 7px row pitch, label dim / key bright pattern.
+        const colL = panelX + 18, colR = panelX + panelW - 18;
+        const rowH = 9;
+        const rows = [
+            ['MOVE',  'WASD / ARROWS', 'SHOOT',   'X'],
+            ['JUMP',  'SPACE / Z',     'GRENADE', 'V'],
+            ['AIM',   'SHIFT',         'SHIELD',  'B'],
+            ['SWAP',  'TAB / Q',       'SPECIAL', 'C'],
+            ['PAUSE', 'P / ESC',       'MUTE',    'M'],
+        ];
+        const startY = panelY + 50;
+        for (let i = 0; i < rows.length; i++) {
+            const y = startY + i * rowH;
+            drawText(ctx, rows[i][0], colL,      y, '#a890b0', 1, 'left');
+            drawText(ctx, rows[i][1], colL + 38, y, '#ffe070', 1, 'left');
+            drawText(ctx, rows[i][3], colR,      y, '#ffe070', 1, 'right');
+            drawText(ctx, rows[i][2], colR - 10, y, '#a890b0', 1, 'right');
+        }
+
+        // Don't-show-again toggle row — checkbox + label. Hidden until
+        // the breath delay passes so the player notices the keymap first.
+        if (t > 18) {
+            const toggleY = startY + rows.length * rowH + 8;
+            const checked = !options.get('showReady');
+            const boxX = panelX + 18;
+            // Checkbox: 7×7 dark fill, white outline, fills with cyan when checked.
+            ctx.fillStyle = '#1a1428';
+            ctx.fillRect(boxX, toggleY - 1, 7, 7);
+            ctx.fillStyle = '#806890';
+            ctx.fillRect(boxX, toggleY - 1, 7, 1);
+            ctx.fillRect(boxX, toggleY - 1, 1, 7);
+            ctx.fillRect(boxX + 6, toggleY - 1, 1, 7);
+            ctx.fillRect(boxX, toggleY + 5, 7, 1);
+            if (checked) {
+                ctx.fillStyle = '#60c0ff';
+                ctx.fillRect(boxX + 2, toggleY + 1, 3, 3);
+            }
+            drawText(ctx, "DON'T SHOW AGAIN  (C TO TOGGLE)",
+                     boxX + 11, toggleY, '#c0a0d0', 1, 'left');
+        }
+
+        // Footer hint — "PRESS X TO START" pulsing yellow
+        const footPulse = 0.6 + 0.4 * Math.sin(t * 0.22);
+        ctx.globalAlpha = footPulse;
+        drawText(ctx, 'PRESS X / SPACE / ENTER TO START',
+                 GAME.W / 2, panelY + panelH - 12, '#ffe070', 1, 'center');
+        ctx.globalAlpha = 1;
     }
     _drawStageIntro() {
         const ctx = this.ctx;
