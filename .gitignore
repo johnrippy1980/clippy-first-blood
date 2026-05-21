@@ -5,6 +5,7 @@ package-lock.json
 
 # Reference / large source assets — kept locally, not in git
 _reference/
+_staging/
 *.MP4
 
 # Smoke-test artefact
