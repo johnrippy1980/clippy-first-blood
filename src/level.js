@@ -280,49 +280,81 @@ function ladderT(g, r, c, h) { for (let i = 0; i < h; i++) setT(g, r + i, c, L);
 // Stage 2 — Break Room. Vending-machine cover, coffee-puddle slip hazards,
 // tables to vault, recycle-bin pits.
 function makeStage2() {
-    // Stage 2 — The Break Room. Trimmed from 100→72 tiles to match stage 1
-    // onboarding cadence. Teaches: table-hopping, coffee-puddle hazards,
-    // vertical snack-platform routes.
-    const w = 72, h = 14;
+    // Stage 2 — The Break Room. R183 deep-pass: extended 72→100 tiles with
+    // two new sections (F: microwave maze, G: recycle-bin pit) so the stage
+    // gets a real second half instead of cutting straight to the boss.
+    //
+    // Pickup placement audited per Contra rule (hits drop your weapon):
+    //   - SPREAD crate at section A entry — early power weapon for warmup
+    //   - LIFE pickup before mini-boss (was at col 26, now col 30)
+    //   - GRENADE stash before vending wall — clear cabinet + folder cluster
+    //   - FLAME on top route (matches the painted backdrop accents)
+    //   - SHOTGUN crate near second puddle — heavy hit before sniper line
+    //   - LIFE before microwave maze (Contra safety net)
+    //   - HOMING crate inside microwave maze (vertical reward)
+    //   - GRENADE pickup at recycle-bin entrance — chuck into the pit
+    //   - LIFE before boss room (last safety)
+    const w = 100, h = 14;
     const { g } = blankStage(w, h, THEME.BREAKROOM);
 
-    // Section A (x 0–18): WARMUP — two break-room tables to learn the jump rhythm.
+    // Section A (x 0–18): WARMUP — two break-room tables.
     platT(g, 10, 6, 4);
     platT(g, 10, 14, 4);
 
-    // Section B (x 18–32): COFFEE PUDDLE — spikes on floor, walk-around counter.
+    // Section B (x 18–32): COFFEE PUDDLE — spikes + counter climb.
     spikeRow(g, h - 3, 20, 3);
     rectT(g, 11, 24, 1, 3, W);   // counter to climb
     platT(g, 8, 28, 4);
 
-    // Section C (x 32–46): VENDING WALL + SNACK PLATFORMS — vertical route.
+    // Section C (x 32–46): VENDING WALL + SNACK PLATFORMS.
     rectT(g, 8, 34, 1, 4, W);    // vending machine wall
     platT(g, 9, 38, 3);
     platT(g, 7, 42, 4);          // top route
 
-    // Section D (x 46–60): SECOND PUDDLE — wider, requires snack-cake hop.
+    // Section D (x 46–60): SECOND PUDDLE — wider, snack-cake hop.
     spikeRow(g, h - 3, 48, 4);
     platT(g, 9, 48, 3);
     platT(g, 7, 53, 3);
     platT(g, 9, 57, 4);
 
-    // Section E (x 60–68): BOSS APPROACH — low table, clear ground to door.
-    rectT(g, 11, 60, 3, 1, W);
+    // Section F (x 60–78): MICROWAVE MAZE — stacked vending machines
+    // creating a horizontal Z-pattern, ladder up the middle. Climb-and-shoot
+    // territory; rewards aim-up and aim-diagonal usage.
+    rectT(g, 9,  62, 1, 4, W);          // vending #1 lower left
+    rectT(g, 6,  66, 1, 4, W);          // vending #2 upper middle
+    rectT(g, 9,  70, 1, 4, W);          // vending #3 lower right
+    platT(g, 7,  64, 2);                // hop platform mid-left
+    platT(g, 4,  68, 4);                // top maze platform (HOMING crate)
+    platT(g, 7,  74, 2);                // hop platform mid-right
+    ladderT(g, 6, 73, 5);               // ladder access up the right side
+
+    // Section G (x 78–92): RECYCLE-BIN PIT — wide pit with one mid platform.
+    // Falling = death (no water cushion). Crumble-tile gating forces decision:
+    // jump it now or wait for the bin to fall and then cross.
+    for (let i = 0; i < 8; i++) g[h - 2][80 + i] = E;   // dig out floor
+    platT(g, h - 3, 78, 2);             // entry ledge
+    platT(g, h - 5, 84, 2);             // floating mid platform
+    platT(g, h - 3, 90, 2);             // exit ledge
+
+    // Section H (x 92–96): BOSS APPROACH — low table, exit door.
+    rectT(g, 11, 92, 3, 1, W);
     setT(g, h - 3, w - 4, X);
-    // Vending-machine cover — duck-behind near the folder sniper at col 22.
+    // Vending-machine cover near the folder sniper at col 22.
     setT(g, h - 3, 24, C);
-    // Second cover near the sniper above the second puddle.
+    // Cover near second-puddle sniper at col 52.
     setT(g, h - 3, 52, C);
-    // Tablecloth hide — duck under a low table. Two placements: before the
-    // first coffee puddle (teaches the mechanic) and between vending wall
-    // and second puddle (high-traffic combat).
+    // Cover at recycle-bin entrance — vending machine on the ledge.
+    setT(g, h - 3, 78, C);
+    // Tablecloth hide — duck under a low table.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 12 + i, G);
     for (let i = 0; i < 2; i++) setT(g, h - 3, 44 + i, G);
+    // Maze grass at the base of the ladder — stealth option for sniper bait.
+    for (let i = 0; i < 3; i++) setT(g, h - 3, 71 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.BREAKROOM,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 64 * GAME.TILE },
+        bossTrigger: { x: 94 * GAME.TILE },
         // Mini-boss spawns after the first puddle, before vending wall.
         miniBossTrigger: 32 * GAME.TILE,
         enemySpawns: [
@@ -336,15 +368,41 @@ function makeStage2() {
             // D: sniper above second puddle, stapler past it
             { x: 50 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 58 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // F: MICROWAVE MAZE — folder on top platform, cabinet at base
+            // of ladder. Player has to choose vertical (folder) or low cover
+            // (cabinet) approach.
+            { x: 70 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'folder' },
+            { x: 72 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // G: RECYCLE-BIN PIT — sniper on far ledge harassing during cross
+            { x: 90 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'holepunch' },
         ],
         pickupSpawns: [
+            // Top-route FLAME on the C high platform (matches paint accents)
             { x: 42 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'FLAME' },
+            // Pre-mini-boss LIFE
+            { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-vending GRENADE stash for the cluster
+            { x: 33 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // Mid-stage LIFE on second-puddle far bank
+            { x: 60 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Recycle-bin pre-entry GRENADE — chuck across the pit
+            { x: 77 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // Pre-boss LIFE for the last-stand safety net
+            { x: 91 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
+            // A: early SPREAD — warmup weapon
             { x:  8 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'SPREAD' },
+            // B: LIFE drop near counter climb
             { x: 28 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'LIFE' },
+            // C: vending-area GRENADE
             { x: 40 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'GRENADE' },
-            { x: 53 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'HOMING' },
+            // D: pre-sniper SHOTGUN — heavy hit before the holepunch line
+            { x: 53 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'SHOTGUN' },
+            // F: HOMING on the top maze platform — vertical reward
+            { x: 69 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'HOMING' },
+            // G: bridge mid-pit risk crate
+            { x: 84 * GAME.TILE, y: (h - 5) * GAME.TILE - 14, drop: 'HOMING' },
         ]
     };
 }
