@@ -238,6 +238,15 @@ export const CLIPPY_MANIFEST = {
     'run_3':           'v6_run_3.png',
     'run_4':           'v6_run_4.png',
     'run_5':           'v6_run_1.png',
+    // R202: per-weapon painted Clippy poses (single static frame each).
+    // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
+    // CHAINSAW pending — its asset is the last gen still running.
+    'v6_shotgun':      'v6_shotgun.png',
+    'v6_spread':       'v6_spread.png',
+    'v6_laser':        'v6_laser.png',
+    'v6_flame':        'v6_flame.png',
+    'v6_homing':       'v6_homing.png',
+    'v6_thunder':      'v6_thunder.png',
     'jump':            'v5_jump.png',
     'jump_aim':        'v5_jump.png',
     'fall':            'v5_jump.png',

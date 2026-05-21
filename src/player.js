@@ -3266,6 +3266,32 @@ export class Player {
     }
 
     _frameForState() {
+        // R202: weapon-specific body sprite override. For every weapon
+        // OTHER than MG (which uses the 4-frame run cycle), we have a
+        // single painted Clippy-with-weapon pose. RUN/idle/shoot/aim all
+        // collapse to that static pose while the weapon is held, so the
+        // player sees the right gun in their hand even when not running.
+        // MG falls through to the normal aim-band + run-cycle path.
+        const weaponPose = {
+            SHOTGUN:  'v6_shotgun',
+            SPREAD:   'v6_spread',
+            LASER:    'v6_laser',
+            FLAME:    'v6_flame',
+            HOMING:   'v6_homing',
+            THUNDER:  'v6_thunder',
+            CHAINSAW: 'v6_chainsaw',
+        }[this.weapon];
+        // Only override when the painted asset is loaded AND we're in a
+        // state where the upper-body silhouette is the dominant read
+        // (RUN / idle / aim). Jump, prone, hurt, die, etc. still get
+        // their own painted poses since the weapon isn't the focus.
+        if (weaponPose && sprites.has(weaponPose)) {
+            if (this.state === STATE.RUN || this.state === STATE.IDLE ||
+                this.state === undefined || this.state === null ||
+                this.state === STATE.CROUCH || this.state === STATE.COVER) {
+                return weaponPose;
+            }
+        }
         // Are we shooting (or just shot)? Use shoot-pose variants
         const shooting = this.fireCooldown > 0 && this.fireCooldown >= (WEAPON[this.weapon].fireRate - 4);
         // Aim band: convert aimAngle to up / diag / forward / diag-down / down

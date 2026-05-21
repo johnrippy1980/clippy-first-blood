@@ -135,10 +135,31 @@ def process_jobs_portrait():
     print(f'  jobs portrait -> boss_jobs_portrait.png ({im.size[0]}x{im.size[1]})')
 
 
+def process_weapon_pose(name):
+    """Knockout + crop + downscale a single Clippy-with-weapon pose.
+    Saves as v6_<name>.png at 40px tall (matches the run-cycle frames
+    so the engine can swap them transparently)."""
+    src = os.path.join(STAGING, f'clippy_{name}_raw.png')
+    if not os.path.exists(src):
+        print(f'  MISSING {src}')
+        return
+    im = Image.open(src)
+    im = knockout_black_bg(im)
+    im = crop_to_content(im)
+    im = downscale(im, 40)
+    dst = os.path.join(OUT, f'v6_{name}.png')
+    im.save(dst, 'PNG', optimize=True)
+    print(f'  {name} -> v6_{name}.png ({im.size[0]}x{im.size[1]})')
+
+
 def main():
     process_run_sheet()
     process_jobs()
     process_jobs_portrait()
+    # R202: per-weapon Clippy poses — each shows Clippy holding the
+    # specific firearm so the player can see the gun they picked up.
+    for weapon in ['shotgun', 'spread', 'laser', 'flame', 'homing', 'thunder', 'chainsaw']:
+        process_weapon_pose(weapon)
 
 
 if __name__ == '__main__':
