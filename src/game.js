@@ -839,6 +839,28 @@ export class Game {
                 this.player.state = this.player.onGround ? 'idle' : 'fall';
             }
         }
+        // R193: runaway-timer safety nets for transient action states.
+        // These all have hard frame caps in player.js but a missed
+        // decrement (e.g. tick skipped mid-state) can leave the player
+        // visually locked in the action without input. Cap each at 4x its
+        // designed duration and force back to IDLE/FALL on overrun.
+        const pl = this.player;
+        if (pl.rollTimer > 120) {
+            pl.rollTimer = 0;
+            if (pl.state === 'roll') pl.state = pl.onGround ? 'idle' : 'fall';
+        }
+        if (pl.slideTimer > 100) {
+            pl.slideTimer = 0;
+            if (pl.state === 'slide') pl.state = pl.onGround ? 'idle' : 'fall';
+        }
+        if (pl.dashAtkTimer > 80) {
+            pl.dashAtkTimer = 0;
+            if (pl.state === 'dashatk') pl.state = pl.onGround ? 'idle' : 'fall';
+        }
+        if (pl.backdashTimer > 80) {
+            pl.backdashTimer = 0;
+            if (pl.state === 'backdash') pl.state = pl.onGround ? 'idle' : 'fall';
+        }
         // R169: "I can jump but can't move" deadlock breaker. If the player
         // is in an input-gating state (GRAPPLE / COVER / LEDGE_HANG / LEDGE_CLIMB
         // / POUNCE) AND has been mashing left or right for the last 60 frames,
