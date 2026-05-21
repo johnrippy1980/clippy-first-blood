@@ -160,6 +160,17 @@ def main():
     # specific firearm so the player can see the gun they picked up.
     for weapon in ['shotgun', 'spread', 'laser', 'flame', 'homing', 'thunder', 'chainsaw']:
         process_weapon_pose(weapon)
+    # R204: jump pose with rifle. Uses the same downscale path but
+    # saved as v6_jump.png (replaces v5_jump.png in the manifest).
+    src = os.path.join(STAGING, 'clippy_jump_raw.png')
+    if os.path.exists(src):
+        im = Image.open(src)
+        im = knockout_black_bg(im)
+        im = crop_to_content(im)
+        im = downscale(im, 40)
+        dst = os.path.join(OUT, 'v6_jump.png')
+        im.save(dst, 'PNG', optimize=True)
+        print(f'  jump -> v6_jump.png ({im.size[0]}x{im.size[1]})')
 
 
 if __name__ == '__main__':

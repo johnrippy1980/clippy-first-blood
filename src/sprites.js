@@ -248,9 +248,13 @@ export const CLIPPY_MANIFEST = {
     'v6_homing':       'v6_homing.png',
     'v6_thunder':      'v6_thunder.png',
     'v6_chainsaw':     'v6_chainsaw.png',
-    'jump':            'v5_jump.png',
-    'jump_aim':        'v5_jump.png',
-    'fall':            'v5_jump.png',
+    // R204: painted mid-air Clippy holding the rifle. v5_jump.png was
+    // armless; the new v6_jump.png keeps the rifle visible mid-air so
+    // jump-shooting matches the run/idle/aim states. Used for rising,
+    // peak, and falling beats of the jump arc.
+    'jump':            'v6_jump.png',
+    'jump_aim':        'v6_jump.png',
+    'fall':            'v6_jump.png',
     'spin_1':          'v2_spin_1.png',
     'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',
