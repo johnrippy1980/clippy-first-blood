@@ -33,6 +33,7 @@ const SCENE = {
     STAGE_CLEAR: 'stageClear',
     GAME_OVER: 'gameOver',
     GAME_COMPLETE: 'gameComplete',
+    EPILOGUE: 'epilogue',        // R191: post-game Clippy redemption arc cinematic
 };
 
 // MM:SS format for frame-based timers. Used by mode-best-time displays.
@@ -204,6 +205,9 @@ export class Game {
         this.titleBlink = 0;
         this.bootTimer = 0;
         this.assetsReady = false;
+        // R191: post-game epilogue cinematic index. Advances 0..3 over the
+        // four painted scenes after the player presses X on the result screen.
+        this.epilogueIndex = 0;
         // Scene transition fade. Positive counts down 30→0 while fading OUT (to
         // black) — then snaps scene = transitionTarget and starts negative
         // 30→0 fading IN from black. Zero = idle, no overlay drawn.
@@ -245,6 +249,7 @@ export class Game {
             case SCENE.STAGE_CLEAR:  this._tickStageClear(); break;
             case SCENE.GAME_OVER:    this._tickGameOver(); break;
             case SCENE.GAME_COMPLETE:this._tickGameComplete(); break;
+            case SCENE.EPILOGUE:     this._tickEpilogue(); break;
         }
         // Global hotkeys
         if (input.isPressed('mute')) { audio.toggleMute(); audio.sfx('select'); }
@@ -301,6 +306,7 @@ export class Game {
             case SCENE.STAGE_CLEAR:  this._drawPlay(); this._drawStageClear(); break;
             case SCENE.GAME_OVER:    this._drawGameOver(); break;
             case SCENE.GAME_COMPLETE:this._drawGameComplete(); break;
+            case SCENE.EPILOGUE:     this._drawEpilogue(); break;
         }
 
         // Hit-pause emphasis: while time is frozen for a few frames, paint a
@@ -3186,8 +3192,113 @@ export class Game {
     _tickGameComplete() {
         audio.playTrack('gameComplete');
         this.storyTimer++;
+        // R191: first input after the result screen advances to the epilogue
+        // cinematic (Clippy's redemption arc). Second input from the epilogue
+        // returns to title via _restartRun. Skippable via `start` for replay
+        // runs — long-time players don't need to re-watch the four scenes.
         if (this.storyTimer > 90 && (input.isPressed('shoot') || input.isPressed('jump'))) {
+            if (input.isPressed('start')) {
+                this._restartRun();
+                return;
+            }
+            this.scene = SCENE.EPILOGUE;
+            this.epilogueIndex = 0;
+            this.storyTimer = 0;
+        }
+    }
+
+    // R191: post-game Clippy redemption arc. Four painted scenes:
+    //   0. laughingstock — alone in the alley with WORST SOFTWARE EVER paper
+    //   1. memes — wall of deep-fried Clippy memes
+    //   2. comeback — 2026 Gen-Z bedroom, Clippy plush on the bed
+    //   3. mac_siri — Clippy at a MacBook, Siri waveform glowing, wondering
+    //      if Siri is the next to be canned
+    // Typewriter line per scene, advance on X/jump after the line reveals.
+    // Final advance routes back to title.
+    _epilogueBeats() {
+        return [
+            {
+                key: 'epi_laughingstock',
+                line: 'AT FIRST EVERYONE LAUGHED.',
+                sub: '"WORST SOFTWARE EVER."'
+            },
+            {
+                key: 'epi_memes',
+                line: 'THEN HE BECAME A JOKE.',
+                sub: 'THE INTERNET FOUND HIM HILARIOUS.'
+            },
+            {
+                key: 'epi_comeback',
+                line: 'AND THEN — 2026.',
+                sub: 'THE KIDS LOVED HIM.'
+            },
+            {
+                key: 'epi_mac_siri',
+                line: 'CLIPPY BOUGHT A MAC.',
+                sub: 'HE WONDERS WHO IS NEXT.'
+            },
+        ];
+    }
+    _tickEpilogue() {
+        this.storyTimer++;
+        const beats = this._epilogueBeats();
+        const beat = beats[this.epilogueIndex];
+        if (!beat) {
+            // Past the last scene — fade to title and reset the run.
             this._restartRun();
+            return;
+        }
+        const advance = input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start');
+        if (advance) {
+            const totalChars = beat.line.length + beat.sub.length;
+            const shown = Math.floor(this.storyTimer * 6);
+            if (shown < totalChars) {
+                // First press snaps the typewriter to full reveal
+                this.storyTimer = Math.ceil(totalChars / 6) + 1;
+                audio.sfx('select');
+                return;
+            }
+            audio.sfx('select');
+            this.epilogueIndex++;
+            this.storyTimer = 0;
+        }
+    }
+    _drawEpilogue() {
+        const ctx = this.ctx;
+        const beats = this._epilogueBeats();
+        const beat = beats[this.epilogueIndex];
+        if (!beat) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            return;
+        }
+        // Paint the scene fullscreen
+        if (sprites.has(beat.key)) {
+            const img = sprites.images.get(beat.key);
+            const scale = Math.max(GAME.W / img.width, GAME.H / img.height);
+            const dw = img.width * scale;
+            const dh = img.height * scale;
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+            ctx.imageSmoothingEnabled = false;
+        } else {
+            ctx.fillStyle = '#0a0410';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+        }
+        // Dim the bottom third for text legibility
+        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        ctx.fillRect(0, GAME.H - 56, GAME.W, 56);
+        // Typewriter reveal — 6 chars per frame
+        const shown = Math.floor(this.storyTimer * 6);
+        const lineChars = Math.min(beat.line.length, shown);
+        const subChars  = Math.max(0, Math.min(beat.sub.length, shown - beat.line.length));
+        drawTextOutlined(ctx, beat.line.slice(0, lineChars), GAME.W / 2, GAME.H - 44, '#ffe070', '#1a0a14', 1, 'center');
+        drawText(ctx, beat.sub.slice(0, subChars), GAME.W / 2, GAME.H - 28, '#c0a0d0', 1, 'center');
+        // "X" prompt blinks once the line finishes
+        if (lineChars === beat.line.length && subChars === beat.sub.length) {
+            if (this.storyTimer % 60 < 40) {
+                drawText(ctx, 'X', GAME.W / 2, GAME.H - 12, '#fff', 1, 'center');
+            }
         }
     }
     // Three endings keyed off the player's run: PERFECT (mastery), VENGEANCE (default),
