@@ -650,10 +650,11 @@ function makeStage4() {
 // Stage 5 — Keynote Hall. Stage scaffolding climb, spotlight pits, audience
 // seats as cover. Tall vertical section.
 function makeStage5() {
-    // Stage 5 — Keynote Hall. Trimmed from 100→72 wide, h=18 preserved for
-    // verticality. Teaches: stair-step climb, scaffolding ladder, top-catwalk
-    // sniper run, drop back to boss arena.
-    const w = 72, h = 18;
+    // Stage 5 — Keynote Hall. R186 deep-pass: 72→100 wide, h=18 preserved.
+    // Added F: AUDIO BOOTH (electronics maze) + G: HIGH CATWALK GAUNTLET
+    // (sniper alley along the rafters). Sniper-heavy stage → LASER/HOMING
+    // dominate pickup roster.
+    const w = 100, h = 18;
     const { g } = blankStage(w, h, THEME.KEYNOTE);
 
     // Section A (x 0–18): AUDIENCE FLOOR — first spotlight pit + low seats.
@@ -672,41 +673,93 @@ function makeStage5() {
     // Section D (x 48–60): TOP CATWALK — sniper run high above audience.
     platT(g, 4, 38, 7);
     platT(g, 6, 48, 4);
-    // Second spotlight pit far below — punish a missed catwalk drop.
-    spikeRow(g, h - 3, 50, 3);
+    spikeRow(g, h - 3, 50, 3);   // spotlight pit punishes missed drops
 
-    // Section E (x 60–68): DROP TO BOSS — staircase down to arena floor.
-    platT(g, 9, 56, 4);
-    platT(g, 12, 62, 4);
+    // Section F (x 60–80): AUDIO BOOTH — electronics maze with mixing-board
+    // walls forming a Z-pattern. Folder mid-maze, sniper in booth above.
+    rectT(g, 11, 62, 1, 5, W);          // mixing console 1 (low-left)
+    rectT(g,  8, 67, 1, 7, W);          // tall rack mid-maze
+    rectT(g, 11, 73, 1, 5, W);          // mixing console 2 (low-right)
+    platT(g,  9, 64, 2);                // hop platform
+    platT(g,  6, 69, 3);                // mid platform
+    platT(g,  9, 75, 2);                // hop platform right
+    ladderT(g, 7, 71, 5);               // ladder access
+
+    // Section G (x 80–92): HIGH CATWALK GAUNTLET — narrow ledge at row 5
+    // with two spike pits below. Snipers along the rafters. Crumble tiles
+    // mid-bridge force motion.
+    platT(g, 5, 80, 4);
+    platT(g, 5, 88, 4);
+    for (let i = 0; i < 4; i++) setT(g, 5, 84 + i, B);   // crumble between
+    spikeRow(g, h - 3, 82, 3);
+    spikeRow(g, h - 3, 88, 3);
+    platT(g, 11, 82, 2);                // safety platform below
+
+    // Section H (x 92–96): DROP TO BOSS — staircase down.
+    platT(g, 9, 92, 3);
+    platT(g, 12, 95, 2);
     setT(g, h - 3, w - 4, X);
-    // Podium cover — duck-behind near the audience-floor sniper.
+
+    // Podium cover — near the audience-floor sniper.
     setT(g, h - 3, 24, C);
     // Catwalk podium — near the holepunch sniper above audience.
     setT(g, h - 3, 60, C);
-    // Audience seat rows — duck into the velvet chairs to break LOS.
+    // F: cover at audio-booth entrance.
+    setT(g, h - 3, 75, C);
+    // Audience seat rows — duck into chairs to break LOS.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 10 + i, G);
     for (let i = 0; i < 2; i++) setT(g, h - 3, 64 + i, G);
+    // G: audio-booth stealth grass at mixing-board base.
+    for (let i = 0; i < 3; i++) setT(g, h - 3, 70 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.KEYNOTE,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 64 * GAME.TILE },
+        bossTrigger: { x: 94 * GAME.TILE },
         miniBossTrigger: 32 * GAME.TILE,
         enemySpawns: [
+            // A-D (unchanged)
             { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
             { x: 22 * GAME.TILE, y: (12) * GAME.TILE, type: 'folder' },
             { x: 28 * GAME.TILE, y: (10) * GAME.TILE, type: 'holepunch' },
             { x: 40 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'folder' },
             { x: 48 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'cabinet' },
             { x: 56 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'holepunch' },
+            // F: AUDIO BOOTH — folder mid-maze, sniper on top mid platform,
+            // cabinet on the ground threading.
+            { x: 69 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            { x: 71 * GAME.TILE, y: ( 7) * GAME.TILE, type: 'folder' },
+            { x: 76 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // G: HIGH CATWALK GAUNTLET — two snipers on the rafters,
+            // folder hovering between to deny camping.
+            { x: 83 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'holepunch' },
+            { x: 89 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'holepunch' },
+            { x: 86 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'folder' },
         ],
         pickupSpawns: [
+            // D top: THUNDER (unchanged)
             { x: 40 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'THUNDER' },
+            // Pre-mini-boss LIFE
+            { x: 30 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-scaffold SHOTGUN
+            { x: 32 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SHOTGUN' },
+            // F: pre-audio-booth GRENADE
+            { x: 61 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // F: mid-booth LIFE
+            { x: 78 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // G: pre-catwalk HOMING — handles the two snipers from below
+            { x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
+            // Pre-boss LIFE
+            { x: 93 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
             { x: 18 * GAME.TILE, y: (12) * GAME.TILE - 14, drop: 'CHAINSAW' },
             { x: 40 * GAME.TILE, y: ( 3) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 56 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'HOMING' },
+            // F: audio-booth top platform LASER (sniper bias)
+            { x: 70 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'LASER' },
+            // G: catwalk-crumble HOMING (risk reward on the mid-bridge)
+            { x: 85 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'HOMING' },
         ]
     };
 }
