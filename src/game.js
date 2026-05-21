@@ -815,6 +815,35 @@ export class Game {
                 this.player.state = this.player.onGround ? 'idle' : 'fall';
             }
         }
+        // R169: "I can jump but can't move" deadlock breaker. If the player
+        // is in an input-gating state (GRAPPLE / COVER / LEDGE_HANG / LEDGE_CLIMB
+        // / POUNCE) AND has been mashing left or right for the last 60 frames,
+        // they're trying to escape but the state isn't letting them out.
+        // Force back to IDLE/FALL and clear every anchor — same recovery the
+        // state-trap self-heal does, but driven by *user intent* rather than
+        // by missing internal state. This catches the bug class where state
+        // and anchor are BOTH valid but the player can't reach the exit
+        // condition for any of the dozen reasons (geometry edge case, wall
+        // probe stuck, etc).
+        const p = this.player;
+        const dirHeld = input.isHeld('left') || input.isHeld('right');
+        const gating = (p.state === 'grapple' || p.state === 'cover'
+                     || p.state === 'ledgehang' || p.state === 'ledgeclimb'
+                     || p.state === 'pounce');
+        if (gating && dirHeld) {
+            p._stuckCounter = (p._stuckCounter || 0) + 1;
+            if (p._stuckCounter > 60) {
+                p._grappleAnchor = null;
+                p._grapplePhase = null;
+                p._ledgeAnchor = null;
+                p._grappleCooldown = 18;
+                p._ledgeCooldown = 18;
+                p.state = p.onGround ? 'idle' : 'fall';
+                p._stuckCounter = 0;
+            }
+        } else {
+            p._stuckCounter = 0;
+        }
     }
 
     // Pause is a hard return — drop the rest of the tick if pressed.
@@ -1492,38 +1521,37 @@ export class Game {
             if (d < 112 && d < bestDist) { bestDist = d; active = b; }
         }
         if (!active) return;
-        // R158: pop-in fade only (gate at 96px then snap to full). Distance-fading
-        // the panel made text read as ghostly half-transparent letters on top of
-        // the painted swamp/jungle bg — pale yellow + green bleed read as a
-        // sickly green and "HUMPED"-looking smudge in the screenshot. Once
-        // we're committed to showing the tip, show it at full opacity.
         if (bestDist > 100) return;
+        // R169: compact corner-tile layout. Prior passes used a big centered
+        // panel that always overlapped either Clippy's head or his feet
+        // depending on screen position. Drop it to a small top-LEFT card
+        // outside the play action — tucked next to the HUD strip so the
+        // gameplay area stays unobstructed. Player can still read the tip
+        // by glancing up without losing sight of Clippy.
         const lines = active.lines;
-        const lineH = 11;
-        const panelW = 216;
-        const panelH = 10 + lines.length * lineH;
-        const px2 = GAME.W / 2;
-        // R158: anchor to BOTTOM of screen so the panel never sits at head
-        // height behind the player sprite. Bottom strip is normally empty
-        // (HUD lives at top); puts text out of the play silhouette.
-        const py = GAME.H - panelH - 6;
+        const lineH = 8;
+        const panelW = 132;
+        const padX = 4, padY = 3;
+        const panelH = padY * 2 + lines.length * lineH;
+        // Sit below the HP bar / TRAINING badge (which end around y=28),
+        // left-aligned with the HUD column.
+        const panelX = 4;
+        const panelY = 32;
         ctx.save();
-        // Solid (no alpha) — every prior pass tried to make this transparent
-        // and every prior pass made the tip unreadable.
-        ctx.fillStyle = '#0a0612';
-        ctx.fillRect(px2 - panelW / 2, py - 4, panelW, panelH);
-        ctx.fillStyle = '#a82020';
-        ctx.fillRect(px2 - panelW / 2, py - 4, panelW, 1);
-        ctx.fillRect(px2 - panelW / 2, py - 4 + panelH - 1, panelW, 1);
-        // R158: outlined text — without the outline the cream blends with the
-        // painted ground tones; outline pins the glyph edges. Title gets a
-        // thicker outline for emphasis, body lines use a 1px dark stroke.
+        ctx.fillStyle = 'rgba(8, 4, 18, 0.88)';
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+        ctx.fillStyle = '#7af0bf';  // training accent — matches HUD badge
+        ctx.fillRect(panelX, panelY, panelW, 1);
+        ctx.fillRect(panelX, panelY + panelH - 1, panelW, 1);
+        ctx.fillRect(panelX, panelY, 1, panelH);
+        ctx.fillRect(panelX + panelW - 1, panelY, 1, panelH);
+        // Title row in accent green, body lines in cream. Smaller text so
+        // the whole panel stays out of the play area.
         for (let i = 0; i < lines.length; i++) {
-            const color = i === 0 ? '#ff5050' : '#ffe070';
-            const outline = i === 0 ? '#1a0000' : '#0a0612';
-            const stroke = i === 0 ? 2 : 1;
-            drawTextOutlined(ctx, lines[i], px2, py + 2 + i * lineH,
-                             color, outline, stroke, 'center');
+            const color = i === 0 ? '#7af0bf' : '#ffe070';
+            drawTextOutlined(ctx, lines[i],
+                             panelX + padX, panelY + padY + i * lineH,
+                             color, '#000', 1, 'left');
         }
         ctx.restore();
     }

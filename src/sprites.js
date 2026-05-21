@@ -211,27 +211,39 @@ export const CLIPPY_MANIFEST = {
     // process-v2-sprites.py (white-bg knockout + crop + 56h downscale).
     // Files are now proper game-resolution PNGs with alpha, not 1024x1024
     // canvas-fillers. Visually verified via tools/capture-screenshots.mjs.
-    'jump_aim':        'v2_jump_aim.png',
-    'fall':            'v2_jump.png',
+    // R169: jump_aim was a v2_* pose with rifle baked in — route to the
+    // clean v3 jump so the procedural weapon arm reads correctly mid-air.
+    'jump_aim':        'v3_jump.png',
+    'fall':            'v3_jump.png',
     'spin_1':          'v2_spin_1.png',
     'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',
-    'crouch_shoot':    'pack_crouch_shoot_1.png',
-    'crouch_shoot_2':  'pack_crouch_shoot_2.png',
-    'crouch_shoot_3':  'pack_crouch_shoot_3.png',
+    // R169: pack_crouch_shoot_* have a rifle baked in too. We don't have a
+    // clean crouch yet — keep the painted crouch pose but drop the shoot
+    // variants down to the same clean pose so the rotated weapon overlay
+    // is the only barrel visible.
+    'crouch_shoot':    'pack_crouch_aim.png',
+    'crouch_shoot_2':  'pack_crouch_aim.png',
+    'crouch_shoot_3':  'pack_crouch_aim.png',
     'prone':           'v2_prone.png',
     'prone_shoot':     'v2_prone_crawl.png',
     'prone_heavy':     'v2_prone_crawl.png',
-    'run_shoot_1':     'v2_run_shoot.png',
-    'run_shoot_2':     'v2_run_shoot.png',
-    'run_shoot_3':     'v2_run_shoot.png',
-    'run_shoot_4':     'v2_run_shoot.png',
-    'shoot':           'v2_shoot.png',
-    'shoot_alt':       'v2_shoot.png',
-    'aim':             'v2_idle.png',
-    'aim_up':          'v2_shoot_up.png',
-    'aim_diag':        'v2_aim_diag_up.png',
-    'aim_diag_down':   'v2_aim_diag_down.png',
+    // R169: route run-shoot / aim-band / jump-aim back through the CLEAN
+    // v3 body sprites. The old v2_* variants have a rifle baked into the
+    // pose, so when _drawAimArm composited the separate weapon sprite on
+    // top the player would see two weapons + the baked one wouldn't rotate
+    // to follow aim. Pointing these to v3_* means the body stays clean and
+    // the procedural arm is the only weapon visible.
+    'run_shoot_1':     'v3_run.png',
+    'run_shoot_2':     'v3_run.png',
+    'run_shoot_3':     'v3_run.png',
+    'run_shoot_4':     'v3_run.png',
+    'shoot':           'v3_idle.png',
+    'shoot_alt':       'v3_idle.png',
+    'aim':             'v3_idle.png',
+    'aim_up':          'v3_idle.png',
+    'aim_diag':        'v3_idle.png',
+    'aim_diag_down':   'v3_idle.png',
     'climb_1':         'pack_rope_1.png',
     'climb_2':         'pack_rope_2.png',
     'cover':           'pack_cover_1.png',
