@@ -241,6 +241,10 @@ export class Player {
         this._grappleCooldown = 0;
         this._grappleTimer = 0;
         this._grappleStuck = 0;
+        // R164: clear taunt cooldown so the next stage's first kill can fire
+        // a welcome taunt instead of being suppressed by stale state from
+        // the previous stage's final kill.
+        this._tauntCooldown = 0;
     }
 
     // ---------- update ----------

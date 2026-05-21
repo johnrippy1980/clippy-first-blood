@@ -21,33 +21,41 @@ const result = await page.evaluate(async () => {
     g.scene = 'play';
     await new Promise(r => setTimeout(r, 400));
 
-    // --- R156 grunt-taunt: force-call tauntKill with isBoss=false enough
-    //     times that random chance fires at least once.
-    g.player._tauntCooldown = 0;
-    let gruntTaunts = 0;
-    for (let i = 0; i < 200; i++) {
-        const before = particles.floats.filter(f => f.alive).length;
-        g.player._tauntCooldown = 0;  // bypass cooldown for the sample
-        g.player.tauntKill(false);
-        const after = particles.floats.filter(f => f.alive).length;
-        if (after > before) gruntTaunts++;
-    }
+    // --- Instrument: replace floatingText with a counter so we observe
+    //     calls deterministically. Pool recycling makes count/find-based
+    //     detection flaky once 32+ floats have spawned.
+    const seen = [];
+    const origFloat = particles.floatingText.bind(particles);
+    particles.floatingText = (x, y, text, color, ...rest) => {
+        seen.push({ text, color });
+        return origFloat(x, y, text, color, ...rest);
+    };
 
-    // --- R156 boss-taunt: should always fire (no chance gate)
+    // --- R156 grunt-taunt: ~15% chance per call across 200 calls.
     g.player._tauntCooldown = 0;
-    const beforeBoss = particles.floats.filter(f => f.alive).length;
+    const baselineGrunt = seen.length;
+    for (let i = 0; i < 200; i++) {
+        g.player._tauntCooldown = 0;  // bypass cooldown
+        g.player.tauntKill(false);
+    }
+    const gruntTaunts = seen.length - baselineGrunt;
+
+    // --- R156 boss-taunt: always fires (no chance gate)
+    g.player._tauntCooldown = 0;
+    const baselineBoss = seen.length;
     g.player.tauntKill(true);
-    const afterBoss = particles.floats.filter(f => f.alive).length;
-    const bossTaunted = afterBoss > beforeBoss;
-    // Sample the last text — should be a boss line
-    const lastFloat = [...particles.floats].filter(f => f.alive).pop();
-    const lastText = lastFloat ? lastFloat.text : null;
-    const lastColor = lastFloat ? lastFloat.color : null;
+    const bossEvents = seen.slice(baselineBoss);
+    const bossTaunted = bossEvents.length === 1;
+    const lastText = bossEvents[0]?.text || null;
+    const lastColor = bossEvents[0]?.color || null;
 
     // --- R156 cooldown: a second immediate tauntKill should NOT fire
+    //     (cooldown still active from the call above).
+    const baselineCooldown = seen.length;
     g.player.tauntKill(true);
-    const afterSecond = particles.floats.filter(f => f.alive).length;
-    const cooldownHeld = afterSecond === afterBoss;
+    const cooldownHeld = seen.length === baselineCooldown;
+
+    particles.floatingText = origFloat;
 
     // --- R157 counter-slide: trigger boss intro and verify phase transition
     g._spawnBoss();
@@ -80,7 +88,8 @@ console.log(JSON.stringify(result, null, 2));
 await browser.close();
 
 const ok = errors.length === 0
-    && result.gruntTauntCount >= 10 && result.gruntTauntCount <= 60   // 5%-30% range
+    // 15% × 200 = mean 30, std ~5. 99.7% CI ≈ [15, 45]. Pad to [12, 50].
+    && result.gruntTauntCount >= 12 && result.gruntTauntCount <= 50
     && result.bossTaunted === true
     && result.bossTauntColor === '#ffe070'
     && result.cooldownHeld === true
