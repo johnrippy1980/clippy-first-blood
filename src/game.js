@@ -438,6 +438,14 @@ export class Game {
         } else if (gameCleared && input.isPressed('right')) {
             audio.sfx('select');
             this._startStage(12);
+        } else if (gameCleared && input.isPressed('shield')) {
+            // R190: B (shield key) on title once clear_game is unlocked routes
+            // to Stage 13 — the Steve Jobs after-credits fight. Reusing the
+            // shield key (rather than burning a new bind) keeps the title
+            // input surface clean. Title screen doesn't render a shield, so
+            // pressing B here can only mean "go to the secret stage."
+            audio.sfx('select');
+            this._startStage(13);
         }
     }
     _drawTitle() {
@@ -553,6 +561,9 @@ export class Game {
             const ttSuffix = ttTime > 0 ? '  ' + _formatTime(ttTime) : '';
             drawText(ctx, 'LEFT: BOSS RUSH' + brSuffix, 4, GAME.H - 12, '#ff80a0', 1, 'left');
             drawText(ctx, 'RIGHT: TIME TRIAL' + ttSuffix, GAME.W - 4, GAME.H - 12, '#80c0ff', 1, 'right');
+            // R190: Reality Distortion Field hint — Steve Jobs post-credits
+            // secret stage, gated on clear_game. Bound to B (shield key).
+            drawText(ctx, 'B: ONE MORE THING', GAME.W / 2, GAME.H - 12, '#a070ff', 1, 'center');
         }
         // Personal best — TOP TIER achievement gates on >=100k, but the
         // player never saw their current best until they hit it. Show it on

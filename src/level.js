@@ -1276,6 +1276,69 @@ function makeTimeTrial() {
     return data;
 }
 
+// R190: Stage 13 — REALITY DISTORTION FIELD. After-credits secret stage
+// unlocked by completing the main campaign (clear_game). Steve Jobs as the
+// post-credits titan. Geometry is a keynote auditorium / black-mirror floor
+// arena — short approach, three audience-row platforms, then the boss pit.
+// Painted bg_reality_distortion.png paints over the procedural tiles.
+function makeStage13() {
+    const w = 64, h = 16;
+    const { g } = blankStage(w, h, THEME.REALITY);
+
+    // Section A (x 0–18): SHORT APPROACH — audience-floor platforms.
+    platT(g, 11, 8, 4);
+    platT(g, 11, 16, 4);
+
+    // Section B (x 18–34): AUDIENCE ROWS — three ascending bench platforms
+    // forming a staircase up to the stage. Each one is breakable cover
+    // height so the player can vault or duck behind it.
+    rectT(g, 12, 20, 1, 2, W);
+    rectT(g, 11, 24, 1, 3, W);
+    rectT(g, 10, 28, 1, 4, W);
+
+    // Section C (x 34–48): SPOTLIGHT PITS — two narrow black-mirror gaps in
+    // the floor (death falls) with chandelier platforms above offering a
+    // sniper-perch option. Mid-spot allowed for full arena traversal.
+    for (let i = 0; i < 3; i++) g[h - 2][36 + i] = E;
+    for (let i = 0; i < 3; i++) g[h - 2][44 + i] = E;
+    platT(g, 6, 36, 3);          // chandelier 1
+    platT(g, 6, 44, 3);          // chandelier 2
+    platT(g, 11, 40, 3);         // safe mid platform
+
+    // Section D (x 48–60): BOSS ARENA — wide flat keynote-stage area
+    // where Jobs paces and throws projectiles. Two cover pillars + the
+    // exit pit (boss kill ends stage).
+    setT(g, h - 3, 50, C);       // bondi-blue cube pillar cover
+    setT(g, h - 3, 56, C);       // second cube pillar
+    // Stealth grass in the back corners — audience curtain
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 60 + i, G);
+
+    return {
+        tiles: g, width: w, height: h, theme: THEME.REALITY,
+        playerStart: { x: 48, y: (h - 4) * GAME.TILE },
+        bossTrigger: { x: 50 * GAME.TILE },
+        // No mini-boss — straight to Jobs.
+        enemySpawns: [
+            // Light grunt sweep through audience approach
+            { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            { x: 20 * GAME.TILE, y: (h - 4) * GAME.TILE, type: 'cabinet' },
+            { x: 32 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            { x: 42 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'folder' },
+        ],
+        pickupSpawns: [
+            { x: 16 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SHOTGUN' },
+            { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            { x: 40 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            { x: 49 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+        ],
+        crateSpawns: [
+            { x:  9 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'HOMING' },
+            { x: 28 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'THUNDER' },
+            { x: 40 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'LIFE' },
+        ]
+    };
+}
+
 export const STAGE_LOADERS = [
     null,
     () => makeStage1(),
@@ -1290,6 +1353,7 @@ export const STAGE_LOADERS = [
     () => makeTraining(),  // Training ground — stage 10
     () => makeBossRushMode(),  // Boss rush — stage 11 (post-game unlock)
     () => makeTimeTrial(),  // Time trial — stage 12 (post-game unlock)
+    () => makeStage13(),  // R190: REALITY DISTORTION FIELD — post-credits Jobs fight
 ];
 
 // Tile palette per theme — dark painted tones, NOT bright video-game colors.
@@ -1303,6 +1367,9 @@ const THEME_PALETTE = {
     [THEME.KEYNOTE]:    { solid: '#08080a', solidTop: '#141014', platform: '#1a141a', plank: '#040408', accent: '#403048', highlight: '#705068' },
     [THEME.FOUNDER]:    { solid: '#0a0408', solidTop: '#180810', platform: '#1a0810', plank: '#040204', accent: '#601008', highlight: '#a02018' },
     [THEME.CLOUD]:      { solid: '#040818', solidTop: '#0a1428', platform: '#101a30', plank: '#020410', accent: '#205080', highlight: '#5090c0' },
+    // R190: REALITY — black mirror floor of the keynote auditorium, with
+    // spotlight-lavender highlights. Used by Stage 13 (Steve Jobs fight).
+    [THEME.REALITY]:    { solid: '#04040a', solidTop: '#0a0810', platform: '#181020', plank: '#020208', accent: '#503060', highlight: '#8060a0' },
 };
 
 export class Level {

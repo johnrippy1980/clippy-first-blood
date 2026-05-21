@@ -90,6 +90,10 @@ class Bullet {
             return;
         }
         this.prevX = this.x; this.prevY = this.y;
+        // R190: optional per-bullet gravity for arcing projectiles (cube
+        // iMac throws from the JOBS fight). Default 0 → existing straight
+        // bullets unchanged.
+        if (this._gravity) this.vy += this._gravity;
         this.x += this.vx; this.y += this.vy;
         this.life--;
         if (level.isSolid(this.x, this.y)) {
@@ -979,6 +983,46 @@ class Boss extends Enemy {
                     globalEnemyBullets.push(b);
                 }
                 break;
+            case 'JOBS':
+                // R190: two-pattern dance.
+                // Even index: iPod barrage — 3-shot horizontal spread of
+                //   small fast white projectiles aimed at the player.
+                //   Phase 2 adds a 4th shot for fan width.
+                // Odd index: cube iMac throw — single heavy projectile
+                //   that arcs up and falls. Phase 2 throws three in a fan.
+                if (this.attackIndex % 2 === 0) {
+                    const shots = this.phase === 2 ? 4 : 3;
+                    for (let i = 0; i < shots; i++) {
+                        const yOff = (i - (shots - 1) / 2) * 6;
+                        const b = new Bullet(
+                            this.x + this.w / 2,
+                            this.y + this.h / 2 + yOff,
+                            aim * speed * 1.5,
+                            yOff * 0.04,    // slight drift toward fan center
+                            1
+                        );
+                        b.color = '#f0f0f0';   // iPod white
+                        b._jobsIpod = true;     // hook for trail rendering
+                        globalEnemyBullets.push(b);
+                    }
+                } else {
+                    const fanCount = this.phase === 2 ? 3 : 1;
+                    for (let i = 0; i < fanCount; i++) {
+                        const offset = (i - (fanCount - 1) / 2) * 0.5;
+                        const b = new Bullet(
+                            this.x + this.w / 2,
+                            this.y + 4,
+                            aim * speed * 0.8 + offset,
+                            -2.2,            // arc up
+                            2                // heavy hit (2 dmg)
+                        );
+                        b.color = '#80c0ff';   // bondi blue cube iMac
+                        b._jobsCube = true;
+                        b._gravity = 0.12;     // arc-down acceleration
+                        globalEnemyBullets.push(b);
+                    }
+                }
+                break;
         }
 
         this.attackIndex++;
@@ -1318,6 +1362,69 @@ const BOSS_TEMPLATES = {
             }
             ctx.fillStyle = '#fff';
             ctx.fillRect(cx - 1, cy - 1, 2, 2);
+        },
+    },
+    // R190: Steve Jobs — the post-credits titan. Throws iPods (fast direct
+    // shots) and translucent cube iMacs (slow arcing heavies). HP is the
+    // highest in the game by design — he's optional and unlocks after
+    // clear_game. Painted boss-intro portrait at boss_intro_JOBS in
+    // SCENE_MANIFEST handles the cinematic; this draw fallback is the
+    // procedural in-fight rendition.
+    JOBS: {
+        name: 'STEVE JOBS', tagline: 'ONE MORE THING.',
+        barks: {
+            phase2: 'BOOM.',
+            taunt: [
+                'INSANELY GREAT',
+                'CLIPPY WAS A MISTAKE',
+                'YOU ARE NOT A USER',
+                'DESIGN MATTERS',
+                'JUST WORKS',
+                'STAY HUNGRY',
+                'BOOM.',
+                'THERES ONE MORE THING',
+                'YOU HOLD IT WRONG',
+            ],
+        },
+        w: 32, h: 44, hp: 80, contactDmg: 3, score: 25000,
+        color: '#1a1a1a', detail: '#d0d0d8',
+        grounded: true,
+        draw: (ctx, x, y, w, h, t, p) => {
+            // Black turtleneck silhouette + denim legs. The painted
+            // boss-intro sprite is the canon look; this is the procedural
+            // in-fight version that stays readable at gameplay zoom.
+            // Head
+            ctx.fillStyle = '#d8c098';
+            ctx.fillRect(x + 10, y + 2, 12, 10);
+            // Round glasses
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x + 11, y + 6, 4, 2);
+            ctx.fillRect(x + 17, y + 6, 4, 2);
+            // Turtleneck
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x + 6, y + 12, 20, 16);
+            // Sweater highlight (phase-2 turns deep red for rage)
+            ctx.fillStyle = p === 2 ? '#601018' : '#303038';
+            ctx.fillRect(x + 8, y + 16, 16, 4);
+            // Jeans
+            ctx.fillStyle = '#3050a0';
+            ctx.fillRect(x + 8, y + 28, 6, 14);
+            ctx.fillRect(x + 18, y + 28, 6, 14);
+            // Sneakers
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(x + 7, y + 41, 8, 3);
+            ctx.fillRect(x + 17, y + 41, 8, 3);
+            // iPod in outstretched hand (the throwing arm) — phase 2 holds
+            // it with a deep-red glow as he pitches projectiles faster.
+            const armSwing = Math.sin(t / 18) * 2;
+            const handX = x + w + 2 + armSwing;
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(handX, y + 18, 4, 6);
+            ctx.fillStyle = '#f8f8f8';
+            ctx.fillRect(handX + 1, y + 19, 2, 4);
+            // Click wheel
+            ctx.fillStyle = p === 2 ? '#ff5050' : '#80c0ff';
+            ctx.fillRect(handX + 1, y + 21, 2, 2);
         },
     },
 };

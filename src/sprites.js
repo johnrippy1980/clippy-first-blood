@@ -182,6 +182,10 @@ export const BG_MANIFEST = {
     'bg_keynote':    'bg_keynote.png',
     'bg_founder':    'bg_founder.png',
     'bg_cloud':      'bg_cloud.png',
+    // R190: Stage 13 (Reality Distortion Field) — painted keynote-auditorium
+    // backdrop with floating bondi-blue cube iMacs. Falls back to the
+    // procedural REALITY palette if the asset isn't loaded.
+    'bg_reality':    'bg_reality_distortion.png',
     // Ground tile bitmaps — used by level.js to texture solid blocks. Sampled.
     'ground_jungle':     'ground_jungle.png',
     'ground_breakroom':  'ground_breakroom.png',

@@ -104,6 +104,10 @@ export const THEME = Object.freeze({
     KEYNOTE: 'keynote',
     FOUNDER: 'founder',
     CLOUD: 'cloud',
+    // R190: Stage 13 — REALITY DISTORTION FIELD, the after-credits boss
+    // stage where Steve Jobs hurls iPods and translucent cube iMacs at
+    // Clippy. Uses the painted keynote auditorium backdrop.
+    REALITY: 'reality',
 });
 
 // Stage manifest. Indexes 1..8. Each carries theme + boss + music + display name.
@@ -127,6 +131,10 @@ export const STAGES = [
     // Accessed from title screen via LEFT (BOSS RUSH) / RIGHT (TIME TRIAL).
     { id: 11, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
     { id: 12, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
+    // R190: Stage 13 — REALITY DISTORTION FIELD. After-credits secret stage.
+    // Unlocks after clearing The Algorithm (clear_game). Steve Jobs as the
+    // titan who slipped through the cracks of the main hit list.
+    { id: 13, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
 ];
 
 // Damage flash colors per source.

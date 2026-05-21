@@ -22,6 +22,7 @@ const BG_KEY_FOR_THEME = {
     [THEME.KEYNOTE]:    'bg_keynote',
     [THEME.FOUNDER]:    'bg_founder',
     [THEME.CLOUD]:      'bg_cloud',
+    [THEME.REALITY]:    'bg_reality',
 };
 
 export class Parallax {
