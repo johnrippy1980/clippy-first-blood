@@ -2660,7 +2660,12 @@ export class Game {
         const time = `${min}:${String(sec).padStart(2,'0')}`;
         const accuracy = this.player.shotsFired > 0
             ? Math.round((this.stageStats.kills / this.player.shotsFired) * 100)
-            : 0;
+            : null;
+        // R171: when no shots were fired, accuracy reads as a dash instead
+        // of "0%". Otherwise a pacifist run / melee-only clear looks like a
+        // bottomed-out accuracy stat rather than a measurement that doesn't
+        // apply.
+        const accuracyStr = accuracy == null ? '—' : (accuracy + '%');
         // Rank letter grade — weighted on damage-taken (50%), accuracy (30%),
         // time (20%). Cached on the panel so the letter doesn't flicker between
         // ticks as shownScore changes. Renders on the right edge as a big
@@ -2668,7 +2673,9 @@ export class Game {
         if (this._stageClearRank == null) {
             const dmg = this.stageStats.damageTaken || 0;
             const dmgScore = dmg === 0 ? 1 : dmg <= 2 ? 0.7 : dmg <= 5 ? 0.4 : 0.15;
-            const accScore = Math.min(1, accuracy / 60); // 60% accuracy is full
+            // No-shots clears (melee/grenade only) don't penalize accuracy —
+            // neutral 0.5 baseline instead of a hard 0 that would drag the rank.
+            const accScore = accuracy == null ? 0.5 : Math.min(1, accuracy / 60);
             // Time: stage par ~75s; under par = full, slower scales down
             const par = 75 * 60; // frames
             const timeScore = Math.max(0.1, Math.min(1, par / Math.max(par, this.stageTime)));
@@ -2696,7 +2703,7 @@ export class Game {
             ['KILLS',      String(this.stageStats.kills),           '#fff'],
             ['MAX COMBO',  String(this.player.maxCombo) + 'x',      '#ffe070'],
             ['SCORE',      ('000000' + shownScore).slice(-6),       '#ffe070'],
-            ['ACCURACY',   accuracy + '%',                          '#fff'],
+            ['ACCURACY',   accuracyStr,                             '#fff'],
             ['FAVORITE',   this._favoriteWeapon(),                  '#a0c0e0'],
         ];
         for (let i = 0; i < stats.length; i++) {
