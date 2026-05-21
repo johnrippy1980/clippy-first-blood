@@ -1489,9 +1489,18 @@ export class Game {
         // portrait math but anchored to the left edge. Uses the same 'idle'
         // sprite the gameplay loop renders, so the cut-to-play stays
         // visually continuous.
+        // R205: portrait aspect was hard-coded for v5_idle (28/56 ≈ 0.5).
+        // After R201 routed 'idle' to v6_run_2.png (26×40, aspect 0.65),
+        // the old math stretched Clippy too thin. Read the actual source
+        // aspect off the loaded image so any future re-route stays
+        // correctly proportioned.
         const portraitKey = 'idle';
         const portraitH = 88;
-        const portraitW = Math.round(portraitH * (28 / 56)); // ~44, matches v5_idle aspect
+        const portraitImg = sprites.images.get(portraitKey);
+        const portraitAspect = portraitImg
+            ? portraitImg.width / portraitImg.height
+            : 28 / 56;
+        const portraitW = Math.round(portraitH * portraitAspect);
         const targetX = 12;
         const startX = -portraitW - 20;
         const slideStart = 0, slideEnd = 15;
