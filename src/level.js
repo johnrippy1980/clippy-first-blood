@@ -532,9 +532,10 @@ function makeStage3() {
 // Stage 4 — Board Room. Long conference table jumps, executive chairs as
 // breakable cover, projectors raining slides.
 function makeStage4() {
-    // Stage 4 — Board Room. Trimmed from 100→72 tiles.
-    // Teaches: table-hopping cadence, chandelier high route, projector hazards.
-    const w = 72, h = 14;
+    // Stage 4 — Board Room. R185 deep-pass: extended 72→100 tiles with two
+    // new sections (F: presentation hall, G: whiteboard climb). Many high
+    // perches + chandelier routes = THUNDER + HOMING pickups dominate.
+    const w = 100, h = 14;
     const { g } = blankStage(w, h, THEME.BOARDROOM);
 
     // Section A (x 0–18): WARMUP — first two boardroom tables.
@@ -551,42 +552,97 @@ function makeStage4() {
     platT(g, 10, 34, 6);
     platT(g, 6, 38, 3);
 
-    // Section D (x 46–60): PROJECTOR PIT — wider, requires chandelier hop.
+    // Section D (x 46–60): PROJECTOR PIT — wider, chandelier hop.
     spikeRow(g, h - 3, 48, 4);
     platT(g, 5, 50, 3);
     platT(g, 10, 54, 5);
 
-    // Section E (x 60–68): BOSS APPROACH — final raised platform.
-    rectT(g, 9, 62, 2, 3, W);
+    // Section F (x 60–80): PRESENTATION HALL — three rows of executive
+    // chairs (low walls) with a central podium. Sniper at podium top.
+    // Player can vault chairs (jump) or slide under them. Chairs read as
+    // breakable cover.
+    rectT(g, 11, 62, 1, 2, W);          // chair row 1
+    rectT(g, 11, 67, 1, 2, W);          // chair row 2
+    rectT(g, 11, 72, 1, 2, W);          // chair row 3
+    rectT(g,  9, 76, 1, 4, W);          // central podium (tall)
+    platT(g,  6, 74, 4);                // podium top platform
+    platT(g, 11, 65, 1);                // hop platform between chairs
+
+    // Section G (x 80–92): WHITEBOARD CLIMB — vertical face with stepping
+    // platforms. Sniper at top forces the player to climb under fire.
+    platT(g, 11, 81, 2);
+    platT(g,  9, 84, 2);
+    platT(g,  7, 87, 2);
+    platT(g,  5, 90, 3);                // top board (HOMING crate)
+    ladderT(g, 6, 83, 5);               // ladder access on left
+
+    // Section H (x 92–96): BOSS APPROACH — final raised platform.
+    rectT(g, 9, 92, 2, 3, W);
     setT(g, h - 3, w - 4, X);
+
     // Heavy boardroom door — duck-cover near the sniper above projectors.
     setT(g, h - 3, 46, C);
-    // Velvet wall curtains — slip behind to break the sniper line of sight.
+    // Velvet wall curtains — slip behind to break sniper line of sight.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 14 + i, G);
     for (let i = 0; i < 2; i++) setT(g, h - 3, 42 + i, G);
     // Second door near the holepunch sniper on the top route.
     setT(g, h - 3, 60, C);
+    // F: cover at podium base for the chair-row sniper.
+    setT(g, h - 3, 75, C);
+    // G: stealth curtain at whiteboard climb entrance.
+    for (let i = 0; i < 3; i++) setT(g, h - 3, 80 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.BOARDROOM,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 64 * GAME.TILE },
+        bossTrigger: { x: 94 * GAME.TILE },
         miniBossTrigger: 32 * GAME.TILE,
         enemySpawns: [
+            // A-D (unchanged)
             { x: 10 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'folder' },
             { x: 18 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'stapler' },
             { x: 28 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'cabinet' },
             { x: 38 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 50 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'holepunch' },
             { x: 58 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'cabinet' },
+            // F: PRESENTATION HALL — cabinet at chair row 2, sniper on
+            // podium top, folder hovering over the chairs.
+            { x: 69 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'cabinet' },
+            { x: 76 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            { x: 71 * GAME.TILE, y: ( 7) * GAME.TILE, type: 'folder' },
+            // G: WHITEBOARD CLIMB — sniper at top of the wall, cabinet
+            // at the base to soak shots while climbing.
+            { x: 90 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'holepunch' },
+            { x: 82 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'cabinet' },
         ],
         pickupSpawns: [
+            // C top: THUNDER (unchanged)
             { x: 38 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'THUNDER' },
+            // Pre-mini-boss LIFE
+            { x: 30 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-projector-pit SHOTGUN
+            { x: 47 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'SHOTGUN' },
+            // F: pre-presentation-hall GRENADE — chuck into chair rows
+            { x: 61 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'GRENADE' },
+            // F: mid-presentation LIFE
+            { x: 75 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
+            // G: pre-climb HOMING pickup — handles the top sniper from below
+            { x: 80 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'HOMING' },
+            // Pre-boss LIFE
+            { x: 93 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
+            // A SHOTGUN (unchanged)
             { x: 12 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'SHOTGUN' },
+            // C mid LIFE (unchanged)
             { x: 36 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'LIFE' },
+            // D HOMING (unchanged)
             { x: 54 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'HOMING' },
+            // F: podium top THUNDER (vertical reward, matches the C-tier
+            // THUNDER pickup for sniper-bias progression)
+            { x: 75 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'THUNDER' },
+            // G: top of whiteboard HOMING — risk reward for top route
+            { x: 91 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'HOMING' },
         ]
     };
 }
