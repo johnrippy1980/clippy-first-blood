@@ -41,6 +41,18 @@ class Input {
         window.addEventListener('gamepadconnected', e => { this.gamepadIndex = e.gamepad.index; });
         window.addEventListener('gamepaddisconnected', () => { this.gamepadIndex = null; });
 
+        // R198: browsers don't fire keyup for held keys when the window
+        // loses focus, so a key held during a tab-switch / minimize stays
+        // stuck in `held` forever. Coming back, the player walks left
+        // forever or can't move because a directional input is pinned.
+        // Clear all input state whenever focus leaves the window or the
+        // tab is hidden — much safer than trying to track which keys
+        // might or might not still be physically down.
+        window.addEventListener('blur', () => this.releaseAll());
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) this.releaseAll();
+        });
+
         // Prevent scrolling with arrow keys / space + Tab focus-switch.
         window.addEventListener('keydown', e => {
             if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Tab'].includes(e.key)) {
@@ -124,6 +136,17 @@ class Input {
     // Is it currently held down?
     isHeld(a) { return this.held.has(a); }
     isReleased(a) { return this.released.has(a); }
+
+    // R198: full state wipe. Called on focus loss + when exiting a scene
+    // that didn't tick the player (boss intro cinematic). Keeps held keys
+    // from the pre-cinematic frame from being inherited into PLAY.
+    releaseAll() {
+        this.held.clear();
+        this.pressed.clear();
+        this.released.clear();
+        this.pressTimes.clear();
+    }
+
     // Was it pressed in the last PRESS_BUFFER_MS? Useful for forgiving jump input.
     isBuffered(a) {
         const t = this.pressTimes.get(a);
