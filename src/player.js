@@ -3076,7 +3076,13 @@ export class Player {
         const px = -ay, py = ax;
         // Arm — always rendered the same; weapon variants below paint the
         // barrel/emitter differently so each pickup feels distinct.
-        this._line(ctx, sx, sy, elbowX, elbowY, '#b0b0c0', 2);
+        // R192 readability bump: 2px chrome wire was fading into painted
+        // backgrounds at game zoom. Now draws as a 4px DARK outline + 2px
+        // chrome highlight so the silhouette reads at 1:1 game zoom against
+        // any backdrop. Matches the bold proportions on the title-screen
+        // painted Clippy where the arm is clearly visible.
+        this._line(ctx, sx, sy, elbowX, elbowY, '#101018', 4);
+        this._line(ctx, sx, sy, elbowX, elbowY, '#d0d0d8', 2);
         if (this.weapon === 'SHOTGUN') {
             // Double-stacked side-by-side barrels — both 3px thick, 3px apart.
             // Silhouette: short FAT brown rectangle, clearly thicker than MG.
@@ -3180,15 +3186,24 @@ export class Player {
             // MG (default) — single rifle barrel + side magazine. Adds a
             // tiny block hanging off the cross axis so the silhouette
             // reads as a real gun, not just a stick.
-            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 3);
-            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 1);
-            // Magazine — small block hanging below the receiver
-            ctx.fillStyle = '#202028';
+            // R192 readability bump: 3px barrel → 4px dark outline + 2px
+            // chrome highlight so the silhouette reads at game zoom. The
+            // magazine block is now 3x4 (was 2x3) to match the heavier
+            // proportions of the title-screen painted Clippy rifle.
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#101018', 4);
+            this._line(ctx, elbowX, elbowY, muzzleX, muzzleY, '#d8d8e0', 2);
+            // Magazine — slightly bigger block hanging below the receiver
+            ctx.fillStyle = '#101018';
             ctx.fillRect(Math.round(elbowX + ax * 2 - px * 2),
-                         Math.round(elbowY + ay * 2 - py * 2), 2, 3);
+                         Math.round(elbowY + ay * 2 - py * 2), 3, 4);
             ctx.fillStyle = '#404048';
-            ctx.fillRect(Math.round(elbowX + ax * 2 - px * 2),
-                         Math.round(elbowY + ay * 2 - py * 2 + 1), 1, 1);
+            ctx.fillRect(Math.round(elbowX + ax * 2 - px * 2 + 1),
+                         Math.round(elbowY + ay * 2 - py * 2 + 1), 1, 2);
+            // Top-rail receiver block — a small dark bump on the cross-
+            // axis above the barrel sells the "real assault rifle" silhouette
+            ctx.fillStyle = '#101018';
+            ctx.fillRect(Math.round(elbowX + ax * 1 + px * 2),
+                         Math.round(elbowY + ay * 1 + py * 2), 2, 2);
         }
         // Muzzle tip — bright starburst when fireCooldown is fresh (just fired).
         // Cross-pattern + hot center reads as a real muzzle flash instead of a
