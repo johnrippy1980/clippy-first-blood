@@ -50,6 +50,16 @@ const PLAYER_W = 12;
 const CLIMB_SPEED = 1.4;
 const WEAPON_DURATION = 600;  // frames (not infinite; encourages variety)
 
+// R180: shield tunables. SHIELD_MAX is the full charge value, drained per
+// hit by the hit's weight: 1 (normal), 2 (heavy: spread, shotgun pellet,
+// boss bullet), 3 (huge: boss melee, lava, crusher). SHIELD_COOLDOWN is
+// the frame count after a break before the shield can re-raise. RECHARGE
+// is the per-frame recovery rate while INACTIVE and not on cooldown.
+const SHIELD_MAX = 3;
+const SHIELD_COOLDOWN = 300;         // 5s at 60fps after shatter
+const SHIELD_RECHARGE_DELAY = 180;   // 3s of NOT taking hits before recharge starts
+const SHIELD_RECHARGE_RATE = 0.008;  // ~7.5s from 0→full once recharge kicks in
+
 // R156: Clippy taunts. Random short barks on kill, low frequency. Separate
 // pools for grunt vs boss kills — boss taunts are punchier / more personal.
 // Tuning: 15% per grunt kill, 100% per boss kill (boss kills are rare enough
@@ -104,6 +114,21 @@ export class Player {
         this.hurtTimer = 0;
         this.knockX = 0;
         this.deathTimer = 0;
+
+        // R180: shield system. Hold B (or LB on gamepad) to raise a bubble
+        // shield that absorbs incoming hits. shieldCharge is the remaining
+        // hit capacity (0..SHIELD_MAX). Each hit consumed decrements by the
+        // hit's damage value — normal=1, spread/shotgun-pellet=2, boss
+        // melee=3. When charge hits 0 the shield SHATTERS, knocks player
+        // back, and enters cooldown for SHIELD_COOLDOWN frames. shieldActive
+        // is set every frame the button is held AND charge > 0 AND not in
+        // cooldown — gates the absorb logic in hurt() and the visual draw.
+        this.shieldCharge = SHIELD_MAX;
+        this.shieldActive = false;
+        this.shieldCooldown = 0;
+        this.shieldFlashTimer = 0;   // brief flash when an absorbed hit lands
+        this.shieldBreakTimer = 0;   // shatter animation timer
+        this.shieldUsedThisStage = false;
 
         // Weapons
         this.weapon = 'MG';
@@ -221,6 +246,15 @@ export class Player {
         // into the next stage).
         this.thrownGrenades.length = 0;
         this._grenadeCooldown = 0;
+        // R180: shield resets fully on each stage. Full charge available,
+        // no cooldown carry-over, HUD bar hidden until the player uses it.
+        this.shieldCharge = SHIELD_MAX;
+        this.shieldActive = false;
+        this.shieldCooldown = 0;
+        this.shieldFlashTimer = 0;
+        this.shieldBreakTimer = 0;
+        this.shieldUsedThisStage = false;
+        this._shieldNoHitFrames = 0;
         // Full state-machine reset. Without this, a boss-kill that fires
         // while the player is mid-pounce/grapple/roll/slide/cover/dash will
         // carry that state into the next stage, where input is gated by
@@ -281,6 +315,9 @@ export class Player {
         if (this.lastHurtSrc && this.lastHurtSrc.frames > 0) this.lastHurtSrc.frames--;
         if (this.hurtTimer > 0) this.hurtTimer--;
         if (this.fireCooldown > 0) this.fireCooldown--;
+        // R180: shield tick — read input, manage cooldown / recharge / FX
+        // timers, set shieldActive flag for hurt() and draw paths to consume.
+        this._tickShield();
         if (this.comboTimer > 0) {
             this.comboTimer--;
             if (this.comboTimer === 0 && this.combo >= 5) audio.sfx('comboBreak');
@@ -1296,6 +1333,55 @@ export class Player {
         if (kick) this.requestShake = Math.max(this.requestShake || 0, kick);
     }
 
+    // R180: shield tick. Reads `shield` input each frame and manages charge,
+    // cooldown, and visual timers. Shield states cascade through:
+    //   1. shieldCooldown > 0  → cannot raise; tick down
+    //   2. shieldCharge == 0 + button held → still cannot raise (break must
+    //      complete the cooldown first)
+    //   3. button held + charge > 0 + no cooldown → shieldActive=true
+    //   4. inactive + no recent hit → recharge slowly back to full
+    // Hits are applied via hurt()'s shieldActive short-circuit; this tick
+    // does NOT consume charge directly.
+    _tickShield() {
+        // Tick down break/flash animation timers regardless of state.
+        if (this.shieldBreakTimer > 0) this.shieldBreakTimer--;
+        if (this.shieldFlashTimer > 0) this.shieldFlashTimer--;
+        // Cooldown is the post-break lockout.
+        if (this.shieldCooldown > 0) {
+            this.shieldCooldown--;
+            this.shieldActive = false;
+            if (this.shieldCooldown === 0) {
+                // Cooldown ended — start refilling immediately so the player
+                // doesn't sit with 0 charge waiting indefinitely. Audio cue.
+                this.shieldCharge = 0.0001;  // non-zero so recharge takes over
+                if (typeof audio !== 'undefined') audio.sfx('select');
+            }
+            return;
+        }
+        // Recharge: once enough hit-free time has passed AND shield is NOT
+        // currently raised, refill charge up to SHIELD_MAX.
+        if (!this.shieldActive && this.hurtTimer <= 0 && this.shieldCharge < SHIELD_MAX) {
+            // Gate on recent-hit timer (re-using hurtTimer < threshold as a
+            // proxy — hurtTimer drains over 36f after a hit, so if it's been
+            // longer than SHIELD_RECHARGE_DELAY since the last hit we're safe.
+            this._shieldNoHitFrames = (this._shieldNoHitFrames || 0) + 1;
+            if (this._shieldNoHitFrames >= SHIELD_RECHARGE_DELAY) {
+                this.shieldCharge = Math.min(SHIELD_MAX, this.shieldCharge + SHIELD_RECHARGE_RATE);
+            }
+        }
+        // Read shield input. Held button + charge > 0 + not in a blocked
+        // state = active. Gate out states where the bubble would look weird
+        // (death, hurt knockback, pre-jump squash) — but allow during cover
+        // / grapple / climb so the player can defensively reposition.
+        const blocked = this.state === STATE.DIE
+                     || this.state === STATE.HURT
+                     || this.state === STATE.POUNCE
+                     || this.state === STATE.DASH_ATTACK
+                     || this.shieldCharge <= 0;
+        const held = (typeof input !== 'undefined') && input.held && input.held.has('shield');
+        this.shieldActive = held && !blocked;
+    }
+
     // CHAINSAW melee tick — damages all enemies whose center lies within
     // `range` px of Clippy's center AND inside a `arcDeg` cone facing
     // `this.facing`. Called every fire frame; damage is per-frame so a
@@ -1715,6 +1801,45 @@ export class Player {
         if (this.godMode) {
             this.iFrames = Math.max(this.iFrames, 12);
             particles.floatingText(this.x + this.w / 2, this.y - 4, 'NOPE', '#80e0ff', 30);
+            return;
+        }
+        // R180: shield absorb. If raised and charged, consume charge equal
+        // to the hit's weight (capped by `dmg` so a 1-dmg pellet drains 1
+        // unit, a 3-dmg boss melee drains 3). If charge goes to zero, the
+        // shield SHATTERS — particles, knockback, cooldown, but the HP hit
+        // is still absorbed. Short i-frames after absorb so the next
+        // immediate hit isn't free.
+        if (this.shieldActive && this.shieldCharge > 0) {
+            const cost = Math.min(this.shieldCharge, Math.max(1, dmg));
+            this.shieldCharge -= cost;
+            this._shieldNoHitFrames = 0;
+            this.shieldFlashTimer = 8;
+            this.shieldUsedThisStage = true;
+            if (srcX != null) {
+                this.lastHurtSrc = { x: srcX, y: srcY, frames: AMBIENT.DAMAGE_INDICATOR_F };
+            }
+            if (this.shieldCharge <= 0) {
+                this.shieldCharge = 0;
+                this.shieldCooldown = SHIELD_COOLDOWN;
+                this.shieldBreakTimer = 20;
+                this.shieldActive = false;
+                if (typeof audio !== 'undefined') audio.sfx('crateBreak');
+                particles.weaponHitBurst(
+                    this.x + this.w / 2, this.y + this.h / 2,
+                    'SHIELD', '#80e0ff'
+                );
+                particles.floatingText(this.x + this.w / 2, this.y - 4, 'SHIELD!', '#ff8050', 36);
+                // Light knockback on shatter so the player feels the break.
+                this.knockX = knockDir * 1.8;
+                this.vy = Math.min(this.vy, -2.0);
+            } else {
+                if (typeof audio !== 'undefined') audio.sfx('bossHit');
+                particles.hitSpark(this.x + this.w / 2, this.y + this.h / 2, '#80e0ff');
+                particles.floatingText(this.x + this.w / 2, this.y - 4, 'BLOCK', '#80e0ff', 26);
+            }
+            // Brief i-frames so the next overlapping bullet doesn't drain
+            // multiple stacks in one frame.
+            this.iFrames = Math.max(this.iFrames, 12);
             return;
         }
         // Remember the damage source for the off-screen indicator
@@ -2410,6 +2535,70 @@ export class Player {
             ctx.fillRect( 1, -5, 1, 1);     // ring right
             ctx.fillStyle = metalHi;
             ctx.fillRect(0, -6, 1, 1);
+            ctx.restore();
+        }
+
+        // R180: shield bubble + shatter. Drawn last so it sits over the
+        // sprite. Bubble = pulsing cyan ring + filled translucent disc, with
+        // segment ticks (one per remaining charge unit) on the perimeter so
+        // the player can read remaining strength at a glance. Shatter =
+        // expanding broken-ring particles for `shieldBreakTimer` frames.
+        if (this.shieldActive || this.shieldBreakTimer > 0) {
+            const bcx = Math.round(this.x + this.w / 2 - camera.viewX);
+            const bcy = Math.round(this.y + this.h / 2 - camera.viewY);
+            const baseR = 16;
+            ctx.save();
+            if (this.shieldBreakTimer > 0) {
+                // Shatter: ring expanding outward over the timer, alpha
+                // fading. Render as 8 broken arc dots so it reads as a
+                // ring breaking apart, not a smooth fade.
+                const t = 1 - (this.shieldBreakTimer / 20);
+                const ringR = baseR + t * 14;
+                const alpha = (1 - t) * 0.9;
+                ctx.fillStyle = '#80e0ff';
+                ctx.globalAlpha = alpha;
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2 + t * 0.3;
+                    const px = Math.round(bcx + Math.cos(a) * ringR);
+                    const py = Math.round(bcy + Math.sin(a) * ringR);
+                    ctx.fillRect(px - 1, py - 1, 3, 3);
+                }
+            } else {
+                // Active bubble
+                const pulse = (this.bootTimer = (this.bootTimer || 0) + 1, Math.sin(this.bootTimer * 0.2) * 0.15);
+                const lowCharge = this.shieldCharge <= 1;
+                const flicker = lowCharge && ((this.bootTimer >> 1) & 1);
+                if (flicker) { ctx.restore(); return; }
+                const alphaBase = this.shieldFlashTimer > 0 ? 0.55 : 0.28;
+                ctx.globalAlpha = alphaBase + pulse;
+                // Filled disc (very translucent)
+                ctx.fillStyle = '#80e0ff';
+                for (let dy = -baseR; dy <= baseR; dy++) {
+                    const rowW = Math.floor(Math.sqrt(baseR * baseR - dy * dy));
+                    ctx.fillRect(bcx - rowW, bcy + dy, rowW * 2, 1);
+                }
+                // Ring outline (more opaque)
+                ctx.globalAlpha = Math.min(1, alphaBase * 2.4 + pulse * 0.6);
+                ctx.fillStyle = this.shieldFlashTimer > 0 ? '#ffffff' : '#80e0ff';
+                for (let i = 0; i < 24; i++) {
+                    const a = (i / 24) * Math.PI * 2;
+                    const px = Math.round(bcx + Math.cos(a) * baseR);
+                    const py = Math.round(bcy + Math.sin(a) * baseR);
+                    ctx.fillRect(px, py, 1, 1);
+                }
+                // Charge ticks: bright nodes at top of the ring, one per
+                // remaining whole-unit charge. Helps the player read "I
+                // have 2 hits left" without staring at the HUD.
+                const ticks = Math.ceil(this.shieldCharge);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#ffffff';
+                for (let i = 0; i < ticks; i++) {
+                    const a = -Math.PI / 2 + (i - (ticks - 1) / 2) * 0.35;
+                    const px = Math.round(bcx + Math.cos(a) * baseR);
+                    const py = Math.round(bcy + Math.sin(a) * baseR);
+                    ctx.fillRect(px - 1, py - 1, 3, 3);
+                }
+            }
             ctx.restore();
         }
     }

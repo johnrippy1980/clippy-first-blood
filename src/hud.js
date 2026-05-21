@@ -139,6 +139,37 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(barX + barW, barY - 1, 1, barH + 2);
     }
 
+    // R180: shield charge bar — slim 3px strip directly under the HP bar.
+    // Cyan when ready (or pulsing when active), dim grey when in cooldown,
+    // segment ticks per whole charge unit so the player reads "1/3 left" at
+    // a glance. Hidden entirely if shield was never used this stage to keep
+    // the HUD clean on first run; once shieldUsedThisStage is true (set on
+    // first absorb), the bar stays visible for the rest of the stage.
+    if (player.shieldUsedThisStage || player.shieldActive || player.shieldCooldown > 0) {
+        const sx = barX, sy = barY + barH + 1, sw = barW, sh = 3;
+        ctx.fillStyle = '#0a1424';
+        ctx.fillRect(sx, sy, sw, sh);
+        if (player.shieldCooldown > 0) {
+            // Cooldown: bar fills from left → right as cooldown ticks down
+            const cdMax = 300;
+            const recovered = 1 - (player.shieldCooldown / cdMax);
+            ctx.fillStyle = '#405068';
+            ctx.fillRect(sx, sy, Math.floor(sw * recovered), sh);
+        } else {
+            const sPct = Math.min(1, player.shieldCharge / 3);
+            const sFill = Math.floor(sw * sPct);
+            const sColor = player.shieldActive ? '#a0ffff' : '#60c0ff';
+            ctx.fillStyle = sColor;
+            ctx.fillRect(sx, sy, sFill, sh);
+        }
+        // Segment ticks at each whole-charge boundary
+        ctx.fillStyle = '#0a0410';
+        for (let i = 1; i < 3; i++) {
+            const tx = sx + Math.floor((i / 3) * sw);
+            ctx.fillRect(tx, sy, 1, sh);
+        }
+    }
+
     // Weapon: small color-coded glyph + abbreviated name
     const w = WEAPON[player.weapon];
     const WEAPON_LABELS = {

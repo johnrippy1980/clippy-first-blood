@@ -13,6 +13,7 @@ const KEYMAP = {
     'x': 'shoot',          'X': 'shoot',
     'c': 'special',        'C': 'special',
     'v': 'grenade',        'V': 'grenade',
+    'b': 'shield',         'B': 'shield',
     'Shift': 'aimlock',
     'Enter': 'start',
     'Escape': 'pause',     'p': 'pause', 'P': 'pause',
@@ -165,6 +166,7 @@ class Input {
         this._set('special', gp.buttons[1]?.pressed);   // B
         this._set('grenade', gp.buttons[3]?.pressed);   // Y
         this._set('aimlock', gp.buttons[5]?.pressed);   // RB
+        this._set('shield',  gp.buttons[4]?.pressed);   // LB
         this._set('start', gp.buttons[9]?.pressed);
         this._set('pause', gp.buttons[9]?.pressed);
         // Right stick for 360 aim
@@ -220,6 +222,7 @@ class Input {
         bind('shoot', 'shoot');
         bind('special', 'special');
         bind('grenade', 'grenade');
+        bind('shield', 'shield');
         bind('pause', 'pause');
     }
 }
