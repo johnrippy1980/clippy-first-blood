@@ -219,8 +219,15 @@ export const CLIPPY_MANIFEST = {
     // processed through tools/process-r179-v5.py (BFS-flood knockout +
     // LANCZOS to 56px height). Replaces v3 (which had a baked rifle in
     // every pose) and v4 (which lost the face entirely).
-    'idle':            'v5_idle.png',
-    'idle_alt':        'v5_idle.png',
+    // R201: idle/shoot/aim/jump/crouch all routed to v6 run frames so the
+    // painted rifle is visible in EVERY state. v5_idle.png was the original
+    // armless idle pose, but the player kept seeing Clippy standing still
+    // with no gun and a tiny procedural arm stub. The v6 frames lean
+    // slightly forward but the rifle reads correctly at every aim band.
+    // Frame 2 (passing-leg) is most "neutral" — used for idle + standing
+    // shoot. Frame 1/3 (split-stride) carry over for the aim variants.
+    'idle':            'v6_run_2.png',
+    'idle_alt':        'v6_run_2.png',
     // R199: v6 run cycle — 4 proper frames (left-stride, pass, right-stride,
     // pass) from the new painted run sheet. Replaces v5_run.png × 5 which
     // was all the same frame and made Clippy look like he was skating.
@@ -260,12 +267,17 @@ export const CLIPPY_MANIFEST = {
     'run_shoot_2':     'v6_run_2.png',
     'run_shoot_3':     'v6_run_3.png',
     'run_shoot_4':     'v6_run_4.png',
-    'shoot':           'v5_idle.png',
-    'shoot_alt':       'v5_idle.png',
-    'aim':             'v5_idle.png',
-    'aim_up':          'v5_idle.png',
-    'aim_diag':        'v5_idle.png',
-    'aim_diag_down':   'v5_idle.png',
+    // R201: shoot + aim band — point at v6 frames with the rifle baked
+    // in. Same painted body as the run cycle so the silhouette stays
+    // consistent between RUN and standing-shoot. Aim variants will all
+    // show the rifle held forward — the bullet origin/_drawAimArm
+    // procedural overlay is now disabled (rifle is in the sprite).
+    'shoot':           'v6_run_2.png',
+    'shoot_alt':       'v6_run_4.png',
+    'aim':             'v6_run_2.png',
+    'aim_up':          'v6_run_2.png',
+    'aim_diag':        'v6_run_2.png',
+    'aim_diag_down':   'v6_run_2.png',
     'climb_1':         'pack_rope_1.png',
     'climb_2':         'pack_rope_2.png',
     'cover':           'pack_cover_1.png',

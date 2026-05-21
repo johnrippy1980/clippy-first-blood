@@ -2282,7 +2282,13 @@ export class Player {
         // sprite so we get 8-way aim coverage without needing a sprite-frame
         // per direction. Suppressed for states with hand-specific painted
         // poses (ledge grab, mid-pounce, dash slash, etc).
-        if (this.state !== STATE.DIE && this.state !== STATE.HURT &&
+        // R201: procedural aim-arm overlay disabled. The v6 painted run
+        // frames + idle/shoot/aim sprite remap all have the rifle baked
+        // into the body silhouette, so an extra procedural arm + barrel
+        // on top creates the smear/doubling the player kept calling out.
+        // Bullet spawn origin still uses `_muzzleWorldPos` (math-only,
+        // no draw) so projectiles still exit the right point.
+        if (false && this.state !== STATE.DIE && this.state !== STATE.HURT &&
             this.state !== STATE.SPIN_JUMP && this.state !== STATE.DASH_ATTACK &&
             this.state !== STATE.BACKDASH && this.state !== STATE.ROLL &&
             this.state !== STATE.GRAPPLE &&
