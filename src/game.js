@@ -552,24 +552,31 @@ export class Game {
             drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, GAME.H - 38, '#fff', '#a82020', 1, 'center');
             ctx.globalAlpha = 1;
         }
-        // Stage-select hint once stage 2 is unlocked
+        // R194: hint stack laid out so each row is 8px apart and never
+        // collides. Bottom-up: copyright (-8) → LEFT/RIGHT (-16) → center
+        // hint (-24) → upper center hint (-32). Pre-clear, UP sits at -24
+        // alone. Post-clear, B takes -24 (since it gates on clear_game)
+        // and UP moves up to -32.
+        const hasClear = achievements.unlocked.has('clear_game');
+        // Stage-select hint once stage 2 is unlocked. Sits at the very top
+        // of the hint stack so it doesn't fight with the post-clear rows.
         if (this.unlockedStage > 1) {
-            drawText(ctx, 'DOWN: STAGE SELECT', GAME.W / 2, GAME.H - 28, '#c0a0d0', 1, 'center');
+            drawText(ctx, 'DOWN: STAGE SELECT', GAME.W / 2, GAME.H - 40, '#c0a0d0', 1, 'center');
         }
         // Training-ground hint — always shown so new players find it.
-        drawText(ctx, 'UP: TRAINING GROUND', GAME.W / 2, GAME.H - 20, '#7af0bf', 1, 'center');
+        drawText(ctx, 'UP: TRAINING GROUND', GAME.W / 2, GAME.H - (hasClear ? 32 : 24), '#7af0bf', 1, 'center');
         // Post-game unlock hints — only after clear_game so the title stays
         // uncluttered for first-time players. Show best times when set.
-        if (achievements.unlocked.has('clear_game')) {
+        if (hasClear) {
             const brTime = achievements.stats?.bestBossRushTime || 0;
             const ttTime = achievements.stats?.bestTimeTrialTime || 0;
             const brSuffix = brTime > 0 ? '  ' + _formatTime(brTime) : '';
             const ttSuffix = ttTime > 0 ? '  ' + _formatTime(ttTime) : '';
-            drawText(ctx, 'LEFT: BOSS RUSH' + brSuffix, 4, GAME.H - 12, '#ff80a0', 1, 'left');
-            drawText(ctx, 'RIGHT: TIME TRIAL' + ttSuffix, GAME.W - 4, GAME.H - 12, '#80c0ff', 1, 'right');
-            // R190: Reality Distortion Field hint — Steve Jobs post-credits
-            // secret stage, gated on clear_game. Bound to B (shield key).
-            drawText(ctx, 'B: ONE MORE THING', GAME.W / 2, GAME.H - 12, '#a070ff', 1, 'center');
+            drawText(ctx, 'LEFT: BOSS RUSH' + brSuffix, 4, GAME.H - 16, '#ff80a0', 1, 'left');
+            drawText(ctx, 'RIGHT: TIME TRIAL' + ttSuffix, GAME.W - 4, GAME.H - 16, '#80c0ff', 1, 'right');
+            // Reality Distortion Field hint — center row at -24, between
+            // the LEFT/RIGHT row and the UP row.
+            drawText(ctx, 'B: ONE MORE THING', GAME.W / 2, GAME.H - 24, '#a070ff', 1, 'center');
         }
         // Personal best — TOP TIER achievement gates on >=100k, but the
         // player never saw their current best until they hit it. Show it on

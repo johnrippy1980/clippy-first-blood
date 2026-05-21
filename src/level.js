@@ -1290,11 +1290,13 @@ function makeStage13() {
     platT(g, 11, 16, 4);
 
     // Section B (x 18–34): AUDIENCE ROWS — three ascending bench platforms
-    // forming a staircase up to the stage. Each one is breakable cover
-    // height so the player can vault or duck behind it.
-    rectT(g, 12, 20, 1, 2, W);
-    rectT(g, 11, 24, 1, 3, W);
-    rectT(g, 10, 28, 1, 4, W);
+    // forming a staircase up to the stage. R195: these were solid walls
+    // (W) — a 4-tall wall at col 28 was an immediate hard blocker. Now
+    // one-way platforms (P) shaped as bench tops, with empty space behind
+    // so they read as benches the player jumps up onto.
+    platT(g, 12, 20, 3);   // low bench
+    platT(g, 10, 24, 3);   // mid bench
+    platT(g,  8, 28, 3);   // tall bench (jump-up reach)
 
     // Section C (x 34–48): SPOTLIGHT PITS — two narrow black-mirror gaps in
     // the floor (death falls) with chandelier platforms above offering a
@@ -1316,12 +1318,20 @@ function makeStage13() {
     return {
         tiles: g, width: w, height: h, theme: THEME.REALITY,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 50 * GAME.TILE },
+        // R195: bossTrigger was at col 50 — *inside* the boss arena, but
+        // right next to the spawn pillar so player got pinned by the
+        // boss-intro the moment they entered. Move trigger to col 54 so
+        // there's actual arena space first.
+        bossTrigger: { x: 54 * GAME.TILE },
         // No mini-boss — straight to Jobs.
         enemySpawns: [
-            // Light grunt sweep through audience approach
+            // Light grunt sweep through audience approach. R195: cabinet
+            // was spawned on the row-12 bench (now a 3-wide platform) and
+            // would pace itself off the edge into the floor. Moved to the
+            // main floor between low and mid benches so it can patrol the
+            // approach properly.
             { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
-            { x: 20 * GAME.TILE, y: (h - 4) * GAME.TILE, type: 'cabinet' },
+            { x: 22 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
             { x: 32 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 42 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'folder' },
         ],
