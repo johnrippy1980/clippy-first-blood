@@ -192,29 +192,20 @@ export const BG_MANIFEST = {
 // v2_*.png frames come from the new title-art-quality batch generated via
 // gpt-image-2; pack_*.png are the prior pre-existing pack as fallback.
 export const CLIPPY_MANIFEST = {
-    // R155: v3 clean Clippy — body sprite WITHOUT a baked weapon. Weapons
-    // are now separate sprite overlays (WEAPON_MANIFEST below), letting
-    // the body proportions stay consistent across poses regardless of
-    // which weapon Clippy is holding.
-    'idle':            'v3_idle.png',
-    'idle_alt':        'v3_idle.png',
-    // 5-frame run cycle. Until additional painted run frames arrive we just
-    // alternate run-pose with idle-pose — gives a 2-frame stride bob that
-    // reads as motion without mixing in grungy pack frames.
-    'run_1':           'v3_run.png',
-    'run_2':           'v3_run.png',
-    'run_3':           'v3_run.png',
-    'run_4':           'v3_run.png',
-    'run_5':           'v3_run.png',
-    'jump':            'v3_jump.png',
-    // r99: painted poses re-integrated after running them through
-    // process-v2-sprites.py (white-bg knockout + crop + 56h downscale).
-    // Files are now proper game-resolution PNGs with alpha, not 1024x1024
-    // canvas-fillers. Visually verified via tools/capture-screenshots.mjs.
-    // R169: jump_aim was a v2_* pose with rifle baked in — route to the
-    // clean v3 jump so the procedural weapon arm reads correctly mid-air.
-    'jump_aim':        'v3_jump.png',
-    'fall':            'v3_jump.png',
+    // R175: v4 ARMLESS Clippy — torso/head/legs only, no arm stubs.
+    // The arm+gun is a SEPARATE overlay sprite drawn at the shoulder anchor
+    // and rotated to aim direction (see _drawAimArm). Body proportions stay
+    // consistent across poses regardless of weapon or aim angle.
+    'idle':            'v4_idle.png',
+    'idle_alt':        'v4_idle.png',
+    'run_1':           'v4_run.png',
+    'run_2':           'v4_run.png',
+    'run_3':           'v4_run.png',
+    'run_4':           'v4_run.png',
+    'run_5':           'v4_run.png',
+    'jump':            'v4_jump.png',
+    'jump_aim':        'v4_jump.png',
+    'fall':            'v4_jump.png',
     'spin_1':          'v2_spin_1.png',
     'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',
@@ -234,16 +225,16 @@ export const CLIPPY_MANIFEST = {
     // top the player would see two weapons + the baked one wouldn't rotate
     // to follow aim. Pointing these to v3_* means the body stays clean and
     // the procedural arm is the only weapon visible.
-    'run_shoot_1':     'v3_run.png',
-    'run_shoot_2':     'v3_run.png',
-    'run_shoot_3':     'v3_run.png',
-    'run_shoot_4':     'v3_run.png',
-    'shoot':           'v3_idle.png',
-    'shoot_alt':       'v3_idle.png',
-    'aim':             'v3_idle.png',
-    'aim_up':          'v3_idle.png',
-    'aim_diag':        'v3_idle.png',
-    'aim_diag_down':   'v3_idle.png',
+    'run_shoot_1':     'v4_run.png',
+    'run_shoot_2':     'v4_run.png',
+    'run_shoot_3':     'v4_run.png',
+    'run_shoot_4':     'v4_run.png',
+    'shoot':           'v4_idle.png',
+    'shoot_alt':       'v4_idle.png',
+    'aim':             'v4_idle.png',
+    'aim_up':          'v4_idle.png',
+    'aim_diag':        'v4_idle.png',
+    'aim_diag_down':   'v4_idle.png',
     'climb_1':         'pack_rope_1.png',
     'climb_2':         'pack_rope_2.png',
     'cover':           'pack_cover_1.png',
