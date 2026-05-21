@@ -1882,21 +1882,14 @@ export class Player {
             // fall through to the legacy non-cached path.
             ctx.save();
             ctx.globalAlpha = aAlpha;
-            const baked = sprites.drawSilhouette(ctx, a.frame, a.tint, drawX, drawY, a.facing < 0, 1);
-            if (!baked && typeof ctx.filter === 'string') {
-                // No baked sprite for this frame — fall back to the original
-                // clip+filter+source-atop technique so we don't lose afterimages
-                // on procedural-only frames.
-                ctx.beginPath();
-                ctx.rect(drawX - 2, drawY - 2, aDims.w + 4, aDims.h + 4);
-                ctx.clip();
-                ctx.filter = 'brightness(0)';
-                drawClippyFrame(ctx, a.frame, drawX, drawY, a.facing < 0, 1, false);
-                ctx.filter = 'none';
-                ctx.globalCompositeOperation = 'source-atop';
-                ctx.fillStyle = a.tint;
-                ctx.fillRect(drawX - 2, drawY - 2, aDims.w + 4, aDims.h + 4);
-            }
+            // R173: just skip the afterimage if no baked silhouette is
+            // available. The old filter+rect fallback drew a tinted
+            // RECTANGLE next to Clippy whenever the captured frame (slide /
+            // backdash / pounce / dashatk) wasn't in the manifest — those
+            // are procedural-only states, so the fallback fired every dash
+            // and read as a translucent red/blue panel hovering beside the
+            // player. Better to lose the trail than to paint debug rects.
+            sprites.drawSilhouette(ctx, a.frame, a.tint, drawX, drawY, a.facing < 0, 1);
             ctx.restore();
         }
 

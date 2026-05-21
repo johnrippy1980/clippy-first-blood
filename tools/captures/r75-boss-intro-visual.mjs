@@ -32,9 +32,11 @@ await page.evaluate(() => {
 await page.waitForTimeout(120);
 await page.screenshot({ path: '/tmp/r75/intro-bark.png' });
 
-// Tick to warning flash
+// Tick to warning flash — R173 hold gate means we need autoAdvance to
+// push past the readable-beat hold and reach the WARNING flash frames.
 await page.evaluate(() => {
     const g = window.__game;
+    if (g._bossIntro) g._bossIntro.autoAdvance = true;
     while (g._bossIntro && g._bossIntro.age < 138 && (g._bossIntro.phase || 'villain') === 'villain') g._tickBossIntro();
 });
 await page.waitForTimeout(120);
@@ -44,9 +46,10 @@ await page.screenshot({ path: '/tmp/r75/intro-warning.png' });
 // counter at mid-reveal to verify Clippy portrait + bark composition.
 await page.evaluate(() => {
     const g = window.__game;
+    if (g._bossIntro) g._bossIntro.autoAdvance = true;
     while (g._bossIntro && (g._bossIntro.phase || 'villain') === 'villain') g._tickBossIntro();
-    // Now in counter phase, age 0. Walk to ~age 35 — past portrait land
-    // and into bark reveal.
+    // Counter phase doesn't need autoAdvance since we want to sample the
+    // hold-at-mid-reveal frame, not run it to completion.
     for (let i = 0; i < 35; i++) g._tickBossIntro();
 });
 await page.waitForTimeout(120);

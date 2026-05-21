@@ -59,11 +59,18 @@ const result = await page.evaluate(async () => {
 
     // --- R157 counter-slide: trigger boss intro and verify phase transition
     g._spawnBoss();
+    // R173: cinematic now holds at the readable beat until the user presses
+    // X. Set the test-only autoAdvance flag so the probe can drive it to
+    // completion without dispatching real keystrokes.
+    if (g._bossIntro) g._bossIntro.autoAdvance = true;
     const phaseStart = g._bossIntro ? (g._bossIntro.phase || 'villain') : null;
     // Tick through villain phase (150f)
     for (let i = 0; i < 150; i++) g._tickBossIntro();
     const phaseAfterVillain = g._bossIntro ? g._bossIntro.phase : null;
     const ageAfterVillain = g._bossIntro ? g._bossIntro.age : null;
+    // Re-arm autoAdvance for the counter phase — phase transitions reset age
+    // but the flag is on the _bossIntro object so it persists across phases.
+    if (g._bossIntro) g._bossIntro.autoAdvance = true;
     // Tick counter phase to completion (80f)
     for (let i = 0; i < 85; i++) g._tickBossIntro();
     const sceneAfterBoth = g.scene;

@@ -600,30 +600,26 @@ function drawPixelString(ctx, frame, x, y, flipH = false, palette = P) {
 }
 
 // Public API: try PNG first, fall back to procedural pixel string.
-// `outline` (default true) draws a 1px navy halo so the sprite reads against
-// painted backgrounds. Disable for boss intros / death sequences where the
+// `outline` (default true) draws a 1px dark halo so the sprite reads against
+// painted backgrounds. R173: was '#ffffff' at 0.55a — read as a white Photoshop
+// cutout against the painted swamps. Swapped to a deep navy at lower alpha so
+// the halo sells "this sprite is the foreground subject" without screaming
+// "fake compositing." Disable for boss intros / death sequences where the
 // halo would conflict with white flash effects.
 export function drawClippyFrame(ctx, frameName, x, y, flipH = false, scale = 1, outline = true) {
     const hasImg = sprites.has(frameName);
     if (outline && hasImg) {
-        // 1px dark halo via offset stamps. Cheap, no filter API needed.
         const prev = ctx.globalCompositeOperation;
-        // Draw the sprite 4 times tinted dark + offset; the actual pixels of
-        // each stamp form the outline, and the central pass covers the body.
         ctx.save();
-        // Tint via globalCompositeOperation=multiply on a temp pass works
-        // poorly with image alpha. Fall back to drawing the sprite with reduced
-        // brightness as a stamp. Canvas filter is widely supported in evergreen
-        // browsers (Chrome/Firefox/Safari/Edge); fall back to skipping outline.
-        // Pre-baked white-silhouette canvas — replaces the old per-frame
-        // ctx.filter='brightness(0) invert(1)' which was ~10x more expensive
-        // on Safari + low-end GPUs (forces pipeline state change per call,
-        // and we call it 4× per Clippy frame).
-        ctx.globalAlpha = 0.55;
-        sprites.drawSilhouette(ctx, frameName, '#ffffff', x - 1, y, flipH, scale);
-        sprites.drawSilhouette(ctx, frameName, '#ffffff', x + 1, y, flipH, scale);
-        sprites.drawSilhouette(ctx, frameName, '#ffffff', x, y - 1, flipH, scale);
-        sprites.drawSilhouette(ctx, frameName, '#ffffff', x, y + 1, flipH, scale);
+        // R173: dark navy halo at 0.35 alpha — the painted body sells itself
+        // against the painted bg, the halo is just enough edge contrast for
+        // the silhouette to read. Half the alpha + dark color = no more
+        // photoshop-cutout feel.
+        ctx.globalAlpha = 0.35;
+        sprites.drawSilhouette(ctx, frameName, '#0a0a18', x - 1, y, flipH, scale);
+        sprites.drawSilhouette(ctx, frameName, '#0a0a18', x + 1, y, flipH, scale);
+        sprites.drawSilhouette(ctx, frameName, '#0a0a18', x, y - 1, flipH, scale);
+        sprites.drawSilhouette(ctx, frameName, '#0a0a18', x, y + 1, flipH, scale);
         ctx.globalAlpha = 1;
         ctx.restore();
         ctx.globalCompositeOperation = prev;

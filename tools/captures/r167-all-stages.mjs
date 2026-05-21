@@ -39,9 +39,12 @@ for (let stage = 1; stage <= 8; stage++) {
             return { stage: s, error: 'boss intro did not fire (scene=' + g.scene + ')' };
         }
 
-        // Skip cinematic (villain + counter phases — 230f total)
+        // Skip cinematic (villain + counter phases — 230f total). R173:
+        // cinematic holds for user input; autoAdvance bypasses that.
+        if (g._bossIntro) g._bossIntro.autoAdvance = true;
         for (let i = 0; i < 300; i++) {
             if (!g._bossIntro) break;
+            if (g._bossIntro) g._bossIntro.autoAdvance = true;  // re-arm across phase change
             try { g._tickBossIntro(); } catch (e) { return { stage: s, error: 'tickBossIntro: ' + e.message }; }
         }
         g._bossEntrance = null;

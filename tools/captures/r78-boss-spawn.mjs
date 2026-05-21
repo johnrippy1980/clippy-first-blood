@@ -30,8 +30,13 @@ const result = await page.evaluate(async () => {
         bossAlive: !!g.boss,
     };
 
-    // Tick the cinematic to completion: villain 150f + counter 80f = 230f
-    for (let i = 0; i < 240; i++) g._tickBossIntro();
+    // Tick the cinematic to completion: villain 150f + counter 80f = 230f.
+    // R173: cinematic holds for user input — autoAdvance bypasses that.
+    if (g._bossIntro) g._bossIntro.autoAdvance = true;
+    for (let i = 0; i < 240; i++) {
+        if (g._bossIntro) g._bossIntro.autoAdvance = true;  // re-arm across phase change
+        g._tickBossIntro();
+    }
     const afterCinematic = {
         scene: g.scene,
         bossSpawned: g.bossSpawned,

@@ -1167,34 +1167,42 @@ export class Game {
     // Skippable: after 30f, X / jump / start jumps to end-of-slide.
     _tickBossIntro() {
         if (!this._bossIntro) return;
-        // R157: two-phase intro. Phase 'villain' is the boss's slide (150f),
-        // then phase 'counter' is Clippy's reply (80f), then finish. Each
-        // phase ticks its own age so the draw routines can stay simple.
+        // R157+R173: two-phase intro that holds at the readable beat until
+        // the player presses X / jump / start. Frames 0..N play out the slide
+        // animation, then we PAUSE at the hold point so the bark + name are
+        // legible. Press to advance to the next phase / fight start.
         const phase = this._bossIntro.phase || 'villain';
-        const skip = input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start');
+        // Test-only escape hatch: probes set _bossIntro.autoAdvance to bypass
+        // the user-press hold so they can run the cinematic to completion
+        // headlessly without dispatching synthetic key events.
+        const advance = this._bossIntro.autoAdvance
+            || input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start');
+        // Once `released` flips true the phase animates out instead of holding.
+        // Tracked per-phase: cleared on phase transition so each phase needs
+        // its own input press to advance.
         if (phase === 'villain') {
-            this._bossIntro.age++;
-            if (this._bossIntro.age === 20) audio.sfx('bossEntrance');
-            if (skip && this._bossIntro.age >= 30) {
-                this._bossIntro.age = 145;
-                // R168: skip carries through to the counter slide too. Press
-                // is one-shot (input.isPressed is per-tick), so without this
-                // the player would have to time a second press during the
-                // counter phase to skip the rest. Mark the intent on the
-                // intro object and honor it when counter starts.
-                this._bossIntro.skipCounter = true;
+            const HOLD_AT = 110;
+            if (this._bossIntro.age < HOLD_AT) {
+                this._bossIntro.age++;
+                if (this._bossIntro.age === 20) audio.sfx('bossEntrance');
+            } else if (this._bossIntro.released || advance) {
+                this._bossIntro.released = true;
+                if (this._bossIntro.age < 150) this._bossIntro.age++;
             }
             if (this._bossIntro.age >= 150) {
                 this._bossIntro.phase = 'counter';
-                // If skip was requested during villain, jump counter straight
-                // to the fade-out (75) and let the bars retract.
-                this._bossIntro.age = this._bossIntro.skipCounter ? 75 : 0;
+                this._bossIntro.age = 0;
+                this._bossIntro.released = false;  // counter needs its own press
             }
         } else {
-            this._bossIntro.age++;
-            // Clippy roar cue at age 12 — sits in the gap before his line lands.
-            if (this._bossIntro.age === 12) audio.sfx('pounceStab');
-            if (skip && this._bossIntro.age >= 20) this._bossIntro.age = 75;
+            const HOLD_AT = 50;
+            if (this._bossIntro.age < HOLD_AT) {
+                this._bossIntro.age++;
+                if (this._bossIntro.age === 12) audio.sfx('pounceStab');
+            } else if (this._bossIntro.released || advance) {
+                this._bossIntro.released = true;
+                if (this._bossIntro.age < 80) this._bossIntro.age++;
+            }
             if (this._bossIntro.age >= 80) this._finishBossIntro();
         }
     }
@@ -1344,9 +1352,12 @@ export class Game {
                              '#fff', '#a82020', 3, 'center');
         }
 
-        // Skip hint after 30f
-        if (t >= 30 && t < flashStartF && (t % 60 < 40)) {
-            drawText(ctx, 'X SKIP', GAME.W - 32, GAME.H - 10, '#c0a0d0', 1, 'left');
+        // R173: prompt hint. The cinematic holds at the readable beat until
+        // the user presses X — pulse a "PRESS X" prompt so they know it's
+        // waiting on them, not stuck.
+        if (t >= 70 && t < flashStartF && (t % 60 < 40)) {
+            drawTextOutlined(ctx, 'PRESS X', GAME.W - 38, GAME.H - 10,
+                             '#ffe070', '#1a0000', 1, 'left');
         }
     }
 
@@ -1462,10 +1473,11 @@ export class Game {
             ctx.globalAlpha = 1;
         }
 
-        // Skip hint mirrored to the LEFT this time so it doesn't visually
-        // overlap with the counter-bark text on the right.
-        if (t >= 20 && t < fadeOutF && (t % 60 < 40)) {
-            drawText(ctx, 'X SKIP', 14, GAME.H - 10, '#c0a0d0', 1, 'left');
+        // R173: continue prompt mirrored to the LEFT this time so it doesn't
+        // visually overlap with the counter-bark text on the right.
+        if (t >= 35 && t < fadeOutF && (t % 60 < 40)) {
+            drawTextOutlined(ctx, 'PRESS X', 12, GAME.H - 10,
+                             '#80c0ff', '#001020', 1, 'left');
         }
     }
 
