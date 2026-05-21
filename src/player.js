@@ -245,6 +245,12 @@ export class Player {
         // a welcome taunt instead of being suppressed by stale state from
         // the previous stage's final kill.
         this._tauntCooldown = 0;
+        // R172: clear R169's stuck-state watchdog counter. Without this, a
+        // counter that built up in stage N (say to 50 of 60) carries into
+        // stage N+1, where a brief legitimate cover/grapple + directional
+        // input would early-trip the watchdog and dump the player out
+        // before they meant to leave.
+        this._stuckCounter = 0;
     }
 
     // ---------- update ----------
