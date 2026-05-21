@@ -407,16 +407,14 @@ function makeStage2() {
     };
 }
 
-// Stage 3 — Server Room. Trimmed from 100→72 tiles to match stage 1/2 cadence.
-// Teaches: ladder climbs between server racks, electric-floor hazards, sniper
-// folders on tall rack tops.
+// Stage 3 — Server Room. R184 deep-pass: extended 72→100 tiles with two
+// new sections (F: cable maze, G: fan-blade gauntlet) to fill out the
+// stage's middle. Sniper-heavy theme so LASER pickups dominate the rewards.
 function makeStage3() {
-    const w = 72, h = 16;
+    const w = 100, h = 16;
     const { g } = blankStage(w, h, THEME.SERVERROOM);
 
     // Section A (x 0–18): WARMUP — short server rack, jumpable.
-    // Original was 8 tiles tall + ladder on the wrong side, which made
-    // it impassable. Drop to 3 tiles so a single jump clears it.
     rectT(g, 11, 10, 2, 3, W);
     ladderT(g, 6, 9, 8);
 
@@ -425,42 +423,62 @@ function makeStage3() {
     platT(g, 10, 22, 3);
 
     // Section C (x 32–48): VERTICAL TOWER — climb a multi-tier rack.
-    // Wall is short enough to jump on top of (4 tiles), then use the
-    // platforms above as stepping stones; ladder also threads up the
-    // left face for the climb-style route.
     rectT(g, 10, 32, 2, 4, W);
     platT(g, 12, 35, 3);
     platT(g,  9, 38, 3);
     platT(g,  6, 42, 3);
     ladderT(g, 5, 31, 9);
 
-    // Section D (x 48–60): SECOND ELECTRIC FLOOR — wider, requires platform hop.
+    // Section D (x 48–60): SECOND ELECTRIC FLOOR — wider, platform hop.
     spikeRow(g, h - 3, 50, 5);
     platT(g, 10, 50, 2);
     platT(g,  8, 54, 3);
     platT(g, 10, 58, 2);
-    // Crumble bridge across the spike pit between the two raised platforms.
-    // Walking across is fine; standing still crumbles the tile and drops you
-    // into the electric floor below.
+    // Crumble bridge — stand still and you drop into the electric floor.
     for (let i = 0; i < 6; i++) setT(g, 10, 52 + i, B);
 
-    // Section E (x 60–68): BOSS APPROACH — final platform before exit door.
-    platT(g, 9, 62, 4);
+    // Section F (x 60–80): CABLE MAZE — three vertical pillars of server
+    // racks with one-way platforms threading between them. Forces the
+    // player to commit to a horizontal route at each elevation. Snipers
+    // up top, cabinet on the ground floor.
+    rectT(g, 8, 62, 1, 6, W);          // pillar 1
+    rectT(g, 6, 70, 1, 8, W);          // pillar 2 (taller)
+    rectT(g, 9, 78, 1, 5, W);          // pillar 3
+    platT(g, 9, 64, 4);                // lower bridge between p1-p2
+    platT(g, 6, 66, 3);                // mid bridge
+    platT(g, 4, 73, 3);                // top bridge between p2-p3
+    platT(g, 9, 74, 3);                // lower bridge between p2-p3
+    ladderT(g, 7, 69, 6);              // ladder up pillar 2
+
+    // Section G (x 80–92): FAN-BLADE GAUNTLET — two spike-row sections
+    // separated by a one-way platform. Crumble tiles on the upper route
+    // force you to keep moving; lower route requires precise jumps.
+    spikeRow(g, h - 3, 82, 3);
+    spikeRow(g, h - 3, 88, 3);
+    platT(g, 9, 81, 3);
+    platT(g, 9, 87, 3);
+    for (let i = 0; i < 4; i++) setT(g, 9, 84 + i, B);   // crumble mid-bridge
+
+    // Section H (x 92–96): BOSS APPROACH — final platform before exit door.
+    platT(g, 9, 92, 4);
     setT(g, h - 3, w - 4, X);
+
     // Server-rack cover — near the first sniper at col 14.
     setT(g, h - 3, 16, C);
-    // Second server rack near the sniper above the second electric floor.
+    // Cover near the sniper above the second electric floor.
     setT(g, h - 3, 56, C);
-    // Floor-grate hide spots — drop into the raised-floor cavity and the
-    // snipers lose track. Two clusters bracket the electric-floor hazards
-    // so the player gets a moment to reposition mid-combat.
+    // F: cover at pillar-3 base — duck behind the rack before the gauntlet.
+    setT(g, h - 3, 79, C);
+    // Floor-grate hide spots — drop into the cavity for stealth.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 26 + i, G);
     for (let i = 0; i < 2; i++) setT(g, h - 3, 46 + i, G);
+    // F: cable-maze ground stealth — between pillar 1 and pillar 2.
+    for (let i = 0; i < 3; i++) setT(g, h - 3, 68 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 64 * GAME.TILE },
+        bossTrigger: { x: 94 * GAME.TILE },
         miniBossTrigger: 32 * GAME.TILE,
         enemySpawns: [
             // A: stapler at warmup, sniper on top of first rack
@@ -473,14 +491,40 @@ function makeStage3() {
             // D: sniper above second electric floor
             { x: 54 * GAME.TILE, y: ( 7) * GAME.TILE, type: 'holepunch' },
             { x: 58 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // F: CABLE MAZE — folder on the tall middle pillar, cabinet
+            // on the ground threading the gaps, sniper up top.
+            { x: 66 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'folder' },
+            { x: 72 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'holepunch' },
+            { x: 77 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // G: FAN GAUNTLET — folder hovering between the spike rows
+            // so player can't camp on the upper crumble bridge.
+            { x: 86 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
         ],
         pickupSpawns: [
+            // Top-tier verticality reward (was already here)
             { x: 42 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'LASER' },
+            // Pre-mini-boss LIFE
+            { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-second-electric-floor SHOTGUN (heavy hit for sniper line)
+            { x: 49 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SHOTGUN' },
+            // Cable-maze entry LIFE
+            { x: 61 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-fan-gauntlet GRENADE stash — clears the lower folder
+            { x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // Pre-boss LIFE
+            { x: 93 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
+            // CHAINSAW for melee on the warmup cabinet (was already here)
             { x: 16 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'CHAINSAW' },
+            // Tower mid-tier LIFE
             { x: 38 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'LIFE' },
-            { x: 62 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'HOMING' },
+            // F: cable-maze top platform — LASER (sniper-heavy section)
+            { x: 73 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'LASER' },
+            // G: fan-gauntlet upper crumble — HOMING (last power play)
+            { x: 86 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'HOMING' },
+            // Pre-boss approach crate
+            { x: 93 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'HOMING' },
         ]
     };
 }
