@@ -831,9 +831,13 @@ export class Game {
         // probe stuck, etc).
         const p = this.player;
         const dirHeld = input.isHeld('left') || input.isHeld('right');
+        // R174: extended gating list. Original R169 set covered the obvious
+        // anchor-trap states; added CLIMB (vertical-only, L/R doesn't
+        // traverse) so a player who mashes left/right thinking they're stuck
+        // gets dropped out of a ladder they didn't mean to grab.
         const gating = (p.state === 'grapple' || p.state === 'cover'
                      || p.state === 'ledgehang' || p.state === 'ledgeclimb'
-                     || p.state === 'pounce');
+                     || p.state === 'pounce' || p.state === 'climb');
         if (gating && dirHeld) {
             p._stuckCounter = (p._stuckCounter || 0) + 1;
             if (p._stuckCounter > 60) {
