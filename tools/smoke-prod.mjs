@@ -171,9 +171,11 @@ await page.waitForTimeout(1500);
 // AND counts as the title-screen tap-to-start.
 await page.click('#screen');
 await page.waitForTimeout(600);
-// Spam X to traverse title → story (5 pages) → stageIntro
+// Spam X to traverse title → mainMenu → story (5 pages) → stageIntro.
+// R210 added a MAIN_MENU between title and story (the first X opens it,
+// the second X confirms START GAME), so this needs 9 presses instead of 8.
 const sceneTimeline = [];
-for (let i = 0; i < 8; i++) {
+for (let i = 0; i < 10; i++) {
     await page.keyboard.press('x');
     await page.waitForTimeout(280);
     sceneTimeline.push(await page.evaluate(() => window.__game.scene));

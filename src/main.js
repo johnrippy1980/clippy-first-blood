@@ -4,13 +4,17 @@ import { GAME } from './constants.js';
 import { input } from './input.js';
 import { Game } from './game.js';
 import { audio } from './audio.js';
+import { achievements } from './achievements.js';
 
 const canvas = document.getElementById('screen');
 const game = new Game(canvas);
-// Expose for headless smoke tests + dev console
+// Expose for headless smoke tests + dev console. Achievements is exposed
+// so screenshot scripts can simulate post-game state (unlock clear_game)
+// without mutating localStorage on the dev machine.
 if (typeof window !== 'undefined') {
     window.__game = game;
     window.__audio = audio;
+    window.__achievements = achievements;
 }
 
 // Kick off async asset loading. Boot scene shows until ready.

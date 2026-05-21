@@ -20,6 +20,7 @@ const SCENE = {
     BOOT: 'boot',
     TITLE: 'title',
     STORY: 'story',
+    MAIN_MENU: 'mainMenu',       // R210: panel menu opened from title (Milos playtest #1)
     STAGE_INTRO: 'stageIntro',
     READY: 'ready',              // R209: pre-level keymap card with don't-show-again
     PLAY: 'play',
@@ -203,6 +204,7 @@ export class Game {
         // (e.g. soundtrack footer rendered "NAN / 2 TRACKS" before this).
         this.soundtrackIndex = 0;
         this.stageSelectIndex = 0;
+        this.mainMenuIndex = 0;   // R210
         this._achPulse = 0;
 
         // Story / title progression
@@ -244,6 +246,7 @@ export class Game {
         switch (this.scene) {
             case SCENE.BOOT:         this._tickBoot(); break;
             case SCENE.TITLE:        this._tickTitle(); break;
+            case SCENE.MAIN_MENU:    this._tickMainMenu(); break;
             case SCENE.STORY:        this._tickStory(); break;
             case SCENE.STAGE_INTRO:  this._tickStageIntro(); break;
             case SCENE.READY:        this._tickReady(); break;
@@ -302,6 +305,7 @@ export class Game {
         switch (this.scene) {
             case SCENE.BOOT:         this._drawBoot(); break;
             case SCENE.TITLE:        this._drawTitle(); break;
+            case SCENE.MAIN_MENU:    this._drawMainMenu(); break;
             case SCENE.STORY:        this._drawStory(); break;
             case SCENE.STAGE_INTRO:  this._drawStageIntro(); break;
             case SCENE.READY:        this._drawReady(); break;
@@ -435,10 +439,13 @@ export class Game {
         // Single-action gate: a held LEFT+DOWN should fire exactly one
         // transition. Order: start > stage-select > training > modes.
         if (input.isPressed('shoot') || input.isPressed('start') || input.isPressed('jump')) {
+            // R210 — Milos #1: title PRESS X opens the main menu panel
+            // instead of jumping straight into STORY. The directional
+            // shortcuts (UP/DOWN/LEFT/RIGHT/B) still work on the title
+            // for muscle memory, but new players see the menu.
             audio.sfx('select');
-            this.storyPage = 0;
-            this.storyTimer = 0;
-            this._fadeTo(SCENE.STORY);
+            this.mainMenuIndex = 0;
+            this.scene = SCENE.MAIN_MENU;
         } else if (input.isPressed('down') && this.unlockedStage > 1) {
             // DOWN at title — stage select (gated on any stage cleared yet)
             audio.sfx('select');
@@ -563,32 +570,11 @@ export class Game {
             drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, GAME.H - 38, '#fff', '#a82020', 1, 'center');
             ctx.globalAlpha = 1;
         }
-        // R194: hint stack laid out so each row is 8px apart and never
-        // collides. Bottom-up: copyright (-8) → LEFT/RIGHT (-16) → center
-        // hint (-24) → upper center hint (-32). Pre-clear, UP sits at -24
-        // alone. Post-clear, B takes -24 (since it gates on clear_game)
-        // and UP moves up to -32.
-        const hasClear = achievements.unlocked.has('clear_game');
-        // Stage-select hint once stage 2 is unlocked. Sits at the very top
-        // of the hint stack so it doesn't fight with the post-clear rows.
-        if (this.unlockedStage > 1) {
-            drawText(ctx, 'DOWN: STAGE SELECT', GAME.W / 2, GAME.H - 40, '#c0a0d0', 1, 'center');
-        }
-        // Training-ground hint — always shown so new players find it.
-        drawText(ctx, 'UP: TRAINING GROUND', GAME.W / 2, GAME.H - (hasClear ? 32 : 24), '#7af0bf', 1, 'center');
-        // Post-game unlock hints — only after clear_game so the title stays
-        // uncluttered for first-time players. Show best times when set.
-        if (hasClear) {
-            const brTime = achievements.stats?.bestBossRushTime || 0;
-            const ttTime = achievements.stats?.bestTimeTrialTime || 0;
-            const brSuffix = brTime > 0 ? '  ' + _formatTime(brTime) : '';
-            const ttSuffix = ttTime > 0 ? '  ' + _formatTime(ttTime) : '';
-            drawText(ctx, 'LEFT: BOSS RUSH' + brSuffix, 4, GAME.H - 16, '#ff80a0', 1, 'left');
-            drawText(ctx, 'RIGHT: TIME TRIAL' + ttSuffix, GAME.W - 4, GAME.H - 16, '#80c0ff', 1, 'right');
-            // Reality Distortion Field hint — center row at -24, between
-            // the LEFT/RIGHT row and the UP row.
-            drawText(ctx, 'B: ONE MORE THING', GAME.W / 2, GAME.H - 24, '#a070ff', 1, 'center');
-        }
+        // R210 — Milos #1: title screen's old directional-hint stack is
+        // gone now that PRESS X opens a proper MAIN_MENU. Power-user
+        // shortcuts (UP/DOWN/LEFT/RIGHT/B) still work — they just aren't
+        // advertised on the title anymore. The menu is the discovery
+        // surface for new players; veterans keep their muscle memory.
         // Personal best — TOP TIER achievement gates on >=100k, but the
         // player never saw their current best until they hit it. Show it on
         // the title once they've scored at least once so the goal feels real.
@@ -597,6 +583,125 @@ export class Game {
             drawText(ctx, 'HI-SCORE  ' + best.toLocaleString(), GAME.W / 2, GAME.H - 50, '#ffe070', 1, 'center');
         }
         drawText(ctx, '(C) 2026 OFFICE WARFARE LTD  v1.0', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+    }
+
+    // ============== main menu (R210) ==============
+    // Built as a filtered list — each entry has a `gate` predicate that
+    // hides the row when the player hasn't unlocked it yet, so post-game
+    // modes don't reveal themselves until they're earned. The selected
+    // index runs against the *visible* slice, not the master list, so the
+    // index is recomputed each tick instead of stored as a master index.
+    _mainMenuItems() {
+        const cleared = achievements.unlocked.has('clear_game');
+        const stageSelectAvail = this.unlockedStage > 1;
+        // Master list. Filtered below based on per-row gates.
+        const all = [
+            { label: 'START GAME',     action: 'start' },
+            { label: 'STAGE SELECT',   action: 'stageSelect',  gate: () => stageSelectAvail },
+            { label: 'TRAINING',       action: 'training' },
+            { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
+            { label: 'TIME TRIAL',     action: 'timeTrial',    gate: () => cleared },
+            { label: 'ONE MORE THING', action: 'secret',       gate: () => cleared },
+            { label: 'OPTIONS',        action: 'options' },
+            { label: 'ACHIEVEMENTS',   action: 'achievements' },
+            { label: 'SCENE GALLERY',  action: 'gallery' },
+            { label: 'SOUNDTRACK',     action: 'soundtrack' },
+            { label: 'BACK TO TITLE',  action: 'back' },
+        ];
+        return all.filter(item => !item.gate || item.gate());
+    }
+
+    _tickMainMenu() {
+        const items = this._mainMenuItems();
+        const n = items.length;
+        if (input.isPressed('up'))   { this.mainMenuIndex = (this.mainMenuIndex + n - 1) % n; audio.sfx('select'); }
+        if (input.isPressed('down')) { this.mainMenuIndex = (this.mainMenuIndex + 1) % n; audio.sfx('select'); }
+        if (input.isPressed('pause')) { this.scene = SCENE.TITLE; audio.sfx('select'); return; }
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            audio.sfx('menu');
+            const sel = items[this.mainMenuIndex];
+            switch (sel.action) {
+                case 'start':
+                    this.storyPage = 0;
+                    this.storyTimer = 0;
+                    this._fadeTo(SCENE.STORY);
+                    break;
+                case 'stageSelect':
+                    this.stageSelectIndex = 0;
+                    this.scene = SCENE.STAGE_SELECT;
+                    break;
+                case 'training':     this._startStage(10); break;
+                case 'bossRush':     this._startStage(11); break;
+                case 'timeTrial':    this._startStage(12); break;
+                case 'secret':       this._startStage(13); break;
+                case 'options':
+                    this.optionsIndex = 0;
+                    this.scene = SCENE.OPTIONS;
+                    break;
+                case 'achievements':
+                    this.achievementsIndex = 0;
+                    this.scene = SCENE.ACHIEVEMENTS;
+                    break;
+                case 'gallery':
+                    this.galleryIndex = 0;
+                    this.scene = SCENE.GALLERY;
+                    break;
+                case 'soundtrack':
+                    this.scene = SCENE.SOUNDTRACK;
+                    break;
+                case 'back':
+                    this.scene = SCENE.TITLE;
+                    break;
+            }
+        }
+    }
+
+    _drawMainMenu() {
+        // Paint the title screen dim underneath so the menu feels layered
+        // over it rather than a hard cut. The title's animated bullet
+        // tracers + marquee keep moving behind the panel.
+        this._drawTitle();
+        const ctx = this.ctx;
+        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+
+        // Framed panel — same style as pause/options for consistency.
+        const items = this._mainMenuItems();
+        const rowH = 12;
+        const panelH = Math.min(GAME.H - 28, 28 + items.length * rowH + 16);
+        const panelY = Math.floor((GAME.H - panelH) / 2);
+        const panelX = 32, panelW = GAME.W - 64;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+        ctx.fillStyle = '#604030';
+        ctx.fillRect(panelX, panelY, panelW, 1);
+        ctx.fillRect(panelX, panelY + panelH - 1, panelW, 1);
+        ctx.fillRect(panelX, panelY, 1, panelH);
+        ctx.fillRect(panelX + panelW - 1, panelY, 1, panelH);
+
+        drawTextOutlined(ctx, 'MAIN MENU', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 1, 'center');
+
+        // Clamp selection to the visible list — needed when an unlock
+        // happens between ticks (would otherwise leave the selector past
+        // the new last row).
+        if (this.mainMenuIndex >= items.length) this.mainMenuIndex = items.length - 1;
+        if (this.mainMenuIndex < 0) this.mainMenuIndex = 0;
+
+        const startY = panelY + 22;
+        for (let i = 0; i < items.length; i++) {
+            const y = startY + i * rowH;
+            const isSel = i === this.mainMenuIndex;
+            if (isSel) {
+                const phase = Math.sin((this._mainMenuPulse = (this._mainMenuPulse || 0) + 1) * 0.18) * 0.5 + 0.5;
+                ctx.fillStyle = `rgb(${160 + Math.floor(phase * 40)},${16},${32})`;
+                ctx.fillRect(panelX + 8, y - 2, panelW - 16, 10);
+                drawText(ctx, '>', panelX + 14, y, '#ffe070', 1, 'left');
+                drawText(ctx, '<', panelX + panelW - 20, y, '#ffe070', 1, 'left');
+            }
+            drawText(ctx, items[i].label, GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
+        }
+
+        drawText(ctx, 'UP/DOWN  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 8, '#604068', 1, 'center');
     }
 
     // ============== story ==============

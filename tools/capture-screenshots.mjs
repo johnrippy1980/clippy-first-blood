@@ -219,6 +219,25 @@ for (let p = 0; p < 5; p++) {
     }, p);
 }
 
+// R210 — main menu opened from title (clear-game on, so post-game rows show)
+await shot('main-menu', () => {
+    const g = window.__game;
+    g.scene = 'mainMenu';
+    g.mainMenuIndex = 0;
+    g.unlockedStage = 8;
+    // Force-unlock clear_game so BOSS RUSH / TIME TRIAL / ONE MORE THING render.
+    window.__achievements.unlocked.add('clear_game');
+});
+
+// R210 — main menu fresh-install state (no unlocks yet)
+await shot('main-menu-fresh', () => {
+    const g = window.__game;
+    g.scene = 'mainMenu';
+    g.mainMenuIndex = 0;
+    g.unlockedStage = 1;
+    window.__achievements.unlocked.delete('clear_game');
+});
+
 // R209 — pre-level READY card with keymap + don't-show-again toggle
 await shot('ready-screen', () => {
     const g = window.__game;
