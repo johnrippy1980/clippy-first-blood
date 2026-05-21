@@ -1713,7 +1713,37 @@ export class Game {
             }
             drawText(ctx, PAUSE_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
         }
-        drawText(ctx, 'UP/DOWN  X CONFIRM  P CLOSE', GAME.W / 2, panelY + panelH - 10, '#604068', 1, 'center');
+
+        // R208: controls reference — Milos playtest #6 asked for a way to
+        // check key bindings without leaving the run. Two well-spaced
+        // columns below the menu options, with bright label+key pairs
+        // joined by a colon so they read clearly at 256-wide. Three rows
+        // of 7px pitch fit the remaining strip without crowding the
+        // footer at panelY+panelH-8.
+        const ctrlY = panelY + 50 + PAUSE_OPTIONS.length * 16 - 4;
+        drawText(ctx, 'CONTROLS', GAME.W / 2, ctrlY, '#a0c0e0', 1, 'center');
+        const colL = panelX + 16, colR = panelX + panelW - 16;
+        const rowH = 7;
+        // Each row is [leftLabel, leftKey, rightLabel, rightKey]. Right
+        // column is drawn with align='right' so the key sits flush with
+        // the panel's inner edge.
+        const rows = [
+            ['MOVE', 'ARROWS', 'SHOOT',   'X'],
+            ['JUMP', 'SPACE',  'GRENADE', 'V'],
+            ['AIM',  'SHIFT',  'SHIELD',  'B'],
+        ];
+        for (let i = 0; i < rows.length; i++) {
+            const y = ctrlY + 9 + i * rowH;
+            // Left side: "LABEL KEY" — label dim, key bright
+            drawText(ctx, rows[i][0],     colL,      y, '#a890b0', 1, 'left');
+            drawText(ctx, rows[i][1],     colL + 26, y, '#ffe070', 1, 'left');
+            // Right side, rendered right-aligned so the key hugs the
+            // inner panel edge: "LABEL  KEY"
+            drawText(ctx, rows[i][3],     colR,      y, '#ffe070', 1, 'right');
+            drawText(ctx, rows[i][2],     colR - 10, y, '#a890b0', 1, 'right');
+        }
+
+        drawText(ctx, 'UP/DOWN  X CONFIRM  P CLOSE', GAME.W / 2, panelY + panelH - 8, '#604068', 1, 'center');
     }
 
     _tickPause() {
