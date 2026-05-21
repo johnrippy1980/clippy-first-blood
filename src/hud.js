@@ -103,9 +103,28 @@ export function drawHUD(ctx, state) {
     ctx.fillRect(5, 7, 1, 1);
     drawText(ctx, 'x' + player.lives, 10, 5, lifePulse ? '#ff5050' : '#fff', 1);
 
+    // R207: heart icon beside the HP bar. 5×5 pixel-art heart sits in
+    // the 6px gutter between lives-counter and bar start. Pulses red
+    // when HP is low so it doubles as a danger telltale even if the
+    // bar itself is hidden by overlays.
+    const heartX = 22, heartY = 6;
+    const heartPulse = (player.hp <= 1) && (Math.floor(performance.now() / 200) % 2 === 0);
+    ctx.fillStyle = heartPulse ? '#fff' : '#ff4060';
+    // Heart shape — two top bumps + diamond tail
+    ctx.fillRect(heartX + 0, heartY + 1, 2, 1);   // left bump
+    ctx.fillRect(heartX + 3, heartY + 1, 2, 1);   // right bump
+    ctx.fillRect(heartX + 0, heartY + 2, 5, 1);   // mid bar
+    ctx.fillRect(heartX + 1, heartY + 3, 3, 1);   // tail wide
+    ctx.fillRect(heartX + 2, heartY + 4, 1, 1);   // tail tip
+    // Highlight pixel — top-left of the left bump
+    ctx.fillStyle = heartPulse ? '#ff8080' : '#ffa0b0';
+    ctx.fillRect(heartX + 0, heartY + 1, 1, 1);
+
     // HP bar — dark grey-violet bg so empty segments read as "empty" not
     // "red"; was #1a1018 which merged with the low-HP red border treatment.
-    const barX = 28, barY = 5, barW = 60, barH = 7;
+    // R207: shifted barX from 28 to 30 to make room for the heart icon
+    // in the gutter at x=22..26.
+    const barX = 30, barY = 5, barW = 58, barH = 7;
     ctx.fillStyle = '#1a1428'; ctx.fillRect(barX, barY, barW, barH);
     const pct = Math.max(0, player.hp / player.maxHp);
     const fillW = Math.floor(barW * pct);
@@ -140,16 +159,30 @@ export function drawHUD(ctx, state) {
     }
 
     // R180: shield charge bar — slim 3px strip directly under the HP bar.
-    // Cyan when ready (or pulsing when active), dim grey when in cooldown,
-    // segment ticks per whole charge unit so the player reads "1/3 left" at
-    // a glance. Hidden entirely if shield was never used this stage to keep
-    // the HUD clean on first run; once shieldUsedThisStage is true (set on
-    // first absorb), the bar stays visible for the rest of the stage.
-    if (player.shieldUsedThisStage || player.shieldActive || player.shieldCooldown > 0) {
+    // R207: now always visible with a shield icon glyph in the gutter so
+    // the player sees "shield exists, here's its state" even before they
+    // use it (Milos playtest: needs persistent status indicator).
+    // States read in this order:
+    //   - shieldActive  : cyan glyph + pulsing white-cyan bar (held, absorbing)
+    //   - shieldCooldown: dim grey glyph + recovery sweep bar
+    //   - default       : blue glyph + charge bar (ready to deploy)
+    {
         const sx = barX, sy = barY + barH + 1, sw = barW, sh = 3;
+        // Shield icon — 4×4 chevron in the gutter, color-coded by state.
+        const isActive = !!player.shieldActive;
+        const inCD = (player.shieldCooldown || 0) > 0;
+        const iconCol = isActive ? '#a0ffff' : (inCD ? '#405068' : '#60c0ff');
+        const ix = heartX, iy = sy - 1; // align with shield bar row
+        ctx.fillStyle = iconCol;
+        // Shield chevron — 5-wide top, narrowing to point
+        ctx.fillRect(ix + 0, iy + 0, 5, 1);
+        ctx.fillRect(ix + 0, iy + 1, 5, 1);
+        ctx.fillRect(ix + 1, iy + 2, 3, 1);
+        ctx.fillRect(ix + 2, iy + 3, 1, 1);
+        // Bar background
         ctx.fillStyle = '#0a1424';
         ctx.fillRect(sx, sy, sw, sh);
-        if (player.shieldCooldown > 0) {
+        if (inCD) {
             // Cooldown: bar fills from left → right as cooldown ticks down
             const cdMax = 300;
             const recovered = 1 - (player.shieldCooldown / cdMax);
@@ -158,7 +191,7 @@ export function drawHUD(ctx, state) {
         } else {
             const sPct = Math.min(1, player.shieldCharge / 3);
             const sFill = Math.floor(sw * sPct);
-            const sColor = player.shieldActive ? '#a0ffff' : '#60c0ff';
+            const sColor = isActive ? '#a0ffff' : '#60c0ff';
             ctx.fillStyle = sColor;
             ctx.fillRect(sx, sy, sFill, sh);
         }
@@ -276,14 +309,16 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(hx, hy, fillW, hh);
     }
 
-    // Grenade inventory slot — top-right, beside the lives icon. Shows a
-    // small green pellet + "x{N}" count. Only renders if player has at
-    // least one grenade. Pellet flashes a green halo for ~30 frames after
-    // a pickup so the player sees the count tick up.
-    if ((player.grenades || 0) > 0) {
+    // Grenade inventory slot — top-right, beside the lives icon. Always
+    // visible so the player learns where to look for it; dimmed when
+    // count is 0 (Milos playtest feedback: needs to be a persistent slot
+    // so it reads as "this is where grenades live", not appear/vanish).
+    {
         const gx = GAME.W - 36, gy = 5;
+        const grenCount = player.grenades || 0;
+        const hasGren = grenCount > 0;
         // Pickup flash — green halo behind the pellet, decays over 30f
-        if ((player.grenadePickupFlash || 0) > 0) {
+        if (hasGren && (player.grenadePickupFlash || 0) > 0) {
             const t = player.grenadePickupFlash / 30;
             ctx.globalAlpha = t;
             ctx.fillStyle = '#80ff40';
@@ -292,16 +327,17 @@ export function drawHUD(ctx, state) {
             ctx.fillRect(gx - 1, gy - 1, 6, 7);
             ctx.globalAlpha = 1;
         }
-        // Pellet body
-        ctx.fillStyle = '#406030';
+        // Pellet body — full color when held, dimmed when empty.
+        ctx.fillStyle = hasGren ? '#406030' : '#1a2418';
         ctx.fillRect(gx, gy, 4, 5);
-        ctx.fillStyle = '#80a040';
+        ctx.fillStyle = hasGren ? '#80a040' : '#3a4830';
         ctx.fillRect(gx + 1, gy + 1, 2, 3);
         // Pin/lever
-        ctx.fillStyle = '#a0a0a0';
+        ctx.fillStyle = hasGren ? '#a0a0a0' : '#404040';
         ctx.fillRect(gx + 1, gy - 1, 2, 1);
-        // Count text
-        drawText(ctx, 'x' + player.grenades, gx + 6, gy + 1, '#80ff40', 1);
+        // Count text — green when held, dim grey when empty.
+        drawText(ctx, 'x' + grenCount, gx + 6, gy + 1,
+                 hasGren ? '#80ff40' : '#404848', 1);
     }
 
     // Weapon inventory dots — small color-keyed pips to the right of the
