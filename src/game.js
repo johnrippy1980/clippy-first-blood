@@ -1132,10 +1132,20 @@ export class Game {
         if (phase === 'villain') {
             this._bossIntro.age++;
             if (this._bossIntro.age === 20) audio.sfx('bossEntrance');
-            if (skip && this._bossIntro.age >= 30) this._bossIntro.age = 145;
+            if (skip && this._bossIntro.age >= 30) {
+                this._bossIntro.age = 145;
+                // R168: skip carries through to the counter slide too. Press
+                // is one-shot (input.isPressed is per-tick), so without this
+                // the player would have to time a second press during the
+                // counter phase to skip the rest. Mark the intent on the
+                // intro object and honor it when counter starts.
+                this._bossIntro.skipCounter = true;
+            }
             if (this._bossIntro.age >= 150) {
                 this._bossIntro.phase = 'counter';
-                this._bossIntro.age = 0;
+                // If skip was requested during villain, jump counter straight
+                // to the fade-out (75) and let the bars retract.
+                this._bossIntro.age = this._bossIntro.skipCounter ? 75 : 0;
             }
         } else {
             this._bossIntro.age++;
