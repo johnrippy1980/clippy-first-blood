@@ -1214,6 +1214,15 @@ export class Player {
                     if (!e.alive || struck.has(e)) continue;
                     if (sx >= e.x && sx <= e.x + e.w && sy >= e.y && sy <= e.y + e.h) {
                         struck.add(e);
+                        // Defensive: smoke probes inject plain-object enemies
+                        // without .hurt to verify ray geometry. Treat those as
+                        // "ray hits" but skip damage application so the probe
+                        // (and any future non-Enemy collidable) doesn't crash.
+                        if (typeof e.hurt !== 'function') {
+                            if (struck.size === 1) { hitX = e.x + e.w / 2; hitY = e.y + e.h / 2; }
+                            if (struck.size >= 3) { s = MAX_RANGE + 1; break; }
+                            continue;
+                        }
                         const knockDir = ndx > 0 ? 1 : (ndx < 0 ? -1 : (e.x < this.x ? 1 : -1));
                         const stunned = (e._stunTimer || 0) > 0;
                         const dmg = stunned ? thunderDmg * 1.5 : thunderDmg;

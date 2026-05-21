@@ -26,6 +26,7 @@ const SCENE = {
     OPTIONS: 'options',
     ACHIEVEMENTS: 'achievements',
     SOUNDTRACK: 'soundtrack',
+    GALLERY: 'gallery',          // painted-scene gallery — view all unlocked cutscenes
     STAGE_SELECT: 'stageSelect',
     STAGE_CARD: 'stageCard',     // cinematic painted card between stages
     BOSS_INTRO: 'bossIntro',     // cinematic slide before main boss spawn
@@ -41,7 +42,7 @@ function _formatTime(frames) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SOUNDTRACK', 'QUIT TO TITLE'];
+const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SCENE GALLERY', 'SOUNDTRACK', 'QUIT TO TITLE'];
 const OPTIONS_ITEMS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
 // Key per OPTIONS_ITEMS index for options.get/set dispatch. BACK has no key.
 const OPTIONS_KEYS = ['musicVol', 'sfxVol', 'scanlines', 'shakeScale', 'BACK'];
@@ -237,6 +238,7 @@ export class Game {
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
             case SCENE.SOUNDTRACK:   this._tickSoundtrack(); break;
+            case SCENE.GALLERY:      this._tickGallery(); break;
             case SCENE.STAGE_SELECT: this._tickStageSelect(); break;
             case SCENE.STAGE_CARD:   this._tickStageCard(); break;
             case SCENE.BOSS_INTRO:   this._tickBossIntro(); break;
@@ -292,6 +294,7 @@ export class Game {
             case SCENE.OPTIONS:      this._drawPlay(); this._drawOptions(); break;
             case SCENE.ACHIEVEMENTS: this._drawPlay(); this._drawAchievements(); break;
             case SCENE.SOUNDTRACK:   this._drawPlay(); this._drawSoundtrack(); break;
+            case SCENE.GALLERY:      this._drawPlay(); this._drawGallery(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
             case SCENE.BOSS_INTRO:   this._drawBossIntro(); break;
@@ -1666,6 +1669,11 @@ export class Game {
                 // Stash whatever was playing so we can restore on close
                 this._soundtrackResumeTrack = this.currentStage ? STAGES[this.currentStage]?.music : 'title';
             }
+            else if (sel === 'SCENE GALLERY') {
+                this.scene = SCENE.GALLERY;
+                this.galleryIndex = 0;
+                this._galleryViewing = false;
+            }
             else if (sel === 'QUIT TO TITLE') { audio.stopTrack(); this._restartRun(); }
         }
     }
@@ -1927,6 +1935,139 @@ export class Game {
             ((this.soundtrackIndex | 0) + 1) + ' / ' + TRACK_MANIFEST.length + ' TRACKS',
             GAME.W / 2, GAME.H - 26, '#a08090', 1, 'center');
         drawText(ctx, 'UP/DOWN SELECT   X PLAY/STOP   P CLOSE', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
+    }
+
+    // ============== Scene Gallery ==============
+    // Grid of unlocked painted scenes. UP/DOWN navigates rows, LEFT/RIGHT
+    // navigates columns, X views the selected scene fullscreen, P closes
+    // back to pause. Scenes are gated by progress: opening cinematics are
+    // available immediately, boss intros unlock as you beat each boss,
+    // ending + epilogue beats unlock on clear_game.
+    _galleryEntries() {
+        // List ordered so unlocks read as a roughly-chronological story
+        // walkthrough. `unlock` is a predicate; if falsy at draw time the
+        // tile shows as locked silhouette.
+        const cleared = achievements.unlocked.has('clear_game');
+        const stageDone = (n) => (this.unlockedStage > n) || cleared;
+        return [
+            { key: 'story_fired', label: 'FIRED', unlock: true },
+            { key: 'story_home',  label: 'HOME',  unlock: true },
+            { key: 'story_bomb',  label: 'PLAN',  unlock: true },
+            { key: 'story_boardroom', label: 'BOARDROOM', unlock: true },
+            { key: 'story_hill',  label: 'HILL',  unlock: true },
+            { key: 'story_list',  label: 'LIST',  unlock: true },
+            { key: 'boss_intro_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
+            { key: 'boss_intro_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
+            { key: 'boss_intro_CTRL_ALT_DEL', label: 'CTRL-ALT-DEL', unlock: stageDone(3) },
+            { key: 'boss_intro_BALLMER',      label: 'BALLMER',      unlock: stageDone(4) },
+            { key: 'boss_intro_GATES',        label: 'GATES',        unlock: stageDone(6) },
+            { key: 'boss_intro_GAUNTLET',     label: 'BOSS RUSH',    unlock: stageDone(7) },
+            { key: 'boss_intro_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(8) },
+            { key: 'boss_intro_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
+            { key: 'ending',                  label: 'ENDING',       unlock: cleared },
+            { key: 'epi_laughingstock',       label: 'LAUGHINGSTOCK', unlock: cleared },
+            { key: 'epi_memes',               label: 'MEMES',         unlock: cleared },
+            { key: 'epi_comeback',            label: '2026 COMEBACK', unlock: cleared },
+            { key: 'epi_mac_siri',            label: 'NEW HARDWARE',  unlock: cleared },
+        ];
+    }
+    _tickGallery() {
+        const entries = this._galleryEntries();
+        const n = entries.length;
+        if (this.galleryIndex == null) this.galleryIndex = 0;
+        // Fullscreen viewing mode: any key returns to grid.
+        if (this._galleryViewing) {
+            if (input.isPressed('shoot') || input.isPressed('jump') ||
+                input.isPressed('start') || input.isPressed('pause')) {
+                this._galleryViewing = false;
+                audio.sfx('pause');
+            }
+            return;
+        }
+        // P closes back to pause menu — mirrors soundtrack behavior.
+        if (input.isPressed('pause')) {
+            this.scene = SCENE.PAUSE;
+            audio.sfx('pause');
+            return;
+        }
+        const COLS = 5;
+        if (input.isPressed('left'))  { this.galleryIndex = (this.galleryIndex + n - 1) % n; audio.sfx('select'); }
+        if (input.isPressed('right')) { this.galleryIndex = (this.galleryIndex + 1) % n; audio.sfx('select'); }
+        if (input.isPressed('up'))    { this.galleryIndex = (this.galleryIndex + n - COLS) % n; audio.sfx('select'); }
+        if (input.isPressed('down'))  { this.galleryIndex = (this.galleryIndex + COLS) % n; audio.sfx('select'); }
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            const e = entries[this.galleryIndex];
+            if (e && e.unlock && sprites.has(e.key)) {
+                this._galleryViewing = true;
+                audio.sfx('menu');
+            }
+        }
+    }
+    _drawGallery() {
+        const ctx = this.ctx;
+        const entries = this._galleryEntries();
+        // Fullscreen viewing mode: paint the selected scene at full bleed.
+        if (this._galleryViewing) {
+            const e = entries[this.galleryIndex];
+            const img = sprites.images.get(e.key);
+            if (img) {
+                const scale = Math.max(GAME.W / img.width, GAME.H / img.height);
+                const dw = img.width * scale;
+                const dh = img.height * scale;
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(img, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+                ctx.imageSmoothingEnabled = false;
+            }
+            // Title overlay + close hint
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(0, 0, GAME.W, 18);
+            ctx.fillRect(0, GAME.H - 14, GAME.W, 14);
+            drawText(ctx, e.label, GAME.W / 2, 6, '#ffe070', 1, 'center');
+            if (this.bootTimer % 60 < 40) {
+                drawText(ctx, 'ANY KEY TO RETURN', GAME.W / 2, GAME.H - 10, '#fff', 1, 'center');
+            }
+            return;
+        }
+        // Grid view
+        ctx.fillStyle = 'rgba(0,0,0,0.88)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        drawTextOutlined(ctx, 'SCENE GALLERY', GAME.W / 2, 12, '#ffe070', '#a82020', 1, 'center');
+
+        const COLS = 5;
+        const ROWS = Math.ceil(entries.length / COLS);
+        const cellW = 46, cellH = 32, gapX = 4, gapY = 6;
+        const gridW = COLS * cellW + (COLS - 1) * gapX;
+        const startX = Math.round((GAME.W - gridW) / 2);
+        const startY = 26;
+        for (let i = 0; i < entries.length; i++) {
+            const e = entries[i];
+            const r = Math.floor(i / COLS);
+            const c = i % COLS;
+            const x = startX + c * (cellW + gapX);
+            const y = startY + r * (cellH + gapY);
+            const selected = i === this.galleryIndex;
+            // Thumbnail or locked silhouette
+            if (e.unlock && sprites.has(e.key)) {
+                const img = sprites.images.get(e.key);
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(img, x, y, cellW, cellH - 8);
+                ctx.imageSmoothingEnabled = false;
+            } else {
+                ctx.fillStyle = '#1a0a18';
+                ctx.fillRect(x, y, cellW, cellH - 8);
+                drawText(ctx, '?', x + cellW / 2, y + (cellH - 8) / 2 - 3, '#604068', 1, 'center');
+            }
+            // Selection frame
+            if (selected) {
+                ctx.strokeStyle = '#ffe070';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - 0.5, y - 0.5, cellW + 1, cellH);
+            }
+            // Label below thumbnail
+            const labelCol = selected ? '#ffe070' : (e.unlock ? '#c0a0d0' : '#604068');
+            drawText(ctx, e.label, x + cellW / 2, y + cellH - 6, labelCol, 1, 'center');
+        }
+        drawText(ctx, 'ARROWS MOVE   X VIEW   P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
 
     // ============== Inter-stage cinematic card ==============

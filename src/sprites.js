@@ -157,6 +157,18 @@ export const SCENE_MANIFEST = {
     'boss_intro_CLIPPY_2':     'boss_intros/boss_intro_founder.png',
     'boss_intro_GAUNTLET':     'boss_intros/boss_intro_bossrush.png',
     'boss_intro_ALGORITHM':    'boss_intros/boss_intro_algorithm.png',
+    // R177: Steve Jobs as the after-credits secret boss for the future
+    // "Reality Distortion Field" stage. Painted portrait used for the
+    // boss-intro cinematic + the scene-gallery thumbnail.
+    'boss_intro_JOBS':         'boss_intros/boss_intro_jobs.png',
+    // R177: post-game epilogue beats. Clippy's redemption arc shown after
+    // the main ending: laughing-stock → memes → 2026 comeback → wonders
+    // about Siri. Cinematic plays only after the player has beaten the
+    // game once (gated by achievements.unlocked has 'clear_game').
+    'epi_laughingstock': 'scene_epi_1_laughingstock.png',
+    'epi_memes':         'scene_epi_2_memes.png',
+    'epi_comeback':      'scene_epi_3_comeback.png',
+    'epi_mac_siri':      'scene_epi_4_mac_siri.png',
 };
 
 // Painted parallax backgrounds, one per stage theme. Loaded from assets/bg/.
