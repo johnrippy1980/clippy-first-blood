@@ -205,6 +205,11 @@ export class Game {
         this.soundtrackIndex = 0;
         this.stageSelectIndex = 0;
         this.mainMenuIndex = 0;   // R210
+        // R211: sub-menus (OPTIONS, ACHIEVEMENTS, SOUNDTRACK, GALLERY)
+        // can be opened from either the in-game pause menu OR from the
+        // pre-run MAIN_MENU. Their "back" handler needs to know which.
+        // Set at entry by the caller; defaults to PAUSE for safety.
+        this._menuReturnScene = SCENE.PAUSE;
         this._achPulse = 0;
 
         // Story / title progression
@@ -311,10 +316,13 @@ export class Game {
             case SCENE.READY:        this._drawReady(); break;
             case SCENE.PLAY:         this._drawPlay(); break;
             case SCENE.PAUSE:        this._drawPlay(); this._drawPauseOverlay(); break;
-            case SCENE.OPTIONS:      this._drawPlay(); this._drawOptions(); break;
-            case SCENE.ACHIEVEMENTS: this._drawPlay(); this._drawAchievements(); break;
-            case SCENE.SOUNDTRACK:   this._drawPlay(); this._drawSoundtrack(); break;
-            case SCENE.GALLERY:      this._drawPlay(); this._drawGallery(); break;
+            // R211: sub-menus opened from MAIN_MENU need the title bg
+            // (via _drawMainMenu) underneath, not _drawPlay — the latter
+            // renders a black void since player/level are null.
+            case SCENE.OPTIONS:      this._drawSubMenuBackdrop(); this._drawOptions(); break;
+            case SCENE.ACHIEVEMENTS: this._drawSubMenuBackdrop(); this._drawAchievements(); break;
+            case SCENE.SOUNDTRACK:   this._drawSubMenuBackdrop(); this._drawSoundtrack(); break;
+            case SCENE.GALLERY:      this._drawSubMenuBackdrop(); this._drawGallery(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
             case SCENE.BOSS_INTRO:   this._drawBossIntro(); break;
@@ -636,17 +644,23 @@ export class Game {
                 case 'secret':       this._startStage(13); break;
                 case 'options':
                     this.optionsIndex = 0;
+                    // R211: arm sub-menus to return to MAIN_MENU instead of
+                    // PAUSE, since there's no live game state behind this.
+                    this._menuReturnScene = SCENE.MAIN_MENU;
                     this.scene = SCENE.OPTIONS;
                     break;
                 case 'achievements':
+                    this._menuReturnScene = SCENE.MAIN_MENU;
                     this.achievementsIndex = 0;
                     this.scene = SCENE.ACHIEVEMENTS;
                     break;
                 case 'gallery':
+                    this._menuReturnScene = SCENE.MAIN_MENU;
                     this.galleryIndex = 0;
                     this.scene = SCENE.GALLERY;
                     break;
                 case 'soundtrack':
+                    this._menuReturnScene = SCENE.MAIN_MENU;
                     this.scene = SCENE.SOUNDTRACK;
                     break;
                 case 'back':
@@ -702,6 +716,19 @@ export class Game {
         }
 
         drawText(ctx, 'UP/DOWN  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 8, '#604068', 1, 'center');
+    }
+
+    // R211: backdrop for sub-menus (OPTIONS/ACHIEVEMENTS/SOUNDTRACK/GALLERY).
+    // Selects between _drawPlay (in-game pause path) and _drawMainMenu
+    // (pre-run path) based on the return target stashed at entry. Player
+    // and level can be null when entered from MAIN_MENU; _drawPlay would
+    // render a black canvas with no usable bg in that case.
+    _drawSubMenuBackdrop() {
+        if (this._menuReturnScene === SCENE.MAIN_MENU) {
+            this._drawMainMenu();
+        } else {
+            this._drawPlay();
+        }
     }
 
     // ============== story ==============
@@ -802,8 +829,10 @@ export class Game {
             // R209 — Milos #2: gate PLAY behind READY card unless the
             // player has flipped showReady off. Veterans skip straight
             // into the stage; new players see the keymap first.
+            // R211: READY owns its own _readyTimer now (set in
+            // _tickReady on first entry), so no need to clear
+            // storyTimer here — it'd be overwritten anyway.
             const next = options.get('showReady') ? SCENE.READY : SCENE.PLAY;
-            this.storyTimer = 0;
             this._fadeTo(next);
         }
     }
@@ -812,8 +841,24 @@ export class Game {
     // until they press SHOOT / JUMP / START to launch. A small toggle
     // at the bottom flips options.showReady so veterans can skip this
     // permanently after seeing it once.
+    //
+    // R211 audit fix — uses its own _readyTimer instead of piggybacking
+    // on storyTimer. The previous version reset storyTimer = 0 inside
+    // _tickStageIntro before _fadeTo(SCENE.READY), but the 30-frame
+    // fade-out kept ticking STAGE_INTRO (incrementing storyTimer back
+    // to ~30) before the scene actually flipped. READY then entered
+    // with storyTimer past the 18-frame breath threshold, and a held
+    // shoot/jump from STAGE_INTRO could punch through on the first
+    // READY input frame — exactly the case the breath was meant to
+    // prevent. The dedicated timer is reset on entry below.
     _tickReady() {
-        this.storyTimer++;
+        // Detect first tick on this scene and zero the timer. Cheap
+        // sentinel — _readyTimer is set to -1 when we leave the scene
+        // (or never visited), so the very first tick lands here.
+        if (this._readyTimer === undefined || this._readyTimer < 0) {
+            this._readyTimer = 0;
+        }
+        this._readyTimer++;
         // Toggle the don't-show-again flag with the special key (C) so
         // it doesn't conflict with the launch keys.
         if (input.isPressed('special')) {
@@ -824,9 +869,10 @@ export class Game {
         // Any of the typical "go" inputs launches the stage. Give the
         // card a minimum 18-frame breath so a held key from STAGE_INTRO
         // doesn't immediately skip past it.
-        if (this.storyTimer > 18 &&
+        if (this._readyTimer > 18 &&
             (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start'))) {
             audio.sfx('menu');
+            this._readyTimer = -1; // arm sentinel for next entry
             this._fadeTo(SCENE.PLAY);
         }
     }
@@ -834,7 +880,10 @@ export class Game {
     _drawReady() {
         const ctx = this.ctx;
         const stg = STAGES[this.currentStage];
-        const t = this.storyTimer;
+        // R211: draw uses the dedicated _readyTimer that the tick owns.
+        // Stays in sync with the entry-on-first-frame reset so the
+        // pulses/animations don't sprint ahead during the fade-in.
+        const t = Math.max(0, this._readyTimer || 0);
 
         // Dark background with thin scanline shading — reuses the same
         // palette as the pause menu so it reads as a "system" screen.
@@ -1984,15 +2033,19 @@ export class Game {
                 const stg = STAGES[this.currentStage];
                 if (stg) audio.playTrack(stg.music);
             }
-            else if (sel === 'OPTIONS') { this.scene = SCENE.OPTIONS; this.optionsIndex = 0; }
-            else if (sel === 'ACHIEVEMENTS') { this.scene = SCENE.ACHIEVEMENTS; this.achievementsIndex = 0; }
+            // R211: arm sub-menus to return to PAUSE since we entered
+            // from an in-game pause (live player/level state underneath).
+            else if (sel === 'OPTIONS') { this._menuReturnScene = SCENE.PAUSE; this.scene = SCENE.OPTIONS; this.optionsIndex = 0; }
+            else if (sel === 'ACHIEVEMENTS') { this._menuReturnScene = SCENE.PAUSE; this.scene = SCENE.ACHIEVEMENTS; this.achievementsIndex = 0; }
             else if (sel === 'SOUNDTRACK') {
+                this._menuReturnScene = SCENE.PAUSE;
                 this.scene = SCENE.SOUNDTRACK;
                 this.soundtrackIndex = 0;
                 // Stash whatever was playing so we can restore on close
                 this._soundtrackResumeTrack = this.currentStage ? STAGES[this.currentStage]?.music : 'title';
             }
             else if (sel === 'SCENE GALLERY') {
+                this._menuReturnScene = SCENE.PAUSE;
                 this.scene = SCENE.GALLERY;
                 this.galleryIndex = 0;
                 this._galleryViewing = false;
@@ -2006,7 +2059,7 @@ export class Game {
         if (input.isPressed('pause') || input.isReleased('shoot')) {
             // No-op on shoot release; close on pause
         }
-        if (input.isPressed('pause')) { this.scene = SCENE.PAUSE; audio.sfx('pause'); return; }
+        if (input.isPressed('pause')) { this.scene = this._menuReturnScene || SCENE.PAUSE; audio.sfx('pause'); return; }
         if (input.isPressed('up'))   { this.optionsIndex = (this.optionsIndex + OPTIONS_ITEMS.length - 1) % OPTIONS_ITEMS.length; audio.sfx('select'); }
         if (input.isPressed('down')) { this.optionsIndex = (this.optionsIndex + 1) % OPTIONS_ITEMS.length; audio.sfx('select'); }
         const dir = (input.isPressed('left') ? -1 : 0) + (input.isPressed('right') ? 1 : 0);
@@ -2025,7 +2078,7 @@ export class Game {
             audio.sfx('menu');
         }
         if (input.isPressed('shoot') || input.isPressed('jump')) {
-            if (OPTIONS_ITEMS[this.optionsIndex] === 'BACK') { this.scene = SCENE.PAUSE; audio.sfx('pause'); }
+            if (OPTIONS_ITEMS[this.optionsIndex] === 'BACK') { this.scene = this._menuReturnScene || SCENE.PAUSE; audio.sfx('pause'); }
         }
     }
     _drawOptions() {
@@ -2087,7 +2140,7 @@ export class Game {
     // strip at the bottom with name + description. Locked tiles show a "?" icon
     // and hide the description so unknowns feel discoverable.
     _tickAchievements() {
-        if (input.isPressed('pause') || input.isPressed('jump')) { this.scene = SCENE.PAUSE; audio.sfx('pause'); return; }
+        if (input.isPressed('pause') || input.isPressed('jump')) { this.scene = this._menuReturnScene || SCENE.PAUSE; audio.sfx('pause'); return; }
         const cols = 4;
         const n = ACHIEVEMENT_LIST.length;
         if (this.achievementsIndex == null) this.achievementsIndex = 0;
@@ -2172,7 +2225,7 @@ export class Game {
         if (input.isPressed('pause')) {
             // Closing — restore the music that was playing before
             if (this._soundtrackResumeTrack) audio.playTrack(this._soundtrackResumeTrack);
-            this.scene = SCENE.PAUSE;
+            this.scene = this._menuReturnScene || SCENE.PAUSE;
             audio.sfx('pause');
             return;
         }
@@ -2311,8 +2364,9 @@ export class Game {
             return;
         }
         // P closes back to pause menu — mirrors soundtrack behavior.
+        // R211: return target depends on where we entered from (pause vs main menu).
         if (input.isPressed('pause')) {
-            this.scene = SCENE.PAUSE;
+            this.scene = this._menuReturnScene || SCENE.PAUSE;
             audio.sfx('pause');
             return;
         }
