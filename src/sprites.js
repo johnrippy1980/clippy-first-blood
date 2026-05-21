@@ -250,12 +250,14 @@ export const CLIPPY_MANIFEST = {
     'ledge_climb_2':   'v2_ledge_climb_2.png',
 };
 
-// R155: separate painted weapon sprites composited onto Clippy's hand at
-// render time. Each PNG is a side-view weapon with the barrel pointing
-// RIGHT. The compositor anchors the weapon's left edge to Clippy's grip
-// point, flips horizontally when facing left, and rotates around the grip
-// per the aim vector. Replaces the procedural barrel that used to draw on
-// top of baked-weapon Clippy sprites (two weapons rendered at once).
+// R155 / R175: composited weapon-overlay sprites. Each PNG is drawn at
+// Clippy's grip point, rotated to aim direction, and flipped vertically
+// when facing left so the gun bottom stays down. R175 swap: weapon_mg now
+// points at arm_mg.png — a painted ARM+RIFLE sprite that includes the
+// shoulder-to-hand wire arm with the rifle in the grip. This pairs with
+// the armless v4 body sprites: the arm is no longer a procedural _line()
+// segment, it's part of the rotated overlay so the whole assembly tracks
+// aim cleanly. Other weapons keep their barrel-only PNGs for now.
 export const WEAPON_MANIFEST = {
     'weapon_shotgun':   'weapon_shotgun.png',
     'weapon_spread':    'weapon_spread.png',
@@ -264,9 +266,7 @@ export const WEAPON_MANIFEST = {
     'weapon_homing':    'weapon_homing.png',
     'weapon_thunder':   'weapon_thunder.png',
     'weapon_chainsaw':  'weapon_chainsaw.png',
-    // weapon_mg.png lands when its Local Howl job completes; manifest entry
-    // pre-registered so first-load picks it up.
-    'weapon_mg':        'weapon_mg.png',
+    'weapon_mg':        'arm_mg.png',
 };
 
 export const ENEMY_MANIFEST = {

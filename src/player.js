@@ -1184,12 +1184,19 @@ export class Player {
             // chainsaw doesn't shoot a projectile.
             this._chainsawTickedThisShoot = true;
         } else if (this.weapon === 'THUNDER') {
-            // Hit-scan along the aim ray. Walks `MAX_RANGE` px out from the
-            // muzzle, sampling each `STEP` px. First enemy AABB the ray pierces
-            // becomes the bolt target; if none, the ray dies at end of range
-            // or at the first solid tile. The dummy bullet is stamped to the
-            // target so the standard bullet-vs-enemy intersection picks it up,
-            // and `boltX/Y` records where the visual zigzag terminates.
+            // Hit-scan along the aim ray. Walks MAX_RANGE px out from the
+            // muzzle, sampling each STEP px. Every enemy AABB the ray pierces
+            // takes damage immediately (chain lightning). Ray stops at the
+            // first solid tile. A decorative bullet at the bolt terminus
+            // carries the visual zigzag for `life` frames — it deals NO
+            // damage itself; damage was applied at fire-time below.
+            //
+            // Was previously a single piercing bullet sitting at the target
+            // that ticked once for 4 damage then idle-decayed (b.hits.has(e)
+            // blocked subsequent ticks). That made THUNDER feel inert in
+            // testing despite the dramatic visual. Now: scan the ray, apply
+            // chain damage to every enemy on it, then spawn the bolt as
+            // pure visual.
             const MAX_RANGE = 220;
             const STEP = 4;
             const game = (typeof window !== 'undefined') ? window.__game : null;
@@ -1197,26 +1204,45 @@ export class Player {
             const enemies = game?.enemies?.enemies || [];
             let hitX = baseX + ndx * MAX_RANGE;
             let hitY = baseY + ndy * MAX_RANGE;
+            const struck = new Set();
+            const thunderDmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5) * comboMult;
             for (let s = STEP; s <= MAX_RANGE; s += STEP) {
                 const sx = baseX + ndx * s;
                 const sy = baseY + ndy * s;
                 if (lvl && lvl.isSolid && lvl.isSolid(sx, sy)) { hitX = sx; hitY = sy; break; }
-                let found = null;
                 for (const e of enemies) {
-                    if (!e.alive) continue;
+                    if (!e.alive || struck.has(e)) continue;
                     if (sx >= e.x && sx <= e.x + e.w && sy >= e.y && sy <= e.y + e.h) {
-                        found = e; break;
+                        struck.add(e);
+                        const knockDir = ndx > 0 ? 1 : (ndx < 0 ? -1 : (e.x < this.x ? 1 : -1));
+                        const stunned = (e._stunTimer || 0) > 0;
+                        const dmg = stunned ? thunderDmg * 1.5 : thunderDmg;
+                        const killed = e.hurt(dmg, knockDir, { knockBack: 2.0 });
+                        // Synthesize a bullet stand-in so onBulletHit's
+                        // bookkeeping (dmgDealt totals, hit-burst particle,
+                        // damage-number popup, kill-credit + combo) all
+                        // runs identically to a normal weapon hit.
+                        const fakeBullet = {
+                            weapon: 'THUNDER',
+                            x: e.x + e.w / 2, y: e.y + e.h / 2,
+                            color: w.color,
+                            damage: dmg,
+                            comboTier: tier,
+                            piercing: true,
+                            hits: struck,  // shared so capping still applies
+                        };
+                        this.onBulletHit(fakeBullet, e, killed);
+                        // Terminate the visual bolt at the FIRST enemy hit so
+                        // the zigzag reads as "bolt anchored in target".
+                        if (struck.size === 1) { hitX = e.x + e.w / 2; hitY = e.y + e.h / 2; }
+                        if (struck.size >= 3) { s = MAX_RANGE + 1; break; }
                     }
                 }
-                if (found) {
-                    hitX = found.x + found.w / 2;
-                    hitY = found.y + found.h / 2;
-                    break;
-                }
+                if (s > MAX_RANGE) break;
             }
-            // Bullet sits ON the target so EnemyManager's AABB check hits it.
-            // piercing=true so the resolved chain can damage anyone the bolt
-            // column actually intersects (resolved in _resolveThunderChain).
+            // Spawn the decorative bolt bullet. damage=0, vx=vy=0, piercing
+            // and hits pre-filled so EnemyManager skips it during its
+            // bullet-vs-enemy pass (damage was already applied above).
             fire(0, 0);
             const tb = this.bullets[this.bullets.length - 1];
             tb.x = hitX;
@@ -1226,7 +1252,13 @@ export class Player {
             tb.boltX = hitX;
             tb.boltY = hitY;
             tb.piercing = true;
+            tb.damage = 0;
             tb.life = 14;
+            // Pre-fill hits with all the enemies we already damaged + a
+            // sentinel so EnemyManager's b.hits.has(e) gate skips this
+            // decorative bullet against everyone.
+            tb.hits = struck;
+            tb._decorative = true;
         } else {
             const j = (Math.random() - 0.5) * (w.spread || 0) * sp;
             fire(ndx * sp + (Math.abs(ndy) < 0.1 ? 0 : j), ndy * sp + (Math.abs(ndx) < 0.1 ? 0 : j));
