@@ -1431,7 +1431,7 @@ export class Game {
         // visually continuous.
         const portraitKey = 'idle';
         const portraitH = 88;
-        const portraitW = Math.round(portraitH * (35 / 56)); // ~55, matches v3_idle aspect
+        const portraitW = Math.round(portraitH * (28 / 56)); // ~44, matches v5_idle aspect
         const targetX = 12;
         const startX = -portraitW - 20;
         const slideStart = 0, slideEnd = 15;

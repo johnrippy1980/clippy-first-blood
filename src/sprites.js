@@ -204,24 +204,24 @@ export const BG_MANIFEST = {
 // v2_*.png frames come from the new title-art-quality batch generated via
 // gpt-image-2; pack_*.png are the prior pre-existing pack as fallback.
 export const CLIPPY_MANIFEST = {
-    // R178: ROLLED BACK to v3 Clippy bodies. The v4 armless set lost the
-    // recognizable Clippy face (no googly eyes, no eyebrows, no curl-arm)
-    // and rendered ~50% larger than spec — playtest showed a stick figure
-    // instead of a paperclip. Keeping the arm+gun overlay (arm_mg.png) wired
-    // through WEAPON_MANIFEST so MG still composites on top, but the body
-    // is back to the recognizable v3 painted set. A v5 re-roll with the
-    // proper Clippy face + curl is queued; this rollback restores
-    // playability while v5 cooks.
-    'idle':            'v3_idle.png',
-    'idle_alt':        'v3_idle.png',
-    'run_1':           'v3_run.png',
-    'run_2':           'v3_run.png',
-    'run_3':           'v3_run.png',
-    'run_4':           'v3_run.png',
-    'run_5':           'v3_run.png',
-    'jump':            'v3_jump.png',
-    'jump_aim':        'v3_jump.png',
-    'fall':            'v3_jump.png',
+    // R179: v5 Clippy bodies — the canonical character. Each frame has the
+    // iconic chrome-wire paperclip silhouette with the inner curl reading
+    // as body, two large white googly eyes with angry black eyebrows, a
+    // red Rambo headband with trailing ends, and black combat boots.
+    // Generated as 1024x1536 painted PNGs via Local Howl gpt-image-2 and
+    // processed through tools/process-r179-v5.py (BFS-flood knockout +
+    // LANCZOS to 56px height). Replaces v3 (which had a baked rifle in
+    // every pose) and v4 (which lost the face entirely).
+    'idle':            'v5_idle.png',
+    'idle_alt':        'v5_idle.png',
+    'run_1':           'v5_run.png',
+    'run_2':           'v5_run.png',
+    'run_3':           'v5_run.png',
+    'run_4':           'v5_run.png',
+    'run_5':           'v5_run.png',
+    'jump':            'v5_jump.png',
+    'jump_aim':        'v5_jump.png',
+    'fall':            'v5_jump.png',
     'spin_1':          'v2_spin_1.png',
     'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',
@@ -241,16 +241,16 @@ export const CLIPPY_MANIFEST = {
     // top the player would see two weapons + the baked one wouldn't rotate
     // to follow aim. Pointing these to v3_* means the body stays clean and
     // the procedural arm is the only weapon visible.
-    'run_shoot_1':     'v3_run.png',
-    'run_shoot_2':     'v3_run.png',
-    'run_shoot_3':     'v3_run.png',
-    'run_shoot_4':     'v3_run.png',
-    'shoot':           'v3_idle.png',
-    'shoot_alt':       'v3_idle.png',
-    'aim':             'v3_idle.png',
-    'aim_up':          'v3_idle.png',
-    'aim_diag':        'v3_idle.png',
-    'aim_diag_down':   'v3_idle.png',
+    'run_shoot_1':     'v5_run.png',
+    'run_shoot_2':     'v5_run.png',
+    'run_shoot_3':     'v5_run.png',
+    'run_shoot_4':     'v5_run.png',
+    'shoot':           'v5_idle.png',
+    'shoot_alt':       'v5_idle.png',
+    'aim':             'v5_idle.png',
+    'aim_up':          'v5_idle.png',
+    'aim_diag':        'v5_idle.png',
+    'aim_diag_down':   'v5_idle.png',
     'climb_1':         'pack_rope_1.png',
     'climb_2':         'pack_rope_2.png',
     'cover':           'pack_cover_1.png',
