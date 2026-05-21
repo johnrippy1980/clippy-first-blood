@@ -2053,45 +2053,48 @@ export class Player {
             }
 
             // Per-stage rim light: thin colored wash on the side of the
-            // sprite facing the dominant scene light source. Sells "lit by
-            // the painted environment" — without it Clippy reads as flat
-            // pasted-on art. Uses source-atop so the rim only paints onto
-            // existing sprite pixels.
+            // sprite facing the dominant scene light source.
+            //
+            // R178: previous implementation used `source-atop` + a fillRect
+            // bounded by the sprite's rect, expecting the composite mode to
+            // limit paint to actual sprite pixels. But source-atop on the
+            // main canvas paints against EVERY non-transparent destination
+            // pixel — which includes the painted background. With a thin
+            // sprite like Clippy that has lots of transparent space inside
+            // its bounding box, the rim band rendered as a translucent
+            // colored COLUMN running the full sprite height (a "blue strip"
+            // alongside the player in jungle, red in founder, etc.).
+            //
+            // Fix: stamp the silhouette in the rim color, offset by 1px on
+            // the lit side. The silhouette mask is built off the sprite's
+            // own pixels, so the rim only lands on real Clippy outline.
+            // Sells the same lit-edge effect without bleeding onto bg.
             const rim = level ? RIM_BY_THEME[level.data.theme] : null;
             if (rim) {
                 ctx.save();
-                ctx.beginPath();
-                ctx.rect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
-                ctx.clip();
-                ctx.globalCompositeOperation = 'source-atop';
                 ctx.globalAlpha = rim.alpha;
-                ctx.fillStyle = rim.color;
-                // Rim runs along the lit edge (rim.side = -1 = left, +1 = right).
-                // Two-pixel band so it reads at native 256x224 scale.
-                const rimX = rim.side > 0 ? drawX + dims.w - 2 : drawX;
-                ctx.fillRect(rimX, drawY + 2, 2, dims.h - 4);
-                // Top highlight for overhead-light scenes
+                sprites.drawSilhouette(ctx, frame, rim.color,
+                    drawX + (rim.side > 0 ? 1 : -1),
+                    drawY,
+                    this.facing < 0);
                 if (rim.top) {
                     ctx.globalAlpha = rim.alpha * 0.7;
-                    ctx.fillRect(drawX + 3, drawY, dims.w - 6, 1);
+                    sprites.drawSilhouette(ctx, frame, rim.color,
+                        drawX, drawY - 1, this.facing < 0);
                 }
                 ctx.restore();
             }
 
             // Low-HP red rim wash — when below 30% HP and not in iframes,
-            // paint a pulsing red tint over the sprite. Pairs with the HUD
-            // HP-bar pulse so the player FEELS the danger on the body, not
-            // just at the top of the screen. Heartbeat tempo (~75 BPM).
+            // paint a pulsing red tint over the sprite. R178: same fix as
+            // the rim-light bug above — stamp the silhouette in red rather
+            // than fillRect+source-atop, so the wash stays on actual sprite
+            // pixels instead of bleeding onto the painted background.
             if (this.hp > 0 && this.hp <= this.maxHp * 0.3 && this.iFrames === 0) {
                 const beat = (Math.sin(performance.now() * 0.013) + 1) * 0.5;
                 ctx.save();
-                ctx.beginPath();
-                ctx.rect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
-                ctx.clip();
-                ctx.globalCompositeOperation = 'source-atop';
                 ctx.globalAlpha = 0.18 + beat * 0.32;
-                ctx.fillStyle = '#ff3030';
-                ctx.fillRect(drawX - 1, drawY - 1, dims.w + 2, dims.h + 2);
+                sprites.drawSilhouette(ctx, frame, '#ff3030', drawX, drawY, this.facing < 0);
                 ctx.restore();
             }
 

@@ -204,20 +204,24 @@ export const BG_MANIFEST = {
 // v2_*.png frames come from the new title-art-quality batch generated via
 // gpt-image-2; pack_*.png are the prior pre-existing pack as fallback.
 export const CLIPPY_MANIFEST = {
-    // R175: v4 ARMLESS Clippy — torso/head/legs only, no arm stubs.
-    // The arm+gun is a SEPARATE overlay sprite drawn at the shoulder anchor
-    // and rotated to aim direction (see _drawAimArm). Body proportions stay
-    // consistent across poses regardless of weapon or aim angle.
-    'idle':            'v4_idle.png',
-    'idle_alt':        'v4_idle.png',
-    'run_1':           'v4_run.png',
-    'run_2':           'v4_run.png',
-    'run_3':           'v4_run.png',
-    'run_4':           'v4_run.png',
-    'run_5':           'v4_run.png',
-    'jump':            'v4_jump.png',
-    'jump_aim':        'v4_jump.png',
-    'fall':            'v4_jump.png',
+    // R178: ROLLED BACK to v3 Clippy bodies. The v4 armless set lost the
+    // recognizable Clippy face (no googly eyes, no eyebrows, no curl-arm)
+    // and rendered ~50% larger than spec — playtest showed a stick figure
+    // instead of a paperclip. Keeping the arm+gun overlay (arm_mg.png) wired
+    // through WEAPON_MANIFEST so MG still composites on top, but the body
+    // is back to the recognizable v3 painted set. A v5 re-roll with the
+    // proper Clippy face + curl is queued; this rollback restores
+    // playability while v5 cooks.
+    'idle':            'v3_idle.png',
+    'idle_alt':        'v3_idle.png',
+    'run_1':           'v3_run.png',
+    'run_2':           'v3_run.png',
+    'run_3':           'v3_run.png',
+    'run_4':           'v3_run.png',
+    'run_5':           'v3_run.png',
+    'jump':            'v3_jump.png',
+    'jump_aim':        'v3_jump.png',
+    'fall':            'v3_jump.png',
     'spin_1':          'v2_spin_1.png',
     'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',
@@ -237,16 +241,16 @@ export const CLIPPY_MANIFEST = {
     // top the player would see two weapons + the baked one wouldn't rotate
     // to follow aim. Pointing these to v3_* means the body stays clean and
     // the procedural arm is the only weapon visible.
-    'run_shoot_1':     'v4_run.png',
-    'run_shoot_2':     'v4_run.png',
-    'run_shoot_3':     'v4_run.png',
-    'run_shoot_4':     'v4_run.png',
-    'shoot':           'v4_idle.png',
-    'shoot_alt':       'v4_idle.png',
-    'aim':             'v4_idle.png',
-    'aim_up':          'v4_idle.png',
-    'aim_diag':        'v4_idle.png',
-    'aim_diag_down':   'v4_idle.png',
+    'run_shoot_1':     'v3_run.png',
+    'run_shoot_2':     'v3_run.png',
+    'run_shoot_3':     'v3_run.png',
+    'run_shoot_4':     'v3_run.png',
+    'shoot':           'v3_idle.png',
+    'shoot_alt':       'v3_idle.png',
+    'aim':             'v3_idle.png',
+    'aim_up':          'v3_idle.png',
+    'aim_diag':        'v3_idle.png',
+    'aim_diag_down':   'v3_idle.png',
     'climb_1':         'pack_rope_1.png',
     'climb_2':         'pack_rope_2.png',
     'cover':           'pack_cover_1.png',
@@ -262,14 +266,13 @@ export const CLIPPY_MANIFEST = {
     'ledge_climb_2':   'v2_ledge_climb_2.png',
 };
 
-// R155 / R175: composited weapon-overlay sprites. Each PNG is drawn at
-// Clippy's grip point, rotated to aim direction, and flipped vertically
-// when facing left so the gun bottom stays down. R175 swap: weapon_mg now
-// points at arm_mg.png — a painted ARM+RIFLE sprite that includes the
-// shoulder-to-hand wire arm with the rifle in the grip. This pairs with
-// the armless v4 body sprites: the arm is no longer a procedural _line()
-// segment, it's part of the rotated overlay so the whole assembly tracks
-// aim cleanly. Other weapons keep their barrel-only PNGs for now.
+// R155: composited weapon-overlay sprites. Each PNG is drawn at Clippy's
+// grip point, rotated to aim direction, and flipped vertically when
+// facing left so the gun bottom stays down. R178 rollback: weapon_mg
+// overlay disabled while v3 body sprites are restored — v3 bakes a
+// rifle into the pose, so loading arm_mg.png on top would double up.
+// When v5 lands with armless bodies AND a proper Clippy face, re-add
+// 'weapon_mg': 'arm_mg.png' to wire the overlay back in.
 export const WEAPON_MANIFEST = {
     'weapon_shotgun':   'weapon_shotgun.png',
     'weapon_spread':    'weapon_spread.png',
@@ -278,7 +281,6 @@ export const WEAPON_MANIFEST = {
     'weapon_homing':    'weapon_homing.png',
     'weapon_thunder':   'weapon_thunder.png',
     'weapon_chainsaw':  'weapon_chainsaw.png',
-    'weapon_mg':        'arm_mg.png',
 };
 
 export const ENEMY_MANIFEST = {
