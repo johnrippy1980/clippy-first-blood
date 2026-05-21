@@ -2279,23 +2279,10 @@ export class Player {
         // 8-way aim coverage without needing a sprite-frame per direction.
         // Aim-direction arm overlay: small procedural arm + gun barrel that
         // points in the actual aim direction. Layered on top of the base
-        // sprite so we get 8-way aim coverage without needing a sprite-frame
-        // per direction. Suppressed for states with hand-specific painted
-        // poses (ledge grab, mid-pounce, dash slash, etc).
-        // R201: procedural aim-arm overlay disabled. The v6 painted run
-        // frames + idle/shoot/aim sprite remap all have the rifle baked
-        // into the body silhouette, so an extra procedural arm + barrel
-        // on top creates the smear/doubling the player kept calling out.
-        // Bullet spawn origin still uses `_muzzleWorldPos` (math-only,
-        // no draw) so projectiles still exit the right point.
-        if (false && this.state !== STATE.DIE && this.state !== STATE.HURT &&
-            this.state !== STATE.SPIN_JUMP && this.state !== STATE.DASH_ATTACK &&
-            this.state !== STATE.BACKDASH && this.state !== STATE.ROLL &&
-            this.state !== STATE.GRAPPLE &&
-            this.state !== STATE.LEDGE_HANG && this.state !== STATE.LEDGE_CLIMB &&
-            this.state !== STATE.POUNCE) {
-            this._drawAimArm(ctx, cx, cy);
-        }
+        // R203: procedural aim-arm overlay fully retired. The v6 painted
+        // weapon poses (run-cycle + per-weapon idle) own the entire gun
+        // silhouette. Bullets still spawn from `_muzzleWorldPos` (math
+        // only, no draw) so projectile origin stays correct.
 
         // Grapple line — taut diagonal line from Clippy's torso to the anchor.
         // Dark navy outline + cream-yellow core so it reads against painted
@@ -3001,12 +2988,13 @@ export class Player {
         };
     }
 
-    // Procedural arm + gun barrel pointing along the aim vector.
-    // Avoids needing 8-direction sprite sheets while still showing aim direction.
-    // Visible barrel is anchored from sprite-screen (cx, cy) so the recoil
-    // jiggle moves the gun along with the sprite. The MUZZLE TIP, however,
-    // mirrors _muzzleWorldPos exactly (same offsets, same lengths, same
-    // recoil pull) — bullets are guaranteed to leave the visible barrel.
+    // R203: `_drawAimArm` is now dead code — no callers in the codebase.
+    // The painted v6 per-weapon body sprites own the arm + gun visual.
+    // Leaving the implementation in place for now (rather than deleting
+    // ~240 lines) in case we want to revive the procedural fallback for
+    // a state that doesn't get a painted variant. Safe to delete in a
+    // later cleanup pass. `_muzzleWorldPos` above is still used by
+    // bullet spawn + muzzle-flash code.
     _drawAimArm(ctx, cx, cy) {
         const ax = this.aim?.x, ay = this.aim?.y;
         if (ax == null) return;
