@@ -1049,7 +1049,14 @@ class Boss extends Enemy {
             ctx.fill();
             ctx.restore();
         }
-        const spriteKey = 'boss_' + this.kind;
+        // R199: prefer the in-game `enemy_<kind>` sprite (side-view game
+        // character) over `boss_<kind>` (which for JOBS is now the chest-up
+        // intro portrait with backdrop baked in — only correct in the
+        // boss-intro card, not on the gameplay floor). Falls back to
+        // boss_<kind> for the other 7 bosses that don't have a separate
+        // enemy sprite.
+        const enemyKey = 'enemy_' + this.kind.toLowerCase();
+        const spriteKey = sprites.has(enemyKey) ? enemyKey : 'boss_' + this.kind;
         if (sprites.has(spriteKey)) {
             // Use PNG, anchored to bottom-center of hitbox
             const dims = getSpriteDims(spriteKey);
@@ -1389,43 +1396,14 @@ const BOSS_TEMPLATES = {
         w: 32, h: 44, hp: 80, contactDmg: 3, score: 25000,
         color: '#1a1a1a', detail: '#d0d0d8',
         grounded: true,
-        draw: (ctx, x, y, w, h, t, p) => {
-            // Black turtleneck silhouette + denim legs. The painted
-            // boss-intro sprite is the canon look; this is the procedural
-            // in-fight version that stays readable at gameplay zoom.
-            // Head
-            ctx.fillStyle = '#d8c098';
-            ctx.fillRect(x + 10, y + 2, 12, 10);
-            // Round glasses
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(x + 11, y + 6, 4, 2);
-            ctx.fillRect(x + 17, y + 6, 4, 2);
-            // Turtleneck
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(x + 6, y + 12, 20, 16);
-            // Sweater highlight (phase-2 turns deep red for rage)
-            ctx.fillStyle = p === 2 ? '#601018' : '#303038';
-            ctx.fillRect(x + 8, y + 16, 16, 4);
-            // Jeans
-            ctx.fillStyle = '#3050a0';
-            ctx.fillRect(x + 8, y + 28, 6, 14);
-            ctx.fillRect(x + 18, y + 28, 6, 14);
-            // Sneakers
-            ctx.fillStyle = '#e0e0e0';
-            ctx.fillRect(x + 7, y + 41, 8, 3);
-            ctx.fillRect(x + 17, y + 41, 8, 3);
-            // iPod in outstretched hand (the throwing arm) — phase 2 holds
-            // it with a deep-red glow as he pitches projectiles faster.
-            const armSwing = Math.sin(t / 18) * 2;
-            const handX = x + w + 2 + armSwing;
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(handX, y + 18, 4, 6);
-            ctx.fillStyle = '#f8f8f8';
-            ctx.fillRect(handX + 1, y + 19, 2, 4);
-            // Click wheel
-            ctx.fillStyle = p === 2 ? '#ff5050' : '#80c0ff';
-            ctx.fillRect(handX + 1, y + 21, 2, 2);
-        },
+        // R199: procedural Jobs draw removed entirely. The Enemy renderer
+        // checks for a painted sprite first via `enemy_jobs` in
+        // ENEMY_MANIFEST. While the Local Howl gen is in flight, this
+        // intentionally falls through to nothing — better to show the
+        // empty enemy hitbox + name banner for a beat than to ship the
+        // "atari character" the player called out. The painted sprite
+        // wires up at `enemy_jobs` once processed.
+        draw: () => {},
     },
 };
 

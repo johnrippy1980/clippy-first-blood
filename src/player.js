@@ -2194,17 +2194,11 @@ export class Player {
                 drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
             }
 
-            // R198: procedural leg-cycle overlay. The v5 body sprite has all
-            // five run frames pointing at the same PNG (the painted v5_run
-            // never got per-frame variants), so Clippy looked like he was
-            // skating — body moves through the world but the silhouette
-            // never cycles. Stamp two animated leg rectangles at the feet
-            // when in RUN, keyed off animFrame, so the silhouette reads as
-            // actually running. Hidden during shoot/prone/jump/etc — only
-            // when the body sprite is the plain run pose.
-            if (this.state === STATE.RUN && !this.waterHidden) {
-                this._drawProceduralLegs(ctx, drawX, drawY, dims);
-            }
+            // R199: procedural leg overlay removed. User feedback:
+            // "stop with anything procedural. we need sprites." The real
+            // run cycle frames are queued at Local Howl (4-frame sheet)
+            // and will be wired into run_1..run_4 via the manifest when
+            // the painted asset lands.
 
             // Per-stage rim light: thin colored wash on the side of the
             // sprite facing the dominant scene light source.
@@ -2575,7 +2569,12 @@ export class Player {
         if (this.shieldActive || this.shieldBreakTimer > 0) {
             const bcx = Math.round(this.x + this.w / 2 - camera.viewX);
             const bcy = Math.round(this.y + this.h / 2 - camera.viewY);
-            const baseR = 16;
+            // R199: baseR was 16 — the bubble centered on hitbox-center but
+            // the painted v5 sprite is ~24px tall and rendered taller than
+            // the hitbox so the head and feet poked outside the shield.
+            // 22 wraps the full sprite silhouette top-to-bottom with a small
+            // halo, so the bubble actually reads as enveloping Clippy.
+            const baseR = 22;
             ctx.save();
             if (this.shieldBreakTimer > 0) {
                 // Shatter: ring expanding outward over the timer, alpha
@@ -3002,48 +3001,6 @@ export class Player {
     // jiggle moves the gun along with the sprite. The MUZZLE TIP, however,
     // mirrors _muzzleWorldPos exactly (same offsets, same lengths, same
     // recoil pull) — bullets are guaranteed to leave the visible barrel.
-    // R198: procedural leg-cycle overlay for the RUN state.
-    //
-    // The v5 painted body sprite has only one run pose, but the engine
-    // cycles through five run_* keys that all resolve to the same PNG —
-    // so the silhouette never changed and Clippy looked like he was
-    // skating. Rather than regenerate five painted run frames (which
-    // risks losing the face again, see R178 → v5 rollback), stamp a
-    // small 2-pose animated leg pair at the feet. Keys off animFrame
-    // so the swap rate already matches the engine's run cadence.
-    //
-    // Two phases:
-    //   Phase 0: leading leg forward + 2px, trailing leg back + 2px
-    //   Phase 1: legs together (passing frame)
-    // Alternating 0/1/0/1 with animFrame divider gives a fast cycle
-    // that reads as running motion. Color matches the painted body's
-    // dark base so the legs blend rather than appearing as bolt-ons.
-    _drawProceduralLegs(ctx, drawX, drawY, dims) {
-        // Phase splits the 5-frame run cycle into the "split stride"
-        // and "passing" beats. animFrame ticks once per physics frame
-        // when running (see player.js:941); /2 slows the swap rate.
-        const phase = Math.floor(this.animFrame / 2) % 2;
-        // Foot anchor — sprite is centered at drawX..drawX+dims.w.
-        // Feet sit ~1px below the painted body to ground the silhouette.
-        const footY = drawY + dims.h - 1;
-        const centerX = drawX + Math.floor(dims.w / 2);
-        const dir = this.facing;
-        // Dark body color so the leg reads as belonging to Clippy's
-        // silhouette, not as a separate prop. Matches the body's base.
-        ctx.fillStyle = '#1a1820';
-        if (phase === 0) {
-            // Split stride: leading leg forward, trailing leg back.
-            // 2px wide × 4px tall for each. Offsets shift by facing
-            // so left-facing Clippy strides correctly.
-            ctx.fillRect(centerX + dir * 1 - 1, footY - 4, 2, 5);     // leading
-            ctx.fillRect(centerX - dir * 2 - 1, footY - 3, 2, 4);     // trailing (1px shorter — perspective)
-        } else {
-            // Passing frame: legs together, 1px spread.
-            ctx.fillRect(centerX - 2, footY - 4, 2, 5);
-            ctx.fillRect(centerX,     footY - 4, 2, 5);
-        }
-    }
-
     _drawAimArm(ctx, cx, cy) {
         const ax = this.aim?.x, ay = this.aim?.y;
         if (ax == null) return;

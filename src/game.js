@@ -1419,52 +1419,11 @@ export class Game {
         }
     }
 
-    // R198: stamp a rifle held at Clippy's shoulder onto a cinematic
-    // portrait. Used by the counter-slide (and reusable for villain-side
-    // gallery shots later). `facing` = +1 (gun points right) or -1.
-    // Portrait coordinates are the bounding box of the painted portrait
-    // already drawn — we anchor the gun roughly at shoulder height on
-    // Clippy's body axis. All sizes scale with portraitH so the rifle
-    // tracks the portrait whatever size it's drawn at.
-    _drawCinematicRifle(ctx, portraitX, portraitY, portraitW, portraitH, facing) {
-        // Shoulder anchor: ~40% down the body, slightly inboard from
-        // the leading edge of the portrait. Tuned visually so the rifle
-        // sits on the painted body's torso, not floating off to the side.
-        const shoulderY = portraitY + Math.round(portraitH * 0.42);
-        const bodyCenterX = portraitX + Math.round(portraitW * 0.42);
-        // Barrel length: ~50% of portrait width — reads as a real rifle
-        // alongside Clippy at any portrait size.
-        const barrelLen = Math.round(portraitW * 0.6);
-        const barrelH = Math.max(2, Math.round(portraitH * 0.04));
-        // Stock: small square at the shoulder anchor.
-        const stockSize = Math.max(3, Math.round(portraitH * 0.06));
-        // Dark outline first, then chrome highlight on top.
-        ctx.fillStyle = '#101018';
-        // Barrel
-        const barX = facing > 0 ? bodyCenterX : bodyCenterX - barrelLen;
-        ctx.fillRect(barX, shoulderY, barrelLen, barrelH);
-        // Stock
-        ctx.fillRect(bodyCenterX - stockSize / 2,
-                     shoulderY - Math.round(stockSize * 0.3),
-                     stockSize, stockSize);
-        // Magazine — small block hanging below mid-barrel
-        const magX = facing > 0
-            ? bodyCenterX + Math.round(barrelLen * 0.35)
-            : bodyCenterX - Math.round(barrelLen * 0.35) - Math.round(barrelLen * 0.1);
-        ctx.fillRect(magX, shoulderY + barrelH,
-                     Math.round(barrelLen * 0.1),
-                     Math.round(portraitH * 0.08));
-        // Chrome highlight on top of barrel
-        ctx.fillStyle = '#d0d0d8';
-        ctx.fillRect(barX, shoulderY + 1, barrelLen, Math.max(1, barrelH - 2));
-        // Arm — a stubby paperclip-wire line from torso to stock
-        ctx.fillStyle = '#101018';
-        const armW = Math.max(2, Math.round(portraitH * 0.04));
-        const armLen = Math.round(portraitW * 0.15);
-        ctx.fillRect(facing > 0 ? bodyCenterX - armLen : bodyCenterX,
-                     shoulderY + Math.round(stockSize * 0.4),
-                     armLen, armW);
-    }
+    // R199: procedural cinematic rifle helper removed. User feedback:
+    // "stop with anything procedural. we need sprites." The counter-slide
+    // will use a painted Clippy-with-gun pose once the Local Howl run-cycle
+    // sheet lands (any of its frames will show Clippy holding the rifle —
+    // pick one for the portrait).
 
     // R157: Clippy counter-slide — mirror of the villain slide. 80f total.
     //   0-15   bars hold + Clippy portrait slides in from the LEFT
@@ -1555,17 +1514,10 @@ export class Game {
             ctx.fillRect(portraitX, portraitY, portraitW, portraitH);
         }
 
-        // R198: procedural arm + rifle composited onto the counter-slide
-        // Clippy. The painted v5_idle sprite has no gun baked in, but Clippy
-        // is the protagonist with a rifle for the entire game — showing him
-        // armless in the "I'm coming for you" beat reads as wrong. Stamp a
-        // raised rifle silhouette at shoulder height pointing right toward
-        // the villain across the frame. Scales with portraitW so it tracks
-        // the portrait size. Only after the slide-in completes so the gun
-        // doesn't trail in awkwardly.
-        if (t >= slideEnd) {
-            this._drawCinematicRifle(ctx, portraitX, portraitY, portraitW, portraitH, 1);
-        }
+        // R199: procedural rifle overlay removed. Counter-slide reads
+        // the painted portrait as-is; once the Local Howl run-cycle sheet
+        // lands we'll pick a frame that already shows Clippy with rifle
+        // and route it to `clippy_counter_portrait` for this beat.
 
         // Name + tagline + counter-bark on the RIGHT (mirrors villain layout).
         // 'CLIPPY' stays as the canonical name even on stage 6 where the

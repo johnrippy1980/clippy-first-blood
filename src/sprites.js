@@ -221,11 +221,16 @@ export const CLIPPY_MANIFEST = {
     // every pose) and v4 (which lost the face entirely).
     'idle':            'v5_idle.png',
     'idle_alt':        'v5_idle.png',
-    'run_1':           'v5_run.png',
-    'run_2':           'v5_run.png',
-    'run_3':           'v5_run.png',
-    'run_4':           'v5_run.png',
-    'run_5':           'v5_run.png',
+    // R199: v6 run cycle — 4 proper frames (left-stride, pass, right-stride,
+    // pass) from the new painted run sheet. Replaces v5_run.png × 5 which
+    // was all the same frame and made Clippy look like he was skating.
+    // The engine cycles 5 keys; we map run_5 back to run_1 to close the
+    // loop without a duplicate-frame stutter.
+    'run_1':           'v6_run_1.png',
+    'run_2':           'v6_run_2.png',
+    'run_3':           'v6_run_3.png',
+    'run_4':           'v6_run_4.png',
+    'run_5':           'v6_run_1.png',
     'jump':            'v5_jump.png',
     'jump_aim':        'v5_jump.png',
     'fall':            'v5_jump.png',
@@ -248,10 +253,13 @@ export const CLIPPY_MANIFEST = {
     // top the player would see two weapons + the baked one wouldn't rotate
     // to follow aim. Pointing these to v3_* means the body stays clean and
     // the procedural arm is the only weapon visible.
-    'run_shoot_1':     'v5_run.png',
-    'run_shoot_2':     'v5_run.png',
-    'run_shoot_3':     'v5_run.png',
-    'run_shoot_4':     'v5_run.png',
+    // R199: run-shoot variants point at the same v6 cycle so the legs
+    // animate while firing too. The rifle is already painted into every
+    // frame, so no separate weapon overlay needed.
+    'run_shoot_1':     'v6_run_1.png',
+    'run_shoot_2':     'v6_run_2.png',
+    'run_shoot_3':     'v6_run_3.png',
+    'run_shoot_4':     'v6_run_4.png',
     'shoot':           'v5_idle.png',
     'shoot_alt':       'v5_idle.png',
     'aim':             'v5_idle.png',
@@ -331,6 +339,15 @@ export const ENEMY_MANIFEST = {
     'boss_GATES':       'boss_founder_painted.png',
     'boss_CLIPPY_2':    'boss_clippy2_painted.png',
     'boss_ALGORITHM':   'boss_algorithm_painted.png',
+    // R199: real painted Jobs sprites. Two distinct assets:
+    //   - `enemy_jobs.png` (27×44) — in-game side-view character, used
+    //     by the boss draw at the gameplay hitbox scale.
+    //   - `boss_jobs_portrait.png` (88×88) — boss-intro card portrait,
+    //     chest-up with the keynote backdrop baked in. Drops into the
+    //     intro renderer's 88×88 slot. Stops the red-rectangle fallback
+    //     that fired when boss_JOBS was unmapped.
+    'enemy_jobs':       'enemy_jobs.png',
+    'boss_JOBS':        'boss_jobs_portrait.png',
 };
 
 // ============================================================
