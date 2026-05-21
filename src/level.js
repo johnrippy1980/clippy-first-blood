@@ -122,10 +122,25 @@ const G = 10; // tall grass — pass-through, hides player from AI
 // Each row is 16 tiles wide × n cols tall mapped to GAME.TILE pixels (16px).
 // Width here is just whatever fits the design; the camera scrolls.
 function makeStage1() {
-    // Stage 1 — Office Park Jungle. Trimmed from 96→64 tiles.
-    // Pacing target: ~30s to boss for a competent player. Teaches: run, jump,
-    // double-jump, shoot, wade, duck-hide.
-    const w = 64, h = 14;
+    // Stage 1 — Office Park Jungle. R182 deep-pass: extended 64→96 tiles
+    // with two new sections (F: ambush corridor, G: bridge crossing) so
+    // the stage feels like a journey rather than a tutorial sprint.
+    //
+    // Pickup placement is now intentional:
+    //   - SHOTGUN crate before the first sniper cluster (sniper rewards
+    //     short-range punch you can pre-load on for the cluster)
+    //   - SPREAD on the far bank of swamp 1 (clear the cabinet on dry land)
+    //   - GRENADE x2 stash before the ambush — there's a 3-grunt squad
+    //     pre-staged behind cover that's perfect for an AoE
+    //   - LASER on the high platform in C (rewards verticality + sets up
+    //     long-range work for the holepunch line)
+    //   - LIFE before mini-boss + LIFE before main boss (Contra rule:
+    //     getting hit drops weapon, so LIFE is the real safety net)
+    //   - HOMING just before the boss room — last-second power play
+    //
+    // Cover trees still sit beside sniper perches (duck-hide tutorial),
+    // grass patches added in the ambush corridor for crawl-through stealth.
+    const w = 96, h = 14;
     const g = Array.from({length: h}, () => new Array(w).fill(E));
     for (let x = 0; x < w; x++) { g[h - 1][x] = W; g[h - 2][x] = W; }
     const set = (r, c, v) => { if (g[r] && c >= 0 && c < w) g[r][c] = v; };
@@ -149,7 +164,24 @@ function makeStage1() {
     for (let i = 0; i < 6; i++) g[h - 2][46 + i] = TILE.WATER;
     plat(7, 52, 4);
 
-    // Section E (x 58–62): BOSS APPROACH — open ground, exit door.
+    // Section F (x 58–76): AMBUSH CORRIDOR — three grunts pre-staged behind
+    // tall grass cover. Player can either rush + take damage, or use the
+    // grenade stash placed at the section entrance to clear the whole line.
+    // Mid-section ledge gives a vantage for ranged players.
+    plat(7, 62, 4);     // overlook platform
+    plat(9, 70, 3);     // step down
+    rect(h - 3, 64, 1, 1, C);    // cover tree mid-corridor
+    rect(h - 3, 72, 1, 1, C);    // cover tree end-corridor
+
+    // Section G (x 76–88): BRIDGE CROSSING — narrow ledge over a wide
+    // pit. Crumbling tiles in the middle force a double-jump + dash combo.
+    // Falling = death (or grapple recovery if player has it).
+    for (let i = 0; i < 6; i++) g[h - 2][78 + i] = E;   // dig out the floor
+    plat(h - 3, 76, 2);  // entry ledge
+    plat(h - 5, 80, 3);  // mid-pit floating platform
+    plat(h - 3, 86, 2);  // exit ledge
+
+    // Section H (x 88–96): BOSS APPROACH — open ground, exit door.
     set(h - 3, w - 4, X);
     // Cover trees — placed near each holepunch sniper. Player holds UP to
     // crouch behind and become invulnerable while shots arc overhead.
@@ -160,47 +192,71 @@ function makeStage1() {
     for (let i = 0; i < 3; i++) set(h - 3, 11 + i, G);
     // Cluster 2: between sections C and D, on the path to the second swamp.
     for (let i = 0; i < 3; i++) set(h - 3, 38 + i, G);
+    // Cluster 3: ambush corridor — long crawl-through patch so player
+    // can sneak past the 3-grunt squad if they want to skip the fight.
+    for (let i = 0; i < 5; i++) set(h - 3, 65 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.JUNGLE,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 58 * GAME.TILE },
+        bossTrigger: { x: 90 * GAME.TILE },
         // Mini-boss: appears after the first swamp, before the second.
         // Same kind as the stage boss (COPIER_3000) at 35% HP — a warmup round.
         miniBossTrigger: 30 * GAME.TILE,
         owlRoosts: [
             { x: 14 * GAME.TILE, y: 3 * GAME.TILE + 6 },
             { x: 38 * GAME.TILE, y: 2 * GAME.TILE + 4 },
+            { x: 68 * GAME.TILE, y: 3 * GAME.TILE + 6 },   // ambush corridor
         ],
         enemySpawns: [
-            // A: early-contact stapler, no empty opening
+            // A: early-contact stapler
             { x:  9 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
             // B: sniper above the first swamp — teaches duck-hide.
-            // Added: cabinet on far side of swamp so the wade-out feels
-            // contested, not free (user feedback: swamp items needed enemies).
             { x: 19 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 28 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
-            // C: folder up high, cabinet down low — tests verticality + ranged choice
+            // C: folder up high, cabinet down low — tests verticality
             { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'folder' },
             { x: 42 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
-            // D: second swamp sniper — reinforce duck-hide muscle memory.
-            // Added: folder hovering over the second swamp so the player
-            // must choose between wading (slow, under fire) or rushing.
+            // D: second swamp sniper + airborne folder
             { x: 44 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 49 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
             { x: 54 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // F: AMBUSH CORRIDOR — three-grunt squad pre-staged. Two on
+            // the ground behind cover, one on the overlook ledge.
+            { x: 63 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
+            { x: 67 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            { x: 73 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // G: BRIDGE — one holepunch on the far ledge harassing during
+            // the pit-crossing. Doesn't move (perch behavior).
+            { x: 87 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'holepunch' },
         ],
         pickupSpawns: [
-            { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'LASER' },
-            // Reward for clearing each swamp — a pickup sits on the far bank,
-            // contested by the added grunts. Wading is now worth it.
+            // After clearing the first cabinet on the swamp 1 far bank
             { x: 26 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SPREAD' },
+            // Reward for reaching the top-tier verticality platform
+            { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'LASER' },
+            // Mid-stage LIFE on swamp 2 far bank
             { x: 51 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Grenade stash at ambush corridor entrance — earns AoE for the squad
+            { x: 60 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // Second LIFE just before the bridge — Contra rule: hits drop
+            // your weapon, so the LIFE-then-HOMING combo lets you reload
+            // your kit right before the boss.
+            { x: 77 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Boss-approach HOMING — last power play before the COPIER_3000
+            { x: 89 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
         ],
         crateSpawns: [
+            // Pre-sniper-cluster SHOTGUN — clear the holepunch fast
             { x: 14 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'SHOTGUN' },
+            // Verticality reward
             { x: 36 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'LIFE' },
+            // Pre-second-swamp HOMING (was already here)
             { x: 52 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'HOMING' },
+            // F: ambush corridor overlook — FLAME for the corridor cleanup
+            { x: 62 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'FLAME' },
+            // G: bridge mid-pit platform — risk/reward crate
+            { x: 81 * GAME.TILE, y: (h - 5) * GAME.TILE - 14, drop: 'GRENADE' },
         ]
     };
 }
