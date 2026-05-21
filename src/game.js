@@ -92,6 +92,9 @@ const BOSS_BARK = {
     GAUNTLET:      ['EVERY NAME YOU CROSSED','OFF. ALL AT ONCE.'],
     GAUNTLET_FULL: ['NO STAGES. NO BREAKS.', 'JUST YOU AND THE LIST.'],
     ALGORITHM:     ['I KNOW WHAT YOU WANT.', 'I AM WHAT YOU WANT.'],
+    // R197: Stage 13 post-credits Jobs fight. BOSS_BARK was missing the
+    // entry so the cinematic rendered with empty title-card text.
+    JOBS:          ['ONE MORE THING.',       'CLIPPY WAS A MISTAKE.'],
 };
 
 // R157: Clippy's counter-bark — fires in the counter-slide phase that
@@ -107,6 +110,8 @@ const CLIPPY_COUNTER_BARK = {
     GAUNTLET:     ['GOOD. SAVES ME A TRIP.',      ''],
     GAUNTLET_FULL:['BRING ALL OF THEM.',          ''],
     ALGORITHM:    ['I WANT YOU DEAD.',            ''],
+    // R197: Clippy's reply to Jobs — answers "Clippy was a mistake."
+    JOBS:         ['STILL BEAT YOUR PRODUCT.',    ''],
 };
 
 const STORY_PAGES = [
@@ -2006,7 +2011,10 @@ export class Game {
             { key: 'boss_intro_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
             { key: 'boss_intro_CTRL_ALT_DEL', label: 'CTRL-ALT-DEL', unlock: stageDone(3) },
             { key: 'boss_intro_BALLMER',      label: 'BALLMER',      unlock: stageDone(4) },
-            { key: 'boss_intro_GATES',        label: 'GATES',        unlock: stageDone(6) },
+            // R197: stage 5 = GATES, stage 6 = CLIPPY_2. The original list
+            // had GATES gated at stageDone(6) and skipped CLIPPY_2 entirely.
+            { key: 'boss_intro_GATES',        label: 'GATES',        unlock: stageDone(5) },
+            { key: 'boss_intro_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(6) },
             { key: 'boss_intro_GAUNTLET',     label: 'BOSS RUSH',    unlock: stageDone(7) },
             { key: 'boss_intro_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(8) },
             { key: 'boss_intro_JOBS',         label: 'STEVE JOBS',   unlock: cleared },

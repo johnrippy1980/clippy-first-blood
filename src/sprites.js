@@ -153,7 +153,10 @@ export const SCENE_MANIFEST = {
     'boss_intro_SHREDDER':     'boss_intros/boss_intro_shredder.png',
     'boss_intro_CTRL_ALT_DEL': 'boss_intros/boss_intro_bsod.png',
     'boss_intro_BALLMER':      'boss_intros/boss_intro_boardroom.png',
-    'boss_intro_GATES':        'boss_intros/boss_intro_founder.png',
+    // R197: GATES was mapped to founder.png, but GATES is stage 5 = KEYNOTE
+    // theme. Each boss should get its own painted plate, so route GATES to
+    // the keynote one and leave CLIPPY_2 on founder (its actual stage theme).
+    'boss_intro_GATES':        'boss_intros/boss_intro_keynote.png',
     'boss_intro_CLIPPY_2':     'boss_intros/boss_intro_founder.png',
     'boss_intro_GAUNTLET':     'boss_intros/boss_intro_bossrush.png',
     'boss_intro_ALGORITHM':    'boss_intros/boss_intro_algorithm.png',
