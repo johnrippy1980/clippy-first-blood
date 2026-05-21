@@ -917,12 +917,25 @@ function makeStage7() {
             { x: 28 * GAME.TILE, y: (h-3) * GAME.TILE, type: 'stapler' },
         ],
         pickupSpawns: [
+            // R188: Boss Rush stays at single-arena footprint (no geometry
+            // changes — that's the whole gimmick of the mode), but the
+            // pickup roster gets the Contra-rule treatment: more LIFE pads
+            // for the multi-boss gauntlet, GRENADE pickups to seed AoE
+            // between bosses, and SHOTGUN+LASER pickups on the upper plats
+            // for vertical-movement reward.
             { x: 18 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
             { x: 22 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+            { x: 14 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'GRENADE' },
+            { x: 26 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'GRENADE' },
+            { x:  8 * GAME.TILE, y: ( 7) * GAME.TILE - 10, type: 'SHOTGUN' },
+            { x: 32 * GAME.TILE, y: ( 7) * GAME.TILE - 10, type: 'LASER' },
         ],
         crateSpawns: [
             { x: 10 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'HOMING' },
             { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'THUNDER' },
+            // Extra crates spaced symmetrically to flank player on respawn
+            { x: 16 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'LIFE' },
+            { x: 24 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'LIFE' },
         ]
     };
 }
@@ -930,10 +943,10 @@ function makeStage7() {
 // Stage 8 — The Cloud. Floating platforms in a void, gravity-flip illusion
 // via inverted platforms on the ceiling. Final approach to The Algorithm.
 function makeStage8() {
-    // Stage 8 — The Cloud finale. Trimmed from 110→80 wide. Slightly longer
-    // than stages 1-6 to feel like a climax. Preserves the archipelago
-    // floating-platform feel and ceiling-rain-hazard pacing.
-    const w = 80, h = 16;
+    // Stage 8 — The Cloud finale. R189 deep-pass: extended 80→108 wide.
+    // Two new sections (DATA STORM + ALGORITHM ANTECHAMBER) for a proper
+    // finale-length gauntlet. Sniper + folder heavy, so HOMING dominates.
+    const w = 108, h = 16;
     const { g } = blankStage(w, h, THEME.CLOUD);
 
     // Carve the boss-arena pit at the very end.
@@ -949,7 +962,7 @@ function makeStage8() {
     platT(g,  5, 30, 4);
     spikeRow(g, 1, 18, 4);   // ceiling data-rain hazard #1
 
-    // Section C (x 34–50): CEILING DESCENT — ceiling platforms for upside-down feel.
+    // Section C (x 34–50): CEILING DESCENT — ceiling platforms.
     platT(g,  2, 36, 3);
     platT(g, 12, 38, 4);
     platT(g,  8, 44, 4);
@@ -961,20 +974,46 @@ function makeStage8() {
     platT(g,  6, 60, 4);
     spikeRow(g, 1, 52, 4);   // ceiling data-rain hazard #2
 
-    // Section E (x 66–76): ALGORITHM APPROACH — final floating cube + exit.
-    platT(g, 12, 66, 4);
-    rectT(g, 8, 70, 3, 3, W);
+    // Section F (x 66–86): DATA STORM — diagonal cascade of platforms with
+    // ceiling-rain on every column. The hazard pattern teaches the player
+    // to read the rain timing (which is constant in this section) while
+    // descending. Snipers on the high outer platforms.
+    platT(g,  3, 68, 3);
+    platT(g,  6, 72, 3);
+    platT(g,  9, 76, 3);
+    platT(g, 12, 80, 3);
+    platT(g,  3, 82, 3);     // alt-high platform back up
+    spikeRow(g, 1, 67, 18);  // ceiling-rain runs the whole section
+
+    // Section G (x 86–100): ALGORITHM ANTECHAMBER — three ascending wall
+    // platforms forming a stepped pyramid to a final high ledge. Holepunch
+    // sniper on the top. Floor pit at base — falling = death.
+    for (let x = 88; x < 98; x++) { g[h - 1][x] = E; g[h - 2][x] = E; }
+    platT(g, 11, 86, 2);     // entry ledge
+    rectT(g, 10, 89, 1, 3, W);
+    rectT(g,  8, 92, 1, 5, W);
+    rectT(g,  6, 95, 1, 7, W);
+    platT(g, 11, 98, 3);     // exit ledge (over the boss pit)
+
+    // Section E (x 100–104): ALGORITHM APPROACH — final floating cube + exit.
+    platT(g, 12, w - 8, 4);
+    rectT(g, 8, w - 6, 3, 3, W);
     setT(g, 8, w - 4, X);     // exit tile up high
+
     // Floating data-pillar cover near snipers above the archipelago.
     setT(g, h - 3, 24, C);
     setT(g, h - 3, 48, C);
+    // F: cover at data-storm entry — slip behind a pillar before the cascade.
+    setT(g, h - 3, 66, C);
     // Drifting cloud puffs — duck into the mist between data pillars.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 36 + i, G);
+    // G: stealth on antechamber entry ledge.
+    for (let i = 0; i < 2; i++) setT(g, 11, 86 + i, G);
 
     return {
         tiles: g, width: w, height: h, theme: THEME.CLOUD,
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
-        bossTrigger: { x: 72 * GAME.TILE },
+        bossTrigger: { x: 102 * GAME.TILE },
         miniBossTrigger: 40 * GAME.TILE,
         enemySpawns: [
             { x: 16 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'holepunch' },
@@ -984,15 +1023,40 @@ function makeStage8() {
             { x: 48 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'holepunch' },
             { x: 56 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'folder' },
             { x: 64 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            // F: DATA STORM — two snipers on high alt platforms, folder
+            // weaving the cascade.
+            { x: 69 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'holepunch' },
+            { x: 83 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'holepunch' },
+            { x: 77 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'folder' },
+            // G: ANTECHAMBER — sniper at the top of the pyramid + folder
+            // hovering the pit to deny easy fall-recovery.
+            { x: 96 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            { x: 93 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'folder' },
         ],
         pickupSpawns: [
+            // C top: THUNDER (unchanged)
             { x: 32 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'THUNDER' },
+            // Pre-mini-boss LIFE
+            { x: 38 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
+            // Pre-data-rain-2 SHOTGUN
+            { x: 50 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'SHOTGUN' },
+            // F: pre-data-storm GRENADE — chuck into the cascade
+            { x: 66 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'GRENADE' },
+            // F: mid-storm LIFE
+            { x: 76 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
+            // G: pre-antechamber HOMING — handles the top sniper from below
+            { x: 86 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'HOMING' },
+            // Pre-boss LIFE
+            { x: 101 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
         ],
         crateSpawns: [
             { x: 24 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'LASER' },
             { x: 40 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 56 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'HOMING' },
-            { x: 66 * GAME.TILE, y: (11) * GAME.TILE - 14, drop: 'LIFE' },
+            // F: data-storm alt-high HOMING
+            { x: 83 * GAME.TILE, y: ( 3) * GAME.TILE - 14, drop: 'HOMING' },
+            // G: top antechamber THUNDER — final power before The Algorithm
+            { x: 96 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'THUNDER' },
         ]
     };
 }
