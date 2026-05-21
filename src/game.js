@@ -723,6 +723,10 @@ export class Game {
     // post-update telemetry + state-machine gates. Each phase is a small
     // helper so this method reads as a timeline.
     _tickPlay() {
+        // Defensive: same guard as _drawPlay — if scene rolled into PLAY
+        // before a stage was loaded, bail rather than throwing through every
+        // sub-tick. Caller's next _startStage will populate level + player.
+        if (!this.level || !this.player) return;
         if (this._tickPlayHandlePause()) return;
         if (this.trainingMode) this._tickPlayTrainingUpkeep();
         const slowMoSkipEnemies = this._tickPlayAdvanceSlowMo();
@@ -1030,6 +1034,16 @@ export class Game {
 
     _drawPlay() {
         const ctx = this.ctx;
+        // Defensive: if scene was switched to PLAY before _startStage ran
+        // (corrupt state, edge race, debug tinkering), fall back to a black
+        // frame instead of throwing in render. Caller will recover on next
+        // _startStage; we just don't want a single bad render to nuke the
+        // canvas + spam the console with TypeError every frame.
+        if (!this.level || !this.player) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            return;
+        }
         this.parallax.drawBack(ctx, this.camera);
         this.level.draw(ctx, this.camera);
         this.pickups.draw(ctx, this.camera);
