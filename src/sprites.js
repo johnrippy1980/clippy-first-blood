@@ -247,6 +247,7 @@ export const CLIPPY_MANIFEST = {
     'v6_flame':        'v6_flame.png',
     'v6_homing':       'v6_homing.png',
     'v6_thunder':      'v6_thunder.png',
+    'v6_chainsaw':     'v6_chainsaw.png',
     'jump':            'v5_jump.png',
     'jump_aim':        'v5_jump.png',
     'fall':            'v5_jump.png',
