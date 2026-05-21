@@ -323,11 +323,13 @@ export class Player {
             if (this.comboTimer === 0 && this.combo >= 5) audio.sfx('comboBreak');
             if (this.comboTimer === 0) this.combo = 0;
         }
+        // R181: power weapons persist until you take a hit (Contra rule).
+        // weaponTimer is now a sentinel: -1 = persistent (never expires),
+        // 0 = MG default, > 0 = legacy timed weapon (kept for any mode that
+        // wants it). Power-weapon pickups set -1; hurt() resets to MG.
         if (this.weaponTimer > 0) {
             this.weaponTimer--;
             if (this.weaponTimer === 0 && this.weapon !== 'MG') {
-                // Drop the expired weapon from inventory so the cycle doesn't
-                // keep including it as an empty slot.
                 if (this.weaponInventory) {
                     const idx = this.weaponInventory.indexOf(this.weapon);
                     if (idx > 0) this.weaponInventory.splice(idx, 1);
@@ -732,7 +734,7 @@ export class Player {
             if (next !== this.weapon) {
                 this.weapon = next;
                 this.weaponLevel = 1;
-                this.weaponTimer = WEAPON_DURATION;
+                this.weaponTimer = -1;   // R181: persist until hit
                 this.weaponPickupFlash = 18;
                 audio.sfx('select');
             }
@@ -1789,7 +1791,7 @@ export class Player {
                     this.weaponInventory.push(type);
                 }
             }
-            this.weaponTimer = WEAPON_DURATION;
+            this.weaponTimer = -1;   // R181: persist until hit
         }
     }
 
@@ -1864,6 +1866,21 @@ export class Player {
         this.knockX = knockDir * 2.4;
         this.vy = -3.0;
         this.combo = 0;
+        // R181: Contra-style weapon persistence — taking a hit drops power
+        // weapons back to MG. Player retains their MG inventory slot but
+        // loses anything they'd picked up. weaponInventory is reset to
+        // just MG so the cycle key (Q/Tab) won't surface a now-orphan slot.
+        if (this.weapon !== 'MG') {
+            const lostWeapon = this.weapon;
+            this.weapon = 'MG';
+            this.weaponLevel = 1;
+            this.weaponTimer = 0;
+            this.weaponInventory = ['MG'];
+            particles.floatingText(
+                this.x + this.w / 2, this.y - 10,
+                'LOST ' + lostWeapon, '#ff5050', 50, -0.4, 1
+            );
+        }
         // Drop any anchored state when hurt — being knocked off a ledge or
         // grapple should free Clippy completely, otherwise the anchor can
         // outlive the hurt and re-trap the player on resume. Self-heal in
