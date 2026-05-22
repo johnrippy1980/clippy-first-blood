@@ -2482,11 +2482,33 @@ export class Game {
     // available immediately, boss intros unlock as you beat each boss,
     // ending + epilogue beats unlock on clear_game.
     _galleryEntries() {
-        // List ordered so unlocks read as a roughly-chronological story
-        // walkthrough. `unlock` is a predicate; if falsy at draw time the
-        // tile shows as locked silhouette.
         const cleared = achievements.unlocked.has('clear_game');
         const stageDone = (n) => (this.unlockedStage > n) || cleared;
+        const tab = this.galleryTab || 'scenes';
+        if (tab === 'enemies') {
+            // R266: enemy gallery — grunts always shown, boss thumbnails
+            // gate on the stage where they appear.
+            return [
+                { key: 'stapler',   label: 'STAPLER',   unlock: true },
+                { key: 'folder',    label: 'FOLDER',    unlock: stageDone(1) },
+                { key: 'cabinet',   label: 'CABINET',   unlock: stageDone(2) },
+                { key: 'holepunch', label: 'SNIPER',    unlock: stageDone(2) },
+            ];
+        }
+        if (tab === 'bosses') {
+            return [
+                { key: 'boss_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
+                { key: 'boss_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
+                { key: 'boss_CTRL_ALT_DEL', label: 'CTRL-ALT-DEL', unlock: stageDone(3) },
+                { key: 'boss_SPINDLER',     label: 'DR. SPINDLER', unlock: stageDone(4) },
+                { key: 'boss_BALLMER',      label: 'BALLMER',      unlock: stageDone(5) },
+                { key: 'boss_GATES',        label: 'GATES',        unlock: stageDone(6) },
+                { key: 'boss_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(7) },
+                { key: 'boss_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(8) },
+                { key: 'boss_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
+            ];
+        }
+        // Default: SCENES tab
         return [
             { key: 'story_fired', label: 'FIRED', unlock: true },
             { key: 'story_home',  label: 'HOME',  unlock: true },
@@ -2498,8 +2520,6 @@ export class Game {
             { key: 'boss_intro_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
             { key: 'boss_intro_CTRL_ALT_DEL', label: 'CTRL-ALT-DEL', unlock: stageDone(3) },
             { key: 'boss_intro_BALLMER',      label: 'BALLMER',      unlock: stageDone(4) },
-            // R197: stage 5 = GATES, stage 6 = CLIPPY_2. The original list
-            // had GATES gated at stageDone(6) and skipped CLIPPY_2 entirely.
             { key: 'boss_intro_GATES',        label: 'GATES',        unlock: stageDone(5) },
             { key: 'boss_intro_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(6) },
             { key: 'boss_intro_GAUNTLET',     label: 'BOSS RUSH',    unlock: stageDone(7) },
@@ -2530,6 +2550,15 @@ export class Game {
         if (input.isPressed('pause')) {
             this.scene = this._menuReturnScene || SCENE.PAUSE;
             audio.sfx('pause');
+            return;
+        }
+        // R266: TAB / Q cycles between SCENES → ENEMIES → BOSSES tabs.
+        if (input.isPressed('cycle')) {
+            const tabs = ['scenes', 'enemies', 'bosses'];
+            const cur = tabs.indexOf(this.galleryTab || 'scenes');
+            this.galleryTab = tabs[(cur + 1) % tabs.length];
+            this.galleryIndex = 0;
+            audio.sfx('select');
             return;
         }
         const COLS = 5;
@@ -2575,14 +2604,43 @@ export class Game {
         // through (R236 anchored it to lower half, exposed the 12% leak).
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
-        drawTextOutlined(ctx, 'SCENE GALLERY', GAME.W / 2, 12, '#ffe070', '#a82020', 1, 'center');
+        const tab = this.galleryTab || 'scenes';
+        const tabTitles = {
+            scenes:  'SCENE GALLERY',
+            enemies: 'ENEMY GALLERY',
+            bosses:  'BOSS GALLERY',
+        };
+        drawTextOutlined(ctx, tabTitles[tab], GAME.W / 2, 8, '#ffe070', '#a82020', 1, 'center');
+        // R266: tab strip showing the three sections; active one highlighted.
+        const tabs = ['SCENES', 'ENEMIES', 'BOSSES'];
+        const tabKeys = ['scenes', 'enemies', 'bosses'];
+        const tabY = 18;
+        const tabSpacing = 56;
+        const totalTabW = tabs.length * tabSpacing;
+        const tabStartX = (GAME.W - totalTabW) / 2 + tabSpacing / 2;
+        for (let i = 0; i < tabs.length; i++) {
+            const tx = tabStartX + i * tabSpacing;
+            const isActive = tabKeys[i] === tab;
+            drawText(ctx, tabs[i], tx, tabY, isActive ? '#ffe070' : '#604068', 1, 'center');
+            if (isActive) {
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(tx - 16, tabY + 8, 32, 1);
+            }
+        }
 
+        // R266: 5-column grid with wider cells + 2-line label space so long
+        // names like "LIST COPIER 3000" and "STEVE JOBS" don't bleed into
+        // the neighbor cell. cellH now includes 14px label band.
+        // R266: tightened cell heights so 4 rows fit between the tab strip
+        // (ends y≈28) and the footer hint (starts y=GAME.H-12).
+        // labelH must accommodate 2 lines of 7px text + 2px baseline gap =
+        // ~16px; tested empirically against "BOARDROOM" → "BOARD"/"ROOM".
         const COLS = 5;
-        const ROWS = Math.ceil(entries.length / COLS);
-        const cellW = 46, cellH = 32, gapX = 4, gapY = 6;
+        const cellW = 44, thumbH = 20, labelH = 16, cellH = thumbH + labelH;
+        const gapX = 5, gapY = 2;
         const gridW = COLS * cellW + (COLS - 1) * gapX;
         const startX = Math.round((GAME.W - gridW) / 2);
-        const startY = 26;
+        const startY = 30;
         for (let i = 0; i < entries.length; i++) {
             const e = entries[i];
             const r = Math.floor(i / COLS);
@@ -2594,12 +2652,12 @@ export class Game {
             if (e.unlock && sprites.has(e.key)) {
                 const img = sprites.images.get(e.key);
                 ctx.imageSmoothingEnabled = true;
-                ctx.drawImage(img, x, y, cellW, cellH - 8);
+                ctx.drawImage(img, x, y, cellW, thumbH);
                 ctx.imageSmoothingEnabled = false;
             } else {
                 ctx.fillStyle = '#1a0a18';
-                ctx.fillRect(x, y, cellW, cellH - 8);
-                drawText(ctx, '?', x + cellW / 2, y + (cellH - 8) / 2 - 3, '#604068', 1, 'center');
+                ctx.fillRect(x, y, cellW, thumbH);
+                drawText(ctx, '?', x + cellW / 2, y + thumbH / 2 - 3, '#604068', 1, 'center');
             }
             // Selection frame
             if (selected) {
@@ -2607,11 +2665,52 @@ export class Game {
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x - 0.5, y - 0.5, cellW + 1, cellH);
             }
-            // Label below thumbnail
+            // Label below thumbnail — wrap to 2 lines if too long, and clip
+            // to a per-cell scissor so nothing leaks past the cell edges.
             const labelCol = selected ? '#ffe070' : (e.unlock ? '#c0a0d0' : '#604068');
-            drawText(ctx, e.label, x + cellW / 2, y + cellH - 6, labelCol, 1, 'center');
+            // Wrap to 2 lines at maxChars=7 (cellW=44 / 6px-per-char).
+            const lines = this._wrapLabel(e.label, 7);
+            ctx.save();
+            ctx.beginPath();
+            // Clip horizontally tight to cell, vertically loose so both
+            // wrapped lines render fully.
+            ctx.rect(x - 2, y + thumbH - 1, cellW + 4, labelH + 2);
+            ctx.clip();
+            // Center the line stack vertically inside labelH.
+            const totalH = lines.length * 7 + (lines.length - 1) * 1;
+            const lineY = y + thumbH + Math.floor((labelH - totalH) / 2) + 1;
+            for (let li = 0; li < lines.length; li++) {
+                drawText(ctx, lines[li], x + cellW / 2, lineY + li * 8, labelCol, 1, 'center');
+            }
+            ctx.restore();
         }
-        drawText(ctx, 'ARROWS MOVE   X VIEW   P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+        drawText(ctx, 'ARROWS MOVE  X VIEW  TAB SECTION  P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+    }
+
+    // R266: wrap a label into <=2 lines of ~maxChars each. Splits on word
+    // boundaries first; for single long words, splits at the midpoint so the
+    // full label still reads (e.g. "ALGORITHM" → "ALGO" / "RITHM").
+    _wrapLabel(label, maxChars) {
+        if (label.length <= maxChars + 1) return [label];
+        const words = label.split(' ');
+        if (words.length >= 2) {
+            let bestIdx = 1, bestDiff = Infinity;
+            for (let i = 1; i < words.length; i++) {
+                const left = words.slice(0, i).join(' ');
+                const right = words.slice(i).join(' ');
+                const diff = Math.abs(left.length - right.length);
+                if (left.length <= maxChars + 2 && right.length <= maxChars + 2 && diff < bestDiff) {
+                    bestIdx = i;
+                    bestDiff = diff;
+                }
+            }
+            const line1 = words.slice(0, bestIdx).join(' ');
+            const line2 = words.slice(bestIdx).join(' ');
+            return [line1, line2];
+        }
+        // Single long word — split at the midpoint so both halves fit.
+        const mid = Math.ceil(label.length / 2);
+        return [label.slice(0, mid), label.slice(mid)];
     }
 
     // ============== Inter-stage cinematic card ==============
