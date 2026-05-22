@@ -49,7 +49,15 @@ export class Parallax {
         this.batCooldown = AMBIENT.BAT_INITIAL_WARMUP_F;
         this.owlRoosts = [];
         this.owlHootCooldown = AMBIENT.OWL_HOOT_INITIAL_F;
+        // R227: clear any per-stage bg override on theme change.
+        this.bgKeyOverride = null;
         this._spawnMotes();
+    }
+    // R227: Stage 4 swaps painted bgs mid-stage (sewer → lab). Setting
+    // bgKeyOverride wins over the theme lookup until cleared. Set to null
+    // to revert to the default theme key.
+    setBgKey(key) {
+        this.bgKeyOverride = key;
     }
 
     // Per-theme atmospheric motes spec. drift = pixel/frame, jitter = wobble.
@@ -64,6 +72,7 @@ export class Parallax {
             case THEME.KEYNOTE:    return { count: 9,  color: '#a070ff', size: 1, drift: 0.14, vyMin: -0.04, vyMax:  0.06, jitter: 0.4, alpha: 0.34 }; // stage haze
             case THEME.FOUNDER:    return { count: 14, color: '#ff7040', size: 1, drift: 0.20, vyMin: -0.35, vyMax: -0.10, jitter: 0.5, alpha: 0.56 }; // rising embers
             case THEME.CLOUD:      return { count: 8,  color: '#a0ffff', size: 1, drift: 0.35, vyMin: -0.06, vyMax:  0.04, jitter: 0.3, alpha: 0.44 }; // wisp cloud puffs
+            case THEME.SEWER:      return { count: 11, color: '#60a060', size: 1, drift: 0.08, vyMin:  0.04, vyMax:  0.18, jitter: 0.3, alpha: 0.50 }; // sludge drips falling
             default: return null;
         }
     }
@@ -249,7 +258,8 @@ export class Parallax {
     drawBack(ctx, camera) {
         // Try painted bitmap first; only fall back to fillRect silhouettes
         // when the painted asset hasn't loaded yet.
-        const key = BG_KEY_FOR_THEME[this.theme];
+        // R227: bgKeyOverride wins (mid-stage sewer→lab swap for Stage 4).
+        const key = this.bgKeyOverride || BG_KEY_FOR_THEME[this.theme];
         if (key && this._paintedBg(ctx, camera, key)) {
             // Per-theme overlay tuning. r100 — the painted plates are already
             // dark-toned by design; the old 0.18/0.32 darken-on-top was

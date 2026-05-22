@@ -288,6 +288,17 @@ export class Game {
                     this.enemies.applyOwlPause(h.x, h.y, AMBIENT.OWL_PAUSE_RADIUS, AMBIENT.OWL_PAUSE_FRAMES);
                 }
             }
+            // R227: Stage 4 (THE PIPELINE) painted-bg swap. First half of
+            // the stage is sewer, second half is the experimentation lab.
+            // The act break sits at tile column ~50 (lab entry transition),
+            // so we swap the bg key once the player crosses 50*16 = 800px.
+            if (this.currentStage === 4 && this.player) {
+                const inLab = this.player.x >= 50 * GAME.TILE;
+                const wantKey = inLab ? 'bg_sewer_lab' : 'bg_sewer';
+                if (this.parallax.bgKeyOverride !== wantKey) {
+                    this.parallax.setBgKey(wantKey);
+                }
+            }
         }
         // Transition fades
         if (this.transition > 0) {
