@@ -90,6 +90,18 @@ export class FpsArena {
     // ============== tick ==============
     update() {
         this.t++;
+        // R230: clear phase handled here (not in draw()) so input edge-detect
+        // fires reliably; isPressed() is cleared after each tick and the
+        // draw pass doesn't see fresh press events.
+        if (this.phase === 'clear') {
+            this.clearT = (this.clearT || 0) + 1;
+            if (this.clearT > 60 &&
+                (input.isPressed('shoot') || input.isPressed('jump') ||
+                 input.isPressed('start') || input.isPressed('pause'))) {
+                this.game._fadeTo('title');
+            }
+            return;  // skip the rest — no need to tick combat once cleared
+        }
         this._tickPlayer();
         this._tickBullets();
         this._tickEnemyBullets();
@@ -450,17 +462,18 @@ export class FpsArena {
         }
         // HUD
         this._drawHUD();
-        // Stage-clear overlay
+        // Stage-clear overlay (visual only — update() reads input).
         if (this.phase === 'clear') {
-            this.clearT = (this.clearT || 0) + 1;
-            ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, this.clearT * 0.02)})`;
+            const t = this.clearT || 0;
+            ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, t * 0.02)})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
-            if (this.clearT > 60) {
+            if (t > 60) {
                 drawText(ctx, 'CORE BREACHED', GAME.W / 2, GAME.H / 2 - 8, '#ffe070', 2, 'center');
+                // Pulse the prompt so it reads as actionable
+                const a = 0.6 + 0.4 * Math.sin(t * 0.15);
+                ctx.globalAlpha = a;
                 drawText(ctx, 'PRESS X', GAME.W / 2, GAME.H / 2 + 12, '#a890b0', 1, 'center');
-                if (input.isPressed('shoot') || input.isPressed('jump')) {
-                    this.game._fadeTo('title');
-                }
+                ctx.globalAlpha = 1;
             }
         }
     }
