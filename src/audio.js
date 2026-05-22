@@ -1367,10 +1367,13 @@ class Audio {
     _playFile(path, fadeIn = 0) {
         const el = new window.Audio(path);
         el.loop = true;
-        el.volume = 0.7;
+        // R294: was el.volume = 0.7 + per-track gain 0.85 — combined 0.595×
+        // which made the music volume slider top out at ~60% true output.
+        // Now full-volume at the source; users control real 100% via the
+        // music + master sliders (musicBus + master gain stages).
+        el.volume = 1.0;
         el.preload = 'auto';
-        // Per-track gain so we can cross-fade independently.
-        const targetGain = 0.85;
+        const targetGain = 1.0;
         try {
             const node = this.ctx.createGain();
             // Start silent if we're fading in, else jump straight to target.
