@@ -29,16 +29,20 @@ const FILE_TRACKS = {
     gameComplete: 'assets/audio/dream.mp3',
     // Gameplay + boss
     jungle:     'assets/audio/revenge.mp3',
-    // R218: dedicated track for the break room — "What Was It For?"
-    // by Owl Hall. Trimmed to 1:25 with the last 6s fading to silence
-    // so a stage that finishes near the timer end doesn't cut abruptly.
-    breakroom:  'assets/audio/what-was-it-for.mp3',
-    serverroom: 'assets/audio/revenge.mp3',
-    boardroom:  'assets/audio/revenge.mp3',
-    keynote:    'assets/audio/revenge.mp3',
-    founder:    'assets/audio/revenge.mp3',
-    cloud:      'assets/audio/revenge.mp3',
-    bossBattle: 'assets/audio/revenge.mp3',
+    // R218 / R221: per-stage tracks. All Owl Hall masters, trimmed to
+    // ~85s with a 6s tail fade so a stage that finishes near the
+    // timer end doesn't cut abruptly. Stage-3..7 picked thematically
+    // (server room → "No Remorse", boss rush → "Night Drive", etc.).
+    breakroom:  'assets/audio/what-was-it-for.mp3',  // stage 2
+    serverroom: 'assets/audio/no-remorse.mp3',       // stage 3
+    boardroom:  'assets/audio/no-pity.mp3',          // stage 4
+    keynote:    'assets/audio/dont-go.mp3',          // stage 5
+    founder:    'assets/audio/disbelief.mp3',        // stage 6
+    cloud:      'assets/audio/the-path.mp3',         // stage 8
+    bossBattle: 'assets/audio/night-drive.mp3',      // stage 7 boss rush
+    // Bonus track — wired to a hidden alias so the soundtrack gallery
+    // can list it without a stage routing yet. Playable via menu.
+    bonus:      'assets/audio/youve-been-loving.mp3',
 };
 
 class Audio {

@@ -31,10 +31,16 @@ export const TILE = Object.freeze({
 // Add a new entry when a new music file is wired into audio.js's FILE_TRACKS.
 // `track` is the FILE_TRACKS key. `title` and `mood` are display strings.
 export const TRACK_MANIFEST = [
-    { track: 'title',     title: 'DREAM',            mood: 'TITLE + STORY',   author: 'OWL HALL' },
-    { track: 'jungle',    title: 'REVENGE',          mood: 'GAMEPLAY + BOSS', author: 'OWL HALL' },
-    { track: 'breakroom', title: 'WHAT WAS IT FOR?', mood: 'BREAK ROOM',      author: 'OWL HALL' },
-    // FUTURE: per-stage tracks slot in here when added.
+    { track: 'title',      title: 'DREAM',                mood: 'TITLE + STORY', author: 'OWL HALL' },
+    { track: 'jungle',     title: 'REVENGE',              mood: 'STAGE 1',       author: 'OWL HALL' },
+    { track: 'breakroom',  title: 'WHAT WAS IT FOR?',     mood: 'STAGE 2',       author: 'OWL HALL' },
+    { track: 'serverroom', title: 'NO REMORSE',           mood: 'STAGE 3',       author: 'OWL HALL' },
+    { track: 'boardroom',  title: 'NO PITY',              mood: 'STAGE 4',       author: 'OWL HALL' },
+    { track: 'keynote',    title: "DON'T GO",             mood: 'STAGE 5',       author: 'OWL HALL' },
+    { track: 'founder',    title: 'DISBELIEF',            mood: 'STAGE 6',       author: 'OWL HALL' },
+    { track: 'bossBattle', title: 'NIGHT DRIVE',          mood: 'STAGE 7',       author: 'OWL HALL' },
+    { track: 'cloud',      title: 'THE PATH',             mood: 'STAGE 8',       author: 'OWL HALL' },
+    { track: 'bonus',      title: "YOU'VE BEEN LOVING ME", mood: 'BONUS',        author: 'OWL HALL' },
     // { track: 'serverroom', title: '...', mood: 'SERVER ROOM', author: '...' },
     // { track: 'boardroom',  title: '...', mood: 'BOARD ROOM',  author: '...' },
     // { track: 'keynote',    title: '...', mood: 'KEYNOTE',     author: '...' },
@@ -119,7 +125,7 @@ export const STAGES = [
     { id: 4, name: 'THE BOARD ROOM',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS' },
     { id: 5, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB' },
     { id: 6, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
-    { id: 7, name: 'BOSS RUSH',              theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'serverroom', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
+    { id: 7, name: 'BOSS RUSH',              theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
     { id: 8, name: 'THE CLOUD',              theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
     // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
     { id: 9, name: 'THE RECYCLE BIN',        theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
