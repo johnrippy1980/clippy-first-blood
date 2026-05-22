@@ -3482,8 +3482,11 @@ export class Game {
         const min = Math.floor(this.stageTime / 3600);
         const sec = Math.floor((this.stageTime / 60) % 60);
         const time = `${min}:${String(sec).padStart(2,'0')}`;
-        const accuracy = this.player.shotsFired > 0
-            ? Math.round((this.stageStats.kills / this.player.shotsFired) * 100)
+        // Defensive: this.player can be null transiently (e.g., scene reload).
+        // Treat absent player as "no shots" so accuracy renders as '—'.
+        const shotsFired = this.player?.shotsFired || 0;
+        const accuracy = shotsFired > 0
+            ? Math.round((this.stageStats.kills / shotsFired) * 100)
             : null;
         // R171: when no shots were fired, accuracy reads as a dash instead
         // of "0%". Otherwise a pacifist run / melee-only clear looks like a
@@ -3511,7 +3514,8 @@ export class Game {
             this._stageClearRank = { letter, composite };
         }
         const scoreT = Math.min(1, (panelT - 12) / 60);
-        const shownScore = Math.floor(this.player.score * scoreT);
+        // Defensive: this.player can be null transiently during scene reload.
+        const shownScore = Math.floor((this.player?.score || 0) * scoreT);
         // Tick SFX every 4 frames while the score is still climbing — gives
         // the count-up a slot-machine cadence instead of a silent ramp.
         if (scoreT > 0 && scoreT < 1 && panelT % 4 === 0) {
@@ -3525,7 +3529,7 @@ export class Game {
         const stats = [
             ['TIME',       time,                                    '#7af0ff'],
             ['KILLS',      String(this.stageStats.kills),           '#fff'],
-            ['MAX COMBO',  String(this.player.maxCombo) + 'x',      '#ffe070'],
+            ['MAX COMBO',  String(this.player?.maxCombo || 0) + 'x',      '#ffe070'],
             ['SCORE',      ('000000' + shownScore).slice(-6),       '#ffe070'],
             ['ACCURACY',   accuracyStr,                             '#fff'],
             ['FAVORITE',   this._favoriteWeapon(),                  '#a0c0e0'],
@@ -3696,7 +3700,7 @@ export class Game {
     }
 
     _favoriteWeapon() {
-        const dmg = this.player.dmgDealt || {};
+        const dmg = this.player?.dmgDealt || {};
         let best = 'MG', bestV = -1;
         for (const [k, v] of Object.entries(dmg)) if (v > bestV) { best = k; bestV = v; }
         return best === 'MG' ? 'MACHINE' : best;
@@ -4011,9 +4015,11 @@ export class Game {
         ctx.fillRect(40, 92, GAME.W - 80, 1);
         ctx.fillRect(40, 167, GAME.W - 80, 1);
         drawText(ctx, 'TIME      ' + String(min).padStart(2,'0') + ':' + String(sec).padStart(2,'0'), 60, 102, '#fff', 1);
-        drawText(ctx, 'SCORE     ' + this.player.score, 60, 114, '#ffe070', 1);
-        drawText(ctx, 'KILLS     ' + this.player.kills, 60, 126, '#fff', 1);
-        drawText(ctx, 'MAX COMBO ' + this.player.maxCombo, 60, 138, '#fff', 1);
+        // Defensive: this.player can be null transiently during scene reload.
+        const p = this.player || {};
+        drawText(ctx, 'SCORE     ' + (p.score || 0), 60, 114, '#ffe070', 1);
+        drawText(ctx, 'KILLS     ' + (p.kills || 0), 60, 126, '#fff', 1);
+        drawText(ctx, 'MAX COMBO ' + (p.maxCombo || 0), 60, 138, '#fff', 1);
         drawText(ctx, 'DEATHS    ' + this.totalDeaths, 60, 150, this.totalDeaths === 0 ? '#50ff70' : '#fff', 1);
         // Run rank — composite of deaths, no-damage clears, max combo, time vs
         // 12-min speedrun target. Cached so the letter is stable across frames.
