@@ -7,6 +7,7 @@ import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { drawClippyFrame, getSpriteDims, sprites } from './sprites.js';
 import { drawText } from './pixelfont.js';
+import { options } from './options.js';
 
 // Quick alias so the call site reads cleanly.
 const spriteDims = getSpriteDims;
@@ -1996,7 +1997,12 @@ export class Player {
         // Grenade discovery hint — shows above Clippy until the player has
         // thrown one grenade. Suppressed during pounce / death / cover prompt
         // states so it doesn't stack with the cyan POUNCE hint.
+        // R212: also suppressed when the READY card is on — that screen
+        // already showed "GRENADE V" in the keymap. Veterans who flipped
+        // showReady off still get this floating-above-Clippy hint on
+        // their first grenade pickup.
         if (this.grenades > 0 && !this._everThrewGrenade
+            && !options.get('showReady')
             && !hiddenForPrompt && this.state !== STATE.POUNCE
             && this.state !== STATE.DIE) {
             const px = Math.round(this.x + this.w / 2 - camera.viewX);

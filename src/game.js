@@ -1457,10 +1457,17 @@ export class Game {
         // name + HP bar live in the bottom strip and the hint collides
         // with both. By the time a boss spawns the exec has read the hint.
         const _bossActive = (this.boss && this.boss.alive) || this._bossEntrance;
+        // R212: also suppress when the READY card is on — that screen
+        // already taught the full keymap right before this stage, so a
+        // bottom-strip hint repeating ARROWS/Z/X for the first 7s of
+        // play is redundant clutter. Players who flipped showReady off
+        // (veterans skipping the keymap) still get this in-stage hint.
         // Suppress in Time Trial — player has already beaten the game, doesn't
         // need stage-1 controls onboarding, and the hint would clutter the
         // clock readout.
-        if (!_bossActive && !this.timeTrialMode && this.scene === SCENE.PLAY && this.currentStage === 1 && this.stageTime > 30 && this.stageTime < 420) {
+        if (!_bossActive && !this.timeTrialMode && !options.get('showReady')
+            && this.scene === SCENE.PLAY && this.currentStage === 1
+            && this.stageTime > 30 && this.stageTime < 420) {
             const t = this.stageTime;
             // Fade in 30-90, hold 90-330, fade out 330-420
             let alpha = 0;
@@ -3558,15 +3565,16 @@ export class Game {
                 drawText(ctx, GAME_OVER_OPTIONS[i], GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
             }
             // Countdown — last 10s feels urgent; flashes red under 5s.
-            // Positioned to the RIGHT of the menu rows (was at GAME.H-22 which
-            // landed on top of the QUIT TO TITLE row, looking like a typo in
-            // the menu text). Top-right corner of the menu band keeps it
-            // visible without colliding with either option.
+            // R212: was a bare scale-2 "9" floating in the bottom-right
+            // with no label — looked like a typo. Now a labelled "AUTO
+            // QUIT 9" row centered below the menu options, so the user
+            // understands what the digit means before the timer fires.
             if (this.gameOverCountdown != null && this.gameOverCountdown > 0) {
                 const urgent = this.gameOverCountdown <= 5;
                 const flash = urgent && (this.storyTimer % 30 < 15);
-                const color = !urgent ? '#c0a0d0' : flash ? '#ff5050' : '#ffe070';
-                drawText(ctx, String(this.gameOverCountdown), GAME.W - 8, baseY + 4, color, 2, 'right');
+                const color = !urgent ? '#806890' : flash ? '#ff5050' : '#ffe070';
+                const ty = baseY + GAME_OVER_OPTIONS.length * 14 + 6;
+                drawText(ctx, 'AUTO QUIT IN ' + this.gameOverCountdown, GAME.W / 2, ty, color, 1, 'center');
             }
         }
     }
