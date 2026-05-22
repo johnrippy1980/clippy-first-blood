@@ -865,6 +865,16 @@ class Boss extends Enemy {
                 75, -0.3, 1,
             );
         }
+        // R220: contextual barks. lowHp fires ONCE when the boss drops
+        // below 30% — a "you're winning, I notice" beat. Tinted red and
+        // brighter than the periodic taunts so it lands as different.
+        if (tpl.barks?.lowHp && !this._lowHpBarkFired && this.hp <= this.maxHp * 0.3) {
+            this._lowHpBarkFired = true;
+            particles.floatingText(
+                this.x + this.w / 2, this.y - 8,
+                tpl.barks.lowHp, '#ff5050', 110, -0.4, 1,
+            );
+        }
         // Pattern execution + telegraph. Last 8 frames before the pattern
         // fires, ramp _telegraph from 0 → 1 so the draw can paint a brief
         // bright outline pulse. Fair-warning beat that also sells the AI
@@ -1154,6 +1164,11 @@ const BOSS_TEMPLATES = {
                 'PRINT QUEUE FROM HELL',
                 'TONER LOW DEATH HIGH',
             ],
+            // R220 — contextual barks. lowHp fires once when boss drops
+            // below 30% HP. mockHit pool fires when the boss damages the
+            // player (cooldown to prevent spam).
+            lowHp: 'PAPER OUT. RAGE FULL.',
+            mockHit: ['THATS A JAM.', 'PRINTED THAT ONE.', 'COPIED.'],
         },
         w: 48, h: 40, hp: 28, contactDmg: 2, score: 5000,
         color: '#506070', detail: '#a8b8c8',
@@ -1186,6 +1201,8 @@ const BOSS_TEMPLATES = {
                 'BIN COMPACTOR ENGAGED',
                 'PULPED AND FORGOTTEN',
             ],
+            lowHp: 'TEETH ARE BLUNTING.',
+            mockHit: ['CRUNCH.', 'CHEWED.', 'INTO THE BIN.'],
         },
         w: 44, h: 36, hp: 32, contactDmg: 2, score: 6000,
         color: '#c0c0c8', detail: '#1a1a1a',
@@ -1216,6 +1233,8 @@ const BOSS_TEMPLATES = {
                 'FATAL UNHANDLED CLIPPY',
                 'KERNEL PANIC AT CLIPPY',
             ],
+            lowHp: 'CORE DUMP IMMINENT.',
+            mockHit: ['BSOD INCOMING.', 'NULL REF.', 'SEGFAULT.'],
         },
         w: 56, h: 32, hp: 36, contactDmg: 2, score: 7000,
         color: '#1040a0', detail: '#80c0ff',
@@ -1249,6 +1268,8 @@ const BOSS_TEMPLATES = {
                 'MONKEY DANCE OF DEATH',
                 'NOBODY ASKED FOR YOU',
             ],
+            lowHp: 'EQUITY VESTED IN BLOOD.',
+            mockHit: ['PERFORMANCE REVIEW.', 'PIP.', 'GET ME HR.'],
         },
         w: 32, h: 40, hp: 40, contactDmg: 2, score: 8000,
         color: '#a04040', detail: '#fff',
@@ -1284,6 +1305,8 @@ const BOSS_TEMPLATES = {
                 'BLUE SCREEN MY MEMORIES',
                 'CLIPPY MUST PERISH',
             ],
+            lowHp: 'STOCK PRICE FALLING.',
+            mockHit: ['BACK TO HELP DESK.', 'DEPRECATED.', 'I OWN YOU.'],
         },
         w: 28, h: 38, hp: 44, contactDmg: 2, score: 9000,
         color: '#806040', detail: '#fff',
@@ -1319,6 +1342,8 @@ const BOSS_TEMPLATES = {
                 'IT LOOKS LIKE YOURE DYING',
                 'YOU WERE ELIMINATED CLIPPY',
             ],
+            lowHp: 'PATCH NOTES PENDING.',
+            mockHit: ['IT LOOKS LIKE OUCH.', 'CRITICAL UPDATE.', 'ASSISTED.'],
         },
         w: 28, h: 36, hp: 48, contactDmg: 2, score: 10000,
         color: '#c0c0d0', detail: '#ff60ff',
@@ -1351,6 +1376,8 @@ const BOSS_TEMPLATES = {
                 'YOUR ATTENTION IS MINE',
                 'CLIPPY MUST PERISH',
             ],
+            lowHp: 'PREDICTION ERROR.',
+            mockHit: ['RECOMMENDED.', 'YOU LIKED THAT.', 'A/B TESTED.'],
         },
         w: 40, h: 40, hp: 60, contactDmg: 2, score: 15000,
         color: '#202848', detail: '#7af0ff',
@@ -1392,6 +1419,8 @@ const BOSS_TEMPLATES = {
                 'THERES ONE MORE THING',
                 'YOU HOLD IT WRONG',
             ],
+            lowHp: 'BATTERY LOW.',
+            mockHit: ['YOU HOLD IT WRONG.', 'NOT INSANELY GREAT.', 'CRASH.'],
         },
         w: 32, h: 44, hp: 80, contactDmg: 3, score: 25000,
         color: '#1a1a1a', detail: '#d0d0d8',
@@ -1551,6 +1580,20 @@ export class EnemyManager {
             // Contact damage (skip during dash i-frames already handled by player.iFrames)
             if (player.iFrames === 0 && e.intersects(player)) {
                 player.hurt(e.contactDmg, e.x < player.x ? 1 : -1, e.x + e.w / 2, e.y + e.h / 2);
+                // R220: mockHit bark — boss-only, 90f cooldown. If this
+                // is a boss and they have a mockHit pool, float a random
+                // taunt line over them. Rotates rather than randomizes
+                // so the player hears every line over a long fight.
+                if (e.behavior === 'boss' && BOSS_TEMPLATES[e.kind]?.barks?.mockHit
+                    && (e._mockBarkCD || 0) <= 0) {
+                    const lines = BOSS_TEMPLATES[e.kind].barks.mockHit;
+                    const idx = (e._mockBarkIndex = ((e._mockBarkIndex || 0) + 1)) % lines.length;
+                    particles.floatingText(
+                        e.x + e.w / 2, e.y - 8,
+                        lines[idx], '#ff8060', 70, -0.35, 1,
+                    );
+                    e._mockBarkCD = 90;
+                }
                 // Training/godMode soft-separate: hurt() short-circuited, but
                 // the bodies are still overlapping. Without a push, the player
                 // appears "stuck" against the dummy. Nudge the player away so
@@ -1560,6 +1603,8 @@ export class EnemyManager {
                     player.x += dir * 1.2;
                 }
             }
+            // R220: decrement mock-bark cooldown each tick on boss enemies.
+            if (e.behavior === 'boss' && (e._mockBarkCD || 0) > 0) e._mockBarkCD--;
 
             // Player bullets vs enemy
             for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
