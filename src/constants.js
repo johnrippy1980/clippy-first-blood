@@ -166,11 +166,14 @@ export const STAGES = [
     // pipeline. Same boss as Stage 4 — different gameplay entirely.
     { id: 15, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
     // R268: second FPS-arena stage — corporate office siege. Suits throwing
-    // floppy disks, fax-machine turrets, desk-lamp drones, Ballmer with a
-    // chair at the back wall. Konami-only secret. Lives at loader index 16.
+    // floppy disks, fax-machine turrets, desk-lamp drones. Stage 16 is the
+    // approach (corridor → CEO's door). Konami-only secret.
     // R272: introBgKey paints the Microsoft HQ exterior behind the stage
     // intro text so it doesn't drop in cold.
     { id: 16, name: 'BALLMER OFFICE',          theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS. DEVELOPERS. DEVELOPERS.', introBgKey: 'bg_microsoft_hq' },
+    // R280: Ballmer arena — boss confrontation that picks up after stage 16.
+    // Lives at loader index 17. Konami-only secret (chained from stage 16).
+    { id: 17, name: 'BALLMER ARENA',           theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
 ];
 
 // Damage flash colors per source.

@@ -72,10 +72,14 @@ export class FpsArena {
         this.data = stageData;
         this.t = 0;
 
-        // Progression
-        this.segment = 0;            // 0..3 (segment 3 = boss)
-        this.phase = 'fight';        // 'fight' | 'advance' | 'bossEntry' | 'boss' | 'clear'
-        this.advanceT = 0;           // frames into the advance transition
+        // Progression — R280: startSegment lets stages skip ahead (e.g.
+        // BALLMER ARENA boots straight into segment 3 with no corridor waves).
+        this.segment = stageData.startSegment || 0;
+        this.phase = 'fight';
+        this.advanceT = 0;
+        // R280: ending style — 'core' (default — segment 3 is a boss fight)
+        // or 'door' (segment 3 is empty corridor that clears the stage).
+        this.endingStyle = stageData.endingStyle || 'core';
 
         // Player
         this.player = {
@@ -185,25 +189,33 @@ export class FpsArena {
                 hp: TURRET_HP, alive: true, fireT: 50, hitFlash: 0,
             });
         } else if (n === 3) {
-            // SEGMENT 4 — boss. Core + 3 orbiting shields. Phase shifts
-            // to 'bossEntry' so the telegraph runs before core fires.
-            this.core = {
-                x: GAME.W / 2,
-                y: BACK_WALL_Y + 18,
-                w: 32, h: 24,
-                hp: CORE_HP, maxHp: CORE_HP, alive: true,
-                fireT: 0, hitFlash: 0,
-            };
-            const radius = 28;
-            for (let i = 0; i < 3; i++) {
-                this.shields.push({
-                    angle: (i / 3) * Math.PI * 2,
-                    radius,
-                    hp: SHIELD_HP, alive: true, hitFlash: 0,
-                });
+            // R280: segment 3 behavior depends on endingStyle.
+            if (this.endingStyle === 'door') {
+                // Office approach — final segment is an empty corridor with
+                // the boss-room door visible at the vanishing point. After
+                // a brief beat the stage clears (player walks through).
+                this.phase = 'doorApproach';
+                this.doorT = 0;
+            } else {
+                // Default — boss fight with core + 3 orbiting shields.
+                this.core = {
+                    x: GAME.W / 2,
+                    y: BACK_WALL_Y + 18,
+                    w: 32, h: 24,
+                    hp: CORE_HP, maxHp: CORE_HP, alive: true,
+                    fireT: 0, hitFlash: 0,
+                };
+                const radius = 28;
+                for (let i = 0; i < 3; i++) {
+                    this.shields.push({
+                        angle: (i / 3) * Math.PI * 2,
+                        radius,
+                        hp: SHIELD_HP, alive: true, hitFlash: 0,
+                    });
+                }
+                this.phase = 'bossEntry';
+                this.bossEntryT = 0;
             }
-            this.phase = 'bossEntry';
-            this.bossEntryT = 0;
         }
     }
 
@@ -237,9 +249,23 @@ export class FpsArena {
         }
         if (this.phase === 'clear') {
             this.clearT = (this.clearT || 0) + 1;
+            // R280: auto-advance to the next FPS stage if one is configured.
+            // Stage 16 (office approach) → stage 17 (Ballmer arena).
+            const autoNext = this.data.nextStage;
+            if (autoNext && this.clearT >= 120) {
+                this.game._startStage(autoNext);
+                return;
+            }
             if (this.clearT > 60 &&
                 (input.isPressed('shoot') || input.isPressed('jump') ||
                  input.isPressed('start') || input.isPressed('pause'))) {
+                if (autoNext) {
+                    this.game._startStage(autoNext);
+                    return;
+                }
+                // R277: cut music immediately on title exit — without this
+                // the gameplay track lingers through the title fade-in.
+                audio.stopTrack();
                 this.game._fadeTo('title');
             }
             return;
@@ -276,6 +302,15 @@ export class FpsArena {
         } else if (this.phase === 'boss') {
             this._tickShields();
             this._tickCore();
+        } else if (this.phase === 'doorApproach') {
+            // R280: office stage's segment 4 — empty corridor + boss-door at
+            // the vanishing point. After ~180 frames the stage clears.
+            this.doorT++;
+            if (this.doorT >= 180) {
+                this.phase = 'clear';
+                this.clearT = 0;
+                audio.stopTrack();
+            }
         }
         this._tickParticles();
     }
@@ -741,6 +776,26 @@ export class FpsArena {
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             drawText(ctx, 'ADVANCING', GAME.W / 2, 90, '#a0d8ff', 1, 'center');
         }
+        // R280: door-approach phase — glowing door at the vanishing point
+        // with a "TO BALLMER" overlay, then auto-clears after 180f.
+        if (this.phase === 'doorApproach') {
+            const cx = GAME.W / 2;
+            const cy = BACK_WALL_Y + 8;
+            // Door shape — vertical rect with glowing outline
+            const t = this.doorT || 0;
+            const glow = 0.5 + 0.5 * Math.sin(t * 0.12);
+            ctx.fillStyle = '#1a1010';
+            ctx.fillRect(cx - 10, cy - 4, 20, 28);
+            ctx.strokeStyle = `rgba(255, 200, 80, ${0.4 + glow * 0.5})`;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx - 10, cy - 4, 20, 28);
+            // Door handle
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(cx + 6, cy + 12, 2, 2);
+            // Nameplate
+            drawText(ctx, 'CEO', cx, cy - 12, '#ffe070', 1, 'center');
+            drawText(ctx, 'STEVE BALLMER', GAME.W / 2, GAME.H - 40, '#ff80a0', 1, 'center');
+        }
         // Boss entry telegraph
         if (this.phase === 'bossEntry') {
             const cx = GAME.W / 2;
@@ -762,7 +817,9 @@ export class FpsArena {
             ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, t * 0.02)})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             if (t > 60) {
-                drawText(ctx, 'CORE BREACHED', GAME.W / 2, GAME.H / 2 - 8, '#ffe070', 2, 'center');
+                // R280: vary the clear text by ending style.
+                const clearText = this.endingStyle === 'door' ? 'ENTERING...' : 'CORE BREACHED';
+                drawText(ctx, clearText, GAME.W / 2, GAME.H / 2 - 8, '#ffe070', 2, 'center');
                 const a = 0.6 + 0.4 * Math.sin(t * 0.15);
                 ctx.globalAlpha = a;
                 drawText(ctx, 'PRESS X', GAME.W / 2, GAME.H / 2 + 12, '#a890b0', 1, 'center');

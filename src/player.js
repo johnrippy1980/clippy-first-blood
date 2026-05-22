@@ -1397,16 +1397,13 @@ export class Player {
             // testing despite the dramatic visual. Now: scan the ray, apply
             // chain damage to every enemy on it, then spawn the bolt as
             // pure visual.
-            const MAX_RANGE = 220;
+            // R275: longer hit range + wider damage band. Was 220/6 — too
+            // short for the screen-width visual bolt. Now 320px range and
+            // 12px half-width so the swath matches what the player SEES
+            // (the bolt visibly stretches across most of the screen).
+            const MAX_RANGE = 320;
             const STEP = 4;
-            // R239: damage swath matches the bolt's rendered footprint.
-            // The visual is a 2px-wide line with ±2px perpendicular jitter
-            // (see _drawBullets THUNDER branch), so the effective bolt-rect
-            // half-width is ~4px. Any enemy whose AABB INTERSECTS this band
-            // takes damage — not just enemies the dead-center ray pierces.
-            // This is what "damage true to length/height/width" means: a
-            // grunt grazed by an arcing tendril still gets hit.
-            const HALF_WIDTH = 6;
+            const HALF_WIDTH = 12;
             const game = (typeof window !== 'undefined') ? window.__game : null;
             const lvl = game?.level || null;
             const enemies = game?.enemies?.enemies || [];

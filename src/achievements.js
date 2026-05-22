@@ -60,6 +60,9 @@ class Achievements {
             // the FULL SET achievement at 7 (one per main stage 2..8).
             // High-water mark — once earned, can't lose them.
             tagsFound: 0,
+            // R279: persisted konami unlock — once entered, the secret
+            // stages stay visible in stage select across sessions.
+            konamiUnlocked: false,
         };
         this._load();
     }
@@ -100,6 +103,9 @@ class Achievements {
                 }
                 this.stats.bestBossRushTime = data.stats.bestBossRushTime || 0;
                 this.stats.bestTimeTrialTime = data.stats.bestTimeTrialTime || 0;
+                // R279: konami unlock persists across sessions so the
+                // user doesn't have to re-enter the code every time.
+                this.stats.konamiUnlocked = data.stats.konamiUnlocked === true;
             }
             // Persist with the new schema version on next _save() so we don't
             // re-run the migration. _load doesn't write directly.
@@ -120,6 +126,7 @@ class Achievements {
                     stageBestScores: this.stats.stageBestScores,
                     bestBossRushTime: this.stats.bestBossRushTime,
                     bestTimeTrialTime: this.stats.bestTimeTrialTime,
+                    konamiUnlocked: this.stats.konamiUnlocked || false,
                 },
             }));
         } catch (e) {}

@@ -1628,9 +1628,10 @@ export const STAGE_LOADERS = [
     () => makeTraining(),       // Training ground — now stage 11
     () => makeBossRushMode(),   // Boss rush mode — now stage 12
     () => makeTimeTrial(),      // Time trial — now stage 13
-    () => makeStage13(),        // REALITY DISTORTION FIELD — now stage 14
-    () => makeFpsStage(),       // R229: CORE BREACH — hidden FPS arena, stage 15
-    () => makeFpsStageBallmer(),// R268: BALLMER OFFICE — second FPS arena, stage 16
+    () => makeStage13(),               // REALITY DISTORTION FIELD — stage 14
+    () => makeFpsStage(),              // R229: CORE BREACH — stage 15
+    () => makeFpsStageBallmer(),       // R268/R280: BALLMER OFFICE approach — stage 16
+    () => makeFpsStageBallmerArena(),  // R280: BALLMER ARENA boss fight — stage 17
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -1651,6 +1652,25 @@ function makeFpsStage() {
 // R268: Ballmer office FPS stage — second Contra-base-style FPS arena.
 // Reuses the FpsArena class with per-stage sprite-key overrides + an
 // office-themed backdrop chain. Boss is Steve Ballmer with a chair.
+//
+// R280: split into TWO stages so the office is the "approach" leading up
+// to the Ballmer confrontation arena:
+//   Stage 16 (BALLMER OFFICE)  — 4 segments of corridor enemies, no boss.
+//                                Player reaches Ballmer's office door at the
+//                                end and the stage clears.
+//   Stage 17 (BALLMER ARENA)   — single boss segment, just Ballmer + shields.
+const BALLMER_SPRITE_KEYS = {
+    turret: 'office_turret',
+    grunt:  'office_grunt',
+    shield: 'office_drone',
+    core:   'boss_ballmer_fps',
+};
+const BALLMER_SFX_KEYS = {
+    turretFire: 'faxRing',
+    gruntFire:  'typewriter',
+    coreFire:   'chairWhoosh',
+};
+
 function makeFpsStageBallmer() {
     return {
         fpsMode: true,
@@ -1658,38 +1678,58 @@ function makeFpsStageBallmer() {
         music: 'boardroom',
         bgKey: 'bg_office',
         bossKind: 'BALLMER',
-        // All four segments use the same office corridor backdrop.
         bgKeys: ['bg_office', 'bg_office', 'bg_office', 'bg_office'],
-        // Use the Ballmer-themed enemy sprites.
-        spriteKeys: {
-            turret: 'office_turret',
-            grunt:  'office_grunt',
-            shield: 'office_drone',
-            core:   'boss_ballmer_fps',
-        },
+        spriteKeys: BALLMER_SPRITE_KEYS,
+        // R280: office approach — 4 wave segments, NO boss. Final segment
+        // is an empty corridor with the "door to Ballmer's office" visible
+        // at the vanishing point; stage clears on segment-4 wave clear.
         segmentLabels: [
             'SEGMENT 1 / FAX TURRETS',
             'SEGMENT 2 / SUITS',
             'SEGMENT 3 / SECURITY',
+            "SEGMENT 4 / CEO'S DOOR",
+        ],
+        sfxKeys: BALLMER_SFX_KEYS,
+        ambientKey: 'fluorescent',
+        gruntBulletAnimKey: 'floppy',
+        // R280: ending mode — final segment ends in stage_clear instead of
+        // a boss fight. The FpsArena reads this flag and routes the clear
+        // accordingly.
+        endingStyle: 'door',
+        // R280: chain into the Ballmer arena (stage 17) on stage_clear.
+        nextStage: 17,
+    };
+}
+
+// R280: Ballmer boss arena — picks up right after the office approach.
+// Single boss segment, no corridor waves; player lands and immediately
+// fights Ballmer + 3 shield drones.
+function makeFpsStageBallmerArena() {
+    return {
+        fpsMode: true,
+        theme: THEME.BOARDROOM,
+        music: 'bossBattle',
+        bgKey: 'bg_office',
+        bossKind: 'BALLMER',
+        bgKeys: ['bg_office', 'bg_office', 'bg_office', 'bg_office'],
+        spriteKeys: BALLMER_SPRITE_KEYS,
+        segmentLabels: [
+            'BALLMER',
+            'BALLMER',
+            'BALLMER',
             'BALLMER',
         ],
         bossLabels: {
             shielded: 'BALLMER / RAGING',
             exposed:  'BALLMER / EXPOSED',
         },
-        // R273: office-themed SFX overrides + ambient fluorescent hum.
-        sfxKeys: {
-            turretFire: 'faxRing',
-            gruntFire:  'typewriter',
-            coreFire:   'chairWhoosh',
-        },
+        sfxKeys: BALLMER_SFX_KEYS,
         ambientKey: 'fluorescent',
-        // R271: Ballmer throws chairs instead of firing the generic 5-way
-        // bullet spread. Uses chair_1..chair_4 sprites if loaded.
         coreAttackStyle: 'chair',
-        // R270: office grunts throw spinning floppy disks instead of plain
-        // pixel-rect bullets. Flag is read by the bullet-draw loop.
         gruntBulletAnimKey: 'floppy',
+        // R280: skip-to-boss mode — bypass segments 0-2, drop the player
+        // straight into the core fight.
+        startSegment: 3,
     };
 }
 

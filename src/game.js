@@ -203,6 +203,8 @@ export class Game {
         // stage select for the run (and persists clear_game so menu mode
         // options light up). Not surfaced in UI — pure cheat-code Easter egg.
         this._konami = [];
+        // R279: restore persisted konami unlock from achievements on boot.
+        this._konamiUnlocked = !!achievements.stats?.konamiUnlocked;
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
@@ -504,6 +506,7 @@ export class Game {
                         this.unlockedStage = STAGES.length - 1;
                         this._konamiUnlocked = true;
                         achievements.stats.secretStageDiscovered = true;
+                        achievements.stats.konamiUnlocked = true;   // R279: persist
                         achievements.unlocked.add('clear_game');
                         achievements._save();
                         // Drop straight into stage select
@@ -2736,6 +2739,41 @@ export class Game {
         return [label.slice(0, mid), label.slice(mid)];
     }
 
+    // R278: wrap a stage label across up to `maxLines` lines, each <= maxChars.
+    // Greedy line-fill: keep adding words to the current line until adding
+    // the next word would overflow, then start a new line. Hard-truncates
+    // the last line if the full text won't fit in the available lines.
+    _wrapStageLabel(label, maxChars, maxLines) {
+        if (label.length <= maxChars) return [label];
+        const words = label.split(' ');
+        const lines = [];
+        let cur = '';
+        for (const w of words) {
+            const trial = cur ? (cur + ' ' + w) : w;
+            if (trial.length <= maxChars) {
+                cur = trial;
+            } else {
+                if (cur) lines.push(cur);
+                // If a single word is longer than maxChars, split it mid-word.
+                if (w.length > maxChars) {
+                    const mid = Math.ceil(w.length / 2);
+                    lines.push(w.slice(0, mid));
+                    cur = w.slice(mid);
+                } else {
+                    cur = w;
+                }
+            }
+            if (lines.length >= maxLines) break;
+        }
+        if (cur && lines.length < maxLines) lines.push(cur);
+        // Hard-truncate trailing line if any words got dropped
+        if (lines.length === 0) lines.push(label.slice(0, maxChars));
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].length > maxChars) lines[i] = lines[i].slice(0, maxChars);
+        }
+        return lines;
+    }
+
     // ============== Inter-stage cinematic card ==============
     // Painted scene + stage name + tagline shown between stage_clear and
     // the next stage_intro. Player advances with X or auto-advances after 240f.
@@ -2905,6 +2943,9 @@ export class Game {
         if (konami) ids.push(15);
         // FPS-arena BALLMER OFFICE (stage 16) — konami-only secret
         if (konami) ids.push(16);
+        // R280: Ballmer arena (stage 17) — konami-only; stage 16 chains
+        // into 17 automatically on clear, but expose it independently too.
+        if (konami) ids.push(17);
         return ids;
     }
 
@@ -2913,13 +2954,26 @@ export class Game {
         const ids = this._stageSelectList();
         const total = ids.length;
         const cols = 4;
+        const visibleRows = 3;   // R278: 3 rows fit cleanly; rest scrolls
         // Init guard — first arrow press otherwise computes NaN and locks menu.
         if (this.stageSelectIndex == null) this.stageSelectIndex = 0;
         if (this.stageSelectIndex >= total) this.stageSelectIndex = total - 1;
+        if (this.stageSelectScroll == null) this.stageSelectScroll = 0;
         if (input.isPressed('left'))  { this.stageSelectIndex = (this.stageSelectIndex + total - 1) % total; audio.sfx('select'); }
         if (input.isPressed('right')) { this.stageSelectIndex = (this.stageSelectIndex + 1) % total; audio.sfx('select'); }
         if (input.isPressed('up'))    { this.stageSelectIndex = Math.max(0, this.stageSelectIndex - cols); audio.sfx('select'); }
         if (input.isPressed('down'))  { this.stageSelectIndex = Math.min(total - 1, this.stageSelectIndex + cols); audio.sfx('select'); }
+        // R278: follow the cursor — scroll so the selected row stays in view.
+        const cursorRow = Math.floor(this.stageSelectIndex / cols);
+        if (cursorRow < this.stageSelectScroll) this.stageSelectScroll = cursorRow;
+        if (cursorRow >= this.stageSelectScroll + visibleRows) {
+            this.stageSelectScroll = cursorRow - visibleRows + 1;
+        }
+        // Clamp scroll to valid range
+        const totalRows = Math.ceil(total / cols);
+        const maxScroll = Math.max(0, totalRows - visibleRows);
+        if (this.stageSelectScroll > maxScroll) this.stageSelectScroll = maxScroll;
+        if (this.stageSelectScroll < 0) this.stageSelectScroll = 0;
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
             const stage = ids[this.stageSelectIndex];
             // Konami unlocks everything; otherwise enforce normal gates.
@@ -2953,19 +3007,26 @@ export class Game {
         // R230: dynamic grid driven by _stageSelectList. The list collapses
         // gaps in the STAGES manifest (skips 11-13 which are training /
         // boss-rush mode / time-trial — those live in MAIN_MENU). Konami
-        // unlocks expose 10 + 14 + 15 even without their usual gates.
+        // unlocks expose 10 + 14 + 15 + 16 even without their usual gates.
+        // R278: grid scrolls when total entries exceed visibleRows.
         const hasSecret = !!achievements.stats?.secretStageDiscovered;
         const ids = this._stageSelectList();
         const total = ids.length;
         const cols = 4;
+        const visibleRows = 3;
+        const totalRows = Math.ceil(total / cols);
+        const scroll = this.stageSelectScroll || 0;
         const tileW = 58, tileH = 50;
         const startX = (GAME.W - cols * tileW - (cols - 1) * 4) / 2;
         const startY = 30;
         for (let i = 0; i < total; i++) {
             const col = i % cols;
             const row = Math.floor(i / cols);
+            // R278: skip rows outside the scroll window
+            const drawRow = row - scroll;
+            if (drawRow < 0 || drawRow >= visibleRows) continue;
             const tx = Math.round(startX + col * (tileW + 4));
-            const ty = Math.round(startY + row * (tileH + 6));
+            const ty = Math.round(startY + drawRow * (tileH + 6));
             const stage = ids[i];
             const data = STAGES[stage];
             const unlocked = this._konamiUnlocked
@@ -2994,43 +3055,20 @@ export class Game {
             } else {
                 drawText(ctx, '??', tx + 4, ty + 4, '#604068', 1, 'left');
             }
-            // R267: wrap name onto two lines using best-fit split — finds
-            // the word boundary that minimizes the longest resulting line,
-            // then hard-truncates if the second word is still too long.
-            // tileW=58, font=5px+1px=6px-per-char → CHARS=9 fits.
+            // R278: wrap name onto up to 3 lines — find a split where BOTH
+            // resulting lines fit; if no clean 2-line fit exists, fall back
+            // to 3 lines (e.g. "OFFICE PARK JUNGLE" → OFFICE / PARK / JUNGLE).
+            // tileW=58, font=5px+1px=6px-per-char → CHARS=9 fits per line.
             const fullName = data?.name || '';
             const CHARS = 9;
             const color = unlocked ? '#fff' : '#604068';
-            if (fullName.length <= CHARS) {
-                drawText(ctx, fullName, tx + 4, ty + 14, color, 1, 'left');
-            } else {
-                const words = fullName.split(' ');
-                let line1 = words[0], line2 = '';
-                if (words.length >= 2) {
-                    // Try every split point; pick the one minimizing max line len.
-                    let bestSplit = 1, bestMax = Infinity;
-                    for (let s = 1; s < words.length; s++) {
-                        const l1 = words.slice(0, s).join(' ');
-                        const l2 = words.slice(s).join(' ');
-                        const m = Math.max(l1.length, l2.length);
-                        if (l1.length <= CHARS && m < bestMax) {
-                            bestSplit = s;
-                            bestMax = m;
-                        }
-                    }
-                    line1 = words.slice(0, bestSplit).join(' ');
-                    line2 = words.slice(bestSplit).join(' ');
-                } else {
-                    // Single long word — split at the midpoint.
-                    const mid = Math.ceil(fullName.length / 2);
-                    line1 = fullName.slice(0, mid);
-                    line2 = fullName.slice(mid);
-                }
-                // Hard-truncate any line that still exceeds the budget.
-                if (line1.length > CHARS) line1 = line1.slice(0, CHARS);
-                if (line2.length > CHARS) line2 = line2.slice(0, CHARS);
-                drawText(ctx, line1, tx + 4, ty + 14, color, 1, 'left');
-                drawText(ctx, line2, tx + 4, ty + 22, color, 1, 'left');
+            const lines = this._wrapStageLabel(fullName, CHARS, 3);
+            // Vertical center across the available label band (ty+12 to ty+38)
+            const lineH = 8;
+            const totalH = lines.length * lineH;
+            const startTextY = ty + 12 + Math.max(0, (28 - totalH) / 2);
+            for (let li = 0; li < lines.length; li++) {
+                drawText(ctx, lines[li], tx + 4, startTextY + li * lineH, color, 1, 'left');
             }
 
             // Medal row — 3 slots at bottom of tile
@@ -3069,8 +3107,22 @@ export class Game {
             }
         }
 
-        // Selected-stage detail strip at bottom — uses the same id list
-        // so stages beyond 9 (10/14/15) get a proper name + tagline.
+        // R278: scroll arrows when there are off-screen rows.
+        if (scroll > 0) {
+            const t = this.bootTimer || 0;
+            const yOff = Math.sin(t * 0.15) * 1;
+            ctx.fillStyle = '#ffe070';
+            drawText(ctx, '▲', GAME.W / 2, startY - 10 + yOff, '#ffe070', 1, 'center');
+        }
+        if (scroll < totalRows - visibleRows) {
+            const t = this.bootTimer || 0;
+            const yOff = Math.sin(t * 0.15) * 1;
+            const arrowY = startY + visibleRows * (tileH + 6) - 2 + yOff;
+            drawText(ctx, '▼', GAME.W / 2, arrowY, '#ffe070', 1, 'center');
+        }
+        // Selected-stage detail strip at the bottom — fixed position so
+        // scrolling doesn't shift it. Uses the same id list so stages beyond
+        // 9 get a proper name + tagline.
         const sel = ids[this.stageSelectIndex];
         const selData = STAGES[sel];
         if (selData) {
@@ -3078,17 +3130,14 @@ export class Game {
                 || sel <= this.unlockedStage
                 || (sel === 10 && hasSecret)
                 || (sel === 14 && achievements.unlocked.has('clear_game'));
-            const detY = startY + Math.ceil(total / cols) * (tileH + 6) + 8;
+            // R278: pin detail strip to fixed bottom area regardless of scroll
+            const detY = GAME.H - 32;
             drawTextOutlined(ctx, unlocked ? selData.name : '? ? ?', GAME.W / 2, detY, '#fff', '#1a0010', 1, 'center');
             if (unlocked) {
-                drawText(ctx, selData.tagline, GAME.W / 2, detY + 10, '#c0a0d0', 1, 'center');
-                const selBest = achievements.stats?.stageBestScores?.[sel] || 0;
-                if (selBest > 0) {
-                    drawText(ctx, 'BEST ' + selBest.toLocaleString(), GAME.W / 2, detY + 20, '#ffe070', 1, 'center');
-                }
+                drawText(ctx, selData.tagline, GAME.W / 2, detY + 9, '#c0a0d0', 1, 'center');
             }
         }
-        drawText(ctx, 'ARROWS SELECT   X START   P BACK', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
+        drawText(ctx, 'ARROWS SELECT   X START   P BACK', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
 
     _spawnMiniBoss() {
@@ -4217,6 +4266,9 @@ export class Game {
     }
 
     _restartRun() {
+        // R277: cut any in-flight music immediately so the title screen
+        // doesn't overlap with leftover gameplay audio during the fade.
+        audio.stopTrack();
         // Per-run state that must NOT carry over to the next run, otherwise
         // achievements (e.g. "BEAT GAME UNDER 12 MINUTES") get false-positives
         // and medal grants become sticky from prior runs.
