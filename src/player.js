@@ -156,6 +156,14 @@ export class Player {
         // the player throws their first grenade. Persists across stages.
         this._everThrewGrenade = false;
 
+        // R216: MG charged-shot state. Hold SHOOT while standing still
+        // on the ground (no horizontal input, no jump) to charge for
+        // CHARGE_FRAMES; release after full charge to fire a fat
+        // piercing burst. Doesn't apply to other weapons — they spam
+        // through the held key as usual. Reset on any move/jump/swap.
+        this._chargeTimer = 0;
+        this._chargeActive = false;
+
         // Aim — continuous angle in radians. 0 = right, -PI/2 = up, +PI/2 = down.
         this.aim = AIM.RIGHT;        // legacy 8-way pointer (kept for compat)
         this.aimAngle = 0;           // 360-degree aim angle
@@ -904,7 +912,41 @@ export class Player {
             this.vy *= JUMP_CUT;
         }
 
-        // Shoot
+        // Shoot — with R216 MG charge mechanic.
+        // Eligible for charging only when: MG equipped, grounded, no
+        // horizontal input (standing still), no vent lock. Any other
+        // condition (other weapon, moving, airborne) bypasses the
+        // charge branch and uses normal hold-to-fire spam.
+        const CHARGE_FULL = 45;
+        const eligible = this.weapon === 'MG'
+            && this.onGround
+            && Math.abs(lookX) < 0.1
+            && this.mgVentLock <= 0
+            && (this.state === STATE.RUN || this.state === STATE.IDLE
+                || this.state === undefined || this.state === null);
+        if (eligible && input.isHeld('shoot')) {
+            // Charging — don't spam-fire while building up.
+            this._chargeTimer++;
+            if (this._chargeTimer >= CHARGE_FULL && !this._chargeActive) {
+                this._chargeActive = true;
+                audio.sfx('select');  // small "ready" tick at full charge
+            }
+            // While charging, suppress normal MG fire by not calling _shoot.
+            return;
+        }
+        // Released or invalidated — fire charged shot if we were full.
+        if (this._chargeActive && input.isReleased('shoot')) {
+            this._fireChargedMG();
+            this._chargeTimer = 0;
+            this._chargeActive = false;
+            this.fireCooldown = 20;
+            return;
+        }
+        // Partial charge dropped (moved, jumped, swapped) — reset silently.
+        if (!eligible) {
+            this._chargeTimer = 0;
+            this._chargeActive = false;
+        }
         if (input.isHeld('shoot') && this.fireCooldown <= 0) {
             this._shoot();
         }
@@ -1121,6 +1163,54 @@ export class Player {
             this.animTimer = 0;
             this.animFrame = (this.animFrame + 1) % 1024;
         }
+    }
+
+    // R216: MG charged shot. Fired only via _handleInput's charge
+    // branch after CHARGE_FULL frames of standing-still hold. Bullet
+    // is 3× damage, piercing, fat (visible larger), white-hot color,
+    // single shot. Plays a heavier muzzle FX + screen-shake to sell
+    // the recoil so the moment of release feels earned.
+    _fireChargedMG() {
+        const w = WEAPON.MG;
+        const mz = this._muzzleWorldPos();
+        const baseX = mz.x, baseY = mz.y;
+        const dx = this.aim.x, dy = this.aim.y;
+        const norm = Math.hypot(dx, dy) || 1;
+        const ndx = dx / norm, ndy = dy / norm;
+        const sp = w.bulletSpeed * 1.3;
+        const tier = this.combo >= 50 ? 3 : this.combo >= 25 ? 2 : this.combo >= 10 ? 1 : 0;
+        const COMBO_MULT = [1, 1.25, 1.5, 2.0];
+        const comboMult = COMBO_MULT[tier];
+        this.bullets.push({
+            x: baseX, y: baseY,
+            vx: ndx * sp, vy: ndy * sp,
+            damage: w.damage * 3 * (1 + (this.weaponLevel - 1) * 0.5) * comboMult,
+            color: '#ffffff',
+            weapon: 'MG',
+            comboTier: tier,
+            life: 80,
+            piercing: true,   // punches through anything in its line
+            hits: new Set(),
+            _charged: true,    // flag so onBulletHit can render bigger hit FX
+        });
+        particles.muzzleFlash(baseX, baseY, ndx, ndy, '#ffffff');
+        // Extra burst — bright ring scatter at muzzle.
+        for (let i = 0; i < 12; i++) {
+            const a = Math.random() * Math.PI * 2;
+            particles.spawn(
+                baseX, baseY,
+                Math.cos(a) * (1.5 + Math.random() * 1.5),
+                Math.sin(a) * (1.5 + Math.random() * 1.5),
+                12 + Math.random() * 8,
+                '#ffe070', 1.4, 0
+            );
+        }
+        audio.sfx('thunder');  // re-use thunder boom — heavier than mg blip
+        this.shotsFired++;
+        this.recoilTimer = 12;
+        this.requestShake = Math.max(this.requestShake || 0, 2.5);
+        // Push Clippy back a touch for kickback feel.
+        this.vx -= ndx * 1.2;
     }
 
     // ---------- shooting ----------
@@ -1959,6 +2049,37 @@ export class Player {
 
     // ---------- drawing ----------
     draw(ctx, camera, level = null) {
+        // R216: charge-shot ring. Renders BEFORE the player sprite so
+        // the ring sits behind Clippy. Two phases: charging (yellow,
+        // tightens as t→1) and full (white pulsing ring), to give a
+        // clear "release now" tell.
+        if (this._chargeTimer > 0) {
+            const px = Math.round(this.x + this.w / 2 - camera.viewX);
+            const py = Math.round(this.y + this.h / 2 - camera.viewY);
+            const t = Math.min(1, this._chargeTimer / 45);
+            // Outer radius starts wide and tightens toward Clippy as
+            // charge fills. Once full, locks at min radius and pulses.
+            const baseR = this._chargeActive
+                ? 16 + Math.sin(this._chargeTimer * 0.4) * 2
+                : 24 - t * 8;
+            ctx.save();
+            ctx.globalAlpha = this._chargeActive ? 0.85 : 0.4 + t * 0.4;
+            ctx.strokeStyle = this._chargeActive ? '#ffffff' : '#ffe070';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(px, py, baseR, 0, Math.PI * 2);
+            ctx.stroke();
+            // Inner tick marks orbiting the ring — sells "energy."
+            const tickCount = 4;
+            for (let i = 0; i < tickCount; i++) {
+                const a = (this._chargeTimer * 0.08) + i * (Math.PI * 2 / tickCount);
+                const tx = px + Math.cos(a) * baseR;
+                const ty = py + Math.sin(a) * baseR;
+                ctx.fillStyle = this._chargeActive ? '#ffffff' : '#ffe070';
+                ctx.fillRect(tx - 1, ty - 1, 2, 2);
+            }
+            ctx.restore();
+        }
         // Cover prompt: a pulsing "↑ HIDE" hint above the player when they're
         // near a cover tile and not already in cover. Drawn FIRST so it sits
         // behind the player sprite — feels less HUD-ish, more diegetic.
