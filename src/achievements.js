@@ -12,16 +12,18 @@ export const ACHIEVEMENT_LIST = [
     // is now stage 5; new stage 4 is THE PIPELINE.
     { id: 'clear_stage_4', name: 'INTO THE LAB',    desc: 'CLEAR STAGE 4',                          icon: '4',  gate: s => s.stagesCleared.has(4) },
     { id: 'clear_stage_5', name: 'BOARDROOM BLOOD', desc: 'CLEAR STAGE 5',                          icon: '5',  gate: s => s.stagesCleared.has(5) },
-    { id: 'clear_game',    name: 'THE LIST IS DONE',desc: 'COMPLETE THE GAME',                      icon: '*',  gate: s => s.stagesCleared.has(9) },
-    { id: 'no_death_run',  name: 'UNTOUCHABLE',     desc: 'BEAT THE GAME WITH ZERO DEATHS',         icon: 'O',  gate: s => s.stagesCleared.has(9) && s.totalDeaths === 0 },
+    // R281: final stage (THE CLOUD) shifted from id 9 to id 11.
+    { id: 'clear_game',    name: 'THE LIST IS DONE',desc: 'COMPLETE THE GAME',                      icon: '*',  gate: s => s.stagesCleared.has(11) },
+    { id: 'no_death_run',  name: 'UNTOUCHABLE',     desc: 'BEAT THE GAME WITH ZERO DEATHS',         icon: 'O',  gate: s => s.stagesCleared.has(11) && s.totalDeaths === 0 },
     { id: 'no_dmg_stage',  name: 'GHOST',           desc: 'CLEAR A STAGE WITHOUT TAKING DAMAGE',    icon: 'G',  gate: s => s.noDamageStages >= 1 },
     { id: 'combo_5',       name: 'STREAK',          desc: 'CHAIN 5 KILLS',                          icon: '5',  gate: s => s.maxCombo >= 5 },
     { id: 'combo_10',      name: 'RAMPAGE',         desc: 'CHAIN 10 KILLS',                         icon: 'X',  gate: s => s.maxCombo >= 10 },
     { id: 'combo_20',      name: 'CARNAGE',         desc: 'CHAIN 20 KILLS',                         icon: 'C',  gate: s => s.maxCombo >= 20 },
     { id: 'combo_30',      name: 'GOD-LIKE',        desc: 'CHAIN 30 KILLS',                         icon: '+',  gate: s => s.maxCombo >= 30 },
     { id: 'all_weapons',   name: 'ARSENAL',         desc: 'FIRE EVERY WEAPON TYPE',                 icon: 'W',  gate: s => Object.keys(s.weaponDamage || {}).filter(k => s.weaponDamage[k] > 0).length >= 6 },
-    { id: 'speed_run',     name: 'SPEEDRUNNER',     desc: 'BEAT GAME UNDER 12 MINUTES',             icon: 'T',  gate: s => s.stagesCleared.has(9) && s.totalTime < 12 * 60 * 60 },
-    { id: 'boss_rush',     name: 'GAUNTLET',        desc: 'BEAT THE BOSS RUSH STAGE',               icon: 'R',  gate: s => s.stagesCleared.has(8) },
+    // R281: speed_run final stage shifted 9→11; boss_rush gauntlet stage shifted 8→10.
+    { id: 'speed_run',     name: 'SPEEDRUNNER',     desc: 'BEAT GAME UNDER 12 MINUTES',             icon: 'T',  gate: s => s.stagesCleared.has(11) && s.totalTime < 12 * 60 * 60 },
+    { id: 'boss_rush',     name: 'GAUNTLET',        desc: 'BEAT THE BOSS RUSH STAGE',               icon: 'R',  gate: s => s.stagesCleared.has(10) },
     { id: 'secret_room',   name: 'OFF THE GRID',    desc: 'DISCOVER THE SECRET STAGE',              icon: 'S',  gate: s => s.secretStageDiscovered === true },
     { id: 'second_chance', name: 'CLOSE CALL',      desc: 'TRIGGER BULLET-TIME RESCUE',             icon: 'B',  gate: s => s.bulletTimeUses >= 1 },
     { id: 'high_score',    name: 'TOP TIER',        desc: 'SCORE OVER 100,000',                     icon: '$',  gate: s => s.bestScore >= 100000 },
