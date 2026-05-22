@@ -1,22 +1,23 @@
-// R229: locked-camera FPS arena (Contra arcade Stage 3 style).
+// R261: locked-camera FPS arena, Contra base-infiltration style.
 //
-// Self-contained gameplay loop — no horizontal scroll, no tile collision,
-// no enemy AI sharing. Player strafes left/right along a ground rail at
-// the bottom of the screen; aim is locked upward (with diag-aim via held
-// arrows). Goal: destroy 4 SENSORS guarded by 2 TURRET banks at the top
-// of the screen, then a boss spawns and slides L↔R while attacking.
+// Visual: pseudo-3D third-person corridor. Clippy is anchored lower-center,
+// drawn at 1.5x scale facing AWAY from the camera (into the screen). The
+// corridor recedes to a centered vanishing point with converging floor +
+// ceiling ribs that sell depth without any actual 3D math.
 //
-// Stage data shape (returned by makeFpsStage in level.js):
-//   {
-//     fpsMode: true,
-//     bgKey: 'bg_sewer_lab',           // painted backdrop (drawn 1:1)
-//     bossKind: 'SPINDLER',            // boss code from BOSS_TEMPLATES
-//     turrets: [{x, y}, {x, y}],       // L+R turret bank positions
-//     sensors: [{x, y}, ...],          // 4 sensors between turrets
-//   }
+// Progression: 4 sequential SEGMENTS gated by wave-clear.
+//   Segment 1 — TURRET WAVE: 2 wall-mounted turrets fire downward arcs.
+//   Segment 2 — GRUNT CHARGE: scampering grunts spawn at the vanishing
+//                point and scale up as they run toward the camera.
+//   Segment 3 — BARRIER: 2 more turrets + pulsing electric barriers the
+//                player must time-strafe between.
+//   Segment 4 — CORE: boss — exposed core ringed by 3 shield nodes; kill
+//                shields first, then the core opens up.
+// Between segments, the screen "advances" — corridor walls scale outward
+// for 50f to simulate forward dolly. Player cannot back up.
 //
-// State machine: 'fight' (sensors+turrets alive) → 'bossEntry' (sensors
-// dead, boss telegraph) → 'boss' (boss alive) → exits via stageClear.
+// Player: strafes left/right along a ground rail at the bottom. Aims
+// straight up (or diag with horizontal input). X = shoot. No jump.
 
 import { GAME } from './constants.js';
 import { input } from './input.js';
@@ -24,28 +25,45 @@ import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { drawText } from './pixelfont.js';
 
-// Layout constants — all in screen pixels (256x224 canvas).
-const RAIL_Y = GAME.H - 24;          // ground rail y where Clippy stands
-const PLAYER_W = 16, PLAYER_H = 24;
-const PLAYER_SPEED = 1.4;             // pixels/frame strafe
+// ============== Layout ==============
+const RAIL_Y       = GAME.H - 28;            // ground rail y
+const PLAYER_W     = 24;                      // 1.5x from 16
+const PLAYER_H     = 36;                      // 1.5x from 24
+const PLAYER_SPEED = 1.5;
 const PLAYER_X_MIN = 12;
 const PLAYER_X_MAX = GAME.W - PLAYER_W - 12;
-const BULLET_SPEED = 4.5;
-const BULLET_FIRE_COOLDOWN = 6;       // frames between shots
 
-const TURRET_W = 32, TURRET_H = 24;
-const TURRET_HP = 8;
-const TURRET_FIRE_PERIOD = 90;        // frames between turret volleys
-const TURRET_BULLET_SPEED = 1.6;
+const VANISH_X     = GAME.W / 2;              // vanishing point x (center)
+const VANISH_Y     = 64;                      // vanishing point y (upper-mid)
+const BACK_WALL_Y  = 56;                      // top of corridor floor
 
-const SENSOR_W = 14, SENSOR_H = 14;
-const SENSOR_HP = 4;
+const BULLET_SPEED         = 4.5;
+const BULLET_FIRE_COOLDOWN = 6;
 
-const BOSS_W = 28, BOSS_H = 44;
-const BOSS_HP = 60;
-const BOSS_SPEED = 0.8;
-const BOSS_FIRE_PERIOD = 70;
-const BOSS_Y = 28;                    // boss patrols across the top
+// ============== Enemies ==============
+const TURRET_W = 28, TURRET_H = 22;
+const TURRET_HP = 6;
+const TURRET_FIRE_PERIOD = 80;
+const TURRET_BULLET_SPEED = 1.7;
+
+const GRUNT_HP = 3;
+const GRUNT_FIRE_PERIOD = 120;
+const GRUNT_RUN_FRAMES = 240;     // time to traverse from far → near
+
+const BARRIER_PERIOD = 110;       // electric barrier cycle (on/off)
+const BARRIER_ON_FRAMES = 50;
+
+const SHIELD_HP   = 4;
+const CORE_HP     = 30;
+const CORE_FIRE_PERIOD = 60;
+
+// Visual depth helpers — t in [0..1] where 0 = at vanishing point, 1 = at player rail.
+function depthY(t)     { return BACK_WALL_Y + (RAIL_Y - BACK_WALL_Y) * t; }
+function depthScale(t) { return 0.25 + 0.75 * t; }      // 0.25× far, 1.0× near
+function depthX(originX, t) {
+    // Linear interp from vanishing point to the entity's anchor x at depth 1.
+    return VANISH_X + (originX - VANISH_X) * t;
+}
 
 export class FpsArena {
     constructor(stageData, ctx, game) {
@@ -53,10 +71,13 @@ export class FpsArena {
         this.game = game;
         this.data = stageData;
         this.t = 0;
-        this.phase = 'fight';          // 'fight' | 'bossEntry' | 'boss' | 'clear'
-        this.bossEntryT = 0;
 
-        // Player state
+        // Progression
+        this.segment = 0;            // 0..3 (segment 3 = boss)
+        this.phase = 'fight';        // 'fight' | 'advance' | 'bossEntry' | 'boss' | 'clear'
+        this.advanceT = 0;           // frames into the advance transition
+
+        // Player
         this.player = {
             x: GAME.W / 2 - PLAYER_W / 2,
             y: RAIL_Y - PLAYER_H,
@@ -64,35 +85,111 @@ export class FpsArena {
             hp: 6,
             iframes: 0,
             shootCD: 0,
-            facing: 0,                 // -1 left, 0 up, 1 right (aim diag)
+            facing: 0,
+            runFrame: 0,
             score: 0,
         };
 
-        // Entities
-        this.turrets = stageData.turrets.map(t => ({
-            x: t.x, y: t.y, w: TURRET_W, h: TURRET_H,
-            hp: TURRET_HP, alive: true, fireT: 0, hitFlash: 0,
-        }));
-        this.sensors = stageData.sensors.map(s => ({
-            x: s.x, y: s.y, w: SENSOR_W, h: SENSOR_H,
-            hp: SENSOR_HP, alive: true, hitFlash: 0,
-        }));
-        this.boss = null;               // spawned on phase transition
+        // Entity pools — populated per segment
+        this.turrets = [];
+        this.grunts = [];
+        this.barriers = [];
+        this.shields = [];
+        this.core = null;
 
-        this.bullets = [];              // player shots
-        this.enemyBullets = [];         // turret + boss shots
+        this.bullets = [];
+        this.enemyBullets = [];
         this.particles = [];
 
-        // Try to load the painted bg
         this.bgImg = sprites.images.get(stageData.bgKey) || null;
+
+        // Boot the first segment
+        this._loadSegment(0);
+    }
+
+    // ============== Segment loaders ==============
+    _loadSegment(n) {
+        this.turrets = [];
+        this.grunts = [];
+        this.barriers = [];
+        this.shields = [];
+        this.core = null;
+
+        if (n === 0) {
+            // SEGMENT 1 — two wall-mounted turrets, no other hazards.
+            this.turrets.push({
+                originX: 36, t: 0.45,
+                w: TURRET_W, h: TURRET_H,
+                hp: TURRET_HP, alive: true, fireT: 0, hitFlash: 0,
+            });
+            this.turrets.push({
+                originX: GAME.W - 36, t: 0.45,
+                w: TURRET_W, h: TURRET_H,
+                hp: TURRET_HP, alive: true, fireT: 30, hitFlash: 0,
+            });
+        } else if (n === 1) {
+            // SEGMENT 2 — grunt charge. 3 grunts spawn from vanishing point.
+            for (let i = 0; i < 3; i++) {
+                this.grunts.push({
+                    originX: 80 + i * 48,    // staggered lanes
+                    spawnDelay: i * 40,
+                    runT: 0,
+                    hp: GRUNT_HP,
+                    alive: true,
+                    fireT: 60 + i * 20,
+                    hitFlash: 0,
+                });
+            }
+        } else if (n === 2) {
+            // SEGMENT 3 — barrier + two turrets. Player must time strafe.
+            this.barriers.push({ phase: 0, alive: true });
+            this.turrets.push({
+                originX: 56, t: 0.5,
+                w: TURRET_W, h: TURRET_H,
+                hp: TURRET_HP, alive: true, fireT: 20, hitFlash: 0,
+            });
+            this.turrets.push({
+                originX: GAME.W - 56, t: 0.5,
+                w: TURRET_W, h: TURRET_H,
+                hp: TURRET_HP, alive: true, fireT: 50, hitFlash: 0,
+            });
+        } else if (n === 3) {
+            // SEGMENT 4 — boss. Core + 3 orbiting shields. Phase shifts
+            // to 'bossEntry' so the telegraph runs before core fires.
+            this.core = {
+                x: GAME.W / 2,
+                y: BACK_WALL_Y + 18,
+                w: 32, h: 24,
+                hp: CORE_HP, maxHp: CORE_HP, alive: true,
+                fireT: 0, hitFlash: 0,
+            };
+            const radius = 28;
+            for (let i = 0; i < 3; i++) {
+                this.shields.push({
+                    angle: (i / 3) * Math.PI * 2,
+                    radius,
+                    hp: SHIELD_HP, alive: true, hitFlash: 0,
+                });
+            }
+            this.phase = 'bossEntry';
+            this.bossEntryT = 0;
+        }
+    }
+
+    _segmentClear() {
+        if (this.segment >= 3) return false;
+        // Segment 0: all turrets dead
+        if (this.segment === 0) return this.turrets.every(t => !t.alive);
+        // Segment 1: all grunts dead
+        if (this.segment === 1) return this.grunts.every(g => !g.alive);
+        // Segment 2: turrets dead (barrier persists as ambient hazard)
+        if (this.segment === 2) return this.turrets.every(t => !t.alive);
+        return false;
     }
 
     // ============== tick ==============
     update() {
         this.t++;
-        // R230: clear phase handled here (not in draw()) so input edge-detect
-        // fires reliably; isPressed() is cleared after each tick and the
-        // draw pass doesn't see fresh press events.
         if (this.phase === 'clear') {
             this.clearT = (this.clearT || 0) + 1;
             if (this.clearT > 60 &&
@@ -100,32 +197,54 @@ export class FpsArena {
                  input.isPressed('start') || input.isPressed('pause'))) {
                 this.game._fadeTo('title');
             }
-            return;  // skip the rest — no need to tick combat once cleared
+            return;
+        }
+        if (this.phase === 'advance') {
+            this.advanceT++;
+            this._tickPlayer();          // player still strafes during dolly
+            this._tickBullets();
+            this._tickEnemyBullets();    // residual shots
+            this._tickParticles();
+            if (this.advanceT >= 60) {
+                this.segment++;
+                this._loadSegment(this.segment);
+                this.advanceT = 0;
+                this.phase = (this.segment === 3) ? 'bossEntry' : 'fight';
+            }
+            return;
         }
         this._tickPlayer();
         this._tickBullets();
         this._tickEnemyBullets();
-        if (this.phase === 'fight') this._tickFight();
-        else if (this.phase === 'bossEntry') this._tickBossEntry();
-        else if (this.phase === 'boss') this._tickBoss();
+        if (this.phase === 'fight') {
+            if (this.segment === 0) this._tickTurrets();
+            else if (this.segment === 1) this._tickGrunts();
+            else if (this.segment === 2) { this._tickTurrets(); this._tickBarriers(); }
+            if (this._segmentClear()) {
+                this.phase = 'advance';
+                this.advanceT = 0;
+                audio.sfx('bossEntrance');
+            }
+        } else if (this.phase === 'bossEntry') {
+            this._tickBossEntry();
+        } else if (this.phase === 'boss') {
+            this._tickShields();
+            this._tickCore();
+        }
         this._tickParticles();
     }
 
     _tickPlayer() {
         const ax = input.axis();
         const p = this.player;
-        // Strafe
         p.x += ax.x * PLAYER_SPEED;
         if (p.x < PLAYER_X_MIN) p.x = PLAYER_X_MIN;
         if (p.x > PLAYER_X_MAX) p.x = PLAYER_X_MAX;
-        // Aim facing — directional input picks diag, otherwise straight up.
-        // Up arrow held = pure vertical (default anyway); left/right tilt aim.
+        if (Math.abs(ax.x) > 0.1) p.runFrame = (p.runFrame + 0.25) % 4;
         if (ax.x < -0.1)      p.facing = -1;
         else if (ax.x > 0.1)  p.facing = 1;
         else                  p.facing = 0;
-        // i-frames
         if (p.iframes > 0) p.iframes--;
-        // Fire — X key, straight up (or diag based on facing).
         if (p.shootCD > 0) p.shootCD--;
         if (input.isHeld('shoot') && p.shootCD <= 0) {
             this._fire();
@@ -135,12 +254,13 @@ export class FpsArena {
 
     _fire() {
         const p = this.player;
-        // Velocity: up always, x component from facing
-        const vx = p.facing * 1.2;
+        // Bullet starts at the player's "muzzle" — head height, slightly
+        // offset by facing so diag shots feel like they come from the side.
+        const vx = p.facing * 1.4;
         const vy = -BULLET_SPEED;
         this.bullets.push({
-            x: p.x + p.w / 2 - 1,
-            y: p.y,
+            x: p.x + p.w / 2 - 1 + p.facing * 3,
+            y: p.y + 4,
             vx, vy,
             life: 90,
         });
@@ -153,61 +273,100 @@ export class FpsArena {
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
-            if (b.life <= 0 || b.y < -10) { this.bullets.splice(i, 1); continue; }
-            // Hit sensors
-            for (const s of this.sensors) {
-                if (!s.alive) continue;
-                if (b.x >= s.x && b.x <= s.x + s.w && b.y >= s.y && b.y <= s.y + s.h) {
-                    s.hp--;
-                    s.hitFlash = 4;
-                    this.bullets.splice(i, 1);
-                    if (s.hp <= 0) {
-                        s.alive = false;
-                        this.player.score += 500;
-                        audio.sfx('enemyDie');
-                        this._explosion(s.x + s.w / 2, s.y + s.h / 2, '#ff8040');
-                    } else {
-                        audio.sfx('hit');
-                    }
-                    break;
-                }
+            if (b.life <= 0 || b.y < -10 || b.x < -10 || b.x > GAME.W + 10) {
+                this.bullets.splice(i, 1);
+                continue;
             }
-            if (this.bullets[i] !== b) continue;
             // Hit turrets
+            let consumed = false;
             for (const t of this.turrets) {
                 if (!t.alive) continue;
-                if (b.x >= t.x && b.x <= t.x + t.w && b.y >= t.y && b.y <= t.y + t.h) {
+                const tx = depthX(t.originX, t.t) - t.w / 2;
+                const ty = depthY(t.t) - t.h;
+                if (b.x >= tx && b.x <= tx + t.w && b.y >= ty && b.y <= ty + t.h) {
                     t.hp--;
                     t.hitFlash = 4;
                     this.bullets.splice(i, 1);
+                    consumed = true;
                     if (t.hp <= 0) {
                         t.alive = false;
                         this.player.score += 1000;
                         audio.sfx('bossHit');
-                        this._explosion(t.x + t.w / 2, t.y + t.h / 2, '#ff6020');
+                        this._explosion(tx + t.w / 2, ty + t.h / 2, '#ff6020');
                     } else {
                         audio.sfx('hit');
                     }
                     break;
                 }
             }
-            if (this.bullets[i] !== b) continue;
-            // Hit boss
-            if (this.boss && this.boss.alive) {
-                const bo = this.boss;
-                if (b.x >= bo.x && b.x <= bo.x + bo.w && b.y >= bo.y && b.y <= bo.y + bo.h) {
-                    bo.hp--;
-                    bo.hitFlash = 4;
+            if (consumed) continue;
+            // Hit grunts
+            for (const g of this.grunts) {
+                if (!g.alive || g.runT < g.spawnDelay) continue;
+                const tt = Math.min(1, (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES);
+                const gx = depthX(g.originX, tt) - 8 * depthScale(tt);
+                const gy = depthY(tt) - 24 * depthScale(tt);
+                const gw = 16 * depthScale(tt);
+                const gh = 24 * depthScale(tt);
+                if (b.x >= gx && b.x <= gx + gw && b.y >= gy && b.y <= gy + gh) {
+                    g.hp--;
+                    g.hitFlash = 4;
                     this.bullets.splice(i, 1);
-                    if (bo.hp <= 0) {
-                        bo.alive = false;
-                        this.player.score += 9500;
-                        audio.sfx('bossDie');
-                        this._explosion(bo.x + bo.w / 2, bo.y + bo.h / 2, '#a060ff');
-                        this.phase = 'clear';
-                        this.clearT = 0;
+                    consumed = true;
+                    if (g.hp <= 0) {
+                        g.alive = false;
+                        this.player.score += 750;
+                        audio.sfx('enemyDie');
+                        this._explosion(gx + gw / 2, gy + gh / 2, '#a8c060');
                     } else {
-                        audio.sfx('bossHit');
+                        audio.sfx('hit');
+                    }
+                    break;
+                }
+            }
+            if (consumed) continue;
+            // Hit shields (must be killed before core)
+            if (this.shields.length && this.core && this.core.alive) {
+                const allShieldsDead = this.shields.every(s => !s.alive);
+                for (const s of this.shields) {
+                    if (!s.alive) continue;
+                    const sx = this.core.x + Math.cos(s.angle) * s.radius - 5;
+                    const sy = this.core.y + Math.sin(s.angle) * s.radius - 5;
+                    if (b.x >= sx && b.x <= sx + 10 && b.y >= sy && b.y <= sy + 10) {
+                        s.hp--;
+                        s.hitFlash = 4;
+                        this.bullets.splice(i, 1);
+                        consumed = true;
+                        if (s.hp <= 0) {
+                            s.alive = false;
+                            this.player.score += 1500;
+                            audio.sfx('bossHit');
+                            this._explosion(sx + 5, sy + 5, '#a060ff');
+                        } else {
+                            audio.sfx('hit');
+                        }
+                        break;
+                    }
+                }
+                if (consumed) continue;
+                // Core only takes damage when all shields are dead
+                if (allShieldsDead) {
+                    const c = this.core;
+                    if (b.x >= c.x - c.w / 2 && b.x <= c.x + c.w / 2 &&
+                        b.y >= c.y - c.h / 2 && b.y <= c.y + c.h / 2) {
+                        c.hp--;
+                        c.hitFlash = 4;
+                        this.bullets.splice(i, 1);
+                        if (c.hp <= 0) {
+                            c.alive = false;
+                            this.player.score += 9500;
+                            audio.sfx('bossDie');
+                            this._explosion(c.x, c.y, '#ff60a0');
+                            this.phase = 'clear';
+                            this.clearT = 0;
+                        } else {
+                            audio.sfx('bossHit');
+                        }
                     }
                 }
             }
@@ -221,8 +380,10 @@ export class FpsArena {
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
-            if (b.life <= 0 || b.y > GAME.H + 10) { this.enemyBullets.splice(i, 1); continue; }
-            // Hit player
+            if (b.life <= 0 || b.y > GAME.H + 10) {
+                this.enemyBullets.splice(i, 1);
+                continue;
+            }
             if (p.iframes <= 0 &&
                 b.x >= p.x && b.x <= p.x + p.w &&
                 b.y >= p.y && b.y <= p.y + p.h) {
@@ -231,15 +392,13 @@ export class FpsArena {
                 this.enemyBullets.splice(i, 1);
                 audio.sfx('playerHit');
                 if (p.hp <= 0) {
-                    // Out — kick player back to stage select (game over flow)
                     this.game._fadeTo('gameOver');
                 }
             }
         }
     }
 
-    _tickFight() {
-        // Turret fire
+    _tickTurrets() {
         for (const t of this.turrets) {
             if (!t.alive) continue;
             if (t.hitFlash > 0) t.hitFlash--;
@@ -249,24 +408,18 @@ export class FpsArena {
                 this._turretVolley(t);
             }
         }
-        for (const s of this.sensors) if (s.hitFlash > 0) s.hitFlash--;
-        // All sensors dead? → boss entry
-        if (this.sensors.every(s => !s.alive)) {
-            this.phase = 'bossEntry';
-            this.bossEntryT = 0;
-            audio.sfx('bossEntrance');
-        }
     }
 
     _turretVolley(t) {
-        // 3-way spread fired downward
-        const cx = t.x + t.w / 2;
-        const cy = t.y + t.h;
-        const spread = [-0.4, 0, 0.4];
-        for (const sx of spread) {
+        const cx = depthX(t.originX, t.t);
+        const cy = depthY(t.t) - t.h / 2;
+        // Aim partly toward the player so the 3-way isn't always neutral
+        const px = this.player.x + this.player.w / 2;
+        const dx = (px - cx) * 0.25;
+        for (const sp of [-0.5, 0, 0.5]) {
             this.enemyBullets.push({
                 x: cx, y: cy,
-                vx: sx * TURRET_BULLET_SPEED,
+                vx: sp * TURRET_BULLET_SPEED + dx * 0.05,
                 vy: TURRET_BULLET_SPEED,
                 life: 240,
             });
@@ -274,46 +427,93 @@ export class FpsArena {
         audio.sfx('enemyShoot');
     }
 
-    _tickBossEntry() {
-        this.bossEntryT++;
-        // Drop the boss in from the top after 90f telegraph
-        if (this.bossEntryT >= 90 && !this.boss) {
-            this.boss = {
-                x: GAME.W / 2 - BOSS_W / 2,
-                y: BOSS_Y,
-                w: BOSS_W, h: BOSS_H,
-                hp: BOSS_HP, maxHp: BOSS_HP, alive: true,
-                vx: BOSS_SPEED, fireT: 0, hitFlash: 0,
-            };
-        }
-        if (this.bossEntryT >= 130) this.phase = 'boss';
-    }
-
-    _tickBoss() {
-        const b = this.boss;
-        if (!b || !b.alive) return;
-        if (b.hitFlash > 0) b.hitFlash--;
-        // Patrol L↔R
-        b.x += b.vx;
-        if (b.x < 16) { b.x = 16; b.vx = -b.vx; }
-        if (b.x > GAME.W - BOSS_W - 16) { b.x = GAME.W - BOSS_W - 16; b.vx = -b.vx; }
-        // Fire downward syringe darts
-        b.fireT++;
-        if (b.fireT >= BOSS_FIRE_PERIOD) {
-            b.fireT = 0;
-            const cx = b.x + b.w / 2;
-            const cy = b.y + b.h;
-            // 3-dart spread aimed roughly at player x
-            const px = this.player.x + this.player.w / 2;
-            const dx = px - cx;
-            const dist = Math.hypot(dx, GAME.H);
-            const baseVx = dx / dist * 1.8;
-            for (const sp of [-0.5, 0, 0.5]) {
+    _tickGrunts() {
+        for (const g of this.grunts) {
+            if (!g.alive) continue;
+            if (g.hitFlash > 0) g.hitFlash--;
+            g.runT++;
+            if (g.runT < g.spawnDelay) continue;
+            const tt = (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES;
+            // Grunt reaches the player's rail and explodes (rushes player)
+            if (tt >= 1) {
+                g.alive = false;
+                const cx = depthX(g.originX, 1);
+                this._explosion(cx, RAIL_Y - 12, '#a8c060');
+                // Splash damage if grunt is close to player
+                const dx = cx - (this.player.x + this.player.w / 2);
+                if (Math.abs(dx) < 24 && this.player.iframes <= 0) {
+                    this.player.hp--;
+                    this.player.iframes = 60;
+                    audio.sfx('playerHit');
+                    if (this.player.hp <= 0) this.game._fadeTo('gameOver');
+                }
+                continue;
+            }
+            // Fire forward periodically
+            g.fireT++;
+            if (g.fireT >= GRUNT_FIRE_PERIOD) {
+                g.fireT = 0;
+                const cx = depthX(g.originX, tt);
+                const cy = depthY(tt) - 14 * depthScale(tt);
                 this.enemyBullets.push({
                     x: cx, y: cy,
-                    vx: baseVx + sp,
-                    vy: 2.0,
+                    vx: 0, vy: 1.4,
                     life: 200,
+                });
+                audio.sfx('enemyShoot');
+            }
+        }
+    }
+
+    _tickBarriers() {
+        for (const b of this.barriers) {
+            b.phase = (b.phase + 1) % BARRIER_PERIOD;
+            const on = b.phase < BARRIER_ON_FRAMES;
+            if (!on) continue;
+            // Damage the player if they're in the barrier band (mid-screen at row depthY(0.6))
+            const by = depthY(0.6);
+            const p = this.player;
+            if (p.iframes <= 0 &&
+                p.y + p.h / 2 > by - 20 && p.y + p.h / 2 < by + 20) {
+                // Barriers span the whole corridor width — moving into the
+                // barrier zone is the hazard.
+                // Player rail is below the barrier band so they normally
+                // can't touch it; barriers only matter when the player tries
+                // to advance forward (future segments). For now leave the
+                // band purely visual until forward movement is added.
+            }
+        }
+    }
+
+    _tickBossEntry() {
+        this.bossEntryT = (this.bossEntryT || 0) + 1;
+        if (this.bossEntryT >= 90) {
+            this.phase = 'boss';
+        }
+    }
+
+    _tickShields() {
+        for (const s of this.shields) {
+            if (!s.alive) continue;
+            if (s.hitFlash > 0) s.hitFlash--;
+            s.angle += 0.03;
+        }
+    }
+
+    _tickCore() {
+        const c = this.core;
+        if (!c || !c.alive) return;
+        if (c.hitFlash > 0) c.hitFlash--;
+        c.fireT++;
+        if (c.fireT >= CORE_FIRE_PERIOD) {
+            c.fireT = 0;
+            // 5-way spread fan
+            for (let i = -2; i <= 2; i++) {
+                this.enemyBullets.push({
+                    x: c.x, y: c.y + c.h / 2,
+                    vx: i * 0.6,
+                    vy: 1.8,
+                    life: 220,
                 });
             }
             audio.sfx('enemyShoot');
@@ -321,14 +521,14 @@ export class FpsArena {
     }
 
     _explosion(x, y, color) {
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 14; i++) {
             const a = Math.random() * Math.PI * 2;
-            const s = 1 + Math.random() * 2;
+            const s = 1 + Math.random() * 2.5;
             this.particles.push({
                 x, y,
                 vx: Math.cos(a) * s,
                 vy: Math.sin(a) * s,
-                life: 30,
+                life: 32,
                 color,
             });
         }
@@ -348,88 +548,28 @@ export class FpsArena {
     // ============== draw ==============
     draw() {
         const ctx = this.ctx;
-        // Background
+        // Background — painted backdrop scaled to cover.
         if (this.bgImg) {
             ctx.imageSmoothingEnabled = false;
-            // Cover canvas — scale bg to fit, center
             const scale = Math.max(GAME.W / this.bgImg.width, GAME.H / this.bgImg.height);
             const dw = this.bgImg.width * scale;
             const dh = this.bgImg.height * scale;
             ctx.drawImage(this.bgImg, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
         } else {
-            // Fallback gradient
             ctx.fillStyle = '#080a14';
             ctx.fillRect(0, 0, GAME.W, GAME.H);
         }
-        // Rail (ground line)
-        ctx.fillStyle = '#1a1810';
-        ctx.fillRect(0, RAIL_Y, GAME.W, GAME.H - RAIL_Y);
-        ctx.fillStyle = '#2a2418';
-        ctx.fillRect(0, RAIL_Y, GAME.W, 1);
-        // Sensors
-        for (const s of this.sensors) {
-            if (!s.alive) continue;
-            ctx.fillStyle = s.hitFlash > 0 ? '#ffffff' : '#ff8040';
-            ctx.fillRect(s.x, s.y, s.w, s.h);
-            ctx.fillStyle = '#ffcc80';
-            ctx.fillRect(s.x + 3, s.y + 3, s.w - 6, s.h - 6);
-            // Pulsing center
-            const pulse = 0.5 + 0.5 * Math.sin(this.t * 0.2);
-            ctx.fillStyle = `rgba(255, 80, 40, ${pulse})`;
-            ctx.fillRect(s.x + 5, s.y + 5, s.w - 10, s.h - 10);
-        }
-        // Turrets
-        for (const t of this.turrets) {
-            if (!t.alive) continue;
-            ctx.fillStyle = t.hitFlash > 0 ? '#ffffff' : '#3a2818';
-            ctx.fillRect(t.x, t.y, t.w, t.h);
-            ctx.fillStyle = '#5a3828';
-            ctx.fillRect(t.x + 2, t.y + 2, t.w - 4, t.h - 4);
-            // Barrels (3, pointing down)
-            ctx.fillStyle = '#1a1008';
-            for (let i = 0; i < 3; i++) {
-                const bx = t.x + 4 + i * 10;
-                ctx.fillRect(bx, t.y + t.h, 4, 6);
-            }
-        }
-        // Boss
-        if (this.boss && this.boss.alive) {
-            const b = this.boss;
-            // Try painted Spindler sprite
-            const spriteKey = 'boss_' + this.data.bossKind;
-            if (sprites.has(spriteKey)) {
-                const dims = sprites.dims.get(spriteKey);
-                const dx = Math.round(b.x + b.w / 2 - dims.w / 2);
-                const dy = Math.round(b.y + b.h - dims.h);
-                if (b.hitFlash > 0 && b.hitFlash % 2 === 0) {
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'lighter';
-                    ctx.globalAlpha = 0.5;
-                    sprites.draw(ctx, spriteKey, dx, dy, false);
-                    ctx.restore();
-                }
-                sprites.draw(ctx, spriteKey, dx, dy, false);
-            } else {
-                // Procedural fallback — purple body
-                ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#a060ff';
-                ctx.fillRect(b.x, b.y, b.w, b.h);
-            }
-            // HP bar at top
-            this._drawBossHp();
-        }
-        // Boss entry telegraph
-        if (this.phase === 'bossEntry') {
-            const cx = GAME.W / 2;
-            const cy = BOSS_Y + BOSS_H / 2;
-            const a = 0.4 + 0.4 * Math.sin(this.bossEntryT * 0.3);
-            ctx.strokeStyle = `rgba(160, 96, 255, ${a})`;
-            ctx.lineWidth = 1;
-            const r = 30 + Math.sin(this.bossEntryT * 0.15) * 6;
-            ctx.beginPath();
-            ctx.arc(cx, cy, r, 0, Math.PI * 2);
-            ctx.stroke();
-            drawText(ctx, 'INCOMING', GAME.W / 2, 80, '#ff60ff', 1, 'center');
-        }
+        // Corridor depth overlay — converging floor + ceiling ribs, vanishing
+        // point in the center-upper area. Sells the "into-the-screen" framing
+        // even if the bg image is flat.
+        this._drawCorridor();
+        // Segment indicator (top-center)
+        this._drawSegmentTag();
+        // Sensors/turrets/grunts/barriers (in depth-sorted order — far first)
+        this._drawBarriers();
+        this._drawTurrets();
+        this._drawGrunts();
+        this._drawBoss();
         // Player bullets
         for (const b of this.bullets) {
             ctx.fillStyle = '#ffe070';
@@ -442,34 +582,43 @@ export class FpsArena {
         }
         // Particles
         for (const p of this.particles) {
-            const a = Math.min(1, p.life / 30);
+            const a = Math.min(1, p.life / 32);
             ctx.fillStyle = p.color;
             ctx.globalAlpha = a;
             ctx.fillRect(p.x, p.y, 2, 2);
         }
         ctx.globalAlpha = 1;
-        // Player
-        const p = this.player;
-        const flicker = p.iframes > 0 && (p.iframes % 4 < 2);
-        if (!flicker) {
-            // Use Clippy sprite if available
-            if (sprites.has('idle_01')) {
-                sprites.draw(ctx, 'idle_01', Math.round(p.x), Math.round(p.y), false);
-            } else {
-                ctx.fillStyle = '#80889a';
-                ctx.fillRect(p.x, p.y, p.w, p.h);
-            }
+        // Player (last — always on top)
+        this._drawPlayer();
+        // Advance transition — dolly forward flash
+        if (this.phase === 'advance') {
+            const a = 0.35 * (1 - Math.abs(this.advanceT - 30) / 30);
+            ctx.fillStyle = `rgba(80, 120, 200, ${a})`;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            drawText(ctx, 'ADVANCING', GAME.W / 2, 90, '#a0d8ff', 1, 'center');
+        }
+        // Boss entry telegraph
+        if (this.phase === 'bossEntry') {
+            const cx = GAME.W / 2;
+            const cy = BACK_WALL_Y + 30;
+            const a = 0.4 + 0.4 * Math.sin(this.bossEntryT * 0.3);
+            ctx.strokeStyle = `rgba(255, 96, 160, ${a})`;
+            ctx.lineWidth = 1;
+            const r = 30 + Math.sin(this.bossEntryT * 0.15) * 6;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.stroke();
+            drawText(ctx, 'CORE ONLINE', GAME.W / 2, 80, '#ff60a0', 1, 'center');
         }
         // HUD
         this._drawHUD();
-        // Stage-clear overlay (visual only — update() reads input).
+        // Stage-clear overlay
         if (this.phase === 'clear') {
             const t = this.clearT || 0;
             ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, t * 0.02)})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             if (t > 60) {
                 drawText(ctx, 'CORE BREACHED', GAME.W / 2, GAME.H / 2 - 8, '#ffe070', 2, 'center');
-                // Pulse the prompt so it reads as actionable
                 const a = 0.6 + 0.4 * Math.sin(t * 0.15);
                 ctx.globalAlpha = a;
                 drawText(ctx, 'PRESS X', GAME.W / 2, GAME.H / 2 + 12, '#a890b0', 1, 'center');
@@ -478,29 +627,226 @@ export class FpsArena {
         }
     }
 
+    // ============== Visual subroutines ==============
+    _drawCorridor() {
+        const ctx = this.ctx;
+        // Dim vignette pushing the eye toward the vanishing point — sells
+        // the "into-the-screen" framing on top of the painted backdrop.
+        const grad = ctx.createRadialGradient(
+            VANISH_X, VANISH_Y, 20,
+            VANISH_X, VANISH_Y, Math.max(GAME.W, GAME.H) * 0.7
+        );
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        // Dolly offset during advance — pulse the perspective lines outward.
+        const adv = (this.phase === 'advance') ? (this.advanceT / 60) : 0;
+        // Floor lines — perspective ribs converging to vanishing point.
+        ctx.strokeStyle = 'rgba(255, 220, 160, 0.32)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 6; i++) {
+            const t = 0.15 + i * 0.17 + adv * 0.15;
+            if (t > 1) continue;
+            const y = depthY(t);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(VANISH_X, VANISH_Y);
+            ctx.lineTo(GAME.W, y);
+            ctx.stroke();
+        }
+        // Wall ribs — diagonal lines from screen corners toward vanishing.
+        ctx.strokeStyle = 'rgba(120, 180, 240, 0.28)';
+        for (const edge of [0, GAME.W]) {
+            for (let i = 0; i < 4; i++) {
+                const xOff = (edge === 0 ? -1 : 1) * (60 + i * 30 + adv * 20);
+                ctx.beginPath();
+                ctx.moveTo(edge + xOff, GAME.H);
+                ctx.lineTo(VANISH_X, VANISH_Y);
+                ctx.stroke();
+            }
+        }
+        // Back wall (boss room) — visible only in segment 3.
+        if (this.segment === 3) {
+            ctx.fillStyle = 'rgba(20, 8, 32, 0.85)';
+            ctx.fillRect(VANISH_X - 48, BACK_WALL_Y - 12, 96, 24);
+            // Door frame around the core
+            ctx.strokeStyle = '#ff60a0';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(VANISH_X - 48, BACK_WALL_Y - 12, 96, 24);
+        }
+    }
+
+    _drawSegmentTag() {
+        const ctx = this.ctx;
+        const labels = ['SEGMENT 1 / TURRETS',
+                        'SEGMENT 2 / GRUNTS',
+                        'SEGMENT 3 / BARRIER',
+                        'CORE'];
+        drawText(ctx, labels[this.segment] || '', GAME.W / 2, 6, '#80a0c0', 1, 'center');
+    }
+
+    _drawBarriers() {
+        if (!this.barriers.length) return;
+        const ctx = this.ctx;
+        for (const b of this.barriers) {
+            const on = b.phase < BARRIER_ON_FRAMES;
+            const y = depthY(0.6);
+            const flick = Math.random() < 0.3;
+            const a = on ? (flick ? 0.8 : 0.6) : 0.15;
+            ctx.fillStyle = `rgba(120, 200, 255, ${a})`;
+            // Two arcs at mid-corridor depth, top + bottom
+            for (let i = 0; i < 6; i++) {
+                const x = 16 + i * (GAME.W - 32) / 5;
+                ctx.fillRect(x - 1, y - 3, 2, 6);
+            }
+            // Connecting beam when active
+            if (on) {
+                ctx.fillStyle = `rgba(200, 240, 255, ${0.3 + 0.3 * Math.random()})`;
+                ctx.fillRect(16, y - 1, GAME.W - 32, 2);
+            }
+        }
+    }
+
+    _drawTurrets() {
+        const ctx = this.ctx;
+        for (const t of this.turrets) {
+            if (!t.alive) continue;
+            const scale = depthScale(t.t);
+            const tw = t.w * scale;
+            const th = t.h * scale;
+            const tx = depthX(t.originX, t.t) - tw / 2;
+            const ty = depthY(t.t) - th;
+            ctx.fillStyle = t.hitFlash > 0 ? '#ffffff' : '#3a2818';
+            ctx.fillRect(tx, ty, tw, th);
+            ctx.fillStyle = '#5a3828';
+            ctx.fillRect(tx + 2, ty + 2, tw - 4, th - 4);
+            // Barrels — 3 stubs pointing down
+            ctx.fillStyle = '#1a1008';
+            for (let i = 0; i < 3; i++) {
+                const bx = tx + 3 + i * (tw - 6) / 2 - 1;
+                ctx.fillRect(bx, ty + th, 2 * scale, 5 * scale);
+            }
+            // Glowing eye
+            ctx.fillStyle = '#ff4030';
+            ctx.fillRect(tx + tw / 2 - 1, ty + 4, 2, 2);
+        }
+    }
+
+    _drawGrunts() {
+        const ctx = this.ctx;
+        for (const g of this.grunts) {
+            if (!g.alive || g.runT < g.spawnDelay) continue;
+            const tt = Math.min(1, (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES);
+            const scale = depthScale(tt);
+            const gw = 16 * scale;
+            const gh = 24 * scale;
+            const gx = depthX(g.originX, tt) - gw / 2;
+            const gy = depthY(tt) - gh;
+            // Body — back of paperclip minion running forward
+            ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#a8c060';
+            ctx.fillRect(gx, gy + gh * 0.3, gw, gh * 0.7);
+            // Head
+            ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#c8e070';
+            ctx.fillRect(gx + gw * 0.2, gy, gw * 0.6, gh * 0.35);
+            // Eye-shine for far ones (looks menacing)
+            if (tt < 0.6) {
+                ctx.fillStyle = '#ffff80';
+                ctx.fillRect(gx + gw * 0.5 - 1, gy + 2, 2, 2);
+            }
+        }
+    }
+
+    _drawBoss() {
+        if (!this.core) return;
+        const ctx = this.ctx;
+        const c = this.core;
+        if (!c.alive) return;
+        // Core body — pulsing exposed system
+        const pulse = 0.5 + 0.5 * Math.sin(this.t * 0.12);
+        ctx.fillStyle = c.hitFlash > 0 ? '#ffffff' : '#400820';
+        ctx.fillRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h);
+        ctx.fillStyle = `rgba(${200 + pulse * 55}, ${60 + pulse * 40}, ${120 + pulse * 80}, 1)`;
+        ctx.fillRect(c.x - c.w / 2 + 4, c.y - c.h / 2 + 4, c.w - 8, c.h - 8);
+        // Core eye
+        ctx.fillStyle = '#ffe0a0';
+        ctx.fillRect(c.x - 3, c.y - 3, 6, 6);
+        ctx.fillStyle = '#ff2040';
+        ctx.fillRect(c.x - 1, c.y - 1, 2, 2);
+        // Shields — orbiting nodes
+        for (const s of this.shields) {
+            if (!s.alive) continue;
+            const sx = c.x + Math.cos(s.angle) * s.radius;
+            const sy = c.y + Math.sin(s.angle) * s.radius;
+            ctx.fillStyle = s.hitFlash > 0 ? '#ffffff' : '#a060ff';
+            ctx.fillRect(sx - 5, sy - 5, 10, 10);
+            ctx.fillStyle = '#e0c0ff';
+            ctx.fillRect(sx - 3, sy - 3, 6, 6);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sx - 1, sy - 1, 2, 2);
+        }
+        // HP bar
+        this._drawBossHp();
+    }
+
+    _drawPlayer() {
+        const ctx = this.ctx;
+        const p = this.player;
+        const flicker = p.iframes > 0 && (p.iframes % 4 < 2);
+        if (flicker) return;
+        // Draw Clippy at 1.5x scale, back-facing (we approximate by using the
+        // existing idle/run sprite — paperclip silhouette reads the same
+        // from behind). Animate the run cycle when strafing.
+        const runFrames = ['run_1', 'run_2', 'run_3', 'run_4'];
+        const sourceKey = (Math.abs(input.axis().x) > 0.1)
+            ? runFrames[Math.floor(p.runFrame) % runFrames.length]
+            : 'idle';
+        const img = sprites.images.get(sourceKey) || sprites.images.get('idle_01');
+        if (img) {
+            ctx.imageSmoothingEnabled = false;
+            const dx = Math.round(p.x);
+            const dy = Math.round(p.y);
+            // Source sprites are ~16×24; we scale to PLAYER_W × PLAYER_H.
+            ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, p.w, p.h);
+        } else {
+            ctx.fillStyle = '#80889a';
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+        }
+        // Aim indicator — small chevron above the head matching facing
+        const cx = p.x + p.w / 2 + p.facing * 4;
+        const cy = p.y - 4;
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(cx - 1, cy, 2, 4);
+        if (p.facing !== 0) {
+            ctx.fillRect(cx + p.facing * 2, cy + 1, 1, 2);
+        }
+    }
+
     _drawBossHp() {
         const ctx = this.ctx;
-        const b = this.boss;
+        const c = this.core;
         const barW = GAME.W - 32;
         const x = 16, y = GAME.H - 10;
         ctx.fillStyle = '#2a0a14';
         ctx.fillRect(x, y, barW, 4);
-        const fill = (b.hp / b.maxHp) * barW;
-        ctx.fillStyle = b.hp < b.maxHp * 0.3 ? '#ff3040' : '#a060ff';
+        const fill = (c.hp / c.maxHp) * barW;
+        const allShieldsDead = this.shields.every(s => !s.alive);
+        ctx.fillStyle = allShieldsDead
+            ? (c.hp < c.maxHp * 0.3 ? '#ff3040' : '#ff60a0')
+            : '#603048';   // dim while shielded
         ctx.fillRect(x, y, fill, 4);
-        drawText(ctx, 'DR. SPINDLER', GAME.W / 2, y - 8, '#e0c0ff', 1, 'center');
+        const tag = allShieldsDead ? 'EXPOSED CORE' : 'CORE / SHIELDED';
+        drawText(ctx, tag, GAME.W / 2, y - 8, '#e0c0ff', 1, 'center');
     }
 
     _drawHUD() {
         const ctx = this.ctx;
-        // HP
         for (let i = 0; i < 6; i++) {
             const hot = i < this.player.hp;
             ctx.fillStyle = hot ? '#ff4040' : '#3a1018';
             ctx.fillRect(6 + i * 8, 6, 6, 6);
         }
-        // Sensor counter
-        const alive = this.sensors.filter(s => s.alive).length;
-        drawText(ctx, 'SENSORS: ' + alive, GAME.W - 6, 6, '#ffcc80', 1, 'right');
+        // Segment count
+        drawText(ctx, (this.segment + 1) + ' / 4', GAME.W - 6, 6, '#ffcc80', 1, 'right');
     }
 }

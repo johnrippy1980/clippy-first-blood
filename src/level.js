@@ -1632,9 +1632,11 @@ export const STAGE_LOADERS = [
     () => makeFpsStage(),       // R229: CORE BREACH — hidden FPS arena, stage 15
 ];
 
-// R229: FPS-arena stage data. NOT a regular level — returns fpsMode flag
-// so _startStage routes to the FpsArena scene instead of the platformer
-// pipeline. Coordinates are screen-pixel space, not tile space.
+// R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
+// _startStage routes to the FpsArena scene instead of the platformer pipeline.
+// Stage data is minimal: the arena owns its segment layout internally. We
+// pass theme + backdrop + boss identity so the same arena scene can be
+// reused for additional FPS stages later (Ballmer building, etc.).
 function makeFpsStage() {
     return {
         fpsMode: true,
@@ -1642,18 +1644,6 @@ function makeFpsStage() {
         music: 'pipeline',
         bgKey: 'bg_sewer_lab',
         bossKind: 'SPINDLER',
-        // Two turret banks anchored top-left and top-right
-        turrets: [
-            { x: 16,  y: 48 },
-            { x: 208, y: 48 },
-        ],
-        // 4 sensors in a row between the turrets
-        sensors: [
-            { x: 72,  y: 88 },
-            { x: 100, y: 88 },
-            { x: 128, y: 88 },
-            { x: 156, y: 88 },
-        ],
     };
 }
 
