@@ -403,7 +403,20 @@ function makeStage2() {
             { x: 69 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'HOMING' },
             // G: bridge mid-pit risk crate
             { x: 84 * GAME.TILE, y: (h - 5) * GAME.TILE - 14, drop: 'HOMING' },
-        ]
+        ],
+        // R219: breakable walls — shoot to break, drop a hidden goodie.
+        // Stage 2 placements lean on visual hiding (walls sit in corners
+        // or behind line-of-sight obstacles so they aren't obvious).
+        // First playthrough: walls look like terrain. Curious players
+        // who shoot everything find them; speedrunners ignore.
+        wallSpawns: [
+            // Mid-stage LIFE buried behind a chunky wall on the lower
+            // path. Player has to shoot down + right while passing.
+            { x: 47 * GAME.TILE, y: (h - 4) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            // Late-stage GRENADE wall — pre-boss, rewards exploration
+            // away from the obvious path.
+            { x: 78 * GAME.TILE, y: ( 8) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+        ],
     };
 }
 
@@ -1484,6 +1497,12 @@ export class Level {
             const tileTop = ty * GAME.TILE;
             return prevY != null && prevY <= tileTop;
         }
+        // R219: breakable-wall hook. game.js sets _wallSolidCheck to
+        // PickupManager.isWallSolid so walls block player/enemy movement
+        // until destroyed by gunfire. Optional — non-stage scenes don't
+        // wire it and walls then degrade to non-solid (acceptable since
+        // walls only spawn via stage data).
+        if (this._wallSolidCheck && this._wallSolidCheck(px, py)) return true;
         return false;
     }
 

@@ -2936,6 +2936,9 @@ export class Game {
         this.stageStats.totalEnemies = data.enemySpawns.length;
         this.stageStats.hasSecret = !!data.secretAlcove;
         this.pickups.loadFromLevel(data, this.level);
+        // R219: link pickup walls into the level's solidity probe so
+        // breakable walls block player + enemy movement until destroyed.
+        this.level._wallSolidCheck = (px, py) => this.pickups.isWallSolid(px, py);
         if (!this.player) {
             this.player = new Player(data.playerStart.x, data.playerStart.y);
         } else {

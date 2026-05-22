@@ -77,6 +77,84 @@ class Crate {
     }
 }
 
+// R219: Breakable wall — like Crate but tile-sized, solid (blocks
+// player + enemy movement), takes more hits, drops a "secret" pickup
+// on break. Player has to spot the off-color block, decide whether
+// it's worth the ammo, and (often) shoot upward to break a wall
+// that's blocking a hidden alcove.
+//
+// Solidity is queried by Level.isSolid via a registered list of
+// active walls (see level.js). Walls deregister on break.
+class BreakableWall {
+    constructor(x, y, w, h, drop) {
+        this.x = x; this.y = y;
+        this.w = w || 16; this.h = h || 16;
+        this.hp = 6;          // tougher than crates so it reads "wall"
+        this.alive = true;
+        this.drop = drop;     // pickup type to spawn at center on break
+        this.hitFlash = 0;
+        // Crack stages drive the visible "damage" pattern. 0..3.
+        this.cracks = 0;
+    }
+    update(level, player) {
+        if (this.hitFlash > 0) this.hitFlash--;
+        if (!this.alive) return null;
+        for (let i = player.bullets.length - 1; i >= 0; i--) {
+            const b = player.bullets[i];
+            if (b.stuck) continue;
+            if (b.x > this.x && b.x < this.x + this.w
+                && b.y > this.y && b.y < this.y + this.h) {
+                this.hp -= b.damage;
+                this.hitFlash = 5;
+                // Crack tier scales linearly with damage taken.
+                this.cracks = Math.min(3, Math.floor((6 - this.hp) / 2));
+                particles.hitSpark(b.x, b.y, '#8a6850');
+                if (!b.piercing) player.bullets.splice(i, 1);
+                if (this.hp <= 0) {
+                    this.alive = false;
+                    particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#604030', 16);
+                    audio.sfx('explode');
+                    return this.drop;
+                }
+                audio.sfx('crateHit');
+            }
+        }
+        return null;
+    }
+    draw(ctx, camera) {
+        const dx = Math.round(this.x - camera.viewX);
+        const dy = Math.round(this.y - camera.viewY);
+        if (this.hitFlash > 0) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(dx, dy, this.w, this.h);
+            return;
+        }
+        // Base brick — slightly different palette from the regular
+        // crate so the player learns "wall, not crate" at a glance.
+        ctx.fillStyle = '#4a3220'; ctx.fillRect(dx, dy, this.w, this.h);
+        ctx.fillStyle = '#6a4830'; ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
+        // Mortar lines
+        ctx.fillStyle = '#3a2218';
+        ctx.fillRect(dx, dy + this.h / 2 | 0, this.w, 1);
+        ctx.fillRect(dx + this.w / 2 | 0, dy, 1, this.h);
+        // Crack overlay scales with damage tier
+        if (this.cracks > 0) {
+            ctx.fillStyle = '#1a0a08';
+            for (let i = 0; i < this.cracks * 2 + 1; i++) {
+                const cx = dx + 2 + (i * 5) % (this.w - 4);
+                const cy = dy + 2 + (i * 3) % (this.h - 4);
+                ctx.fillRect(cx, cy, 1, 2);
+            }
+        }
+        // Hairline border so it sits cleanly on painted bgs
+        ctx.fillStyle = '#1a0a08';
+        ctx.fillRect(dx, dy, this.w, 1);
+        ctx.fillRect(dx, dy + this.h - 1, this.w, 1);
+        ctx.fillRect(dx, dy, 1, this.h);
+        ctx.fillRect(dx + this.w - 1, dy, 1, this.h);
+    }
+}
+
 class Pickup {
     constructor(x, y, type) {
         this.x = x; this.y = y;
@@ -242,10 +320,25 @@ const GLYPHS = {
 };
 
 export class PickupManager {
-    constructor() { this.pickups = []; this.crates = []; }
-    clear() { this.pickups.length = 0; this.crates.length = 0; }
+    // R219: walls are kept separate from crates because they're solid
+    // (queried by Level.isSolid each frame). Externally exposed list
+    // so level.js can check intersection without a public accessor on
+    // each manager method.
+    constructor() { this.pickups = []; this.crates = []; this.walls = []; }
+    clear() { this.pickups.length = 0; this.crates.length = 0; this.walls.length = 0; }
     spawn(x, y, type) { this.pickups.push(new Pickup(x, y, type)); }
     spawnCrate(x, y, drop) { this.crates.push(new Crate(x, y, drop)); }
+    spawnWall(x, y, w, h, drop) { this.walls.push(new BreakableWall(x, y, w, h, drop)); }
+    // R219: returns true if (px, py) sits inside any live breakable
+    // wall. Level.isSolid delegates to this so a wall blocks player
+    // movement until it's destroyed.
+    isWallSolid(px, py) {
+        for (const w of this.walls) {
+            if (!w.alive) continue;
+            if (px >= w.x && px < w.x + w.w && py >= w.y && py < w.y + w.h) return true;
+        }
+        return false;
+    }
     loadFromLevel(data, level) {
         if (data?.pickupSpawns) for (const p of data.pickupSpawns) {
             this.spawn(p.x, p.y, p.type);
@@ -264,6 +357,11 @@ export class PickupManager {
             }
         }
         if (data?.crateSpawns)  for (const c of data.crateSpawns)  this.spawnCrate(c.x, c.y, c.drop);
+        // R219: breakable wall segments — solid until shot, drop a
+        // (usually hidden) pickup on break.
+        if (data?.wallSpawns) for (const w of data.wallSpawns) {
+            this.spawnWall(w.x, w.y, w.w, w.h, w.drop);
+        }
     }
     update(level, player) {
         for (let i = this.pickups.length - 1; i >= 0; i--) {
@@ -277,8 +375,19 @@ export class PickupManager {
             if (drop) this.spawn(c.x + c.w / 2 - 6, c.y, drop);
             if (!c.alive) this.crates.splice(i, 1);
         }
+        // R219: tick walls, spawn drops on break, keep dead walls in
+        // the array until the array can be naturally GC'd next clear()
+        // — keeping them around as alive=false objects costs one bool
+        // check per isWallSolid call and avoids array shifts mid-frame.
+        for (let i = this.walls.length - 1; i >= 0; i--) {
+            const w = this.walls[i];
+            const drop = w.update(level, player);
+            if (drop) this.spawn(w.x + w.w / 2 - 6, w.y + w.h / 2 - 6, drop);
+            if (!w.alive) this.walls.splice(i, 1);
+        }
     }
     draw(ctx, camera) {
+        for (const w of this.walls) if (w.alive) w.draw(ctx, camera);
         for (const c of this.crates) c.draw(ctx, camera);
         for (const p of this.pickups) p.draw(ctx, camera);
     }
