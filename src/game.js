@@ -497,8 +497,13 @@ export class Game {
                         this._konami.every((v, i) => v === SEQ[i])) {
                         this._konami = [];
                         audio.sfx('secretFound');
-                        // Unlock everything for the run + persist clear_game
+                        // Unlock everything for the run + persist clear_game.
+                        // Also flag konami-mode so stage-select widens its grid
+                        // to expose the secret stage 10 + REALITY 14 + FPS 15
+                        // even without the usual unlock prerequisites.
                         this.unlockedStage = STAGES.length - 1;
+                        this._konamiUnlocked = true;
+                        achievements.stats.secretStageDiscovered = true;
                         achievements.unlocked.add('clear_game');
                         achievements._save();
                         // Drop straight into stage select
@@ -2357,14 +2362,35 @@ export class Game {
         const ctx = this.ctx;
         ctx.fillStyle = 'rgba(0,0,0,0.88)';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
-        drawTextOutlined(ctx, 'SOUNDTRACK', GAME.W / 2, 16, '#ffe070', '#a82020', 1, 'center');
+        drawTextOutlined(ctx, 'SOUNDTRACK', GAME.W / 2, 10, '#ffe070', '#a82020', 1, 'center');
+
+        // R230: fixed-row scroll window. Always show VISIBLE rows; selected
+        // index stays visible (clamped scroll). Future-proofs against larger
+        // catalogs without shrinking font or running off the bottom.
+        const VISIBLE = 6;
+        const rowH = 22;
+        const total = TRACK_MANIFEST.length;
+        const sel = (this.soundtrackIndex | 0);
+        // Compute scroll offset so the selection sits inside the window.
+        let scroll = sel - Math.floor(VISIBLE / 2);
+        if (scroll < 0) scroll = 0;
+        if (scroll > total - VISIBLE) scroll = Math.max(0, total - VISIBLE);
+
+        // Column headers above the row list
+        const headerY = 24;
+        drawText(ctx, 'TITLE',  48,            headerY, '#a08090', 1, 'left');
+        drawText(ctx, 'STAGE',  GAME.W - 60,   headerY, '#a08090', 1, 'right');
+        drawText(ctx, 'ARTIST', GAME.W - 12,   headerY, '#a08090', 1, 'right');
+        // Header separator line
+        ctx.fillStyle = '#3a2030';
+        ctx.fillRect(10, headerY + 5, GAME.W - 20, 1);
 
         const startY = 36;
-        const rowH = 22;
-        for (let i = 0; i < TRACK_MANIFEST.length; i++) {
+        for (let row = 0; row < VISIBLE && row + scroll < total; row++) {
+            const i = row + scroll;
             const t = TRACK_MANIFEST[i];
-            const y = startY + i * rowH;
-            const selected = i === this.soundtrackIndex;
+            const y = startY + row * rowH;
+            const selected = i === sel;
             const playing = audio.currentTrack === t.track && this._soundtrackPlaying;
 
             // Row backplate
@@ -2378,14 +2404,12 @@ export class Game {
             // Play/pause glyph
             const glyphX = 16, glyphY = y + 4;
             if (playing) {
-                // Pulsing speaker waves
                 const pulse = (this.bootTimer % 30) < 15;
                 ctx.fillStyle = '#50ff70';
                 ctx.fillRect(glyphX, glyphY, 2, 6);
                 ctx.fillRect(glyphX + 3, glyphY + 1, 1, 4);
                 if (pulse) ctx.fillRect(glyphX + 5, glyphY, 1, 6);
             } else {
-                // Play triangle
                 ctx.fillStyle = selected ? '#ffe070' : '#604068';
                 ctx.fillRect(glyphX,     glyphY,     1, 6);
                 ctx.fillRect(glyphX + 1, glyphY + 1, 1, 4);
@@ -2394,25 +2418,39 @@ export class Game {
 
             // Track index + title
             const idx = String(i + 1).padStart(2, '0');
-            drawText(ctx, idx, 28, y + 2, selected ? '#ffe070' : '#a08090', 1, 'left');
+            drawText(ctx, idx,     28, y + 2, selected ? '#ffe070' : '#a08090', 1, 'left');
             drawText(ctx, t.title, 48, y + 2, '#fff', 1, 'left');
-            // Mood + author on the right
-            drawText(ctx, t.mood, GAME.W - 12, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
-            drawText(ctx, t.author, GAME.W - 12, y + 11, '#604068', 1, 'right');
+            // Stage label (was "mood") + artist on the right
+            drawText(ctx, t.mood,   GAME.W - 60, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
+            drawText(ctx, t.author, GAME.W - 12, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
 
             if (playing) {
                 drawText(ctx, 'NOW PLAYING', 48, y + 11, '#50ff70', 1, 'left');
             }
         }
 
-        // Footer count + controls. Default soundtrackIndex to 0 in the
-        // unlikely-but-real case the scene is entered before _tickSoundtrack
-        // ran once (e.g. a screenshot probe or a deep-link). Previously
-        // rendered "NAN / 2 TRACKS" if undefined.
-        drawText(ctx,
-            ((this.soundtrackIndex | 0) + 1) + ' / ' + TRACK_MANIFEST.length + ' TRACKS',
-            GAME.W / 2, GAME.H - 26, '#a08090', 1, 'center');
-        drawText(ctx, 'UP/DOWN SELECT   X PLAY/STOP   P CLOSE', GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
+        // Scroll indicators (^ above / v below) when more rows exist
+        if (scroll > 0) {
+            ctx.fillStyle = '#a08090';
+            const ax = GAME.W / 2;
+            ctx.fillRect(ax - 2, startY - 6, 5, 1);
+            ctx.fillRect(ax - 1, startY - 7, 3, 1);
+            ctx.fillRect(ax,     startY - 8, 1, 1);
+        }
+        if (scroll + VISIBLE < total) {
+            ctx.fillStyle = '#a08090';
+            const ax = GAME.W / 2;
+            const by = startY + VISIBLE * rowH - 4;
+            ctx.fillRect(ax - 2, by,     5, 1);
+            ctx.fillRect(ax - 1, by + 1, 3, 1);
+            ctx.fillRect(ax,     by + 2, 1, 1);
+        }
+
+        // Footer count + controls
+        drawText(ctx, (sel + 1) + ' / ' + total + ' TRACKS',
+                 GAME.W / 2, GAME.H - 26, '#a08090', 1, 'center');
+        drawText(ctx, 'UP/DOWN SELECT   X PLAY/STOP   P CLOSE',
+                 GAME.W / 2, GAME.H - 14, '#604068', 1, 'center');
     }
 
     // ============== Scene Gallery ==============
@@ -2701,20 +2739,47 @@ export class Game {
     }
 
     // ============== Stage select ==============
+    // R230: post-R226 the main run is 1..9. Secret RECYCLE BIN is 10,
+    // REALITY DISTORTION is 14, and FPS-arena CORE BREACH is 15. Stage
+    // select returns the ordered list of stage IDs to render in the grid,
+    // based on what's currently unlocked + konami state.
+    _stageSelectList() {
+        const hasSecret = !!achievements.stats?.secretStageDiscovered;
+        const gameCleared = achievements.unlocked.has('clear_game');
+        const konami = !!this._konamiUnlocked;
+        const ids = [];
+        // Main run — show every stage up through what's unlocked, capped at 9.
+        const mainMax = Math.min(9, Math.max(1, this.unlockedStage || 1));
+        for (let i = 1; i <= mainMax; i++) ids.push(i);
+        // Secret RECYCLE BIN (stage 10) — only if discovered or konami
+        if (hasSecret || konami) ids.push(10);
+        // REALITY DISTORTION FIELD (stage 14) — gated on game-clear or konami
+        if (gameCleared || konami) ids.push(14);
+        // FPS-arena CORE BREACH (stage 15) — konami-only secret
+        if (konami) ids.push(15);
+        return ids;
+    }
+
     _tickStageSelect() {
         if (input.isPressed('pause')) { this.scene = SCENE.TITLE; audio.sfx('pause'); return; }
-        const n = 8; // stages 1..8, secret 9 only shown if unlocked
-        const hasSecret = !!achievements.stats?.secretStageDiscovered;
-        const total = hasSecret ? 9 : n;
+        const ids = this._stageSelectList();
+        const total = ids.length;
+        const cols = 4;
         // Init guard — first arrow press otherwise computes NaN and locks menu.
         if (this.stageSelectIndex == null) this.stageSelectIndex = 0;
+        if (this.stageSelectIndex >= total) this.stageSelectIndex = total - 1;
         if (input.isPressed('left'))  { this.stageSelectIndex = (this.stageSelectIndex + total - 1) % total; audio.sfx('select'); }
         if (input.isPressed('right')) { this.stageSelectIndex = (this.stageSelectIndex + 1) % total; audio.sfx('select'); }
-        if (input.isPressed('up'))    { this.stageSelectIndex = Math.max(0, this.stageSelectIndex - 4); audio.sfx('select'); }
-        if (input.isPressed('down'))  { this.stageSelectIndex = Math.min(total - 1, this.stageSelectIndex + 4); audio.sfx('select'); }
+        if (input.isPressed('up'))    { this.stageSelectIndex = Math.max(0, this.stageSelectIndex - cols); audio.sfx('select'); }
+        if (input.isPressed('down'))  { this.stageSelectIndex = Math.min(total - 1, this.stageSelectIndex + cols); audio.sfx('select'); }
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
-            const stage = this.stageSelectIndex + 1;
-            if (stage <= this.unlockedStage || (stage === 10 && hasSecret)) {
+            const stage = ids[this.stageSelectIndex];
+            // Konami unlocks everything; otherwise enforce normal gates.
+            const allowed = this._konamiUnlocked
+                || stage <= this.unlockedStage
+                || (stage === 10 && !!achievements.stats?.secretStageDiscovered)
+                || (stage === 14 && achievements.unlocked.has('clear_game'));
+            if (allowed) {
                 audio.sfx('menu');
                 // Reset player + run stats for the selected stage
                 this.player = null;
@@ -2737,9 +2802,13 @@ export class Game {
         }
         drawTextOutlined(ctx, 'STAGE SELECT', GAME.W / 2, 12, '#ffe070', '#a82020', 1, 'center');
 
-        // 4x2 grid of stage tiles (plus secret 9 in slot below)
+        // R230: dynamic grid driven by _stageSelectList. The list collapses
+        // gaps in the STAGES manifest (skips 11-13 which are training /
+        // boss-rush mode / time-trial — those live in MAIN_MENU). Konami
+        // unlocks expose 10 + 14 + 15 even without their usual gates.
         const hasSecret = !!achievements.stats?.secretStageDiscovered;
-        const total = hasSecret ? 9 : 8;
+        const ids = this._stageSelectList();
+        const total = ids.length;
         const cols = 4;
         const tileW = 58, tileH = 50;
         const startX = (GAME.W - cols * tileW - (cols - 1) * 4) / 2;
@@ -2749,9 +2818,12 @@ export class Game {
             const row = Math.floor(i / cols);
             const tx = Math.round(startX + col * (tileW + 4));
             const ty = Math.round(startY + row * (tileH + 6));
-            const stage = i + 1;
+            const stage = ids[i];
             const data = STAGES[stage];
-            const unlocked = stage <= this.unlockedStage || (stage === 10 && hasSecret);
+            const unlocked = this._konamiUnlocked
+                || stage <= this.unlockedStage
+                || (stage === 10 && hasSecret)
+                || (stage === 14 && achievements.unlocked.has('clear_game'));
             const selected = i === this.stageSelectIndex;
 
             // Tile backplate
@@ -2810,11 +2882,15 @@ export class Game {
             }
         }
 
-        // Selected-stage detail strip at bottom
-        const sel = this.stageSelectIndex + 1;
+        // Selected-stage detail strip at bottom — uses the same id list
+        // so stages beyond 9 (10/14/15) get a proper name + tagline.
+        const sel = ids[this.stageSelectIndex];
         const selData = STAGES[sel];
         if (selData) {
-            const unlocked = sel <= this.unlockedStage || (sel === 9 && hasSecret);
+            const unlocked = this._konamiUnlocked
+                || sel <= this.unlockedStage
+                || (sel === 10 && hasSecret)
+                || (sel === 14 && achievements.unlocked.has('clear_game'));
             const detY = startY + Math.ceil(total / cols) * (tileH + 6) + 8;
             drawTextOutlined(ctx, unlocked ? selData.name : '? ? ?', GAME.W / 2, detY, '#fff', '#1a0010', 1, 'center');
             if (unlocked) {

@@ -74,6 +74,8 @@ def('^', 0b00100,0b01010,0b10001,0,0,0,0);
 // "ZONE 2 — SHOOTING". Without this glyph the font fell back to '?',
 // reading as "ZONE 2 ? SHOOTING" in training tips and elsewhere.
 def('—', 0,0,0,0b11111,0,0,0);
+// R230: underscore — needed for artist credit "R_I_P" in soundtrack.
+def('_', 0,0,0,0,0,0,0b11111);
 
 const CHAR_W = 5;
 const CHAR_H = 7;
