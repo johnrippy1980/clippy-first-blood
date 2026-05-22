@@ -2959,26 +2959,51 @@ export class Game {
             ctx.fillRect(tx, ty, 1, tileH);
             ctx.fillRect(tx + tileW - 1, ty, 1, tileH);
 
-            // Number / lock
+            // R267: display sequential tile numbers (1-N) instead of loader
+            // indices (which jump 10→14→15 because 11/12/13 are non-stage
+            // game modes). The loader index lives in `stage` for routing;
+            // we just relabel for the user.
+            const displayNum = i + 1;
             if (unlocked) {
-                drawText(ctx, String(stage).padStart(2, '0'), tx + 4, ty + 4, '#ffe070', 1, 'left');
+                drawText(ctx, String(displayNum).padStart(2, '0'), tx + 4, ty + 4, '#ffe070', 1, 'left');
             } else {
                 drawText(ctx, '??', tx + 4, ty + 4, '#604068', 1, 'left');
             }
-            // R237: name on two lines so multi-word stages don't truncate
-            // mid-word ("OFFICE PARK JUNGLE" -> "OFFICE PAR"). Split on
-            // first space if the full name exceeds the tile's char budget.
+            // R267: wrap name onto two lines using best-fit split — finds
+            // the word boundary that minimizes the longest resulting line,
+            // then hard-truncates if the second word is still too long.
+            // tileW=58, font=5px+1px=6px-per-char → CHARS=9 fits.
             const fullName = data?.name || '';
             const CHARS = 9;
             const color = unlocked ? '#fff' : '#604068';
             if (fullName.length <= CHARS) {
                 drawText(ctx, fullName, tx + 4, ty + 14, color, 1, 'left');
             } else {
-                // Prefer a clean word split — find the first space inside [4..CHARS]
-                let split = fullName.lastIndexOf(' ', CHARS);
-                if (split < 3) split = CHARS; // fallback to hard wrap
-                const line1 = fullName.slice(0, split).trim();
-                const line2 = fullName.slice(split).trim().slice(0, CHARS);
+                const words = fullName.split(' ');
+                let line1 = words[0], line2 = '';
+                if (words.length >= 2) {
+                    // Try every split point; pick the one minimizing max line len.
+                    let bestSplit = 1, bestMax = Infinity;
+                    for (let s = 1; s < words.length; s++) {
+                        const l1 = words.slice(0, s).join(' ');
+                        const l2 = words.slice(s).join(' ');
+                        const m = Math.max(l1.length, l2.length);
+                        if (l1.length <= CHARS && m < bestMax) {
+                            bestSplit = s;
+                            bestMax = m;
+                        }
+                    }
+                    line1 = words.slice(0, bestSplit).join(' ');
+                    line2 = words.slice(bestSplit).join(' ');
+                } else {
+                    // Single long word — split at the midpoint.
+                    const mid = Math.ceil(fullName.length / 2);
+                    line1 = fullName.slice(0, mid);
+                    line2 = fullName.slice(mid);
+                }
+                // Hard-truncate any line that still exceeds the budget.
+                if (line1.length > CHARS) line1 = line1.slice(0, CHARS);
+                if (line2.length > CHARS) line2 = line2.slice(0, CHARS);
                 drawText(ctx, line1, tx + 4, ty + 14, color, 1, 'left');
                 drawText(ctx, line2, tx + 4, ty + 22, color, 1, 'left');
             }
