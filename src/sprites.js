@@ -268,6 +268,13 @@ export const CLIPPY_MANIFEST = {
     'office_drone':      'office_drone.png',      // desk-lamp shield drone
     'boss_ballmer_fps':  'boss_ballmer_fps.png',  // Ballmer w/ chair (core boss)
     'bg_office':         'bg_office.png',         // corridor backdrop
+    // R269: FPS-arena electric barrier hazard — 4-frame pulse cycle
+    // (full-on → crackling → off → powering up). Tiled across the corridor
+    // at mid-depth when segment 3 is active.
+    'barrier_1':         'barrier_1.png',
+    'barrier_2':         'barrier_2.png',
+    'barrier_3':         'barrier_3.png',
+    'barrier_4':         'barrier_4.png',
     // R202: per-weapon painted Clippy poses (single static frame each).
     // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
     // CHAINSAW pending — its asset is the last gen still running.

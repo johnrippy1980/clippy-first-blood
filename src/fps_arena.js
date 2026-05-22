@@ -735,19 +735,45 @@ export class FpsArena {
         if (!this.barriers.length) return;
         const ctx = this.ctx;
         for (const b of this.barriers) {
+            // R269: pick a barrier frame based on the phase. The 4-frame
+            // animation maps to the on/off cycle:
+            //   phase [0..ON_FRAMES)  → frame 1 (fully on) then 2 (crackling)
+            //   phase [ON..PERIOD)    → frame 3 (off) then 4 (powering up)
+            // The crackling/powering frames sit at the boundaries so the
+            // transition reads as fade-out + fade-in instead of binary.
             const on = b.phase < BARRIER_ON_FRAMES;
-            const y = depthY(0.6);
-            const flick = Math.random() < 0.3;
-            const a = on ? (flick ? 0.8 : 0.6) : 0.15;
-            ctx.fillStyle = `rgba(120, 200, 255, ${a})`;
-            // Two arcs at mid-corridor depth, top + bottom
-            for (let i = 0; i < 6; i++) {
-                const x = 16 + i * (GAME.W - 32) / 5;
-                ctx.fillRect(x - 1, y - 3, 2, 6);
-            }
-            // Connecting beam when active
+            let frameIdx;
             if (on) {
-                ctx.fillStyle = `rgba(200, 240, 255, ${0.3 + 0.3 * Math.random()})`;
+                // 0-40% of on window = full bright, 40-100% = crackling
+                frameIdx = (b.phase < BARRIER_ON_FRAMES * 0.7) ? 1 : 2;
+            } else {
+                // 0-60% of off window = idle, 60-100% = powering up
+                const offPhase = b.phase - BARRIER_ON_FRAMES;
+                const offLen = BARRIER_PERIOD - BARRIER_ON_FRAMES;
+                frameIdx = (offPhase < offLen * 0.7) ? 3 : 4;
+            }
+            const img = sprites.images.get('barrier_' + frameIdx);
+            const y = depthY(0.6);
+            if (img) {
+                ctx.imageSmoothingEnabled = false;
+                // Tile the sprite across the corridor width so the barrier
+                // reads as one continuous hazard band. Each tile is 32px
+                // wide on screen — 8 tiles fill the 256px canvas.
+                const tileW = 32;
+                const tileH = 20;
+                const dy = Math.round(y - tileH / 2);
+                for (let x = 0; x < GAME.W; x += tileW) {
+                    ctx.drawImage(img, 0, 0, img.width, img.height,
+                                  x, dy, tileW, tileH);
+                }
+                // Subtle screen flicker overlay when on — sells voltage.
+                if (on && Math.random() < 0.2) {
+                    ctx.fillStyle = 'rgba(200, 240, 255, 0.08)';
+                    ctx.fillRect(0, dy - 2, GAME.W, tileH + 4);
+                }
+            } else {
+                // Procedural fallback (legacy)
+                ctx.fillStyle = on ? 'rgba(120, 200, 255, 0.6)' : 'rgba(120, 200, 255, 0.15)';
                 ctx.fillRect(16, y - 1, GAME.W - 32, 2);
             }
         }
