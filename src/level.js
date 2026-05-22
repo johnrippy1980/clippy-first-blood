@@ -1677,6 +1677,19 @@ function makeFpsStageBallmer() {
             shielded: 'BALLMER / RAGING',
             exposed:  'BALLMER / EXPOSED',
         },
+        // R273: office-themed SFX overrides + ambient fluorescent hum.
+        sfxKeys: {
+            turretFire: 'faxRing',
+            gruntFire:  'typewriter',
+            coreFire:   'chairWhoosh',
+        },
+        ambientKey: 'fluorescent',
+        // R271: Ballmer throws chairs instead of firing the generic 5-way
+        // bullet spread. Uses chair_1..chair_4 sprites if loaded.
+        coreAttackStyle: 'chair',
+        // R270: office grunts throw spinning floppy disks instead of plain
+        // pixel-rect bullets. Flag is read by the bullet-draw loop.
+        gruntBulletAnimKey: 'floppy',
     };
 }
 

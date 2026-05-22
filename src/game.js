@@ -913,12 +913,17 @@ export class Game {
         if (this.storyTimer > 90 || input.isPressed('shoot') || input.isPressed('jump')) {
             audio.sfx('select');
             audio.playTrack(STAGES[this.currentStage].music);
+            // R272: FPS arenas go straight to FPS_PLAY (no READY card,
+            // since the controls are different and READY's keymap is
+            // platformer-specific).
+            if (this._fpsPendingPlay) {
+                this._fpsPendingPlay = false;
+                this._fadeTo(SCENE.FPS_PLAY);
+                return;
+            }
             // R209 — Milos #2: gate PLAY behind READY card unless the
             // player has flipped showReady off. Veterans skip straight
             // into the stage; new players see the keymap first.
-            // R211: READY owns its own _readyTimer now (set in
-            // _tickReady on first entry), so no need to clear
-            // storyTimer here — it'd be overwritten anyway.
             const next = options.get('showReady') ? SCENE.READY : SCENE.PLAY;
             this._fadeTo(next);
         }
@@ -1064,6 +1069,24 @@ export class Game {
         const t = this.storyTimer;
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
+
+        // R272: optional painted backdrop for stages that declare one.
+        // Stages override via STAGES[n].introBgKey (sprite key).
+        if (stg?.introBgKey) {
+            const img = sprites.images.get(stg.introBgKey);
+            if (img) {
+                ctx.imageSmoothingEnabled = false;
+                const scale = Math.max(GAME.W / img.width, GAME.H / img.height);
+                const dw = img.width * scale;
+                const dh = img.height * scale;
+                ctx.globalAlpha = Math.min(1, t / 30);   // fade in
+                ctx.drawImage(img, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+                ctx.globalAlpha = 1;
+                // Dark wash so the title text reads on top
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.fillRect(0, 0, GAME.W, GAME.H);
+            }
+        }
 
         // Cinematic letterbox bars that slide in.
         const barH = Math.min(40, t * 1.6);
@@ -3260,14 +3283,19 @@ export class Game {
         // R229: FPS arena short-circuit. If the loader returns fpsMode=true,
         // skip the whole platformer pipeline (level/camera/enemies/pickups)
         // and hand off to the FpsArena scene instead.
+        // R272: route through STAGE_INTRO first so painted-backdrop intro
+        // cinematics fire before the arena loads.
         if (data.fpsMode) {
             this._fpsArena = new FpsArena(data, this.ctx, this);
             this._fpsMode = true;
+            this._fpsPendingPlay = true;   // signal _tickStageIntro to FPS_PLAY
             this.parallax.setTheme(data.theme);
             audio.playTrack(data.music || 'pipeline');
-            this._fadeTo(SCENE.FPS_PLAY);
+            this.storyTimer = 0;
+            this._fadeTo(SCENE.STAGE_INTRO);
             return;
         }
+        this._fpsPendingPlay = false;
         this._fpsMode = false;
         this._fpsArena = null;
         this.level = new Level(data);

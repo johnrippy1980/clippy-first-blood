@@ -168,7 +168,9 @@ export const STAGES = [
     // R268: second FPS-arena stage — corporate office siege. Suits throwing
     // floppy disks, fax-machine turrets, desk-lamp drones, Ballmer with a
     // chair at the back wall. Konami-only secret. Lives at loader index 16.
-    { id: 16, name: 'BALLMER OFFICE',          theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS. DEVELOPERS. DEVELOPERS.' },
+    // R272: introBgKey paints the Microsoft HQ exterior behind the stage
+    // intro text so it doesn't drop in cold.
+    { id: 16, name: 'BALLMER OFFICE',          theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS. DEVELOPERS. DEVELOPERS.', introBgKey: 'bg_microsoft_hq' },
 ];
 
 // Damage flash colors per source.

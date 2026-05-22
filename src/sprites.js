@@ -275,6 +275,20 @@ export const CLIPPY_MANIFEST = {
     'barrier_2':         'barrier_2.png',
     'barrier_3':         'barrier_3.png',
     'barrier_4':         'barrier_4.png',
+    // R270: spinning floppy-disk projectile — 4-frame rotation cycle for
+    // office_grunt shots (suits throwing disks like ninja stars).
+    'floppy_1':          'floppy_1.png',
+    'floppy_2':          'floppy_2.png',
+    'floppy_3':          'floppy_3.png',
+    'floppy_4':          'floppy_4.png',
+    // R271: tumbling office chair — 4-frame rotation cycle for Ballmer's
+    // chair-throw attack pattern.
+    'chair_1':           'chair_1.png',
+    'chair_2':           'chair_2.png',
+    'chair_3':           'chair_3.png',
+    'chair_4':           'chair_4.png',
+    // R272: Microsoft HQ exterior — stage-intro backdrop for stage 16.
+    'bg_microsoft_hq':   'bg_microsoft_hq.png',
     // R202: per-weapon painted Clippy poses (single static frame each).
     // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
     // CHAINSAW pending — its asset is the last gen still running.

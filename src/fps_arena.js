@@ -121,6 +121,17 @@ export class FpsArena {
             shield: 'lab_shield',
             core:   'lab_core',
         }, stageData.spriteKeys || {});
+        // R273: per-stage SFX overrides for enemy fire / boss attacks. Lab
+        // defaults to generic 'enemyShoot'; office stage uses themed sounds.
+        this.sfxKeys = Object.assign({
+            turretFire: 'enemyShoot',
+            gruntFire:  'enemyShoot',
+            coreFire:   'enemyShoot',
+        }, stageData.sfxKeys || {});
+        // R273: ambient hum looper. Office stage sets a per-stage ambient
+        // SFX key (e.g. 'fluorescent') that re-triggers every ~1.5s.
+        this.ambientKey = stageData.ambientKey || null;
+        this.ambientT = 0;
         this._refreshBg();
 
         // Boot the first segment
@@ -215,6 +226,15 @@ export class FpsArena {
     // ============== tick ==============
     update() {
         this.t++;
+        // R273: ambient SFX looper (office fluorescent hum, etc.) — fires
+        // the configured ambient key every ~1.2s so the buzz feels continuous.
+        if (this.ambientKey) {
+            this.ambientT--;
+            if (this.ambientT <= 0) {
+                audio.sfx(this.ambientKey);
+                this.ambientT = 75;   // ~1.25s at 60fps
+            }
+        }
         if (this.phase === 'clear') {
             this.clearT = (this.clearT || 0) + 1;
             if (this.clearT > 60 &&
@@ -403,6 +423,9 @@ export class FpsArena {
         const p = this.player;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
+            // R271: physics-projectiles (chairs) — apply gravity each tick
+            if (b.gravity) b.vy += b.gravity;
+            if (b.isChair || b.isFloppy) b.spinT = (b.spinT || 0) + 1;
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
@@ -410,10 +433,14 @@ export class FpsArena {
                 this.enemyBullets.splice(i, 1);
                 continue;
             }
+            // Chair hitbox is larger than a bullet — uses ~16×16 instead of 3×3
+            const hitW = b.isChair ? 18 : 3;
+            const hitH = b.isChair ? 18 : 3;
             if (p.iframes <= 0 &&
-                b.x >= p.x && b.x <= p.x + p.w &&
-                b.y >= p.y && b.y <= p.y + p.h) {
-                p.hp -= 1;
+                b.x >= p.x - hitW/2 && b.x <= p.x + p.w + hitW/2 &&
+                b.y >= p.y - hitH/2 && b.y <= p.y + p.h + hitH/2) {
+                // Chairs do 2 damage (heavier projectile)
+                p.hp -= b.isChair ? 2 : 1;
                 p.iframes = 60;
                 this.enemyBullets.splice(i, 1);
                 audio.sfx('playerHit');
@@ -466,7 +493,7 @@ export class FpsArena {
                 life: 240,
             });
         }
-        audio.sfx('enemyShoot');
+        audio.sfx(this.sfxKeys.turretFire);
     }
 
     _tickGrunts() {
@@ -497,12 +524,17 @@ export class FpsArena {
                 g.fireT = 0;
                 const cx = depthX(g.originX, tt);
                 const cy = depthY(tt) - 14 * depthScale(tt);
+                // R270: grunt bullets get the floppy-disk projectile sprite
+                // in the office stage. The bullet is flagged so the draw
+                // loop picks the right animation frame.
                 this.enemyBullets.push({
                     x: cx, y: cy,
                     vx: 0, vy: 1.4,
                     life: 200,
+                    isFloppy: !!this.data.gruntBulletAnimKey,
+                    spinT: 0,
                 });
-                audio.sfx('enemyShoot');
+                audio.sfx(this.sfxKeys.gruntFire);
             }
         }
     }
@@ -549,16 +581,55 @@ export class FpsArena {
         c.fireT++;
         if (c.fireT >= CORE_FIRE_PERIOD) {
             c.fireT = 0;
-            // 5-way spread fan
-            for (let i = -2; i <= 2; i++) {
-                this.enemyBullets.push({
-                    x: c.x, y: c.y + c.h / 2,
-                    vx: i * 0.6,
-                    vy: 1.8,
-                    life: 220,
-                });
+            // R271: per-stage attack pattern. Default = 5-way spread fan
+            // (Spindler's bio-core). Ballmer = chair-throw arcs.
+            const style = this.data.coreAttackStyle || 'spread5';
+            if (style === 'chair') {
+                this._fireChairs(c);
+            } else {
+                for (let i = -2; i <= 2; i++) {
+                    this.enemyBullets.push({
+                        x: c.x, y: c.y + c.h / 2,
+                        vx: i * 0.6,
+                        vy: 1.8,
+                        life: 220,
+                    });
+                }
             }
-            audio.sfx('enemyShoot');
+            audio.sfx(this.sfxKeys.coreFire);
+        }
+    }
+
+    // R271: Ballmer's chair-throw attack. Lobs 1-2 chairs in arcs toward the
+    // player's current x, with rotation animation. Chairs use the painted
+    // chair sprite (4-frame spin) and are physics-projectiles — gravity-
+    // affected. The chair frame index advances based on flight time.
+    _fireChairs(c) {
+        const playerCx = this.player.x + this.player.w / 2;
+        // 1 chair when boss > 50% HP, 2 chairs when wounded — gets harder.
+        const numChairs = (c.hp < c.maxHp * 0.5) ? 2 : 1;
+        for (let i = 0; i < numChairs; i++) {
+            // Aim with some spread so 2-chair volleys cover left + right.
+            const lateralOffset = (numChairs === 2) ? (i === 0 ? -32 : 32) : 0;
+            const targetX = playerCx + lateralOffset;
+            const dx = targetX - c.x;
+            // Lob shot: vy negative (upward) initially, gravity pulls it down.
+            // Tune for ~1.2s flight time to player rail.
+            const flightFrames = 72;
+            const gravity = 0.06;
+            // Solve for initial vx, vy to land at (targetX, RAIL_Y) from
+            // (c.x, c.y). x: dx = vx * flightFrames. y: dy = vy*t + 0.5*g*t².
+            const vx = dx / flightFrames;
+            const dy = (RAIL_Y - 12) - c.y;
+            const vy = (dy - 0.5 * gravity * flightFrames * flightFrames) / flightFrames;
+            this.enemyBullets.push({
+                x: c.x, y: c.y + c.h / 2,
+                vx, vy,
+                gravity,
+                life: flightFrames + 30,
+                isChair: true,
+                spinT: 0,    // for sprite animation
+            });
         }
     }
 
@@ -617,10 +688,41 @@ export class FpsArena {
             ctx.fillStyle = '#ffe070';
             ctx.fillRect(b.x, b.y, 2, 6);
         }
-        // Enemy bullets
+        // Enemy bullets — chairs (R271) and floppy disks (R270) get painted
+        // spinning sprites; regular shots stay as pixel rects.
         for (const b of this.enemyBullets) {
-            ctx.fillStyle = '#ff8040';
-            ctx.fillRect(b.x - 1, b.y - 1, 3, 3);
+            if (b.isChair) {
+                const frameIdx = (Math.floor(b.spinT / 4) % 4) + 1;
+                const chairImg = sprites.images.get('chair_' + frameIdx);
+                if (chairImg) {
+                    ctx.imageSmoothingEnabled = false;
+                    const drawW = 24, drawH = 24;
+                    ctx.drawImage(chairImg, 0, 0, chairImg.width, chairImg.height,
+                                  Math.round(b.x - drawW / 2),
+                                  Math.round(b.y - drawH / 2),
+                                  drawW, drawH);
+                } else {
+                    ctx.fillStyle = '#a0a0a0';
+                    ctx.fillRect(b.x - 8, b.y - 8, 16, 16);
+                }
+            } else if (b.isFloppy) {
+                const frameIdx = (Math.floor(b.spinT / 3) % 4) + 1;
+                const floppyImg = sprites.images.get('floppy_' + frameIdx);
+                if (floppyImg) {
+                    ctx.imageSmoothingEnabled = false;
+                    const drawW = 12, drawH = 10;
+                    ctx.drawImage(floppyImg, 0, 0, floppyImg.width, floppyImg.height,
+                                  Math.round(b.x - drawW / 2),
+                                  Math.round(b.y - drawH / 2),
+                                  drawW, drawH);
+                } else {
+                    ctx.fillStyle = '#202020';
+                    ctx.fillRect(b.x - 4, b.y - 3, 8, 6);
+                }
+            } else {
+                ctx.fillStyle = '#ff8040';
+                ctx.fillRect(b.x - 1, b.y - 1, 3, 3);
+            }
         }
         // Particles
         for (const p of this.particles) {

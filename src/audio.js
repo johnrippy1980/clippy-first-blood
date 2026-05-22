@@ -177,6 +177,11 @@ class Audio {
             // R259: empty-grenade-belt click. Was reusing 'comboBreak'.
             // Now: soft mechanical empty-click.
             case 'grenadeFail': return this._grenadeFail(t);
+            // R273: office FPS stage SFX.
+            case 'typewriter':  return this._typewriterChatter(t);
+            case 'fluorescent': return this._fluorescentBuzz(t);
+            case 'faxRing':     return this._faxRing(t);
+            case 'chairWhoosh': return this._chairWhoosh(t);
         }
     }
 
@@ -223,6 +228,110 @@ class Audio {
         o.start(t); o.stop(t + 0.08);
         // Small noise tick — the metal-on-metal contact
         this._noise(t, 0.04, 0.04, 1800, 'bp', 2);
+    }
+
+    // R273: typewriter chatter — rapid 3-4 mechanical key strikes, used
+    // when an office grunt fires a floppy-disk projectile. Each strike is
+    // a square click + bp noise tick layered together.
+    _typewriterChatter(t) {
+        const strikes = [0, 0.05, 0.11, 0.16];   // staggered for ratchet feel
+        for (const offset of strikes) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'square';
+            // Slight pitch variation per strike sells mechanical irregularity
+            const f = 520 + Math.random() * 80;
+            o.frequency.setValueAtTime(f, t + offset);
+            o.frequency.exponentialRampToValueAtTime(f * 0.55, t + offset + 0.03);
+            this._envOn(g, 0.16, t + offset);
+            g.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.04);
+            const filt = this.ctx.createBiquadFilter();
+            filt.type = 'lowpass';
+            filt.frequency.value = 2400;
+            o.connect(filt).connect(g).connect(this.sfxBus);
+            o.start(t + offset);
+            o.stop(t + offset + 0.06);
+            // High-frequency contact tick — the platen impact
+            this._noise(t + offset, 0.08, 0.03, 5400, 'hp', 1);
+        }
+    }
+
+    // R273: fluorescent buzz — long 60Hz hum with subtle warble, used as
+    // ambient bed during the office stage. Single-shot ~1.2s; the caller
+    // can loop by re-triggering.
+    _fluorescentBuzz(t) {
+        // 60Hz fundamental + 120Hz harmonic, slow random tremolo
+        const o = this.ctx.createOscillator();
+        const o2 = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = 60;
+        o2.type = 'triangle';
+        o2.frequency.value = 120;
+        const o2g = this.ctx.createGain();
+        o2g.gain.value = 0.5;
+        this._envOn(g, 0.08, t);
+        // Slight on/off flicker — fluorescents aren't steady
+        g.gain.linearRampToValueAtTime(0.08, t + 0.4);
+        g.gain.linearRampToValueAtTime(0.04, t + 0.55);
+        g.gain.linearRampToValueAtTime(0.08, t + 0.7);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+        o.connect(g).connect(this.sfxBus);
+        o2.connect(o2g).connect(g);
+        o.start(t); o2.start(t);
+        o.stop(t + 1.25); o2.stop(t + 1.25);
+    }
+
+    // R273: fax ring — short two-tone telephone bell, used when a fax-machine
+    // turret fires. ~280ms total, layered with a metallic clack on attack.
+    _faxRing(t) {
+        // Square wave bell, alternating high/low pitch
+        const tones = [
+            { f: 880, off: 0,    dur: 0.08 },
+            { f: 660, off: 0.10, dur: 0.08 },
+            { f: 880, off: 0.20, dur: 0.06 },
+        ];
+        for (const tone of tones) {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.value = tone.f;
+            this._envOn(g, 0.10, t + tone.off);
+            g.gain.exponentialRampToValueAtTime(0.001, t + tone.off + tone.dur);
+            const filt = this.ctx.createBiquadFilter();
+            filt.type = 'bandpass';
+            filt.frequency.value = tone.f;
+            filt.Q.value = 2;
+            o.connect(filt).connect(g).connect(this.sfxBus);
+            o.start(t + tone.off);
+            o.stop(t + tone.off + tone.dur + 0.02);
+        }
+        // Mechanical clack on attack — paper-feed solenoid
+        this._noise(t, 0.06, 0.04, 1800, 'bp', 2);
+    }
+
+    // R273: chair whoosh — Ballmer hurling an office chair. Heavy low woosh
+    // with rotational gyrations + a tail clang as it lands.
+    _chairWhoosh(t) {
+        // Low rumbling whoosh — bp noise sweeping low→mid as it sails
+        this._noise(t,        0.32, 0.30, 220, 'bp', 1.5);
+        this._noise(t + 0.05, 0.22, 0.25, 480, 'bp', 1.8);
+        // Spinning rotational tone — sawtooth wobble suggesting end-over-end
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(80, t);
+        o.frequency.linearRampToValueAtTime(160, t + 0.15);
+        o.frequency.linearRampToValueAtTime(60, t + 0.30);
+        this._envOn(g, 0.10, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.value = 600;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.4);
+        // Optional clatter at the tail — only if it landed
+        // (caller can layer the impact separately when the chair hits something)
     }
 
     // R258: MG overheat vent. Two-stage:
