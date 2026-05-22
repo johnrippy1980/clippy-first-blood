@@ -1648,6 +1648,23 @@ function makeFpsStage() {
         music: 'pipeline',
         bgKey: 'bg_sewer_lab',
         bossKind: 'SPINDLER',
+        // R293: full polish for the long-neglected FPS Spindler bonus stage.
+        // 4-segment progression matches the Ballmer + Gates pairs: ducts/
+        // grunts/barrier waves then the bio-lab boss.
+        bgKeys: ['bg_sewer', 'bg_sewer', 'bg_sewer_lab', 'bg_sewer_lab'],
+        segmentLabels: [
+            'SEGMENT 1 / DUCT TURRETS',
+            'SEGMENT 2 / SPECIMENS',
+            'SEGMENT 3 / BIOHAZARD',
+            'DR. SPINDLER',
+        ],
+        bossLabels: {
+            shielded: 'SPINDLER / SHIELDED',
+            exposed:  'SPINDLER / EXPOSED',
+        },
+        ambientKey: 'fluorescent',
+        bossPortraitKey: 'boss_intro_SPINDLER',
+        bossDisplayName: 'DR. SPINDLER',
     };
 }
 

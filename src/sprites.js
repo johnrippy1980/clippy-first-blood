@@ -139,6 +139,10 @@ export const SCENE_MANIFEST = {
     // the next stage intro. Each shows Clippy arriving at the next location.
     // R226: card filenames retain their pre-renumber number-prefix for git
     // history; mapping by key (game.js STAGE_CARDS) is what shifts.
+    // R292: new story slide — Clippy on the hilltop overlooking Microsoft.
+    'story_tower':     'scene_story_tower.png',
+    // R293: Spindler FPS lab reveal card (stage 19 CORE BREACH).
+    'card_spindler_lab': 'card_spindler_lab.png',
     'card_breakroom':  'card_stage2_breakroom.png',
     'card_serverroom': 'card_stage3_serverroom.png',
     'card_pipeline':   'card_stage4_pipeline.png',

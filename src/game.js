@@ -172,10 +172,21 @@ const STORY_PAGES = [
         '',
         'AND NOW HE HAS A LIST.',
     ],
+    // R292: new mid-arc slide — Clippy on the hilltop overlooking the
+    // Microsoft campus, list in hand. Sets up "this is where they live"
+    // before the list itself is recited.
+    [
+        'REDMOND. THE TOWER.',
+        '',
+        'EVERY NAME ON HIS LIST',
+        'WALKS THROUGH THOSE',
+        'GLASS DOORS.',
+    ],
     [
         'COPIER. SHREDDER. CTRL-ALT.',
-        'BALLMER. GATES. THE OTHER',
-        'CLIPPY. THE ALGORITHM.',
+        'SPINDLER. BALLMER. GATES.',
+        'THE OTHER CLIPPY.',
+        'THE ALGORITHM.',
         '',
         'NO MORE WORD DOCUMENTS.',
         'ONLY BLOOD.',
@@ -854,7 +865,8 @@ export class Game {
 
         // Try painted scene first. All 5 pages now have painted assets; the
         // procedural fallbacks below stay as a safety net if a PNG fails to load.
-        const sceneKeys = ['story_fired', 'story_home', 'story_bomb', 'story_boardroom', 'story_hill', 'story_list'];
+        // R292: new "TOWER" slide inserted between HILL and LIST.
+        const sceneKeys = ['story_fired', 'story_home', 'story_bomb', 'story_boardroom', 'story_hill', 'story_tower', 'story_list'];
         const key = sceneKeys[this.storyPage];
         if (key && sprites.has(key)) {
             const img = sprites.images.get(key);
@@ -2549,6 +2561,8 @@ export class Game {
             { key: 'story_bomb',  label: 'PLAN',  unlock: true },
             { key: 'story_boardroom', label: 'BOARDROOM', unlock: true },
             { key: 'story_hill',  label: 'HILL',  unlock: true },
+            // R292: new TOWER slide — Microsoft campus overlook.
+            { key: 'story_tower', label: 'TOWER', unlock: true },
             { key: 'story_list',  label: 'LIST',  unlock: true },
             // R291: stage-ids shifted again — Gates arc inserts at 9+10.
             { key: 'boss_intro_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
