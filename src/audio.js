@@ -164,6 +164,12 @@ class Audio {
             // explosion on impact. Old 'homing' was a single woosh.
             case 'rpgLaunch': return this._rpgLaunch(t);
             case 'rpgImpact': return this._rpgImpact(t);
+            // R257: dedicated charged-MG release. Was reusing 'thunder' but
+            // after R251 made thunder a real thunderclap, the MG charge shot
+            // sounded like the THUNDER weapon. Now: heavier MG bark + a
+            // capacitor-whine pre-roll so the release reads as "stored
+            // energy unleashed" rather than a lightning strike.
+            case 'mgCharged': return this._mgChargedShot(t);
         }
     }
 
@@ -191,6 +197,27 @@ class Audio {
         // Mechanical "kachunk" tail — quick square click at 220Hz for the
         // pump-action read.
         this._tonal(t + 0.18, 'square', 220, 110, 0.06, 0.12);
+    }
+
+    // R257: charged-MG release. Three-stage:
+    //   1) brief capacitor whine pre-roll (4ms) — high-freq sine that sweeps
+    //      DOWN, suggesting energy collapsing into the barrel
+    //   2) heavy MG-style bark (deeper than regular MG — thump 105 vs 95)
+    //   3) sustain tail — short hp noise crackle for the residual zap
+    _mgChargedShot(t) {
+        // Capacitor whine — quick 3.2kHz -> 1.4kHz dive, 50ms total
+        const w = this.ctx.createOscillator(); const wg = this.ctx.createGain();
+        w.type = 'sine';
+        w.frequency.setValueAtTime(3200, t);
+        w.frequency.exponentialRampToValueAtTime(1400, t + 0.04);
+        this._envOn(wg, 0.10, t);
+        wg.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        w.connect(wg).connect(this.sfxBus);
+        w.start(t); w.stop(t + 0.06);
+        // Heavy bark — deeper sub thump + extended body
+        this._gunshot(t + 0.03, { thump: 105, body: 1100, bodyDur: 0.14, crack: 5800, layers: 1 });
+        // Residual electrical sustain — short HP noise crackle
+        this._noise(t + 0.08, 0.08, 0.08, 4800, 'hp', 1);
     }
 
     // R248: RPG launch — whoosh ignition. Layered:

@@ -1269,7 +1269,11 @@ export class Player {
                 '#ffe070', 1.4, 0
             );
         }
-        audio.sfx('thunder');  // re-use thunder boom — heavier than mg blip
+        // R257: dedicated charged-MG SFX. Was 'thunder' but after R251 made
+        // the thunder weapon's SFX a real thunderclap, the charged MG shot
+        // sounded like the THUNDER weapon. mgCharged is a capacitor-whine
+        // pre-roll + heavy MG bark — reads as "stored energy released".
+        audio.sfx('mgCharged');
         this.shotsFired++;
         this.recoilTimer = 12;
         this.requestShake = Math.max(this.requestShake || 0, 2.5);
