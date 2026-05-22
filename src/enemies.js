@@ -576,11 +576,22 @@ class Enemy {
             const bob = Math.sin(this.timer * 0.05 + this._breathPhase) > 0.5 ? -1 : 0;
             dy += bob;
         }
+        // R240: chainsaw shake — _shakeTimer is refreshed each frame the
+        // saw is grinding the enemy (see player._tickChainsaw). Random ±1px
+        // offset both axes while active. Tick happens here instead of in
+        // update() so the shake reads even during the chainsaw's per-frame
+        // attack window when other state updates may be gated by stun.
+        let shakeDX = 0, shakeDY = 0;
+        if ((this._shakeTimer || 0) > 0) {
+            shakeDX = ((Math.random() * 2) | 0) - 1;
+            shakeDY = ((Math.random() * 2) | 0) - 1;
+            this._shakeTimer--;
+        }
         // Always draw the base sprite first so the silhouette stays
         // continuously visible against painted bgs (the old alternate-
         // frame skip read as a broken sprite). Add a 'lighter' white wash
         // on top while hitFlash is active for a steady "took damage" flash.
-        drawEnemyFrame(ctx, useSprite, dx, dy, this.facing > 0);
+        drawEnemyFrame(ctx, useSprite, dx + shakeDX, dy + shakeDY, this.facing > 0);
         if (this.hitFlash > 0) {
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
@@ -588,14 +599,16 @@ class Enemy {
             ctx.globalAlpha = 0.6 * a;
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.rect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
+            // R240: flash clip rect tracks the shake offset so the white
+            // wash stays anchored to the shaking silhouette.
+            ctx.rect(dx + shakeDX - 1, dy + shakeDY - 1, dims.w + 2, dims.h + 2);
             ctx.clip();
             // Use source-atop relative to the sprite already drawn so the
             // wash only paints onto its pixels. Switch to source-atop AFTER
             // setting the clip, otherwise the lighter-mode fill would also
             // affect the background within the clip rect.
             ctx.globalCompositeOperation = 'source-atop';
-            ctx.fillRect(dx - 1, dy - 1, dims.w + 2, dims.h + 2);
+            ctx.fillRect(dx + shakeDX - 1, dy + shakeDY - 1, dims.w + 2, dims.h + 2);
             ctx.restore();
         }
         // Imminent-death danger pulse: 1-px red corner ticks on tougher

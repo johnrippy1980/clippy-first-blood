@@ -1393,6 +1393,14 @@ export class Player {
             // pure visual.
             const MAX_RANGE = 220;
             const STEP = 4;
+            // R239: damage swath matches the bolt's rendered footprint.
+            // The visual is a 2px-wide line with ±2px perpendicular jitter
+            // (see _drawBullets THUNDER branch), so the effective bolt-rect
+            // half-width is ~4px. Any enemy whose AABB INTERSECTS this band
+            // takes damage — not just enemies the dead-center ray pierces.
+            // This is what "damage true to length/height/width" means: a
+            // grunt grazed by an arcing tendril still gets hit.
+            const HALF_WIDTH = 6;
             const game = (typeof window !== 'undefined') ? window.__game : null;
             const lvl = game?.level || null;
             const enemies = game?.enemies?.enemies || [];
@@ -1400,13 +1408,28 @@ export class Player {
             let hitY = baseY + ndy * MAX_RANGE;
             const struck = new Set();
             const thunderDmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5) * comboMult;
+            // Perpendicular axis to the aim ray, used for the band test.
+            const perpX = -ndy, perpY = ndx;
             for (let s = STEP; s <= MAX_RANGE; s += STEP) {
                 const sx = baseX + ndx * s;
                 const sy = baseY + ndy * s;
                 if (lvl && lvl.isSolid && lvl.isSolid(sx, sy)) { hitX = sx; hitY = sy; break; }
                 for (const e of enemies) {
                     if (!e.alive || struck.has(e)) continue;
-                    if (sx >= e.x && sx <= e.x + e.w && sy >= e.y && sy <= e.y + e.h) {
+                    // R239: AABB-vs-band test. Enemy center distance from the
+                    // ray (projected onto the perp axis) must be ≤ half-width
+                    // + half the enemy's smaller dimension — that's the
+                    // tightest grazing distance. Axial distance is enforced
+                    // by the existing step loop (s within [STEP, MAX_RANGE]).
+                    const ecx = e.x + e.w / 2;
+                    const ecy = e.y + e.h / 2;
+                    const axial = (ecx - baseX) * ndx + (ecy - baseY) * ndy;
+                    // Skip enemies behind the muzzle or beyond the current step
+                    // window — keeps the bolt feeling like a forward-fired ray.
+                    if (axial < 0 || axial > s + STEP) continue;
+                    const perp = Math.abs((ecx - baseX) * perpX + (ecy - baseY) * perpY);
+                    const grazeR = HALF_WIDTH + Math.min(e.w, e.h) * 0.5;
+                    if (perp <= grazeR) {
                         struck.add(e);
                         // Defensive: smoke probes inject plain-object enemies
                         // without .hurt to verify ray geometry. Treat those as
@@ -1566,6 +1589,15 @@ export class Player {
             if (Math.abs(forwardAng) > halfArc) continue;
             // Knock back AWAY from Clippy, slight chunky chip.
             const killed = e.hurt(dmg, dx > 0 ? 1 : -1, { knockBack: 0.6 });
+            // R240: chainsaw locks the target in place + visibly vibrates it
+            // while the saw is grinding. The user feedback: "chainsaw needs
+            // to stun + enemies should shake while being chainsaw'd" — the
+            // short range otherwise lets grunts walk through it.
+            // _stunTimer is refreshed every tick so as long as the saw is on
+            // the enemy, AI is gated. _shakeTimer drives the per-frame jitter
+            // in Enemy.draw(). Both decay naturally once the saw moves off.
+            e._stunTimer = Math.max(e._stunTimer || 0, 10);
+            e._shakeTimer = Math.max(e._shakeTimer || 0, 8);
             // Per-tick blood spurt — small red mote at contact.
             particles.spawn(ex, ey, (Math.random() - 0.5) * 1.5, -1 - Math.random() * 0.8, 18, '#ff3030', 1, 0.04);
             // Stat tracking through normal kill pipeline; chainsaw "bullet"
