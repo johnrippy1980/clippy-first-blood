@@ -2503,15 +2503,19 @@ export class Game {
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         // Pick the card for the upcoming stage
         const next = this._pendingStage || (this.currentStage + 1);
+        // R226: post-renumber stage IDs. New stage 4 = PIPELINE; old 4-8 are
+        // now 5-9; old secret 9 is now 10. Card key strings haven't changed,
+        // only the integer keys they're mapped under.
         const STAGE_CARDS = {
             2: 'card_breakroom',
             3: 'card_serverroom',
-            4: 'card_boardroom',
-            5: 'card_keynote',
-            6: 'card_founder',
-            7: 'card_bossrush',
-            8: 'card_cloud',
-            9: 'card_recyclebin',
+            4: 'card_pipeline',
+            5: 'card_boardroom',
+            6: 'card_keynote',
+            7: 'card_founder',
+            8: 'card_bossrush',
+            9: 'card_cloud',
+            10: 'card_recyclebin',
         };
         const key = STAGE_CARDS[next];
         const t = this.storyTimer;

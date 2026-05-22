@@ -23,6 +23,9 @@ const BG_KEY_FOR_THEME = {
     [THEME.FOUNDER]:    'bg_founder',
     [THEME.CLOUD]:      'bg_cloud',
     [THEME.REALITY]:    'bg_reality',
+    // R226: Stage 4 PIPELINE. Default sewer plate; lab plate swaps in for
+    // the second act via parallax.setBgKey('bg_sewer_lab').
+    [THEME.SEWER]:      'bg_sewer',
 };
 
 export class Parallax {

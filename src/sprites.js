@@ -137,8 +137,11 @@ export const SCENE_MANIFEST = {
     'ending':       'scene_ending.png',
     // Per-stage entrance cinematic cards — displayed between stage clear and
     // the next stage intro. Each shows Clippy arriving at the next location.
+    // R226: card filenames retain their pre-renumber number-prefix for git
+    // history; mapping by key (game.js STAGE_CARDS) is what shifts.
     'card_breakroom':  'card_stage2_breakroom.png',
     'card_serverroom': 'card_stage3_serverroom.png',
+    'card_pipeline':   'card_stage4_pipeline.png',
     'card_boardroom':  'card_stage4_boardroom.png',
     'card_keynote':    'card_stage5_keynote.png',
     'card_founder':    'card_stage6_founder.png',
@@ -164,6 +167,9 @@ export const SCENE_MANIFEST = {
     // "Reality Distortion Field" stage. Painted portrait used for the
     // boss-intro cinematic + the scene-gallery thumbnail.
     'boss_intro_JOBS':         'boss_intros/boss_intro_jobs.png',
+    // R226: Dr. Spindler boss-intro plate. Re-uses the cinematic portrait
+    // from boss_spindler_portrait.png (lab backdrop already baked in).
+    'boss_intro_SPINDLER':     'boss_intros/boss_intro_spindler.png',
     // R177: post-game epilogue beats. Clippy's redemption arc shown after
     // the main ending: laughing-stock → memes → 2026 comeback → wonders
     // about Siri. Cinematic plays only after the player has beaten the
@@ -189,6 +195,11 @@ export const BG_MANIFEST = {
     // backdrop with floating bondi-blue cube iMacs. Falls back to the
     // procedural REALITY palette if the asset isn't loaded.
     'bg_reality':    'bg_reality_distortion.png',
+    // R226: THE PIPELINE (stage 4). Two painted plates — sewer descent for
+    // the first half, lab interior for the second. Parallax draws bg_sewer
+    // by default; the lab swap happens partway through (see Level setup).
+    'bg_sewer':      'bg_sewer.png',
+    'bg_sewer_lab':  'bg_sewer_lab.png',
     // Ground tile bitmaps — used by level.js to texture solid blocks. Sampled.
     'ground_jungle':     'ground_jungle.png',
     'ground_breakroom':  'ground_breakroom.png',
