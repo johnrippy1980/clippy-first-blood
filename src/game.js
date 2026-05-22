@@ -192,6 +192,11 @@ export class Game {
 
         this.currentStage = 1;
         this.unlockedStage = 1;
+        // R228: hidden Konami buffer on the title screen. Records last 10
+        // directional/B/A presses; when it matches UUDDLRLR-BA, fully unlocks
+        // stage select for the run (and persists clear_game so menu mode
+        // options light up). Not surfaced in UI — pure cheat-code Easter egg.
+        this._konami = [];
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
@@ -464,6 +469,46 @@ export class Game {
         audio.playTrack('title');
         this.titleBlink++;
         const gameCleared = achievements.unlocked.has('clear_game');
+        // R228: hidden Konami code. Hold SHIFT (aim-lock) and tap the
+        // sequence UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A. On match,
+        // every stage opens in stage select for the rest of the run AND
+        // we flip clear_game so post-game modes (BOSS RUSH / TIME TRIAL /
+        // REALITY DISTORTION) appear too. Shift is the modifier so the
+        // single-tap UP/DOWN/etc. branches below still work normally for
+        // muscle memory. Buffer survives across frames so the user can
+        // type it at any pace; >120f gap clears the buffer.
+        if (input.isHeld('aimlock')) {
+            const SEQ = ['up','up','down','down','left','right','left','right','shield','jump'];
+            for (const k of ['up','down','left','right','shield','jump']) {
+                if (input.isPressed(k)) {
+                    this._konami.push(k);
+                    if (this._konami.length > SEQ.length) this._konami.shift();
+                    this._konamiAge = 0;
+                    // Match on last 10 entries?
+                    if (this._konami.length === SEQ.length &&
+                        this._konami.every((v, i) => v === SEQ[i])) {
+                        this._konami = [];
+                        audio.sfx('secretFound');
+                        // Unlock everything for the run + persist clear_game
+                        this.unlockedStage = STAGES.length - 1;
+                        achievements.unlocked.add('clear_game');
+                        achievements._save();
+                        // Drop straight into stage select
+                        this.stageSelectIndex = 0;
+                        this.scene = SCENE.STAGE_SELECT;
+                    }
+                    return; // SHIFT-held inputs never fall through to normal title branches
+                }
+            }
+            // Clear stale buffer after ~2s of no input while shift held
+            this._konamiAge = (this._konamiAge || 0) + 1;
+            if (this._konamiAge > 120) { this._konami = []; this._konamiAge = 0; }
+        } else {
+            // SHIFT released — give the player up to 120f to release+resume
+            // without losing progress. Beyond that the buffer expires.
+            this._konamiAge = (this._konamiAge || 0) + 1;
+            if (this._konamiAge > 120) this._konami = [];
+        }
         // Single-action gate: a held LEFT+DOWN should fire exactly one
         // transition. Order: start > stage-select > training > modes.
         if (input.isPressed('shoot') || input.isPressed('start') || input.isPressed('jump')) {
