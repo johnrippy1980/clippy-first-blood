@@ -138,8 +138,10 @@ export class FpsArena {
         this.ambientT = 0;
         this._refreshBg();
 
-        // Boot the first segment
-        this._loadSegment(0);
+        // R280: boot the configured starting segment (default 0). The
+        // Ballmer arena overrides to 3 so the player drops straight into
+        // the boss fight without corridor waves.
+        this._loadSegment(this.segment);
     }
 
     // ============== Segment loaders ==============
@@ -281,7 +283,11 @@ export class FpsArena {
                 this._loadSegment(this.segment);
                 this._refreshBg();
                 this.advanceT = 0;
-                this.phase = (this.segment === 3) ? 'bossEntry' : 'fight';
+                // R280: _loadSegment already sets phase appropriately:
+                // segments 0-2 leave it as 'fight', segment 3 sets either
+                // 'bossEntry' (core ending) or 'doorApproach' (door ending).
+                // Don't overwrite it here.
+                if (this.segment !== 3) this.phase = 'fight';
             }
             return;
         }
