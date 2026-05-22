@@ -3088,6 +3088,13 @@ export class Game {
                 achievements.stats.bestScore = this.player.score;
                 achievements._save();
             }
+            // R223: sync run-best clippy-tag count to persistent stats.
+            // High-water-mark so a worse run can't clear the achievement.
+            const tags = this.player.tagsFound || 0;
+            if (tags > (achievements.stats.tagsFound || 0)) {
+                achievements.stats.tagsFound = tags;
+                achievements._save();
+            }
         } else {
             // Mode runs still need these set so the stage-clear panel doesn't
             // read stale state from a prior campaign clear.

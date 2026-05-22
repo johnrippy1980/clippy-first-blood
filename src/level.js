@@ -404,18 +404,17 @@ function makeStage2() {
             // G: bridge mid-pit risk crate
             { x: 84 * GAME.TILE, y: (h - 5) * GAME.TILE - 14, drop: 'HOMING' },
         ],
-        // R219: breakable walls — shoot to break, drop a hidden goodie.
-        // Stage 2 placements lean on visual hiding (walls sit in corners
-        // or behind line-of-sight obstacles so they aren't obvious).
-        // First playthrough: walls look like terrain. Curious players
-        // who shoot everything find them; speedrunners ignore.
+        // R219/R222: breakable walls — shoot to break, drop a hidden
+        // goodie. Stage 2 placements lean on visual hiding (walls sit
+        // in corners or behind line-of-sight obstacles). The CLIPPY_TAG
+        // wall is up high so the player has to deliberately aim up.
         wallSpawns: [
-            // Mid-stage LIFE buried behind a chunky wall on the lower
-            // path. Player has to shoot down + right while passing.
+            // Mid-stage LIFE on the lower path
             { x: 47 * GAME.TILE, y: (h - 4) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
-            // Late-stage GRENADE wall — pre-boss, rewards exploration
-            // away from the obvious path.
+            // Late-stage GRENADE wall — pre-boss
             { x: 78 * GAME.TILE, y: ( 8) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            // Hidden CLIPPY_TAG up high — requires looking up + aim-lock
+            { x: 60 * GAME.TILE, y: ( 3) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
     };
 }
@@ -538,7 +537,14 @@ function makeStage3() {
             { x: 86 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'HOMING' },
             // Pre-boss approach crate
             { x: 93 * GAME.TILE, y: ( 8) * GAME.TILE - 14, drop: 'HOMING' },
-        ]
+        ],
+        // R222: stage 3 walls — server cabinet alcoves with goodies.
+        // Tag is at the cable-maze top — requires the high route.
+        wallSpawns: [
+            { x: 35 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            { x: 72 * GAME.TILE, y: ( 6) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            { x: 56 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 
@@ -656,7 +662,14 @@ function makeStage4() {
             { x: 75 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'THUNDER' },
             // G: top of whiteboard HOMING — risk reward for top route
             { x: 91 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'HOMING' },
-        ]
+        ],
+        // R222: stage 4 walls — boardroom panel walls. Tag hidden
+        // behind a podium-side wall that needs grenade or chainsaw.
+        wallSpawns: [
+            { x: 28 * GAME.TILE, y: ( 8) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            { x: 68 * GAME.TILE, y: ( 7) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            { x: 82 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 
@@ -773,7 +786,14 @@ function makeStage5() {
             { x: 70 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'LASER' },
             // G: catwalk-crumble HOMING (risk reward on the mid-bridge)
             { x: 85 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'HOMING' },
-        ]
+        ],
+        // R222: stage 5 walls — stage scaffolding chunks. Tag tucked
+        // in the upper catwalk so vertical-route players get it.
+        wallSpawns: [
+            { x: 30 * GAME.TILE, y: (12) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            { x: 60 * GAME.TILE, y: (10) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            { x: 78 * GAME.TILE, y: ( 3) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 
@@ -898,7 +918,14 @@ function makeStage6() {
             { x: 56 * GAME.TILE, y: ( 4) * GAME.TILE - 14, drop: 'HOMING' },
             // G: reactor mid platform LASER (sniper-prep through pillars)
             { x: 77 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'LASER' },
-        ]
+        ],
+        // R222: stage 6 walls — Founder's lair stone blocks. Tag in
+        // the deepest reactor recess — hardest tag of the campaign.
+        wallSpawns: [
+            { x: 22 * GAME.TILE, y: ( 8) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            { x: 74 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            { x: 92 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 
@@ -949,7 +976,13 @@ function makeStage7() {
             // Extra crates spaced symmetrically to flank player on respawn
             { x: 16 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'LIFE' },
             { x: 24 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'LIFE' },
-        ]
+        ],
+        // R222: stage 7 boss-rush walls — single corner tag, no
+        // mid-fight items since the arena is tight. The tag is high
+        // and far enough from the bosses to be safe.
+        wallSpawns: [
+            { x: 4 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 
@@ -1070,7 +1103,14 @@ function makeStage8() {
             { x: 83 * GAME.TILE, y: ( 3) * GAME.TILE - 14, drop: 'HOMING' },
             // G: top antechamber THUNDER — final power before The Algorithm
             { x: 96 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'THUNDER' },
-        ]
+        ],
+        // R222: stage 8 walls — floating cloud-data shards. Last tag
+        // of the campaign sits just before the Algorithm antechamber.
+        wallSpawns: [
+            { x: 26 * GAME.TILE, y: ( 8) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            { x: 70 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            { x: 90 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 

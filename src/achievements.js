@@ -25,6 +25,11 @@ export const ACHIEVEMENT_LIST = [
     { id: 'ghillie',       name: 'GHILLIE SUIT',    desc: 'HIDE FROM 10 ENEMIES IN TALL COVER',     icon: '~',  gate: s => (s.enemiesLost || 0) >= 10 },
     { id: 'silent_strike', name: 'SILENT STRIKE',   desc: 'LAND A STEALTH POUNCE KILL',             icon: 'P',  gate: s => (s.pounceKills || 0) >= 1 },
     { id: 'grenadier',     name: 'GRENADIER',       desc: 'KILL 5 ENEMIES WITH GRENADES',           icon: '^',  gate: s => (s.grenadeKills || 0) >= 5 },
+    // R223: paperclip dog-tag full set — 7 tags hidden behind
+    // breakable walls across stages 2..8 (one per stage). Most are
+    // tucked behind walls that take real exploration or a grenade
+    // to reach. Single-run high-water mark; once earned, locked in.
+    { id: 'full_set',      name: 'FULL SET',        desc: 'COLLECT 7 CLIPPY TAGS',                  icon: 'P',  gate: s => (s.tagsFound || 0) >= 7 },
 ];
 
 class Achievements {
@@ -48,6 +53,10 @@ class Achievements {
             // Mode best times (frames). 0 = no time set. Persisted.
             bestBossRushTime: 0,
             bestTimeTrialTime: 0,
+            // R223: paperclip dog-tags collected across all runs. Drives
+            // the FULL SET achievement at 24 (3 per main stage × 8 stages).
+            // High-water mark — once earned, can't lose them.
+            tagsFound: 0,
         };
         this._load();
     }

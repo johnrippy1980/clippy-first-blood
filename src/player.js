@@ -178,6 +178,12 @@ export class Player {
         // the player throws their first grenade. Persists across stages.
         this._everThrewGrenade = false;
 
+        // R223: collected CLIPPY_TAG count for the active run. Persists
+        // across stage boundaries via _restartRun preservation; only
+        // resets on QUIT TO TITLE / game over. Drives the "FULL SET"
+        // achievement at 24 collected.
+        this.tagsFound = 0;
+
         // R216: MG charged-shot state. Hold SHOOT while standing still
         // on the ground (no horizontal input, no jump) to charge for
         // CHARGE_FRAMES; release after full charge to fire a fat
@@ -1875,6 +1881,23 @@ export class Player {
             particles.shockRing(cx, cy, 18, 12, '#fff');
             particles.shockRing(cx, cy, 30, 18, '#ffe070');
             particles.floatingText(cx, this.y - 4, '1 UP!', '#ffe070', 75, -0.7, 2);
+            return;
+        }
+        // R223: CLIPPY_TAG (paperclip dog-tag) — counted collectible.
+        // Tag count persists across the entire run, NOT per-stage.
+        // Each stage that hides them in breakable walls drops 3, and
+        // the achievement "FULL SET" awards on collecting 24 total
+        // (3 × 8 main stages). No mechanical benefit beyond pride +
+        // score; that's intentional — pure completionist bait.
+        if (type === 'CLIPPY_TAG') {
+            this.tagsFound = (this.tagsFound || 0) + 1;
+            this.score += 500;
+            audio.sfx('pickup');
+            burstBurst('#e0e0e8', 14);
+            particles.shockRing(cx, cy, 22, 14, '#fff');
+            particles.shockRing(cx, cy, 32, 18, '#a0a0b8');
+            particles.floatingText(cx, this.y - 4, 'CLIPPY TAG +500',
+                                   '#e0e0e8', 80, -0.7, 1);
             return;
         }
         if (type === 'GRENADE') {

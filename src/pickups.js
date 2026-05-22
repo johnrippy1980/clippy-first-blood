@@ -259,6 +259,29 @@ class Pickup {
         ctx.fillStyle = grad;
         ctx.fillRect(cx - haloR, cy - haloR, haloR * 2, haloR * 2);
         ctx.restore();
+        // R223: CLIPPY_TAG draws as a chrome paperclip silhouette
+        // instead of the lettered-crate. Tags feel diegetic — Clippy
+        // dropped them, the player is reclaiming pieces of himself.
+        if (this.type === 'CLIPPY_TAG') {
+            // Tilted paperclip shape, hand-painted in 12×12 of the 12px slot.
+            // Two vertical wire arms + top arc + bottom arc, slight inner
+            // shadow for depth. Pulses with bob.
+            const tx = dx, ty = dy;
+            ctx.fillStyle = '#a0a0b8';
+            // Left wire (taller)
+            ctx.fillRect(tx + 3, ty + 2, 2, 8);
+            // Right wire (shorter, inset top)
+            ctx.fillRect(tx + 7, ty + 3, 2, 7);
+            // Top arc connecting both wires
+            ctx.fillRect(tx + 3, ty + 2, 6, 1);
+            ctx.fillRect(tx + 4, ty + 1, 4, 1);
+            // Bottom curl on left wire
+            ctx.fillRect(tx + 3, ty + 10, 4, 1);
+            // Highlight pixel — chrome glint
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(tx + 4, ty + 3, 1, 2);
+            return;
+        }
         // Crate
         ctx.fillStyle = '#1a1a2a';
         ctx.fillRect(dx, dy, this.w, this.h);
@@ -290,6 +313,7 @@ class Pickup {
         if (this.type === 'LIFE') return '#50ff70';
         if (this.type === '1UP') return '#ff60ff';
         if (this.type === 'GRENADE') return '#80ff40';
+        if (this.type === 'CLIPPY_TAG') return '#e0e0e8';  // chrome
         return WEAPON[this.type]?.color || '#fff';
     }
     // Convert #rgb / #rrggbb to "rgba(r,g,b,a)". Cheap, no validation —

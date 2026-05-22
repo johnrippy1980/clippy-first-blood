@@ -340,6 +340,28 @@ export function drawHUD(ctx, state) {
                  hasGren ? '#80ff40' : '#404848', 1);
     }
 
+    // R223: CLIPPY TAG counter — below the grenade slot. Persists
+    // across stages so the run-total stays visible. 24 max (3 × 8
+    // main stages) drives the FULL SET achievement. Drawn even when
+    // 0 so the player learns the slot exists; dim when empty.
+    {
+        const tx = GAME.W - 36, ty = 14;
+        const count = player.tagsFound || 0;
+        const has = count > 0;
+        // Tiny paperclip glyph (5×7)
+        ctx.fillStyle = has ? '#c0c0d0' : '#404048';
+        ctx.fillRect(tx, ty, 1, 5);          // left wire
+        ctx.fillRect(tx + 3, ty + 1, 1, 4);  // right wire (inset)
+        ctx.fillRect(tx, ty, 4, 1);          // top arc
+        ctx.fillRect(tx, ty + 4, 3, 1);      // bottom curl
+        if (has) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(tx + 1, ty + 1, 1, 1);  // glint
+        }
+        drawText(ctx, 'x' + count, tx + 6, ty,
+                 has ? '#e0e0e8' : '#404848', 1);
+    }
+
     // Weapon inventory dots — small color-keyed pips to the right of the
     // weapon icon block showing held weapons. Active slot gets a 2px halo;
     // inactive slots are 1px dots in the weapon's color. Only renders if
