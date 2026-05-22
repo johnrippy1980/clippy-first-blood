@@ -192,6 +192,12 @@ class Input {
         this._set('shield',  gp.buttons[4]?.pressed);   // LB
         this._set('start', gp.buttons[9]?.pressed);
         this._set('pause', gp.buttons[9]?.pressed);
+        // R215: gamepad weapon-swap. Was missing entirely — keyboard
+        // binds TAB/Q to 'cycle' but gamepad players had no way to swap
+        // weapons mid-run. Maps to Back/Select (button 8) which is
+        // otherwise unused, plus left-stick-click (button 10) as a
+        // backup since some controllers omit Back.
+        this._set('cycle', gp.buttons[8]?.pressed || gp.buttons[10]?.pressed);
         // Right stick for 360 aim
         const rx = gp.axes[2] || 0;
         const ry = gp.axes[3] || 0;

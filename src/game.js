@@ -955,6 +955,15 @@ export class Game {
                      boxX + 11, toggleY, '#c0a0d0', 1, 'left');
         }
 
+        // R215: gamepad reference row. Players using a controller
+        // can't decode the keyboard keymap above (their button names
+        // are A/B/X/Y, not WASD). Single compact row using "GAMEPAD:"
+        // prefix + Xbox-standard letter labels. Kept under the 224px
+        // panel inner width so nothing clips against the border.
+        const padY = panelY + panelH - 22;
+        drawText(ctx, 'PAD A=JUMP X=FIRE Y=NADE BACK=SWAP',
+                 GAME.W / 2, padY, '#80a0c0', 1, 'center');
+
         // Footer hint — "PRESS X TO START" pulsing yellow
         const footPulse = 0.6 + 0.4 * Math.sin(t * 0.22);
         ctx.globalAlpha = footPulse;
