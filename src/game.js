@@ -918,11 +918,11 @@ export class Game {
         const colL = panelX + 18, colR = panelX + panelW - 18;
         const rowH = 9;
         const rows = [
-            ['MOVE',  'WASD / ARROWS', 'SHOOT',   'X'],
-            ['JUMP',  'SPACE / Z',     'GRENADE', 'V'],
-            ['AIM',   'SHIFT',         'SHIELD',  'B'],
-            ['SWAP',  'TAB / Q',       'SPECIAL', 'C'],
-            ['PAUSE', 'P / ESC',       'MUTE',    'M'],
+            ['MOVE',   'WASD / ARROWS', 'SHOOT',   'X'],
+            ['JUMP',   'SPACE / Z',     'GRENADE', 'V'],
+            ['AIM',    'SHIFT',         'SHIELD',  'B'],
+            ['SWAP',   'TAB / Q',       'SPECIAL', 'C'],
+            ['CHARGE', 'DOWN + X (MG)', 'PAUSE',   'P'],
         ];
         const startY = panelY + 50;
         for (let i = 0; i < rows.length; i++) {

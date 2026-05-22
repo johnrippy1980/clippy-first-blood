@@ -54,7 +54,7 @@ class Achievements {
             bestBossRushTime: 0,
             bestTimeTrialTime: 0,
             // R223: paperclip dog-tags collected across all runs. Drives
-            // the FULL SET achievement at 24 (3 per main stage × 8 stages).
+            // the FULL SET achievement at 7 (one per main stage 2..8).
             // High-water mark — once earned, can't lose them.
             tagsFound: 0,
         };

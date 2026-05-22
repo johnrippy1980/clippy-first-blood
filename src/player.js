@@ -978,17 +978,16 @@ export class Player {
         }
 
         // Shoot — with R216 MG charge mechanic.
-        // Eligible for charging only when: MG equipped, grounded, no
-        // horizontal input (standing still), no vent lock. Any other
-        // condition (other weapon, moving, airborne) bypasses the
-        // charge branch and uses normal hold-to-fire spam.
+        // Charge gate is HOLD-DOWN + SHOOT. Original "stand still + shoot"
+        // gate broke the most common firing posture (standing still and
+        // tapping fire), so charge now requires a deliberate modifier:
+        // the player crouches (DOWN held) while holding fire. Releasing
+        // shoot after full charge fires the fat bullet.
         const CHARGE_FULL = 45;
         const eligible = this.weapon === 'MG'
             && this.onGround
-            && Math.abs(lookX) < 0.1
-            && this.mgVentLock <= 0
-            && (this.state === STATE.RUN || this.state === STATE.IDLE
-                || this.state === undefined || this.state === null);
+            && ax.y > 0.5
+            && this.mgVentLock <= 0;
         if (eligible && input.isHeld('shoot')) {
             // Charging — don't spam-fire while building up.
             this._chargeTimer++;
