@@ -3796,15 +3796,18 @@ export class Game {
                           : rawBoss === 'GAUNTLET'      ? 'GAUNTLET'
                           : rawBoss.replace(/_/g, ' ');
             const y = panelTop + 8 + stats.length * 14 + 2;
-            // The "[DOWN]" tag pops in after the name is drawn
+            // The status tag pops in after the name is drawn — "[DOWN]"
+            // for normal kills, "[ESCAPED]" when the stage has bossEscapes
+            // (R281: stage 5 Ballmer flees rather than dies).
             drawText(ctx, bossName, 30, y, '#ff5050', 1, 'left');
             const w = bossName.length * 6;
-            // Strike-through sweep — width animates 0 → w over the first 20 frames
             const sweep = Math.min(1, killRowT / 20);
             ctx.fillStyle = '#ff3030';
             ctx.fillRect(28, y + 3, Math.floor((w + 4) * sweep), 1);
             if (killRowT > 22) {
-                drawText(ctx, '[DOWN]', GAME.W - 30, y, '#ff5050', 1, 'right');
+                const escaped = stg?.bossEscapes;
+                const tag = escaped ? '[ESCAPED]' : '[DOWN]';
+                drawText(ctx, tag, GAME.W - 30, y, '#ff5050', 1, 'right');
             }
             // NEW BEST! tag for mode runs — flashes gold under the boss-name
             // sweep after both have drawn. Boss Rush + Time Trial save best

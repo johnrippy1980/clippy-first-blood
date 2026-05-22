@@ -251,22 +251,29 @@ export class FpsArena {
         }
         if (this.phase === 'clear') {
             this.clearT = (this.clearT || 0) + 1;
-            // R280: auto-advance to the next FPS stage if one is configured.
-            // Stage 16 (office approach) → stage 17 (Ballmer arena).
+            // R280/R283: auto-advance to the next FPS stage if one is configured.
+            // Stage 6 (office approach) → stage 7 (Ballmer arena). Route
+            // through STAGE_CARD so the painted arena reveal cinematic fires.
             const autoNext = this.data.nextStage;
+            const transitionToNext = () => {
+                audio.stopTrack();
+                this.game._pendingStage = autoNext;
+                this.game._extraCards = null;
+                this.game.storyTimer = 0;
+                this.game.scene = 'stageCard';
+            };
             if (autoNext && this.clearT >= 120) {
-                this.game._startStage(autoNext);
+                transitionToNext();
                 return;
             }
             if (this.clearT > 60 &&
                 (input.isPressed('shoot') || input.isPressed('jump') ||
                  input.isPressed('start') || input.isPressed('pause'))) {
                 if (autoNext) {
-                    this.game._startStage(autoNext);
+                    transitionToNext();
                     return;
                 }
-                // R277: cut music immediately on title exit — without this
-                // the gameplay track lingers through the title fade-in.
+                // R277: cut music immediately on title exit.
                 audio.stopTrack();
                 this.game._fadeTo('title');
             }
