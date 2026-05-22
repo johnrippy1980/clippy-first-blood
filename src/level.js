@@ -183,6 +183,15 @@ function makeStage1() {
 
     // Section H (x 88–96): BOSS APPROACH — open ground, exit door.
     set(h - 3, w - 4, X);
+
+    // R260: CANOPY LAYER — three floating treetop platforms in rows 1-3,
+    // grapple-only access from the section-C/F overlooks. Reads like a
+    // real SNES jungle where the visible playfield is just the ground floor
+    // and the treetops are a parallel high road. Each canopy holds a
+    // reward — chain them with the grapple for a clean speedrun route.
+    plat(2, 14, 3);    // first canopy — accessible by grappling the row-5 sniper perch ceiling
+    plat(1, 38, 3);    // mid canopy — over the second swamp, requires chained grapple
+    plat(2, 64, 3);    // late canopy — overlook above the ambush corridor
     // Cover trees — placed near each holepunch sniper. Player holds UP to
     // crouch behind and become invulnerable while shots arc overhead.
     set(h - 3, 19, C);   // near sniper at col 19
@@ -245,6 +254,12 @@ function makeStage1() {
             { x: 77 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
             // Boss-approach HOMING — last power play before the COPIER_3000
             { x: 89 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
+            // R260: CANOPY pickups — three grapple-only treetop rewards.
+            // Chain via grapple from ground overlooks. Each is higher-value
+            // than the ground-level alternative on the same x stretch.
+            { x: 15 * GAME.TILE, y: ( 1) * GAME.TILE,     type: 'LIFE' },
+            { x: 39 * GAME.TILE, y: ( 0) * GAME.TILE,     type: 'THUNDER' },
+            { x: 65 * GAME.TILE, y: ( 1) * GAME.TILE,     type: 'LIFE' },
         ],
         crateSpawns: [
             // Pre-sniper-cluster SHOTGUN — clear the holepunch fast
@@ -349,6 +364,12 @@ function makeStage2() {
     // Section H (x 92–96): BOSS APPROACH — low table, exit door.
     rectT(g, 11, 92, 3, 1, W);
     setT(g, h - 3, w - 4, X);
+
+    // R260: CEILING SHELF — high break-room shelf accessible only via grapple
+    // from the vending-machine top route. Two floating platforms with hidden
+    // pickups, mirrors the "treetop" idea but as a stockroom shelf.
+    platT(g, 1, 30, 3);     // shelf above C, reachable from row 7 platform
+    platT(g, 1, 56, 3);     // shelf above D, reachable from row 7 platform
     // Vending-machine cover near the folder sniper at col 22.
     setT(g, h - 3, 24, C);
     // Cover near second-puddle sniper at col 52.
@@ -399,6 +420,9 @@ function makeStage2() {
             { x: 77 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
             // Pre-boss LIFE for the last-stand safety net
             { x: 91 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // R260: ceiling-shelf pickups — grapple-only stockroom rewards
+            { x: 31 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'LIFE' },
+            { x: 57 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'THUNDER' },
         ],
         crateSpawns: [
             // A: early SPREAD — warmup weapon
@@ -485,6 +509,14 @@ function makeStage3() {
     platT(g, 9, 92, 4);
     setT(g, h - 3, w - 4, X);
 
+    // R260: CEILING DUCTS — server-room HVAC catwalks at rows 1-2. Grapple
+    // from the tower top (row 6) or the cable-maze top bridge (row 4) to
+    // reach the duct layer. Each duct holds a high-tier crate that rewards
+    // climbing all the way up before crossing horizontally.
+    platT(g, 2, 14, 3);    // duct over warmup tower
+    platT(g, 1, 40, 4);    // long duct over vertical tower
+    platT(g, 2, 70, 3);    // duct over cable maze top bridge
+
     // Server-rack cover — near the first sniper at col 14.
     setT(g, h - 3, 16, C);
     // Cover near the sniper above the second electric floor.
@@ -535,6 +567,10 @@ function makeStage3() {
             { x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
             // Pre-boss LIFE
             { x: 93 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // R260: ceiling-duct rewards — grapple from tower / maze top.
+            { x: 15 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
+            { x: 42 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'THUNDER' },
+            { x: 71 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
         ],
         crateSpawns: [
             // CHAINSAW for melee on the warmup cabinet (was already here)
@@ -609,6 +645,14 @@ function makeStage4() {
     rectT(g, 9, 92, 2, 3, W);
     setT(g, h - 3, w - 4, X);
 
+    // R260: UPPER-CHANDELIER TIER — three high chandeliers at rows 1-2 above
+    // the existing row-5 chandeliers. Grapple from the lower chandeliers or
+    // the whiteboard-climb top platform to chain into them. Each holds a
+    // high-value pickup — pays out the "look up first" instinct.
+    platT(g, 1, 20, 3);    // ceiling chandelier over projector pit 1
+    platT(g, 2, 50, 3);    // ceiling chandelier over projector pit 2
+    platT(g, 1, 88, 3);    // ceiling fixture above whiteboard climb top
+
     // Heavy boardroom door — duck-cover near the sniper above projectors.
     setT(g, h - 3, 46, C);
     // Velvet wall curtains — slip behind to break sniper line of sight.
@@ -659,6 +703,10 @@ function makeStage4() {
             { x: 80 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'HOMING' },
             // Pre-boss LIFE
             { x: 93 * GAME.TILE, y: ( 9) * GAME.TILE - 8, type: 'LIFE' },
+            // R260: upper-chandelier rewards — grapple-chain bonuses.
+            { x: 21 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'LIFE' },
+            { x: 51 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'THUNDER' },
+            { x: 89 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'HOMING' },
         ],
         crateSpawns: [
             // A SHOTGUN (unchanged)
@@ -1170,6 +1218,12 @@ function makeStage9() {
     rectT(g, 8, 36, 2, 4, W);
     platT(g, 6, 42, 5);
     setT(g, h - 3, w - 4, X);
+    // R260: CEILING CRAWL — two upper shelves at row 2 + 3 grapple-reachable
+    // from the row-7 platforms below. Lets the secret bin reward verticality
+    // even at its compact footprint.
+    platT(g, 2, 10, 3);
+    platT(g, 3, 22, 3);
+    platT(g, 2, 38, 3);
     // Floor-grate hide spots — drop into the cavity between hazards.
     for (let i = 0; i < 2; i++) setT(g, h - 3, 32 + i, G);
     return {
@@ -1185,6 +1239,10 @@ function makeStage9() {
         pickupSpawns: [
             { x: 18 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
             { x: 36 * GAME.TILE, y: (h-3) * GAME.TILE - 10, type: 'LIFE' },
+            // R260: ceiling-shelf rewards — grapple up for the goods.
+            { x: 11 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
+            { x: 23 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'LASER' },
+            { x: 39 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
         ],
         crateSpawns: [
             { x: 24 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'HOMING' },
@@ -1486,6 +1544,16 @@ function makeStagePipeline() {
     rectT(g, 11, 86, 4, 1, W);
     setT(g, h - 3, w - 4, X);
 
+    // R260: UPPER PIPE LOFT — sewer-act overhead pipes + lab-act ceiling
+    // ducts at rows 1-2. Grapple from the upper-route pipes (rows 6-7) or
+    // operating-table cover to reach them. Treetop-equivalent for the
+    // industrial theme — gives players a parallel high road past the
+    // sludge pits and specimen-hall traffic.
+    platT(g, 2, 12, 3);    // sewer-entry overhead pipe
+    platT(g, 1, 30, 4);    // long industrial pipe over bridge
+    platT(g, 2, 56, 3);    // lab-entry ceiling duct
+    platT(g, 1, 76, 4);    // specimen-hall ceiling duct
+
     return {
         tiles: g, width: w, height: h, theme: THEME.SEWER,
         // R228: was x:32 which dropped Clippy in the middle of Section C
@@ -1519,6 +1587,11 @@ function makeStagePipeline() {
             { x: 52 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
             // Pre-boss LIFE
             { x: 88 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // R260: upper-pipe loft rewards — grapple high road bonuses.
+            { x: 13 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
+            { x: 31 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'THUNDER' },
+            { x: 57 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
+            { x: 77 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'HOMING' },
         ],
         crateSpawns: [
             // Early SHOTGUN — sewer-tight CQB weapon
