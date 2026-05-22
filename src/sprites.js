@@ -148,6 +148,12 @@ export const SCENE_MANIFEST = {
     'card_bossrush':   'card_stage7_bossrush.png',
     'card_cloud':      'card_stage8_cloud.png',
     'card_recyclebin': 'card_stage9_recyclebin.png',
+    // R281: Ballmer mini-arc cards — office approach, escape cinematic,
+    // and arena boss-reveal. Used by STAGE_CARDS (game.js) for stages 6-7
+    // and the boss-escapes cinematic between stage 5 and 6.
+    'card_ballmer_office':  'card_ballmer_office.png',
+    'card_ballmer_escapes': 'card_ballmer_escapes.png',
+    'card_ballmer_arena':   'card_ballmer_arena.png',
     // Boss intro cinematic backgrounds — painted villain stages shown
     // during the BOSS_INTRO scene. Keyed by boss code so _drawBossIntro
     // can look up the matching backdrop. Falls back to dim _drawPlay when

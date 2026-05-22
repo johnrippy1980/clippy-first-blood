@@ -137,43 +137,34 @@ export const STAGES = [
     { id: 1, name: 'OFFICE PARK JUNGLE',    theme: THEME.JUNGLE,      boss: 'COPIER_3000',  music: 'jungle',     tagline: 'WHERE PAPERWORK GOES TO DIE' },
     { id: 2, name: 'THE BREAK ROOM',         theme: THEME.BREAKROOM,   boss: 'SHREDDER',      music: 'breakroom',  tagline: 'NO ONE REPLENISHED THE COFFEE'  },
     { id: 3, name: 'SERVER ROOM',            theme: THEME.SERVERROOM,  boss: 'CTRL_ALT_DEL',  music: 'serverroom', tagline: 'THE FANS SCREAM FOREVER' },
-    // R226: new stage 4 — sewer descent into a secret vivisection lab.
+    // R226: stage 4 — sewer descent into a secret vivisection lab.
     // Painted bg switches mid-stage (sewer → lab). Boss DR. SPINDLER.
     { id: 4, name: 'THE PIPELINE',           theme: THEME.SEWER,       boss: 'SPINDLER',      music: 'pipeline',   tagline: 'WHAT ARE THEY DOING DOWN HERE' },
-    { id: 5, name: 'THE BOARD ROOM',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS' },
-    { id: 6, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB' },
-    { id: 7, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
-    { id: 8, name: 'BOSS RUSH',              theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
-    { id: 9, name: 'THE CLOUD',              theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
+    // R281: Ballmer mini-arc — platformer Board Room ends with Ballmer
+    // ESCAPING (he doesn't die), then the FPS chase pair finish the job.
+    { id: 5, name: 'THE BOARD ROOM',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS', bossEscapes: true },
+    // R281: FPS approach — chase Ballmer through his office corridor.
+    // Painted Microsoft HQ exterior as the stage-intro backdrop.
+    { id: 6, name: 'BALLMER OFFICE',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
+    // R281: FPS arena boss fight — final Ballmer confrontation.
+    { id: 7, name: 'BALLMER ARENA',          theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
+    { id: 8, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB' },
+    { id: 9, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
+    { id: 10, name: 'BOSS RUSH',             theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
+    { id: 11, name: 'THE CLOUD',             theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
     // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
-    { id: 10, name: 'THE RECYCLE BIN',       theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
-    // Training ground — god mode + unlimited ammo + scripted lessons. Accessible
-    // from the title screen by holding UP. Not a "real" stage; never shows in
-    // stage select or counts toward achievements.
-    { id: 11, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
+    { id: 12, name: 'THE RECYCLE BIN',       theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
+    // Training ground — god mode + unlimited ammo + scripted lessons.
+    { id: 13, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
     // Post-game unlock modes. Gated on achievements.unlocked.has('clear_game').
-    // Accessed from title screen via LEFT (BOSS RUSH) / RIGHT (TIME TRIAL).
-    { id: 12, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
-    { id: 13, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
+    { id: 14, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
+    { id: 15, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
     // REALITY DISTORTION FIELD — after-credits secret stage. Unlocks after
     // clearing The Algorithm (clear_game). Steve Jobs as the titan who
     // slipped through the cracks of the main hit list.
-    { id: 14, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
-    // R229: hidden FPS-arena stage — locked camera, strafe-and-shoot-up
-    // Contra arcade Stage 3 vibe. Reachable only via konami code → stage
-    // select. Boss is Dr. Spindler in his lab. Uses its own scene type
-    // (SCENE.FPS_PLAY) wired through fps_arena.js, NOT the platformer
-    // pipeline. Same boss as Stage 4 — different gameplay entirely.
-    { id: 15, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
-    // R268: second FPS-arena stage — corporate office siege. Suits throwing
-    // floppy disks, fax-machine turrets, desk-lamp drones. Stage 16 is the
-    // approach (corridor → CEO's door). Konami-only secret.
-    // R272: introBgKey paints the Microsoft HQ exterior behind the stage
-    // intro text so it doesn't drop in cold.
-    { id: 16, name: 'BALLMER OFFICE',          theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS. DEVELOPERS. DEVELOPERS.', introBgKey: 'bg_microsoft_hq' },
-    // R280: Ballmer arena — boss confrontation that picks up after stage 16.
-    // Lives at loader index 17. Konami-only secret (chained from stage 16).
-    { id: 17, name: 'BALLMER ARENA',           theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
+    { id: 16, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
+    // R229: hidden FPS-arena stage — Spindler FPS variant. Konami-only.
+    { id: 17, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
 ];
 
 // Damage flash colors per source.

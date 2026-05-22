@@ -90,6 +90,22 @@ class Achievements {
                 }
                 data.stats.stageBestScores = shifted;
             }
+            // R281 migration: insert BALLMER OFFICE (6) + BALLMER ARENA (7).
+            // Stages 6..end shift up by 2 to make room. Old saves at version
+            // < 281 (or schemaVersion = 226 from prior migration) need this.
+            const sv = data.schemaVersion || 0;
+            if (sv < 281 && data.stats?.stageBestScores) {
+                const shifted = {};
+                for (const k of Object.keys(data.stats.stageBestScores)) {
+                    const n = parseInt(k, 10);
+                    if (Number.isFinite(n) && n >= 6) {
+                        shifted[n + 2] = data.stats.stageBestScores[k];
+                    } else {
+                        shifted[n] = data.stats.stageBestScores[k];
+                    }
+                }
+                data.stats.stageBestScores = shifted;
+            }
             if (Array.isArray(data.unlocked)) {
                 for (const id of data.unlocked) {
                     if (ACHIEVEMENT_LIST.some(a => a.id === id)) this.unlocked.add(id);
@@ -118,7 +134,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 226,
+                schemaVersion: 281,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,

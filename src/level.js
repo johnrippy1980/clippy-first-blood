@@ -1618,20 +1618,20 @@ export const STAGE_LOADERS = [
     () => makeStage1(),
     () => makeStage2(),
     () => makeStage3(),
-    () => makeStagePipeline(),  // R226: new stage 4 — sewer/lab + Dr. Spindler
-    () => makeStage4(),         // BOARDROOM — now stage 5
-    () => makeStage5(),         // KEYNOTE — now stage 6
-    () => makeStage6(),         // FOUNDER'S LAIR — now stage 7
-    () => makeStage7(),         // BOSS RUSH — now stage 8
-    () => makeStage8(),         // CLOUD — now stage 9
-    () => makeStage9(),         // Secret (RECYCLE BIN) — now stage 10
-    () => makeTraining(),       // Training ground — now stage 11
-    () => makeBossRushMode(),   // Boss rush mode — now stage 12
-    () => makeTimeTrial(),      // Time trial — now stage 13
-    () => makeStage13(),               // REALITY DISTORTION FIELD — stage 14
-    () => makeFpsStage(),              // R229: CORE BREACH — stage 15
-    () => makeFpsStageBallmer(),       // R268/R280: BALLMER OFFICE approach — stage 16
-    () => makeFpsStageBallmerArena(),  // R280: BALLMER ARENA boss fight — stage 17
+    () => makeStagePipeline(),         // R226: stage 4 — sewer/lab + Dr. Spindler
+    () => makeStage4(),                // R281: stage 5 BOARD ROOM (Ballmer escapes)
+    () => makeFpsStageBallmer(),       // R281: stage 6 BALLMER OFFICE FPS approach
+    () => makeFpsStageBallmerArena(),  // R281: stage 7 BALLMER ARENA FPS boss fight
+    () => makeStage5(),                // R281: stage 8 KEYNOTE HALL
+    () => makeStage6(),                // R281: stage 9 FOUNDER'S LAIR
+    () => makeStage7(),                // R281: stage 10 BOSS RUSH
+    () => makeStage8(),                // R281: stage 11 THE CLOUD
+    () => makeStage9(),                // R281: stage 12 secret RECYCLE BIN
+    () => makeTraining(),              // R281: stage 13 TRAINING GROUND
+    () => makeBossRushMode(),          // R281: stage 14 BOSS RUSH MODE
+    () => makeTimeTrial(),             // R281: stage 15 TIME TRIAL
+    () => makeStage13(),               // R281: stage 16 REALITY DISTORTION FIELD
+    () => makeFpsStage(),              // R281: stage 17 CORE BREACH (FPS Spindler)
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -1696,8 +1696,8 @@ function makeFpsStageBallmer() {
         // a boss fight. The FpsArena reads this flag and routes the clear
         // accordingly.
         endingStyle: 'door',
-        // R280: chain into the Ballmer arena (stage 17) on stage_clear.
-        nextStage: 17,
+        // R281: chain into the Ballmer arena (stage 7) on stage_clear.
+        nextStage: 7,
     };
 }
 

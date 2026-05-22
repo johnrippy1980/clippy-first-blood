@@ -10,6 +10,8 @@ const page = await browser.newContext({ viewport: { width: 1024, height: 768 } }
 const errors = [];
 page.on('pageerror', e => errors.push('PAGE: ' + e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push('CON: ' + m.text()); });
+page.on('requestfailed', r => errors.push('REQ404: ' + r.url()));
+page.on('response', r => { if (r.status() === 404) errors.push('RES404: ' + r.url()); });
 
 await page.goto('http://localhost:8765/?nocache=' + Date.now(), { waitUntil: 'networkidle' });
 await page.waitForTimeout(2500);
@@ -18,7 +20,11 @@ await page.waitForTimeout(800);
 
 const findings = [];
 
-for (let stage = 1; stage <= 9; stage++) {
+// R281: main campaign now 1-11 (BALLMER OFFICE 6 + ARENA 7 inserted).
+// Skip 6+7 in this regression — they're FPS arenas with no platformer
+// boss spawn, the regression assertions don't apply.
+for (let stage = 1; stage <= 11; stage++) {
+    if (stage === 6 || stage === 7) continue;
     const r = await page.evaluate(async (s) => {
         const g = window.__game;
         g._startStage(s);
@@ -65,7 +71,7 @@ for (let stage = 1; stage <= 9; stage++) {
             if (g.scene === 'stageClear') break;
         }
 
-        const isGauntlet = s === 8;  // stage 8 is the GAUNTLET (3-boss queue) post-R226
+        const isGauntlet = s === 10; // R281: GAUNTLET (3-boss queue) shifted from 8 to 10
         return {
             stage: s,
             isGauntlet,
@@ -84,7 +90,10 @@ errors.forEach(e => console.log('  ', e));
 
 await browser.close();
 
-const ok = errors.length === 0
+// Audio file 404s in headless chromium are unrelated to gameplay correctness
+// (the mp3 fetch fires even though autoplay is blocked) — filter them out.
+const significantErrors = errors.filter(e => !/\.mp3/.test(e));
+const ok = significantErrors.length === 0
     && findings.every(f => {
         if (f.error) return false;
         if (!f.bossDead) return false;
