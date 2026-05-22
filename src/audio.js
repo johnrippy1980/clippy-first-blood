@@ -174,6 +174,9 @@ class Audio {
             // which is for combo-streak loss — different event, deserves
             // a different sound. Now: steam hiss + mechanical clunk.
             case 'mgOverheat': return this._mgOverheat(t);
+            // R259: empty-grenade-belt click. Was reusing 'comboBreak'.
+            // Now: soft mechanical empty-click.
+            case 'grenadeFail': return this._grenadeFail(t);
         }
     }
 
@@ -201,6 +204,25 @@ class Audio {
         // Mechanical "kachunk" tail — quick square click at 220Hz for the
         // pump-action read.
         this._tonal(t + 0.18, 'square', 220, 110, 0.06, 0.12);
+    }
+
+    // R259: empty grenade-belt click. Quick dull mechanical click — short
+    // square click + a tiny lowpass-noise pop. Reads as "trigger pulled,
+    // nothing happened" rather than the heavier comboBreak roar.
+    _grenadeFail(t) {
+        // Square click — 380Hz, quick decay
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(380, t);
+        o.frequency.exponentialRampToValueAtTime(220, t + 0.04);
+        this._envOn(g, 0.10, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1200;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.08);
+        // Small noise tick — the metal-on-metal contact
+        this._noise(t, 0.04, 0.04, 1800, 'bp', 2);
     }
 
     // R258: MG overheat vent. Two-stage:

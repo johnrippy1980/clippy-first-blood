@@ -1680,7 +1680,9 @@ export class Player {
             // Cooldown on the FAIL too so V-spam doesn't flood the screen with
             // "NO GRENADES" text + audio. 30f gap between fail messages.
             this._grenadeCooldown = 30;
-            audio.sfx('comboBreak');  // dull fail beat
+            // R259: dedicated empty-belt SFX (was reusing 'comboBreak'
+            // which is for combo-streak loss — different event).
+            audio.sfx('grenadeFail');
             particles.floatingText(
                 this.x + this.w / 2, this.y - 4, 'NO GRENADES',
                 '#ff8050', 36, -0.5, 1);
