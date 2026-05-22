@@ -69,7 +69,15 @@ class Audio {
     }
 
     init() {
-        if (this.ctx) return;
+        if (this.ctx) {
+            // R274: even if already initialized, retry resume() — chromium
+            // can suspend the context if the tab lost focus between init
+            // and the next user gesture.
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume().catch(() => {});
+            }
+            return;
+        }
         const AC = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AC();
         this.master = this.ctx.createGain();
@@ -95,6 +103,26 @@ class Audio {
         this.master.disconnect();
         this.master.connect(lim);
         lim.connect(this.ctx.destination);
+
+        // R274: explicitly resume the context. Chromium starts AudioContext
+        // suspended until a user gesture; without this the first sfx() call
+        // can be silently swallowed or land 30-100ms late as the context
+        // unsuspends mid-trigger.
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+        }
+        // Pre-warm: play a silent 1-sample buffer so the audio pipeline
+        // is "primed" before the player's first real shot. Without this
+        // the very first SFX trigger can have audible attack latency
+        // (the user reports "delay in weapon effects" — usually the
+        // first shot after a long pause, when scheduler has to spool up).
+        try {
+            const warmBuf = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+            const warmSrc = this.ctx.createBufferSource();
+            warmSrc.buffer = warmBuf;
+            warmSrc.connect(this.sfxBus);
+            warmSrc.start();
+        } catch (e) {}
     }
 
     toggleMute() {
