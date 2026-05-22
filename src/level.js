@@ -1630,6 +1630,7 @@ export const STAGE_LOADERS = [
     () => makeTimeTrial(),      // Time trial — now stage 13
     () => makeStage13(),        // REALITY DISTORTION FIELD — now stage 14
     () => makeFpsStage(),       // R229: CORE BREACH — hidden FPS arena, stage 15
+    () => makeFpsStageBallmer(),// R268: BALLMER OFFICE — second FPS arena, stage 16
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -1644,6 +1645,38 @@ function makeFpsStage() {
         music: 'pipeline',
         bgKey: 'bg_sewer_lab',
         bossKind: 'SPINDLER',
+    };
+}
+
+// R268: Ballmer office FPS stage — second Contra-base-style FPS arena.
+// Reuses the FpsArena class with per-stage sprite-key overrides + an
+// office-themed backdrop chain. Boss is Steve Ballmer with a chair.
+function makeFpsStageBallmer() {
+    return {
+        fpsMode: true,
+        theme: THEME.BOARDROOM,
+        music: 'boardroom',
+        bgKey: 'bg_office',
+        bossKind: 'BALLMER',
+        // All four segments use the same office corridor backdrop.
+        bgKeys: ['bg_office', 'bg_office', 'bg_office', 'bg_office'],
+        // Use the Ballmer-themed enemy sprites.
+        spriteKeys: {
+            turret: 'office_turret',
+            grunt:  'office_grunt',
+            shield: 'office_drone',
+            core:   'boss_ballmer_fps',
+        },
+        segmentLabels: [
+            'SEGMENT 1 / FAX TURRETS',
+            'SEGMENT 2 / SUITS',
+            'SEGMENT 3 / SECURITY',
+            'BALLMER',
+        ],
+        bossLabels: {
+            shielded: 'BALLMER / RAGING',
+            exposed:  'BALLMER / EXPOSED',
+        },
     };
 }
 

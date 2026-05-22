@@ -104,15 +104,23 @@ export class FpsArena {
         this.particles = [];
 
         // R265: per-segment backdrops so the corridor visibly transitions
-        // as the player advances. Sewer pipes for the first two segments,
-        // bio-lab for the back half. Falls back to stageData.bgKey if a
-        // segment's key isn't loaded yet.
+        // as the player advances. Defaults to sewer→lab progression; the
+        // Ballmer office stage overrides to all-office backdrops.
         this.bgKeys = stageData.bgKeys || [
             'bg_sewer',
             'bg_sewer',
             'bg_sewer_lab',
             'bg_sewer_lab',
         ];
+        // R268: per-stage sprite-key overrides so different FPS stages can
+        // theme their turrets/grunts/shields/core differently while sharing
+        // the segment scaffolding. Defaults to Dr. Spindler's lab roster.
+        this.spriteKeys = Object.assign({
+            turret: 'lab_turret',
+            grunt:  'lab_grunt',
+            shield: 'lab_shield',
+            core:   'lab_core',
+        }, stageData.spriteKeys || {});
         this._refreshBg();
 
         // Boot the first segment
@@ -713,10 +721,13 @@ export class FpsArena {
 
     _drawSegmentTag() {
         const ctx = this.ctx;
-        const labels = ['SEGMENT 1 / TURRETS',
-                        'SEGMENT 2 / GRUNTS',
-                        'SEGMENT 3 / BARRIER',
-                        'CORE'];
+        // R268: per-stage segment labels — stage data can override.
+        const labels = this.data.segmentLabels || [
+            'SEGMENT 1 / TURRETS',
+            'SEGMENT 2 / GRUNTS',
+            'SEGMENT 3 / BARRIER',
+            'CORE',
+        ];
         drawText(ctx, labels[this.segment] || '', GAME.W / 2, 6, '#80a0c0', 1, 'center');
     }
 
@@ -744,7 +755,7 @@ export class FpsArena {
 
     _drawTurrets() {
         const ctx = this.ctx;
-        const img = sprites.images.get('lab_turret');
+        const img = sprites.images.get(this.spriteKeys.turret);
         for (const t of this.turrets) {
             if (!t.alive) continue;
             const scale = depthScale(t.t);
@@ -775,7 +786,7 @@ export class FpsArena {
 
     _drawGrunts() {
         const ctx = this.ctx;
-        const img = sprites.images.get('lab_grunt');
+        const img = sprites.images.get(this.spriteKeys.grunt);
         for (const g of this.grunts) {
             if (!g.alive || g.runT < g.spawnDelay) continue;
             const tt = Math.min(1, (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES);
@@ -812,7 +823,7 @@ export class FpsArena {
         if (!c.alive) return;
         // Core body — painted sprite with subtle pulse-glow when shields are
         // down (core exposed = takes damage = aura visible).
-        const coreImg = sprites.images.get('lab_core');
+        const coreImg = sprites.images.get(this.spriteKeys.core);
         const allShieldsDead = this.shields.every(s => !s.alive);
         if (coreImg) {
             ctx.imageSmoothingEnabled = false;
@@ -845,7 +856,7 @@ export class FpsArena {
             ctx.fillRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h);
         }
         // Shields — orbiting nodes (painted sprite)
-        const shieldImg = sprites.images.get('lab_shield');
+        const shieldImg = sprites.images.get(this.spriteKeys.shield);
         for (const s of this.shields) {
             if (!s.alive) continue;
             const sx = c.x + Math.cos(s.angle) * s.radius;
@@ -927,7 +938,11 @@ export class FpsArena {
             ? (c.hp < c.maxHp * 0.3 ? '#ff3040' : '#ff60a0')
             : '#603048';   // dim while shielded
         ctx.fillRect(x, y, fill, 4);
-        const tag = allShieldsDead ? 'EXPOSED CORE' : 'CORE / SHIELDED';
+        // R268: per-stage boss labels — stage data can override the
+        // shielded / exposed text (e.g. Ballmer stage shows "BALLMER /
+        // RAGING" → "BALLMER / EXPOSED" instead of generic "CORE").
+        const labels = this.data.bossLabels || { shielded: 'CORE / SHIELDED', exposed: 'EXPOSED CORE' };
+        const tag = allShieldsDead ? labels.exposed : labels.shielded;
         drawText(ctx, tag, GAME.W / 2, y - 8, '#e0c0ff', 1, 'center');
     }
 

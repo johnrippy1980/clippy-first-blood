@@ -165,6 +165,10 @@ export const STAGES = [
     // (SCENE.FPS_PLAY) wired through fps_arena.js, NOT the platformer
     // pipeline. Same boss as Stage 4 — different gameplay entirely.
     { id: 15, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
+    // R268: second FPS-arena stage — corporate office siege. Suits throwing
+    // floppy disks, fax-machine turrets, desk-lamp drones, Ballmer with a
+    // chair at the back wall. Konami-only secret. Lives at loader index 16.
+    { id: 16, name: 'BALLMER OFFICE',          theme: THEME.BOARDROOM, boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS. DEVELOPERS. DEVELOPERS.' },
 ];
 
 // Damage flash colors per source.

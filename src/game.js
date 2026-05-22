@@ -2880,6 +2880,8 @@ export class Game {
         if (gameCleared || konami) ids.push(14);
         // FPS-arena CORE BREACH (stage 15) — konami-only secret
         if (konami) ids.push(15);
+        // FPS-arena BALLMER OFFICE (stage 16) — konami-only secret
+        if (konami) ids.push(16);
         return ids;
     }
 

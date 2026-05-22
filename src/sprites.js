@@ -262,6 +262,12 @@ export const CLIPPY_MANIFEST = {
     'lab_grunt':         'lab_grunt.png',
     'lab_shield':        'lab_shield.png',
     'lab_core':          'lab_core.png',
+    // R268: FPS-arena enemy sprites + backdrop — Ballmer office theme.
+    'office_turret':     'office_turret.png',     // wall-mounted fax machine
+    'office_grunt':      'office_grunt.png',      // suit grunt w/ floppy disk
+    'office_drone':      'office_drone.png',      // desk-lamp shield drone
+    'boss_ballmer_fps':  'boss_ballmer_fps.png',  // Ballmer w/ chair (core boss)
+    'bg_office':         'bg_office.png',         // corridor backdrop
     // R202: per-weapon painted Clippy poses (single static frame each).
     // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
     // CHAINSAW pending — its asset is the last gen still running.
