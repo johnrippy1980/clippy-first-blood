@@ -1,0 +1,7 @@
+# R225 — Dr. Spindler boss + Stage 4 FPS lab descent assets
+# Queued 2026-05-21 via Local Howl client (a5057675-c045-4a45-a219-8d124b6725f7)
+# Each line: job_id | purpose | target_path
+mcp-1779418967372-a6fdf86d | spindler_portrait        | assets/sprites/boss_spindler_portrait.png
+mcp-1779418983122-434475f2 | spindler_sprite_sheet    | assets/sprites/boss_spindler_sheet_raw.png  (process into idle/fire/hurt/death)
+mcp-1779418998062-2efe2ffa | bg_sewer                 | assets/backgrounds/stage_sewer.png
+mcp-1779419010310-e868b50a | bg_lab                   | assets/backgrounds/stage_lab.png
