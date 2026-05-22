@@ -1622,16 +1622,18 @@ export const STAGE_LOADERS = [
     () => makeStage4(),                // R281: stage 5 BOARD ROOM (Ballmer escapes)
     () => makeFpsStageBallmer(),       // R281: stage 6 BALLMER OFFICE FPS approach
     () => makeFpsStageBallmerArena(),  // R281: stage 7 BALLMER ARENA FPS boss fight
-    () => makeStage5(),                // R281: stage 8 KEYNOTE HALL
-    () => makeStage6(),                // R281: stage 9 FOUNDER'S LAIR
-    () => makeStage7(),                // R281: stage 10 BOSS RUSH
-    () => makeStage8(),                // R281: stage 11 THE CLOUD
-    () => makeStage9(),                // R281: stage 12 secret RECYCLE BIN
-    () => makeTraining(),              // R281: stage 13 TRAINING GROUND
-    () => makeBossRushMode(),          // R281: stage 14 BOSS RUSH MODE
-    () => makeTimeTrial(),             // R281: stage 15 TIME TRIAL
-    () => makeStage13(),               // R281: stage 16 REALITY DISTORTION FIELD
-    () => makeFpsStage(),              // R281: stage 17 CORE BREACH (FPS Spindler)
+    () => makeStage5(),                // R281: stage 8 KEYNOTE HALL (Gates escapes)
+    () => makeFpsStageGates(),         // R291: stage 9 KEYNOTE FPS approach
+    () => makeFpsStageGatesArena(),    // R291: stage 10 GATES ARENA FPS boss
+    () => makeStage6(),                // R291: stage 11 FOUNDER'S LAIR (was 9)
+    () => makeStage7(),                // R291: stage 12 BOSS RUSH (was 10)
+    () => makeStage8(),                // R291: stage 13 THE CLOUD (was 11)
+    () => makeStage9(),                // R291: stage 14 secret RECYCLE BIN (was 12)
+    () => makeTraining(),              // R291: stage 15 TRAINING GROUND (was 13)
+    () => makeBossRushMode(),          // R291: stage 16 BOSS RUSH MODE (was 14)
+    () => makeTimeTrial(),             // R291: stage 17 TIME TRIAL (was 15)
+    () => makeStage13(),               // R291: stage 18 REALITY DISTORTION FIELD (was 16)
+    () => makeFpsStage(),              // R291: stage 19 CORE BREACH (was 17)
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -1734,6 +1736,68 @@ function makeFpsStageBallmerArena() {
         // the bossEntry phase (matches platformer BOSS_INTRO visuals).
         bossPortraitKey:  'boss_intro_BALLMER',
         bossDisplayName:  'BALLMER',
+    };
+}
+
+// R291: Gates FPS arc — parallel to Ballmer pair, follows the platformer
+// Keynote Hall (stage 8) where Gates escapes. Stage 9 = corridor approach,
+// stage 10 = arena boss fight.
+const GATES_SPRITE_KEYS = {
+    turret: 'keynote_turret',
+    grunt:  'keynote_grunt',
+    shield: 'keynote_drone',
+    core:   'boss_gates_fps',
+};
+const GATES_SFX_KEYS = {
+    turretFire: 'faxRing',     // overhead-projector ticks read fine
+    gruntFire:  'typewriter',  // CD-rom case throw clatter
+    coreFire:   'chairWhoosh', // generic boss-launch whoosh
+};
+
+function makeFpsStageGates() {
+    return {
+        fpsMode: true,
+        theme: THEME.KEYNOTE,
+        music: 'keynote',
+        bgKey: 'bg_keynote_corridor',
+        bossKind: 'GATES',
+        bgKeys: ['bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor'],
+        spriteKeys: GATES_SPRITE_KEYS,
+        segmentLabels: [
+            'SEGMENT 1 / TURRETS',
+            'SEGMENT 2 / EVANGELISTS',
+            'SEGMENT 3 / BSOD DRONES',
+            "SEGMENT 4 / BACKSTAGE",
+        ],
+        sfxKeys: GATES_SFX_KEYS,
+        ambientKey: 'fluorescent',
+        gruntBulletAnimKey: 'floppy',
+        endingStyle: 'door',
+        nextStage: 10,            // R291: chains into the Gates arena (stage 10)
+    };
+}
+
+function makeFpsStageGatesArena() {
+    return {
+        fpsMode: true,
+        theme: THEME.KEYNOTE,
+        music: 'bossBattle',
+        bgKey: 'bg_keynote_corridor',
+        bossKind: 'GATES',
+        bgKeys: ['bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor'],
+        spriteKeys: GATES_SPRITE_KEYS,
+        segmentLabels: ['GATES', 'GATES', 'GATES', 'GATES'],
+        bossLabels: {
+            shielded: 'GATES / PROTECTED',
+            exposed:  'GATES / EXPOSED',
+        },
+        sfxKeys: GATES_SFX_KEYS,
+        ambientKey: 'fluorescent',
+        coreAttackStyle: 'spread5',   // Gates fires keynote-slide spread
+        gruntBulletAnimKey: 'floppy',
+        startSegment: 3,
+        bossPortraitKey: 'boss_intro_GATES',
+        bossDisplayName: 'BILL GATES',
     };
 }
 

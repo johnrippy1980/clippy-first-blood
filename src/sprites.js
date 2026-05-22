@@ -279,6 +279,10 @@ export const CLIPPY_MANIFEST = {
     'bg_office':         'bg_office.png',         // corridor backdrop
     // R291: Gates FPS arc — keynote auditorium theme.
     'bg_keynote_corridor': 'bg_keynote_corridor.png',
+    'keynote_turret':      'keynote_turret.png',
+    'keynote_grunt':       'keynote_grunt.png',
+    'keynote_drone':       'keynote_drone.png',
+    'boss_gates_fps':      'boss_gates_fps.png',
     // R269: FPS-arena electric barrier hazard — 4-frame pulse cycle
     // (full-on → crackling → off → powering up). Tiled across the corridor
     // at mid-depth when segment 3 is active.

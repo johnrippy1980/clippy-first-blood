@@ -20,11 +20,10 @@ await page.waitForTimeout(800);
 
 const findings = [];
 
-// R281: main campaign now 1-11 (BALLMER OFFICE 6 + ARENA 7 inserted).
-// Skip 6+7 in this regression — they're FPS arenas with no platformer
-// boss spawn, the regression assertions don't apply.
-for (let stage = 1; stage <= 11; stage++) {
-    if (stage === 6 || stage === 7) continue;
+// R291: main campaign now 1-13. FPS stages 6,7,9,10 don't have a
+// platformer boss spawn — skip them in this regression.
+for (let stage = 1; stage <= 13; stage++) {
+    if (stage === 6 || stage === 7 || stage === 9 || stage === 10) continue;
     const r = await page.evaluate(async (s) => {
         const g = window.__game;
         g._startStage(s);
@@ -71,7 +70,7 @@ for (let stage = 1; stage <= 11; stage++) {
             if (g.scene === 'stageClear') break;
         }
 
-        const isGauntlet = s === 10; // R281: GAUNTLET (3-boss queue) shifted from 8 to 10
+        const isGauntlet = s === 12; // R291: GAUNTLET (3-boss queue) shifted from 10 to 12
         return {
             stage: s,
             isGauntlet,

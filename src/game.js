@@ -65,18 +65,19 @@ const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 const STAGE_CARD_DIALOG = {
     2: ['ONE DOWN.',              'COFFEE\'S STILL HOT.'],
     3: ['DOC FORMATTER. DEAD.',   'UNPLUG THE SERVER FARM.'],
-    // R226: stage 4. The server breach exposed a maintenance shaft.
     4: ['SOMETHING IS DOWN HERE.', 'THE PIPELINE GOES DEEPER.'],
-    // R281: Ballmer mini-arc. Board Room (5) — he gets away. Office (6) —
-    // chase him through the corridors. Arena (7) — final showdown.
+    // R281: Ballmer mini-arc — 5 (escape), 6 (office), 7 (arena).
     5: ['THEY WERE EXPERIMENTING.', 'BALLMER ANSWERS FOR THIS.'],
     6: ["HE'S IN THE BUILDING.",  'TRACK HIM DOWN.'],
     7: ["HE WON'T GET AWAY.",     'FINISH IT.'],
+    // R291: Gates mini-arc — 8 (escape from keynote), 9 (corridor), 10 (arena).
     8: ['BALLMER WAS A WARM-UP.', 'THE SHOWMAN AWAITS.'],
-    9: ['THE FOUNDER. FINALLY.',  'WHERE IT ALL BEGAN.'],
-    10:['THE OTHER CLIPPY.',      'NO MORE WARM-UPS.'],
-    11:['THE ALGORITHM REMAINS.', 'THE CLOUD. NO RETURN.'],
-    12:["SOMETHING'S OFF.",       'THE RECYCLE BIN CALLS.'],
+    9: ["HE BOLTED BACKSTAGE.",   'CHASE HIM DOWN.'],
+    10:['TRADE-SHOW FLOOR.',      'NO MORE KEYNOTES.'],
+    11:['THE FOUNDER. FINALLY.',  'WHERE IT ALL BEGAN.'],
+    12:['THE OTHER CLIPPY.',      'NO MORE WARM-UPS.'],
+    13:['THE ALGORITHM REMAINS.', 'THE CLOUD. NO RETURN.'],
+    14:["SOMETHING'S OFF.",       'THE RECYCLE BIN CALLS.'],
 };
 
 // Display name for each boss code — pulled from enemies.js definitions so
@@ -543,22 +544,21 @@ export class Game {
             this.stageSelectIndex = 0;
             this.scene = SCENE.STAGE_SELECT;
         } else if (input.isPressed('up')) {
-            // R281: training ground shifted 11→13.
-            audio.sfx('select');
-            this._startStage(13);
-        } else if (gameCleared && input.isPressed('left')) {
-            // R281: Boss Rush Mode shifted 12→14.
-            audio.sfx('select');
-            this._startStage(14);
-        } else if (gameCleared && input.isPressed('right')) {
-            // R281: Time Trial shifted 13→15.
+            // R291: training ground shifted 13→15.
             audio.sfx('select');
             this._startStage(15);
-        } else if (gameCleared && input.isPressed('shield')) {
-            // R190+R281: REALITY DISTORTION FIELD (Steve Jobs after-credits)
-            // shifted from 14 → 16.
+        } else if (gameCleared && input.isPressed('left')) {
+            // R291: Boss Rush Mode shifted 14→16.
             audio.sfx('select');
             this._startStage(16);
+        } else if (gameCleared && input.isPressed('right')) {
+            // R291: Time Trial shifted 15→17.
+            audio.sfx('select');
+            this._startStage(17);
+        } else if (gameCleared && input.isPressed('shield')) {
+            // R291: REALITY DISTORTION FIELD shifted 16→18.
+            audio.sfx('select');
+            this._startStage(18);
         }
     }
     _drawTitle() {
@@ -722,12 +722,12 @@ export class Game {
                     this.stageSelectIndex = 0;
                     this.scene = SCENE.STAGE_SELECT;
                     break;
-                // R281: stage-id shifts — training 11→13, bossRush 12→14,
-                // timeTrial 13→15, secret (Reality Distortion) 14→16.
-                case 'training':     this._startStage(13); break;
-                case 'bossRush':     this._startStage(14); break;
-                case 'timeTrial':    this._startStage(15); break;
-                case 'secret':       this._startStage(16); break;
+                // R291: stage-id shifts — training 13→15, bossRush 14→16,
+                // timeTrial 15→17, secret (Reality Distortion) 16→18.
+                case 'training':     this._startStage(15); break;
+                case 'bossRush':     this._startStage(16); break;
+                case 'timeTrial':    this._startStage(17); break;
+                case 'secret':       this._startStage(18); break;
                 case 'options':
                     this.optionsIndex = 0;
                     // R211: arm sub-menus to return to MAIN_MENU instead of
@@ -2528,8 +2528,8 @@ export class Game {
             ];
         }
         if (tab === 'bosses') {
-            // R281: stage-ids shifted — Ballmer 5 (Board Room platformer) +
-            // 6+7 (office/arena FPS), Gates 6→8, Founder 7→9, Cloud 9→11.
+            // R291: shifts after Gates arc inserts at 9+10 — Founder 9→11,
+            // Cloud 11→13.
             return [
                 { key: 'boss_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
                 { key: 'boss_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
@@ -2537,8 +2537,8 @@ export class Game {
                 { key: 'boss_SPINDLER',     label: 'DR. SPINDLER', unlock: stageDone(4) },
                 { key: 'boss_BALLMER',      label: 'BALLMER',      unlock: stageDone(5) },
                 { key: 'boss_GATES',        label: 'GATES',        unlock: stageDone(8) },
-                { key: 'boss_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(9) },
-                { key: 'boss_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(11) },
+                { key: 'boss_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(11) },
+                { key: 'boss_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(13) },
                 { key: 'boss_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
             ];
         }
@@ -2550,21 +2550,22 @@ export class Game {
             { key: 'story_boardroom', label: 'BOARDROOM', unlock: true },
             { key: 'story_hill',  label: 'HILL',  unlock: true },
             { key: 'story_list',  label: 'LIST',  unlock: true },
-            // R281: stage-ids shifted — Ballmer at 5, Gates 8, Founder 9,
-            // BossRush 10, Cloud/Algorithm 11.
+            // R291: stage-ids shifted again — Gates arc inserts at 9+10.
             { key: 'boss_intro_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
             { key: 'boss_intro_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
             { key: 'boss_intro_CTRL_ALT_DEL', label: 'CTRL-ALT-DEL', unlock: stageDone(3) },
             { key: 'boss_intro_BALLMER',      label: 'BALLMER',      unlock: stageDone(4) },
-            // R281: Ballmer mini-arc cinematics — escapes from Board Room
-            // (stage 5), chased through Office (6), final Arena (7).
-            { key: 'card_ballmer_escapes',    label: 'ESCAPE',       unlock: stageDone(5) },
-            { key: 'card_ballmer_office',    label: 'OFFICE',       unlock: stageDone(6) },
-            { key: 'card_ballmer_arena',     label: 'ARENA',        unlock: stageDone(7) },
+            // R281: Ballmer mini-arc cinematics — 5 (escape), 6 (office), 7 (arena).
+            { key: 'card_ballmer_escapes',    label: 'B. ESCAPE',    unlock: stageDone(5) },
+            { key: 'card_ballmer_office',     label: 'B. OFFICE',    unlock: stageDone(6) },
+            { key: 'card_ballmer_arena',      label: 'B. ARENA',     unlock: stageDone(7) },
             { key: 'boss_intro_GATES',        label: 'GATES',        unlock: stageDone(7) },
-            { key: 'boss_intro_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(8) },
-            { key: 'boss_intro_GAUNTLET',     label: 'BOSS RUSH',    unlock: stageDone(9) },
-            { key: 'boss_intro_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(10) },
+            // R291: Gates mini-arc cinematics — 8 (escape), 9 (corridor card uses keynote), 10 (arena).
+            { key: 'card_gates_escapes',      label: 'G. ESCAPE',    unlock: stageDone(8) },
+            { key: 'card_gates_arena',        label: 'G. ARENA',     unlock: stageDone(10) },
+            { key: 'boss_intro_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(10) },
+            { key: 'boss_intro_GAUNTLET',     label: 'BOSS RUSH',    unlock: stageDone(11) },
+            { key: 'boss_intro_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(12) },
             { key: 'boss_intro_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
             { key: 'ending',                  label: 'ENDING',       unlock: cleared },
             { key: 'epi_laughingstock',       label: 'LAUGHINGSTOCK', unlock: cleared },
@@ -2818,9 +2819,9 @@ export class Game {
         // R226: post-renumber stage IDs. New stage 4 = PIPELINE; old 4-8 are
         // now 5-9; old secret 9 is now 10. Card key strings haven't changed,
         // only the integer keys they're mapped under.
-        // R281: stage cards remapped to the new id layout — Ballmer arc
-        // inserts cards at 6 (office) and 7 (arena) between Board Room
-        // (5) and Keynote (now 8).
+        // R291: Gates arc inserts cards at 9 (corridor) and 10 (arena)
+        // between Keynote (8) and Founder's (now 11). Bossrush 12, Cloud 13,
+        // RecycleBin 14.
         const STAGE_CARDS = {
             2: 'card_breakroom',
             3: 'card_serverroom',
@@ -2829,10 +2830,12 @@ export class Game {
             6: 'card_ballmer_office',
             7: 'card_ballmer_arena',
             8: 'card_keynote',
-            9: 'card_founder',
-            10: 'card_bossrush',
-            11: 'card_cloud',
-            12: 'card_recyclebin',
+            9: 'card_keynote',          // R291: reuse keynote backdrop for corridor card
+            10: 'card_gates_arena',
+            11: 'card_founder',
+            12: 'card_bossrush',
+            13: 'card_cloud',
+            14: 'card_recyclebin',
         };
         // R281: extra-cards queue overrides the per-stage default card.
         // If set, paint that card first; queue drains on each X press.
@@ -2954,23 +2957,19 @@ export class Game {
     // select returns the ordered list of stage IDs to render in the grid,
     // based on what's currently unlocked + konami state.
     _stageSelectList() {
-        // R281: main campaign is now 1-11 (Pipeline 4, Board Room 5,
-        // Ballmer Office 6, Ballmer Arena 7, Keynote 8, Founder's 9,
-        // Boss Rush 10, Cloud 11). Secret stages renumber:
-        //   Recycle Bin 10 → 12, Reality Distortion 14 → 16, Core Breach 15 → 17.
+        // R291: main campaign is now 1-13 (Pipeline 4, Board Room 5,
+        // Ballmer Office 6, Ballmer Arena 7, Keynote 8, Keynote Corridor 9,
+        // Gates Arena 10, Founder's 11, Boss Rush 12, Cloud 13).
+        // Secret stages: Recycle Bin 14, Reality Distortion 18, Core Breach 19.
         const hasSecret = !!achievements.stats?.secretStageDiscovered;
         const gameCleared = achievements.unlocked.has('clear_game');
         const konami = !!this._konamiUnlocked;
         const ids = [];
-        // Main run — show every stage up through what's unlocked, capped at 11.
-        const mainMax = Math.min(11, Math.max(1, this.unlockedStage || 1));
+        const mainMax = Math.min(13, Math.max(1, this.unlockedStage || 1));
         for (let i = 1; i <= mainMax; i++) ids.push(i);
-        // Secret RECYCLE BIN (stage 12) — only if discovered or konami
-        if (hasSecret || konami) ids.push(12);
-        // REALITY DISTORTION FIELD (stage 16) — gated on game-clear or konami
-        if (gameCleared || konami) ids.push(16);
-        // FPS-arena CORE BREACH (stage 17) — konami-only secret (Spindler FPS)
-        if (konami) ids.push(17);
+        if (hasSecret || konami) ids.push(14);
+        if (gameCleared || konami) ids.push(18);
+        if (konami) ids.push(19);
         return ids;
     }
 
@@ -3001,11 +3000,11 @@ export class Game {
         if (this.stageSelectScroll < 0) this.stageSelectScroll = 0;
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
             const stage = ids[this.stageSelectIndex];
-            // R281: secret RECYCLE BIN moved 10→12, REALITY DISTORTION 14→16.
+            // R291: secret RECYCLE BIN moved 12→14, REALITY DISTORTION 16→18.
             const allowed = this._konamiUnlocked
                 || stage <= this.unlockedStage
-                || (stage === 12 && !!achievements.stats?.secretStageDiscovered)
-                || (stage === 16 && achievements.unlocked.has('clear_game'));
+                || (stage === 14 && !!achievements.stats?.secretStageDiscovered)
+                || (stage === 18 && achievements.unlocked.has('clear_game'));
             if (allowed) {
                 audio.sfx('menu');
                 // Reset player + run stats for the selected stage
@@ -3056,8 +3055,8 @@ export class Game {
             const data = STAGES[stage];
             const unlocked = this._konamiUnlocked
                 || stage <= this.unlockedStage
-                || (stage === 12 && hasSecret)
-                || (stage === 16 && achievements.unlocked.has('clear_game'));
+                || (stage === 14 && hasSecret)
+                || (stage === 18 && achievements.unlocked.has('clear_game'));
             const selected = i === this.stageSelectIndex;
 
             // Tile backplate
@@ -3124,8 +3123,8 @@ export class Game {
                 ctx.fillRect(sx, sy + 1, 4, 2);
             }
             // Secret stage shimmer
-            if (stage === 12) {
-                // R281: RECYCLE BIN shifted 10→12
+            if (stage === 14) {
+                // R291: RECYCLE BIN shifted 12→14
                 ctx.fillStyle = '#7af0ff';
                 ctx.globalAlpha = 0.25 + Math.sin(this.bootTimer * 0.1) * 0.15;
                 ctx.fillRect(tx + 1, ty + 1, tileW - 2, tileH - 2);
@@ -3154,8 +3153,8 @@ export class Game {
         if (selData) {
             const unlocked = this._konamiUnlocked
                 || sel <= this.unlockedStage
-                || (sel === 12 && hasSecret)
-                || (sel === 16 && achievements.unlocked.has('clear_game'));
+                || (sel === 14 && hasSecret)
+                || (sel === 18 && achievements.unlocked.has('clear_game'));
             // R278: pin detail strip to fixed bottom area regardless of scroll
             const detY = GAME.H - 32;
             drawTextOutlined(ctx, unlocked ? selData.name : '? ? ?', GAME.W / 2, detY, '#fff', '#1a0010', 1, 'center');
@@ -3330,10 +3329,10 @@ export class Game {
             n = 1;
         }
         this.currentStage = n;
-        // R281: main campaign is 1-11. Training (13), boss-rush-mode (14),
-        // time-trial (15), reality-distortion (16), core-breach (17) don't
+        // R291: main campaign is 1-13. Training (15), boss-rush-mode (16),
+        // time-trial (17), reality-distortion (18), core-breach (19) don't
         // count toward the unlock high-water mark.
-        if (n <= 11) {
+        if (n <= 13) {
             this.unlockedStage = Math.max(this.unlockedStage, n);
         }
         // Reset per-stage counters
@@ -3604,32 +3603,32 @@ export class Game {
                 this._restartRun();
                 return;
             }
-            // R281: secret stage id changed to 12. Final stage moved to 11.
-            // Secret-stage gate: stage 1 cleared with no damage routes to 12 once.
+            // R291: secret stage id changed to 14. Final stage = 13 (Cloud).
             let nextStage;
             if (this.currentStage === 1 && this.stageStats.damageTaken === 0 && !achievements.stats.secretStageDiscovered) {
                 achievements.stats.secretStageDiscovered = true;
                 achievements._save();
-                nextStage = 12;
+                nextStage = 14;
                 this._secretDiscoveryCard = true;
                 audio.sfx('secretFound');
-            } else if (this.currentStage === 12) {
+            } else if (this.currentStage === 14) {
                 // After secret stage (RECYCLE BIN), drop back to stage 2
                 nextStage = 2;
-            } else if (this.currentStage >= 11) {
-                // R281: Cloud (final main stage) shifted from 9 to 11.
+            } else if (this.currentStage >= 13) {
+                // R291: Cloud (final main stage) shifted from 11 to 13.
                 this._fadeTo(SCENE.GAME_COMPLETE);
                 return;
             } else {
                 nextStage = this.currentStage + 1;
             }
-            // R281: Ballmer escapes from Board Room (stage 5). Insert a
-            // one-shot "Ballmer escapes" painted cinematic between the
-            // Board Room clear and the office-approach card so the boss
-            // mini-arc reads as one cohesive escape → chase → confront.
+            // R281/R291: per-stage escape cinematics. Insert a one-shot
+            // painted "boss escapes" card between stages 5→6 (Ballmer flees
+            // Board Room) and 8→9 (Gates flees Keynote Hall).
             this._extraCards = null;
             if (this.currentStage === 5) {
                 this._extraCards = ['card_ballmer_escapes'];
+            } else if (this.currentStage === 8) {
+                this._extraCards = ['card_gates_escapes'];
             }
             // Route through the painted cinematic card(s) before the next stage
             this._pendingStage = nextStage;

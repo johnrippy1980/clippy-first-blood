@@ -148,23 +148,25 @@ export const STAGES = [
     { id: 6, name: 'BALLMER OFFICE',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
     // R281: FPS arena boss fight — final Ballmer confrontation.
     { id: 7, name: 'BALLMER ARENA',          theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
-    { id: 8, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB' },
-    { id: 9, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
-    { id: 10, name: 'BOSS RUSH',             theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
-    { id: 11, name: 'THE CLOUD',             theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
+    // R291: Gates escapes from KEYNOTE HALL platformer stage (stage 8),
+    // chased through stages 9 + 10 — mirrors the Ballmer arc structure.
+    { id: 8, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB', bossEscapes: true },
+    { id: 9, name: 'KEYNOTE CORRIDOR',       theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'BACKSTAGE PASS REQUIRED.' },
+    { id: 10, name: 'GATES ARENA',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'bossBattle', tagline: 'DEVELOPERS. DEVELOPERS.' },
+    { id: 11, name: "FOUNDER'S LAIR",        theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
+    { id: 12, name: 'BOSS RUSH',             theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
+    { id: 13, name: 'THE CLOUD',             theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
     // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
-    { id: 12, name: 'THE RECYCLE BIN',       theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
+    { id: 14, name: 'THE RECYCLE BIN',       theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
     // Training ground — god mode + unlimited ammo + scripted lessons.
-    { id: 13, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
+    { id: 15, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
     // Post-game unlock modes. Gated on achievements.unlocked.has('clear_game').
-    { id: 14, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
-    { id: 15, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
-    // REALITY DISTORTION FIELD — after-credits secret stage. Unlocks after
-    // clearing The Algorithm (clear_game). Steve Jobs as the titan who
-    // slipped through the cracks of the main hit list.
-    { id: 16, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
+    { id: 16, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
+    { id: 17, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
+    // REALITY DISTORTION FIELD — after-credits secret stage.
+    { id: 18, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
     // R229: hidden FPS-arena stage — Spindler FPS variant. Konami-only.
-    { id: 17, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
+    { id: 19, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
 ];
 
 // Damage flash colors per source.
