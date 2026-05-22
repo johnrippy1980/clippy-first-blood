@@ -184,10 +184,20 @@ def slice_sheet_into_frames(im, n_frames=4):
         prev = c
     bounds.append((prev, w))
 
+    # R228: pad each slice with ~25% breathing room. The original tight crop
+    # via crop_to_content cut the lab-coat flare at the bottom of each pose,
+    # producing very narrow (18px) sprites that read as "stretched". Keep
+    # the per-slice bounds but widen the BBox crop afterward.
     frames = []
     for xs, xe in bounds:
         frame = im.crop((xs, 0, xe, h))
-        frame = crop_to_content(frame)
+        bbox = frame.getbbox()
+        if bbox:
+            l, t, r, b = bbox
+            pad = max(8, int((r - l) * 0.25))
+            l = max(0, l - pad)
+            r = min(frame.size[0], r + pad)
+            frame = frame.crop((l, t, r, b))
         frames.append(frame)
     return frames
 
@@ -213,7 +223,9 @@ def main():
     frame_names = ['boss_spindler.png', 'boss_spindler_fire.png',
                    'boss_spindler_hurt.png', 'boss_spindler_death.png']
     for i, (frame, name) in enumerate(zip(frames, frame_names)):
-        frame = crop_to_content(frame)
+        # NOTE: slice_sheet_into_frames already pads then bbox-crops with
+        # breathing room. Don't re-tighten via crop_to_content here — it
+        # would throw away the pad and produce sliver-thin sprites.
         frame = downscale(frame, BOSS_H)
         dst = os.path.join(SPRITES, name)
         frame.save(dst, 'PNG', optimize=True)

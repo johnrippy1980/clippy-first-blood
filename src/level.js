@@ -1448,7 +1448,12 @@ function makeStagePipeline() {
 
     return {
         tiles: g, width: w, height: h, theme: THEME.SEWER,
-        playerStart: { x: 32, y: (h - 4) * GAME.TILE },
+        // R228: was x:32 which dropped Clippy in the middle of Section C
+        // (ladder descent) with the pipe-bridge obstacles behind him and
+        // walls ahead — net effect was a stuck spawn near the lab gate.
+        // Start at x:32 in pixels = 2 tiles in, lined up with the stage
+        // entry from above (camera scrolls right normally).
+        playerStart: { x: 2 * GAME.TILE, y: (h - 4) * GAME.TILE },
         bossTrigger: { x: 92 * GAME.TILE },
         // Mini-boss spawns at the act break (lab entry).
         miniBossTrigger: 50 * GAME.TILE,
