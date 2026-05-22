@@ -786,6 +786,19 @@ class Boss extends Enemy {
         this.attackIndex = 0;
         this.attackTimer = 120; // brief intro before first attack
         this.subState = 0;
+        // R231: patrol anchor. Bosses oscillate around their spawn x so
+        // they don't feel like statues. The arena is a ±PATROL_RANGE
+        // window around this anchor — boss never drifts past that even
+        // chasing the player, so it stays in the visible camera frame.
+        this._anchorX = x + tpl.w / 2;
+        this._patrolPhase = 0;
+        // Per-boss patrol style. Some bosses suit a slow sweep, some
+        // suit a snappy track-the-player pursuit, some hop in place.
+        // Encoded as a hint on the template (movement: 'sweep'|'pursue'|
+        // 'hop'|'flyby'|'static'). Defaults to 'sweep' for legacy bosses.
+        this._movement = tpl.movement || 'sweep';
+        // Movement speed multiplier — phase 2 enrage doubles it.
+        this._moveSpeed = tpl.moveSpeed || 0.5;
     }
 
     update(level, player) {
@@ -797,6 +810,73 @@ class Boss extends Enemy {
             const yRes = level.moveY(this, this.vy, true, this.vy);
             this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
         }
+        // R231: PATROL MOVEMENT. Every boss now visibly moves around its
+        // arena anchor so the fight reads as dynamic rather than a statue
+        // shoot. Speed scales with phase 2. PATROL_RANGE caps drift to a
+        // half-screen radius — the camera arena around the trigger is
+        // roughly ±64px, and we want the boss inside that 99% of the time.
+        const PATROL_RANGE = 56;
+        const speedMul = this.phase === 2 ? 1.6 : 1.0;
+        const baseSpeed = this._moveSpeed * speedMul;
+        const cx = this.x + this.w / 2;
+        const playerCX = player ? player.x + player.w / 2 : cx;
+        let desiredVX = 0;
+        if (this._movement === 'sweep') {
+            // Sinusoidal sweep around anchor. Slow, predictable, telegraphs
+            // the boss's position so the player can plan jumps.
+            this._patrolPhase += 0.018 * speedMul;
+            const target = this._anchorX + Math.sin(this._patrolPhase) * PATROL_RANGE;
+            desiredVX = (target - cx) * 0.08;
+        } else if (this._movement === 'pursue') {
+            // Track the player but clamped to anchor ± PATROL_RANGE so it
+            // can't chase Clippy off-screen. Active pursuit reads as menace.
+            const clampedTarget = Math.max(this._anchorX - PATROL_RANGE,
+                                            Math.min(this._anchorX + PATROL_RANGE, playerCX));
+            desiredVX = Math.sign(clampedTarget - cx) * baseSpeed;
+            // Stop micro-jittering when basically on target
+            if (Math.abs(clampedTarget - cx) < 4) desiredVX = 0;
+        } else if (this._movement === 'hop') {
+            // Hops in place — when grounded, leap toward player, capped to
+            // the patrol window. Adds vertical menace too.
+            this._patrolPhase++;
+            if (this.vy === 0 && this._patrolPhase % 90 === 0) {
+                const target = Math.max(this._anchorX - PATROL_RANGE,
+                                        Math.min(this._anchorX + PATROL_RANGE, playerCX));
+                this.vx = Math.sign(target - cx) * baseSpeed * 2.2;
+                this.vy = -3.2;
+            }
+            // Friction so the hop lands and stops
+            this.vx *= 0.96;
+            desiredVX = this.vx;
+        } else if (this._movement === 'flyby') {
+            // Floating boss — sweeps wider and higher. Used for airborne
+            // / non-grounded kinds like ALGORITHM.
+            this._patrolPhase += 0.024 * speedMul;
+            const target = this._anchorX + Math.sin(this._patrolPhase) * (PATROL_RANGE + 16);
+            desiredVX = (target - cx) * 0.10;
+            // gentle vertical bob
+            const baseY = (this._anchorY ||= this.y);
+            this.y = baseY + Math.sin(this._patrolPhase * 1.4) * 8;
+        }
+        // 'static' bosses skip patrol entirely (use case: bosses whose
+        // pattern is "stand and chuck projectiles" by design).
+        if (this._movement !== 'static' && this._movement !== 'hop') {
+            const xRes = level.moveX(this, desiredVX);
+            this.x = xRes.x;
+            if (xRes.hit) {
+                // Bounced off a wall — flip sweep direction so we don't
+                // grind against geometry forever.
+                if (this._movement === 'sweep' || this._movement === 'flyby') {
+                    this._patrolPhase += Math.PI;
+                }
+            }
+        } else if (this._movement === 'hop') {
+            const xRes = level.moveX(this, this.vx);
+            this.x = xRes.x;
+            if (xRes.hit) this.vx = 0;
+        }
+        // Update facing so the sprite + attacks aim at the player.
+        if (player) this.facing = playerCX < cx ? -1 : 1;
         // Phase 2 at half hp — boss enrages: explosion FX, brief invuln-ish
         // pause, screen shake, "RAGE" floating label, and an extended hitFlash
         // so the player can read the threshold beat clearly.
@@ -1173,6 +1253,7 @@ const BOSS_TEMPLATES = {
         w: 48, h: 40, hp: 28, contactDmg: 2, score: 5000,
         color: '#506070', detail: '#a8b8c8',
         grounded: true,
+        movement: 'sweep', moveSpeed: 0.5,
         draw: (ctx, x, y, w, h, t, p) => {
             // Display panel
             ctx.fillStyle = '#10204a'; ctx.fillRect(x + 8, y + 4, w - 16, 10);
@@ -1207,6 +1288,7 @@ const BOSS_TEMPLATES = {
         w: 44, h: 36, hp: 32, contactDmg: 2, score: 6000,
         color: '#c0c0c8', detail: '#1a1a1a',
         grounded: true,
+        movement: 'pursue', moveSpeed: 0.7,
         draw: (ctx, x, y, w, h, t) => {
             // Teeth/grate
             for (let i = 0; i < 9; i++) {
@@ -1239,6 +1321,7 @@ const BOSS_TEMPLATES = {
         w: 56, h: 32, hp: 36, contactDmg: 2, score: 7000,
         color: '#1040a0', detail: '#80c0ff',
         grounded: true,
+        movement: 'pursue', moveSpeed: 0.9,
         draw: (ctx, x, y, w, h, t) => {
             // 3 heads
             for (let i = 0; i < 3; i++) {
@@ -1274,6 +1357,7 @@ const BOSS_TEMPLATES = {
         w: 32, h: 40, hp: 40, contactDmg: 2, score: 8000,
         color: '#a04040', detail: '#fff',
         grounded: true,
+        movement: 'hop', moveSpeed: 0.6,
         draw: (ctx, x, y, w, h, t) => {
             // Bald head
             ctx.fillStyle = '#f0c8a8'; ctx.fillRect(x + 6, y + 2, w - 12, 12);
@@ -1311,6 +1395,7 @@ const BOSS_TEMPLATES = {
         w: 28, h: 38, hp: 44, contactDmg: 2, score: 9000,
         color: '#806040', detail: '#fff',
         grounded: true,
+        movement: 'pursue', moveSpeed: 0.7,
         draw: (ctx, x, y, w, h, t) => {
             // Hair (bowl cut)
             ctx.fillStyle = '#603018'; ctx.fillRect(x + 4, y + 0, w - 8, 6);
@@ -1348,6 +1433,7 @@ const BOSS_TEMPLATES = {
         w: 28, h: 36, hp: 48, contactDmg: 2, score: 10000,
         color: '#c0c0d0', detail: '#ff60ff',
         grounded: true,
+        movement: 'pursue', moveSpeed: 1.0,
         draw: (ctx, x, y, w, h, t) => {
             // Chrome paperclip silhouette
             ctx.fillStyle = '#a0a0b8';
@@ -1385,6 +1471,7 @@ const BOSS_TEMPLATES = {
             mockHit: ['NOTED.', 'INTERESTING REACTION.', 'PAIN RESPONSE LOGGED.'],
         },
         w: 22, h: 44, hp: 50, contactDmg: 2, score: 9500,
+        movement: 'sweep', moveSpeed: 0.6,
         color: '#e8e8f0', detail: '#a060ff',
         grounded: true,
         // The painted sprite carries all the detail (glowing heterochromia eyes,
@@ -1436,6 +1523,7 @@ const BOSS_TEMPLATES = {
             mockHit: ['RECOMMENDED.', 'YOU LIKED THAT.', 'A/B TESTED.'],
         },
         w: 40, h: 40, hp: 60, contactDmg: 2, score: 15000,
+        movement: 'flyby', moveSpeed: 0.7,
         color: '#202848', detail: '#7af0ff',
         grounded: false,
         draw: (ctx, x, y, w, h, t, p) => {
@@ -1479,6 +1567,7 @@ const BOSS_TEMPLATES = {
             mockHit: ['YOU HOLD IT WRONG.', 'NOT INSANELY GREAT.', 'CRASH.'],
         },
         w: 32, h: 44, hp: 80, contactDmg: 3, score: 25000,
+        movement: 'pursue', moveSpeed: 0.8,
         color: '#1a1a1a', detail: '#d0d0d8',
         grounded: true,
         // R199: procedural Jobs draw removed entirely. The Enemy renderer
