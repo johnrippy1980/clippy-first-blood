@@ -1402,21 +1402,115 @@ function makeStage13() {
     };
 }
 
+// R226: THE PIPELINE — new stage 4. Two-act layout, first half is sewer
+// descent (vertical-ish corridors, sludge spikes, ladders), second half
+// transitions visually into the experimentation lab where Dr. Spindler
+// waits. Length matches Stage 3 (~90 tiles) so pacing stays consistent.
+function makeStagePipeline() {
+    const w = 100, h = 14;
+    const { g } = blankStage(w, h, THEME.SEWER);
+
+    // Section A (x 0–18): SEWER ENTRY — drop into the corridor. Tight platforms,
+    // first taste of dripping sludge spikes.
+    platT(g, 9, 6, 4);
+    platT(g, 6, 12, 3);
+    spikeRow(g, h - 3, 14, 2);   // first sludge puddle
+
+    // Section B (x 18–34): PIPE BRIDGE — horizontal pipe segments as platforms.
+    rectT(g, 10, 20, 6, 1, P);    // long pipe (one-way platform)
+    platT(g, 7,  26, 3);          // upper pipe junction
+    rectT(g, 11, 30, 4, 1, P);    // lower pipe
+
+    // Section C (x 34–50): LADDER DESCENT — drop deeper, hole-punch sniper
+    // perched on a pipe across the gap.
+    ladderT(g, h - 4, 36, 3);
+    spikeRow(g, h - 3, 40, 4);    // wide sludge pit
+    platT(g, 9,  42, 3);          // mid-air pipe
+    platT(g, 6,  46, 3);          // upper-route pipe
+
+    // Section D (x 50–68): LAB ENTRY TRANSITION — backdrop swaps to the lab.
+    // Geometry simplifies into an arena-style room; first containment tubes
+    // become destructible cover.
+    rectT(g, 10, 54, 3, 1, W);    // operating table 1
+    rectT(g, 10, 60, 3, 1, W);    // operating table 2
+    platT(g, 7,  56, 4);          // upper catwalk
+
+    // Section F (x 68–84): SPECIMEN HALL — rows of cover (containment tubes).
+    setT(g, h - 3, 68, C);
+    setT(g, h - 3, 72, C);
+    setT(g, h - 3, 76, C);
+    setT(g, h - 3, 80, C);
+    platT(g, 6, 70, 4);
+
+    // Section G (x 84–96): BOSS APPROACH — clearing, exit door.
+    rectT(g, 11, 86, 4, 1, W);
+    setT(g, h - 3, w - 4, X);
+
+    return {
+        tiles: g, width: w, height: h, theme: THEME.SEWER,
+        playerStart: { x: 32, y: (h - 4) * GAME.TILE },
+        bossTrigger: { x: 92 * GAME.TILE },
+        // Mini-boss spawns at the act break (lab entry).
+        miniBossTrigger: 50 * GAME.TILE,
+        enemySpawns: [
+            // A: stapler near sewer entry
+            { x: 10 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // B: folder on pipe bridge
+            { x: 26 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
+            { x: 32 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // C: sniper on the gap
+            { x: 44 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
+            // D: stapler + cabinet in transition
+            { x: 56 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            { x: 62 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // F: folder above specimen hall, sniper on catwalk
+            { x: 70 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'folder' },
+            { x: 82 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+        ],
+        pickupSpawns: [
+            // Pre-mini LIFE
+            { x: 48 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // Mid-stage GRENADE (transition into lab)
+            { x: 52 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+            // Pre-boss LIFE
+            { x: 88 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+        ],
+        crateSpawns: [
+            // Early SHOTGUN — sewer-tight CQB weapon
+            { x:  8 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'SHOTGUN' },
+            // Mid HOMING — through the pipe junctions
+            { x: 24 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'HOMING' },
+            // Lab entry SPREAD — open-arena reward
+            { x: 54 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'SPREAD' },
+            // Specimen hall THUNDER — late-stage power weapon
+            { x: 78 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'THUNDER' },
+        ],
+        // R222 breakable walls — one of each type per stage standard.
+        wallSpawns: [
+            { x: 47 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            { x: 67 * GAME.TILE, y: (h - 4) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
+            // Hidden tag — way up high above the lab entry, requires aim-lock + jump
+            { x: 50 * GAME.TILE, y: ( 3) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
+    };
+}
+
 export const STAGE_LOADERS = [
     null,
     () => makeStage1(),
     () => makeStage2(),
     () => makeStage3(),
-    () => makeStage4(),
-    () => makeStage5(),
-    () => makeStage6(),
-    () => makeStage7(),
-    () => makeStage8(),
-    () => makeStage9(),  // Secret
-    () => makeTraining(),  // Training ground — stage 10
-    () => makeBossRushMode(),  // Boss rush — stage 11 (post-game unlock)
-    () => makeTimeTrial(),  // Time trial — stage 12 (post-game unlock)
-    () => makeStage13(),  // R190: REALITY DISTORTION FIELD — post-credits Jobs fight
+    () => makeStagePipeline(),  // R226: new stage 4 — sewer/lab + Dr. Spindler
+    () => makeStage4(),         // BOARDROOM — now stage 5
+    () => makeStage5(),         // KEYNOTE — now stage 6
+    () => makeStage6(),         // FOUNDER'S LAIR — now stage 7
+    () => makeStage7(),         // BOSS RUSH — now stage 8
+    () => makeStage8(),         // CLOUD — now stage 9
+    () => makeStage9(),         // Secret (RECYCLE BIN) — now stage 10
+    () => makeTraining(),       // Training ground — now stage 11
+    () => makeBossRushMode(),   // Boss rush mode — now stage 12
+    () => makeTimeTrial(),      // Time trial — now stage 13
+    () => makeStage13(),        // REALITY DISTORTION FIELD — now stage 14
 ];
 
 // Tile palette per theme — dark painted tones, NOT bright video-game colors.
@@ -1431,8 +1525,11 @@ const THEME_PALETTE = {
     [THEME.FOUNDER]:    { solid: '#0a0408', solidTop: '#180810', platform: '#1a0810', plank: '#040204', accent: '#601008', highlight: '#a02018' },
     [THEME.CLOUD]:      { solid: '#040818', solidTop: '#0a1428', platform: '#101a30', plank: '#020410', accent: '#205080', highlight: '#5090c0' },
     // R190: REALITY — black mirror floor of the keynote auditorium, with
-    // spotlight-lavender highlights. Used by Stage 13 (Steve Jobs fight).
+    // spotlight-lavender highlights. Used by REALITY DISTORTION FIELD (Jobs).
     [THEME.REALITY]:    { solid: '#04040a', solidTop: '#0a0810', platform: '#181020', plank: '#020208', accent: '#503060', highlight: '#8060a0' },
+    // R226: SEWER — rusted concrete + sickly green algae highlights, matches
+    // the painted stage_sewer.png backdrop. Used by Stage 4 (THE PIPELINE).
+    [THEME.SEWER]:      { solid: '#0c0e10', solidTop: '#1a1c1e', platform: '#2a2018', plank: '#080806', accent: '#3a5028', highlight: '#608048' },
 };
 
 export class Level {

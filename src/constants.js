@@ -110,37 +110,45 @@ export const THEME = Object.freeze({
     KEYNOTE: 'keynote',
     FOUNDER: 'founder',
     CLOUD: 'cloud',
-    // R190: Stage 13 — REALITY DISTORTION FIELD, the after-credits boss
-    // stage where Steve Jobs hurls iPods and translucent cube iMacs at
-    // Clippy. Uses the painted keynote auditorium backdrop.
+    // REALITY DISTORTION FIELD — after-credits boss stage where Steve Jobs
+    // hurls iPods and translucent cube iMacs at Clippy. Uses the painted
+    // keynote auditorium backdrop.
     REALITY: 'reality',
+    // R226: THE PIPELINE — stage 4 sewer descent + secret lab. Uses
+    // assets/backgrounds/stage_sewer.png and stage_lab.png. Boss SPINDLER.
+    SEWER: 'sewer',
 });
 
-// Stage manifest. Indexes 1..8. Each carries theme + boss + music + display name.
+// Stage manifest. R226: inserted THE PIPELINE at id=4 between Server Room and
+// Boardroom. Main run is now 1..9. Subsequent stages shifted +1: secret=10,
+// training=11, boss rush mode=12, time trial=13, reality=14.
 export const STAGES = [
     null, // 1-indexed
     { id: 1, name: 'OFFICE PARK JUNGLE',    theme: THEME.JUNGLE,      boss: 'COPIER_3000',  music: 'jungle',     tagline: 'WHERE PAPERWORK GOES TO DIE' },
     { id: 2, name: 'THE BREAK ROOM',         theme: THEME.BREAKROOM,   boss: 'SHREDDER',      music: 'breakroom',  tagline: 'NO ONE REPLENISHED THE COFFEE'  },
     { id: 3, name: 'SERVER ROOM',            theme: THEME.SERVERROOM,  boss: 'CTRL_ALT_DEL',  music: 'serverroom', tagline: 'THE FANS SCREAM FOREVER' },
-    { id: 4, name: 'THE BOARD ROOM',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS' },
-    { id: 5, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB' },
-    { id: 6, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
-    { id: 7, name: 'BOSS RUSH',              theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
-    { id: 8, name: 'THE CLOUD',              theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
+    // R226: new stage 4 — sewer descent into a secret vivisection lab.
+    // Painted bg switches mid-stage (sewer → lab). Boss DR. SPINDLER.
+    { id: 4, name: 'THE PIPELINE',           theme: THEME.SEWER,       boss: 'SPINDLER',      music: 'pipeline',   tagline: 'WHAT ARE THEY DOING DOWN HERE' },
+    { id: 5, name: 'THE BOARD ROOM',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS' },
+    { id: 6, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB' },
+    { id: 7, name: "FOUNDER'S LAIR",         theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
+    { id: 8, name: 'BOSS RUSH',              theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
+    { id: 9, name: 'THE CLOUD',              theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
     // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
-    { id: 9, name: 'THE RECYCLE BIN',        theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
+    { id: 10, name: 'THE RECYCLE BIN',       theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
     // Training ground — god mode + unlimited ammo + scripted lessons. Accessible
     // from the title screen by holding UP. Not a "real" stage; never shows in
     // stage select or counts toward achievements.
-    { id: 10, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
+    { id: 11, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
     // Post-game unlock modes. Gated on achievements.unlocked.has('clear_game').
     // Accessed from title screen via LEFT (BOSS RUSH) / RIGHT (TIME TRIAL).
-    { id: 11, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
-    { id: 12, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
-    // R190: Stage 13 — REALITY DISTORTION FIELD. After-credits secret stage.
-    // Unlocks after clearing The Algorithm (clear_game). Steve Jobs as the
-    // titan who slipped through the cracks of the main hit list.
-    { id: 13, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
+    { id: 12, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
+    { id: 13, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
+    // REALITY DISTORTION FIELD — after-credits secret stage. Unlocks after
+    // clearing The Algorithm (clear_game). Steve Jobs as the titan who
+    // slipped through the cracks of the main hit list.
+    { id: 14, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
 ];
 
 // Damage flash colors per source.

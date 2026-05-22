@@ -462,22 +462,22 @@ export class Game {
         } else if (input.isPressed('up')) {
             // UP at title — training ground. Always accessible.
             audio.sfx('select');
-            this._startStage(10);
+            this._startStage(11);
         } else if (gameCleared && input.isPressed('left')) {
             // LEFT/RIGHT — post-game unlock modes.
             audio.sfx('select');
-            this._startStage(11);
+            this._startStage(12);
         } else if (gameCleared && input.isPressed('right')) {
             audio.sfx('select');
-            this._startStage(12);
+            this._startStage(13);
         } else if (gameCleared && input.isPressed('shield')) {
             // R190: B (shield key) on title once clear_game is unlocked routes
-            // to Stage 13 — the Steve Jobs after-credits fight. Reusing the
-            // shield key (rather than burning a new bind) keeps the title
-            // input surface clean. Title screen doesn't render a shield, so
-            // pressing B here can only mean "go to the secret stage."
+            // to REALITY DISTORTION FIELD — the Steve Jobs after-credits fight.
+            // Reusing the shield key (rather than burning a new bind) keeps
+            // the title input surface clean. Title screen doesn't render a
+            // shield, so pressing B here can only mean "go to the secret stage."
             audio.sfx('select');
-            this._startStage(13);
+            this._startStage(14);
         }
     }
     _drawTitle() {
@@ -638,10 +638,10 @@ export class Game {
                     this.stageSelectIndex = 0;
                     this.scene = SCENE.STAGE_SELECT;
                     break;
-                case 'training':     this._startStage(10); break;
-                case 'bossRush':     this._startStage(11); break;
-                case 'timeTrial':    this._startStage(12); break;
-                case 'secret':       this._startStage(13); break;
+                case 'training':     this._startStage(11); break;
+                case 'bossRush':     this._startStage(12); break;
+                case 'timeTrial':    this._startStage(13); break;
+                case 'secret':       this._startStage(14); break;
                 case 'options':
                     this.optionsIndex = 0;
                     // R211: arm sub-menus to return to MAIN_MENU instead of
@@ -2637,7 +2637,7 @@ export class Game {
         if (input.isPressed('down'))  { this.stageSelectIndex = Math.min(total - 1, this.stageSelectIndex + 4); audio.sfx('select'); }
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
             const stage = this.stageSelectIndex + 1;
-            if (stage <= this.unlockedStage || (stage === 9 && hasSecret)) {
+            if (stage <= this.unlockedStage || (stage === 10 && hasSecret)) {
                 audio.sfx('menu');
                 // Reset player + run stats for the selected stage
                 this.player = null;
@@ -2674,7 +2674,7 @@ export class Game {
             const ty = Math.round(startY + row * (tileH + 6));
             const stage = i + 1;
             const data = STAGES[stage];
-            const unlocked = stage <= this.unlockedStage || (stage === 9 && hasSecret);
+            const unlocked = stage <= this.unlockedStage || (stage === 10 && hasSecret);
             const selected = i === this.stageSelectIndex;
 
             // Tile backplate
@@ -2725,7 +2725,7 @@ export class Game {
                 ctx.fillRect(sx, sy + 1, 4, 2);
             }
             // Secret stage shimmer
-            if (stage === 9) {
+            if (stage === 10) {
                 ctx.fillStyle = '#7af0ff';
                 ctx.globalAlpha = 0.25 + Math.sin(this.bootTimer * 0.1) * 0.15;
                 ctx.fillRect(tx + 1, ty + 1, tileW - 2, tileH - 2);
@@ -3071,7 +3071,7 @@ export class Game {
                 maxCombo: this.runStats.maxCombo,
                 weaponDamage: this.runStats.weaponDamage,
                 totalTime: this.totalTime,
-                secretStageDiscovered: this.runStats.stagesCleared.has(9),
+                secretStageDiscovered: this.runStats.stagesCleared.has(10),
                 bulletTimeUses: this.runStats.bulletTimeUses,
                 bestScore: this.player.score,
                 enemiesLost: this.runStats.enemiesLost,
@@ -3158,10 +3158,10 @@ export class Game {
                 // Triumphant chime — fires once as the card opens, layers on
                 // top of the regular 'select' SFX above.
                 audio.sfx('secretFound');
-            } else if (this.currentStage === 9) {
-                // After secret, drop back to stage 2
+            } else if (this.currentStage === 10) {
+                // After secret stage (RECYCLE BIN), drop back to stage 2
                 nextStage = 2;
-            } else if (this.currentStage >= 8) {
+            } else if (this.currentStage >= 9) {
                 this._fadeTo(SCENE.GAME_COMPLETE);
                 return;
             } else {

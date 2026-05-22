@@ -1,8 +1,8 @@
 // R167: end-to-end probe that drives every stage's boss kill path.
 // Asserts: no runtime errors, every stage's boss actually spawns, every
 // stage either reaches stageClear (normal stage) OR rotates to the next
-// gauntlet boss (stages 7 and post-game 11). Future breakage in any stage's
-// boss-trigger / spawn / clear path surfaces here as a probe failure.
+// gauntlet boss (stage 8 post-R226 renumber, and post-game 12). Future
+// breakage in any stage's boss-trigger / spawn / clear path surfaces here.
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
@@ -18,7 +18,7 @@ await page.waitForTimeout(800);
 
 const findings = [];
 
-for (let stage = 1; stage <= 8; stage++) {
+for (let stage = 1; stage <= 9; stage++) {
     const r = await page.evaluate(async (s) => {
         const g = window.__game;
         g._startStage(s);
@@ -65,7 +65,7 @@ for (let stage = 1; stage <= 8; stage++) {
             if (g.scene === 'stageClear') break;
         }
 
-        const isGauntlet = s === 7;  // stage 7 is the GAUNTLET (3-boss queue)
+        const isGauntlet = s === 8;  // stage 8 is the GAUNTLET (3-boss queue) post-R226
         return {
             stage: s,
             isGauntlet,

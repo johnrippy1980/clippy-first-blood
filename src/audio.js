@@ -35,11 +35,16 @@ const FILE_TRACKS = {
     // (server room → "No Remorse", boss rush → "Night Drive", etc.).
     breakroom:  'assets/audio/what-was-it-for.mp3',  // stage 2
     serverroom: 'assets/audio/no-remorse.mp3',       // stage 3
-    boardroom:  'assets/audio/no-pity.mp3',          // stage 4
-    keynote:    'assets/audio/dont-go.mp3',          // stage 5
-    founder:    'assets/audio/disbelief.mp3',        // stage 6
-    cloud:      'assets/audio/the-path.mp3',         // stage 8
-    bossBattle: 'assets/audio/night-drive.mp3',      // stage 7 boss rush
+    // R226: pipeline = stage 4 (THE PIPELINE / Dr. Spindler's lab). Re-use
+    // the bonus track ("You've Been Loving Me") — its melancholy, almost
+    // hymn-like quality fits the body-horror lab discovery. Also frees the
+    // bonus slot from menu-only purgatory.
+    pipeline:   'assets/audio/youve-been-loving.mp3', // stage 4
+    boardroom:  'assets/audio/no-pity.mp3',          // stage 5
+    keynote:    'assets/audio/dont-go.mp3',          // stage 6
+    founder:    'assets/audio/disbelief.mp3',        // stage 7
+    cloud:      'assets/audio/the-path.mp3',         // stage 9
+    bossBattle: 'assets/audio/night-drive.mp3',      // stage 8 boss rush
     // Bonus track — wired to a hidden alias so the soundtrack gallery
     // can list it without a stage routing yet. Playable via menu.
     bonus:      'assets/audio/youve-been-loving.mp3',

@@ -1361,6 +1361,62 @@ const BOSS_TEMPLATES = {
             ctx.fillRect(x + 10, y + 10, 2, flick); ctx.fillRect(x + 16, y + 10, 2, flick);
         },
     },
+    // R226: DR. SPINDLER — Stage 4 boss. Tall lanky mad scientist running the
+    // secret experimentation lab Clippy stumbles into via the sewer descent.
+    // Painted PNG sprites: boss_SPINDLER (idle), boss_SPINDLER_fire (syringe
+    // raised), boss_SPINDLER_hurt, boss_SPINDLER_death. The boss renderer
+    // picks the right key based on this.fireFrame / this.hurtTimer / dead.
+    SPINDLER: {
+        name: 'DR. SPINDLER', tagline: 'WHAT ARE THEY DOING DOWN HERE',
+        barks: {
+            phase2: 'SPECIMEN 47. ACTIVATE.',
+            taunt: [
+                'A PRISTINE SAMPLE',
+                'HOLD STILL',
+                'YOU WILL MAKE LOVELY DATA',
+                'CONSENT WAS NEVER REQUIRED',
+                'YOUR PEERS ARE IN THE TUBES',
+                'BEHIND YOU - TWELVE OF YOU',
+                'CLIPPY IS NOT A NAME. IT IS A SERIES',
+                'INTERESTING. WRITE THAT DOWN',
+                'THE SCREAMING IS SO INSTRUCTIVE',
+            ],
+            lowHp: 'EYES BRIGHTER. EYES BRIGHTER.',
+            mockHit: ['NOTED.', 'INTERESTING REACTION.', 'PAIN RESPONSE LOGGED.'],
+        },
+        w: 22, h: 44, hp: 50, contactDmg: 2, score: 9500,
+        color: '#e8e8f0', detail: '#a060ff',
+        grounded: true,
+        // The painted sprite carries all the detail (glowing heterochromia eyes,
+        // ribcage, rubber gloves). draw() here is the fallback for when the
+        // PNG isn't loaded — keep it readable but minimal.
+        draw: (ctx, x, y, w, h, t) => {
+            // Tall white lab coat silhouette
+            ctx.fillStyle = '#e8e8f0';
+            ctx.fillRect(x + 4, y + 10, w - 8, h - 12);
+            // Bare chest stripe (open coat)
+            ctx.fillStyle = '#a07060';
+            ctx.fillRect(x + w / 2 - 2, y + 12, 4, h - 18);
+            // Head — gaunt skull
+            ctx.fillStyle = '#d8c8b0';
+            ctx.fillRect(x + 6, y + 2, w - 12, 10);
+            // Purple-tinted glasses with two-color glow
+            ctx.fillStyle = '#604070';
+            ctx.fillRect(x + 7, y + 6, 3, 2);
+            ctx.fillRect(x + w - 10, y + 6, 3, 2);
+            // Eye glow — green + blue. Brighter on alternating frames as a
+            // pre-attack tell (works regardless of sprite-load state).
+            const bright = (t / 6 | 0) % 4 < 2;
+            ctx.fillStyle = bright ? '#60ff80' : '#308050';
+            ctx.fillRect(x + 8, y + 7, 1, 1);
+            ctx.fillStyle = bright ? '#60a0ff' : '#306080';
+            ctx.fillRect(x + w - 9, y + 7, 1, 1);
+            // Long black rubber gloves
+            ctx.fillStyle = '#0a0a0c';
+            ctx.fillRect(x + 2, y + 14, 3, 14);
+            ctx.fillRect(x + w - 5, y + 14, 3, 14);
+        },
+    },
     ALGORITHM: {
         name: 'THE ALGORITHM', tagline: 'IT KNOWS WHAT YOU WANT',
         barks: {

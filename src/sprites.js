@@ -374,6 +374,13 @@ export const ENEMY_MANIFEST = {
     //     that fired when boss_JOBS was unmapped.
     'enemy_jobs':       'enemy_jobs.png',
     'boss_JOBS':        'boss_jobs_portrait.png',
+    // R226: Dr. Spindler — stage 4 lab boss. Multi-frame sheet sliced into
+    // separate state PNGs so the boss draw can pick by phase.
+    'boss_SPINDLER':         'boss_spindler.png',
+    'boss_SPINDLER_fire':    'boss_spindler_fire.png',
+    'boss_SPINDLER_hurt':    'boss_spindler_hurt.png',
+    'boss_SPINDLER_death':   'boss_spindler_death.png',
+    'boss_SPINDLER_portrait':'boss_spindler_portrait.png',
 };
 
 // ============================================================
