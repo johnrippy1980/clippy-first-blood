@@ -1064,27 +1064,14 @@ class Audio {
         this._noise(t + 0.005, 0.10, 0.04, 6500, 'hp', 1);
     }
 
-    // R251: FLAME — proper flamethrower hiss. Combustion rumble (sub),
-    // turbulent body noise (the actual flame), bright ember crackle, and a
-    // pitched gas-escape whine on top. Old version was a single thin
-    // lowpass burst; this layers like a real torch.
+    // R287: FLAME — back to a single clean hiss. The R251 4-layer version
+    // (rumble + body + crackle + whine) read as "heavy industrial flame
+    // burst" but called every few frames during continuous flame-fire it
+    // stacked into a muddy roar. Single bp noise puff is what flame
+    // weapons should sound like — overlapping calls naturally build into
+    // a roar without each lick being a wall of noise.
     _flameLick(t) {
-        // Combustion rumble — low sub thrum
-        this._noise(t,         0.14, 0.32, 250,  'lp', 1);
-        // Flame body — long bp noise with mid frequency for the roar
-        this._noise(t + 0.005, 0.10, 0.28, 1100, 'bp', 1.2);
-        // Bright ember crackle on top — short HP burst for "spark" snap
-        this._noise(t,         0.08, 0.10, 5200, 'hp', 1);
-        // Gas-escape whine — high-pitched sine bleed (~2.6kHz) for the
-        // "fsssss" hiss read. Very quiet so it doesn't dominate the body.
-        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
-        o.type = 'sine';
-        o.frequency.setValueAtTime(2400 + Math.random() * 400, t);
-        o.frequency.exponentialRampToValueAtTime(1800, t + 0.20);
-        this._envOn(g, 0.05, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-        o.connect(g).connect(this.sfxBus);
-        o.start(t); o.stop(t + 0.24);
+        this._noise(t, 0.12, 0.22, 1600, 'bp', 1.0);
     }
 
     _homingWoosh(t) {

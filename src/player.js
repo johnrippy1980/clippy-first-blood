@@ -1643,7 +1643,14 @@ export class Player {
             b.y += b.vy;
 
             // Wall collision
-            if (level.isSolid(b.x, b.y)) {
+            // R287: breakable walls have isSolid=true (block player movement)
+            // but bullets need to pass the player-tick wall-stick branch so
+            // BreakableWall.update can detect the hit on the same frame.
+            // Without this, bullets get consumed by the wall-stick code
+            // before the wall's own update loop sees them — destructibles
+            // never take damage. Check level.isSolid AND not a breakable wall.
+            const onBreakableWall = level._wallSolidCheck && level._wallSolidCheck(b.x, b.y);
+            if (level.isSolid(b.x, b.y) && !onBreakableWall) {
                 particles.hitSpark(b.x, b.y, b.color);
                 // Impact-stick: MG/SPREAD/LASER bury into the wall and fade.
                 // FLAME/THUNDER/HOMING have their own visual death (puff, lightning
