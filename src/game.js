@@ -3738,7 +3738,11 @@ export class Game {
                 if (this.gameOverIndex === 0) {
                     // CONTINUE: re-enter the current stage. Preserves run score / time totals
                     // (small comeback penalty: score is halved as a soft cost).
-                    this.player.score = Math.floor((this.player.score || 0) * 0.5);
+                    // R262: this.player may be null after an FPS-arena death
+                    // (no platformer player object). Guard the score access.
+                    if (this.player) {
+                        this.player.score = Math.floor((this.player.score || 0) * 0.5);
+                    }
                     this._startStage(this.currentStage || 1);
                 } else {
                     this._restartRun();

@@ -83,6 +83,8 @@ export class FpsArena {
             y: RAIL_Y - PLAYER_H,
             w: PLAYER_W, h: PLAYER_H,
             hp: 6,
+            maxHp: 6,
+            lives: 3,                  // R262: was effectively 1 — give 3 retries
             iframes: 0,
             shootCD: 0,
             facing: 0,
@@ -101,7 +103,17 @@ export class FpsArena {
         this.enemyBullets = [];
         this.particles = [];
 
-        this.bgImg = sprites.images.get(stageData.bgKey) || null;
+        // R265: per-segment backdrops so the corridor visibly transitions
+        // as the player advances. Sewer pipes for the first two segments,
+        // bio-lab for the back half. Falls back to stageData.bgKey if a
+        // segment's key isn't loaded yet.
+        this.bgKeys = stageData.bgKeys || [
+            'bg_sewer',
+            'bg_sewer',
+            'bg_sewer_lab',
+            'bg_sewer_lab',
+        ];
+        this._refreshBg();
 
         // Boot the first segment
         this._loadSegment(0);
@@ -176,6 +188,11 @@ export class FpsArena {
         }
     }
 
+    _refreshBg() {
+        const key = this.bgKeys[Math.min(this.segment, this.bgKeys.length - 1)];
+        this.bgImg = sprites.images.get(key) || sprites.images.get(this.data.bgKey) || null;
+    }
+
     _segmentClear() {
         if (this.segment >= 3) return false;
         // Segment 0: all turrets dead
@@ -208,6 +225,7 @@ export class FpsArena {
             if (this.advanceT >= 60) {
                 this.segment++;
                 this._loadSegment(this.segment);
+                this._refreshBg();
                 this.advanceT = 0;
                 this.phase = (this.segment === 3) ? 'bossEntry' : 'fight';
             }
@@ -391,11 +409,27 @@ export class FpsArena {
                 p.iframes = 60;
                 this.enemyBullets.splice(i, 1);
                 audio.sfx('playerHit');
-                if (p.hp <= 0) {
-                    this.game._fadeTo('gameOver');
-                }
+                if (p.hp <= 0) this._onPlayerDeath();
             }
         }
+    }
+
+    // R262: respawn in-place when HP hits 0, only fall to gameOver after all
+    // lives are spent. Clears enemy bullets so the player doesn't immediately
+    // re-die into the same shot pattern that killed them.
+    _onPlayerDeath() {
+        this.player.lives--;
+        this.enemyBullets = [];
+        if (this.player.lives < 0) {
+            this.game._fadeTo('gameOver');
+            return;
+        }
+        audio.sfx('playerHit');
+        this.player.hp = this.player.maxHp;
+        this.player.iframes = 120;     // 2s of grace
+        // Briefly recenter the player so they don't respawn standing in a
+        // boss bullet stream.
+        this.player.x = GAME.W / 2 - this.player.w / 2;
     }
 
     _tickTurrets() {
@@ -445,7 +479,7 @@ export class FpsArena {
                     this.player.hp--;
                     this.player.iframes = 60;
                     audio.sfx('playerHit');
-                    if (this.player.hp <= 0) this.game._fadeTo('gameOver');
+                    if (this.player.hp <= 0) this._onPlayerDeath();
                 }
                 continue;
             }
@@ -794,25 +828,32 @@ export class FpsArena {
         const p = this.player;
         const flicker = p.iframes > 0 && (p.iframes % 4 < 2);
         if (flicker) return;
-        // Draw Clippy at 1.5x scale, back-facing (we approximate by using the
-        // existing idle/run sprite — paperclip silhouette reads the same
-        // from behind). Animate the run cycle when strafing.
-        const runFrames = ['run_1', 'run_2', 'run_3', 'run_4'];
-        const sourceKey = (Math.abs(input.axis().x) > 0.1)
-            ? runFrames[Math.floor(p.runFrame) % runFrames.length]
-            : 'idle';
-        const img = sprites.images.get(sourceKey) || sprites.images.get('idle_01');
+        // R263: back-facing Clippy sprites for the Contra-base "into the
+        // screen" framing. PNGs expected at assets/sprites/:
+        //   clippy_back_idle.png
+        //   clippy_back_run_1.png .. clippy_back_run_4.png
+        // Add the keys to src/sprites.js once assets exist. Until then the
+        // fallback chain renders the side-facing run frames so the player
+        // sprite still appears (just not back-facing).
+        const isMoving = Math.abs(input.axis().x) > 0.1;
+        const backFrames = ['clippy_back_run_1', 'clippy_back_run_2',
+                            'clippy_back_run_3', 'clippy_back_run_4'];
+        const sourceKey = isMoving
+            ? backFrames[Math.floor(p.runFrame) % backFrames.length]
+            : 'clippy_back_idle';
+        // Fallback chain: back-facing sprite → side-facing sprite → solid rect
+        const img = sprites.images.get(sourceKey)
+                 || sprites.images.get(isMoving ? 'run_1' : 'idle');
+        const dx = Math.round(p.x);
+        const dy = Math.round(p.y);
         if (img) {
             ctx.imageSmoothingEnabled = false;
-            const dx = Math.round(p.x);
-            const dy = Math.round(p.y);
-            // Source sprites are ~16×24; we scale to PLAYER_W × PLAYER_H.
             ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, p.w, p.h);
         } else {
             ctx.fillStyle = '#80889a';
             ctx.fillRect(p.x, p.y, p.w, p.h);
         }
-        // Aim indicator — small chevron above the head matching facing
+        // Aim indicator — small chevron above the head matching facing.
         const cx = p.x + p.w / 2 + p.facing * 4;
         const cy = p.y - 4;
         ctx.fillStyle = '#ffe070';
@@ -846,6 +887,9 @@ export class FpsArena {
             ctx.fillStyle = hot ? '#ff4040' : '#3a1018';
             ctx.fillRect(6 + i * 8, 6, 6, 6);
         }
+        // Lives counter — small clippy heads beneath the HP bar
+        const lives = Math.max(0, this.player.lives);
+        drawText(ctx, 'x' + lives, 6, 16, '#ffcc80', 1, 'left');
         // Segment count
         drawText(ctx, (this.segment + 1) + ' / 4', GAME.W - 6, 6, '#ffcc80', 1, 'right');
     }
