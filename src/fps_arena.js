@@ -744,6 +744,7 @@ export class FpsArena {
 
     _drawTurrets() {
         const ctx = this.ctx;
+        const img = sprites.images.get('lab_turret');
         for (const t of this.turrets) {
             if (!t.alive) continue;
             const scale = depthScale(t.t);
@@ -751,42 +752,55 @@ export class FpsArena {
             const th = t.h * scale;
             const tx = depthX(t.originX, t.t) - tw / 2;
             const ty = depthY(t.t) - th;
-            ctx.fillStyle = t.hitFlash > 0 ? '#ffffff' : '#3a2818';
-            ctx.fillRect(tx, ty, tw, th);
-            ctx.fillStyle = '#5a3828';
-            ctx.fillRect(tx + 2, ty + 2, tw - 4, th - 4);
-            // Barrels — 3 stubs pointing down
-            ctx.fillStyle = '#1a1008';
-            for (let i = 0; i < 3; i++) {
-                const bx = tx + 3 + i * (tw - 6) / 2 - 1;
-                ctx.fillRect(bx, ty + th, 2 * scale, 5 * scale);
+            if (img) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(img, 0, 0, img.width, img.height,
+                              Math.round(tx), Math.round(ty), tw, th);
+                if (t.hitFlash > 0 && t.hitFlash % 2 === 0) {
+                    // Hit-flash overlay — lighten composite for a 1-frame pop
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = 0.65;
+                    ctx.drawImage(img, 0, 0, img.width, img.height,
+                                  Math.round(tx), Math.round(ty), tw, th);
+                    ctx.restore();
+                }
+            } else {
+                // Procedural fallback if sprite missing
+                ctx.fillStyle = t.hitFlash > 0 ? '#ffffff' : '#3a2818';
+                ctx.fillRect(tx, ty, tw, th);
             }
-            // Glowing eye
-            ctx.fillStyle = '#ff4030';
-            ctx.fillRect(tx + tw / 2 - 1, ty + 4, 2, 2);
         }
     }
 
     _drawGrunts() {
         const ctx = this.ctx;
+        const img = sprites.images.get('lab_grunt');
         for (const g of this.grunts) {
             if (!g.alive || g.runT < g.spawnDelay) continue;
             const tt = Math.min(1, (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES);
             const scale = depthScale(tt);
-            const gw = 16 * scale;
-            const gh = 24 * scale;
+            // R264: sprite is taller than the rect was (32×40 vs 16×24);
+            // keep the drawn size proportional so depth scaling still reads.
+            const gw = 24 * scale;
+            const gh = 32 * scale;
             const gx = depthX(g.originX, tt) - gw / 2;
             const gy = depthY(tt) - gh;
-            // Body — back of paperclip minion running forward
-            ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#a8c060';
-            ctx.fillRect(gx, gy + gh * 0.3, gw, gh * 0.7);
-            // Head
-            ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#c8e070';
-            ctx.fillRect(gx + gw * 0.2, gy, gw * 0.6, gh * 0.35);
-            // Eye-shine for far ones (looks menacing)
-            if (tt < 0.6) {
-                ctx.fillStyle = '#ffff80';
-                ctx.fillRect(gx + gw * 0.5 - 1, gy + 2, 2, 2);
+            if (img) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(img, 0, 0, img.width, img.height,
+                              Math.round(gx), Math.round(gy), gw, gh);
+                if (g.hitFlash > 0 && g.hitFlash % 2 === 0) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = 0.65;
+                    ctx.drawImage(img, 0, 0, img.width, img.height,
+                                  Math.round(gx), Math.round(gy), gw, gh);
+                    ctx.restore();
+                }
+            } else {
+                ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#a8c060';
+                ctx.fillRect(gx, gy, gw, gh);
             }
         }
     }
@@ -796,28 +810,65 @@ export class FpsArena {
         const ctx = this.ctx;
         const c = this.core;
         if (!c.alive) return;
-        // Core body — pulsing exposed system
-        const pulse = 0.5 + 0.5 * Math.sin(this.t * 0.12);
-        ctx.fillStyle = c.hitFlash > 0 ? '#ffffff' : '#400820';
-        ctx.fillRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h);
-        ctx.fillStyle = `rgba(${200 + pulse * 55}, ${60 + pulse * 40}, ${120 + pulse * 80}, 1)`;
-        ctx.fillRect(c.x - c.w / 2 + 4, c.y - c.h / 2 + 4, c.w - 8, c.h - 8);
-        // Core eye
-        ctx.fillStyle = '#ffe0a0';
-        ctx.fillRect(c.x - 3, c.y - 3, 6, 6);
-        ctx.fillStyle = '#ff2040';
-        ctx.fillRect(c.x - 1, c.y - 1, 2, 2);
-        // Shields — orbiting nodes
+        // Core body — painted sprite with subtle pulse-glow when shields are
+        // down (core exposed = takes damage = aura visible).
+        const coreImg = sprites.images.get('lab_core');
+        const allShieldsDead = this.shields.every(s => !s.alive);
+        if (coreImg) {
+            ctx.imageSmoothingEnabled = false;
+            const drawW = c.w + 4, drawH = c.h + 4;
+            const dx = Math.round(c.x - drawW / 2);
+            const dy = Math.round(c.y - drawH / 2);
+            // Pulse-glow under the core when exposed
+            if (allShieldsDead) {
+                const pulse = 0.4 + 0.4 * Math.sin(this.t * 0.18);
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = pulse;
+                ctx.drawImage(coreImg, 0, 0, coreImg.width, coreImg.height,
+                              dx, dy, drawW, drawH);
+                ctx.restore();
+            }
+            ctx.drawImage(coreImg, 0, 0, coreImg.width, coreImg.height,
+                          dx, dy, drawW, drawH);
+            if (c.hitFlash > 0 && c.hitFlash % 2 === 0) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.7;
+                ctx.drawImage(coreImg, 0, 0, coreImg.width, coreImg.height,
+                              dx, dy, drawW, drawH);
+                ctx.restore();
+            }
+        } else {
+            // Procedural fallback
+            ctx.fillStyle = c.hitFlash > 0 ? '#ffffff' : '#400820';
+            ctx.fillRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h);
+        }
+        // Shields — orbiting nodes (painted sprite)
+        const shieldImg = sprites.images.get('lab_shield');
         for (const s of this.shields) {
             if (!s.alive) continue;
             const sx = c.x + Math.cos(s.angle) * s.radius;
             const sy = c.y + Math.sin(s.angle) * s.radius;
-            ctx.fillStyle = s.hitFlash > 0 ? '#ffffff' : '#a060ff';
-            ctx.fillRect(sx - 5, sy - 5, 10, 10);
-            ctx.fillStyle = '#e0c0ff';
-            ctx.fillRect(sx - 3, sy - 3, 6, 6);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(sx - 1, sy - 1, 2, 2);
+            if (shieldImg) {
+                ctx.imageSmoothingEnabled = false;
+                const sw = 14, sh = 14;
+                const dx = Math.round(sx - sw / 2);
+                const dy = Math.round(sy - sh / 2);
+                ctx.drawImage(shieldImg, 0, 0, shieldImg.width, shieldImg.height,
+                              dx, dy, sw, sh);
+                if (s.hitFlash > 0 && s.hitFlash % 2 === 0) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = 0.7;
+                    ctx.drawImage(shieldImg, 0, 0, shieldImg.width, shieldImg.height,
+                                  dx, dy, sw, sh);
+                    ctx.restore();
+                }
+            } else {
+                ctx.fillStyle = s.hitFlash > 0 ? '#ffffff' : '#a060ff';
+                ctx.fillRect(sx - 5, sy - 5, 10, 10);
+            }
         }
         // HP bar
         this._drawBossHp();

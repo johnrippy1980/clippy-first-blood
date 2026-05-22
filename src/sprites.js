@@ -249,6 +249,19 @@ export const CLIPPY_MANIFEST = {
     'run_3':           'v6_run_3.png',
     'run_4':           'v6_run_4.png',
     'run_5':           'v6_run_1.png',
+    // R263: back-facing Clippy sprites for the FPS arena (Contra-base
+    // "into the screen" framing). Generated as a gpt-image-2 sheet,
+    // sliced via tools/process-r263-r264-sprites.py.
+    'clippy_back_idle':  'clippy_back_idle.png',
+    'clippy_back_run_1': 'clippy_back_run_1.png',
+    'clippy_back_run_2': 'clippy_back_run_2.png',
+    'clippy_back_run_3': 'clippy_back_run_3.png',
+    'clippy_back_run_4': 'clippy_back_run_4.png',
+    // R264: FPS-arena enemy sprites — Dr. Spindler's lab theme.
+    'lab_turret':        'lab_turret.png',
+    'lab_grunt':         'lab_grunt.png',
+    'lab_shield':        'lab_shield.png',
+    'lab_core':          'lab_core.png',
     // R202: per-weapon painted Clippy poses (single static frame each).
     // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
     // CHAINSAW pending — its asset is the last gen still running.
