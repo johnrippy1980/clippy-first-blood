@@ -31,10 +31,10 @@ export const TILE = Object.freeze({
 // Add a new entry when a new music file is wired into audio.js's FILE_TRACKS.
 // `track` is the FILE_TRACKS key. `title` and `mood` are display strings.
 export const TRACK_MANIFEST = [
-    { track: 'title',   title: 'DREAM',   mood: 'TITLE + STORY',        author: 'OWL HALL' },
-    { track: 'jungle',  title: 'REVENGE', mood: 'GAMEPLAY + BOSS',      author: 'OWL HALL' },
+    { track: 'title',     title: 'DREAM',            mood: 'TITLE + STORY',   author: 'OWL HALL' },
+    { track: 'jungle',    title: 'REVENGE',          mood: 'GAMEPLAY + BOSS', author: 'OWL HALL' },
+    { track: 'breakroom', title: 'WHAT WAS IT FOR?', mood: 'BREAK ROOM',      author: 'OWL HALL' },
     // FUTURE: per-stage tracks slot in here when added.
-    // { track: 'breakroom',  title: '...', mood: 'BREAK ROOM',  author: '...' },
     // { track: 'serverroom', title: '...', mood: 'SERVER ROOM', author: '...' },
     // { track: 'boardroom',  title: '...', mood: 'BOARD ROOM',  author: '...' },
     // { track: 'keynote',    title: '...', mood: 'KEYNOTE',     author: '...' },

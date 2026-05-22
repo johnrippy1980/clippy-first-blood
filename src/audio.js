@@ -29,7 +29,10 @@ const FILE_TRACKS = {
     gameComplete: 'assets/audio/dream.mp3',
     // Gameplay + boss
     jungle:     'assets/audio/revenge.mp3',
-    breakroom:  'assets/audio/revenge.mp3',
+    // R218: dedicated track for the break room — "What Was It For?"
+    // by Owl Hall. Trimmed to 1:25 with the last 6s fading to silence
+    // so a stage that finishes near the timer end doesn't cut abruptly.
+    breakroom:  'assets/audio/what-was-it-for.mp3',
     serverroom: 'assets/audio/revenge.mp3',
     boardroom:  'assets/audio/revenge.mp3',
     keynote:    'assets/audio/revenge.mp3',
