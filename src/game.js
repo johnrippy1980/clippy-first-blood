@@ -6,6 +6,7 @@ import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { Camera } from './camera.js';
 import { Level, STAGE_LOADERS } from './level.js';
+import { FpsArena } from './fps_arena.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { PickupManager } from './pickups.js';
@@ -36,6 +37,11 @@ const SCENE = {
     GAME_OVER: 'gameOver',
     GAME_COMPLETE: 'gameComplete',
     EPILOGUE: 'epilogue',        // R191: post-game Clippy redemption arc cinematic
+    // R229: locked-camera FPS arena (Contra arcade stage-3 style). Player
+    // strafes a ground rail, fires straight up to take out turret banks
+    // and sensors, then a boss spawns. Self-contained scene — does not
+    // share physics or collision with PLAY.
+    FPS_PLAY: 'fpsPlay',
 };
 
 // MM:SS format for frame-based timers. Used by mode-best-time displays.
@@ -270,6 +276,7 @@ export class Game {
             case SCENE.STAGE_INTRO:  this._tickStageIntro(); break;
             case SCENE.READY:        this._tickReady(); break;
             case SCENE.PLAY:         this._tickPlay(); break;
+            case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.update(); break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
@@ -340,6 +347,7 @@ export class Game {
             case SCENE.STAGE_INTRO:  this._drawStageIntro(); break;
             case SCENE.READY:        this._drawReady(); break;
             case SCENE.PLAY:         this._drawPlay(); break;
+            case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.draw(); break;
             case SCENE.PAUSE:        this._drawPlay(); this._drawPauseOverlay(); break;
             // R211: sub-menus opened from MAIN_MENU need the title bg
             // (via _drawMainMenu) underneath, not _drawPlay — the latter
@@ -2984,6 +2992,19 @@ export class Game {
         this._bossIntro = null;
         this._lastBossPhase = null;
         const data = STAGE_LOADERS[n]();
+        // R229: FPS arena short-circuit. If the loader returns fpsMode=true,
+        // skip the whole platformer pipeline (level/camera/enemies/pickups)
+        // and hand off to the FpsArena scene instead.
+        if (data.fpsMode) {
+            this._fpsArena = new FpsArena(data, this.ctx, this);
+            this._fpsMode = true;
+            this.parallax.setTheme(data.theme);
+            audio.playTrack(data.music || 'pipeline');
+            this._fadeTo(SCENE.FPS_PLAY);
+            return;
+        }
+        this._fpsMode = false;
+        this._fpsArena = null;
         this.level = new Level(data);
         this.parallax.setTheme(data.theme);
         // Owl roosts: level can declare these in its data; otherwise default to a few sensible spots

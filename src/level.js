@@ -1516,7 +1516,33 @@ export const STAGE_LOADERS = [
     () => makeBossRushMode(),   // Boss rush mode — now stage 12
     () => makeTimeTrial(),      // Time trial — now stage 13
     () => makeStage13(),        // REALITY DISTORTION FIELD — now stage 14
+    () => makeFpsStage(),       // R229: CORE BREACH — hidden FPS arena, stage 15
 ];
+
+// R229: FPS-arena stage data. NOT a regular level — returns fpsMode flag
+// so _startStage routes to the FpsArena scene instead of the platformer
+// pipeline. Coordinates are screen-pixel space, not tile space.
+function makeFpsStage() {
+    return {
+        fpsMode: true,
+        theme: THEME.SEWER,
+        music: 'pipeline',
+        bgKey: 'bg_sewer_lab',
+        bossKind: 'SPINDLER',
+        // Two turret banks anchored top-left and top-right
+        turrets: [
+            { x: 16,  y: 48 },
+            { x: 208, y: 48 },
+        ],
+        // 4 sensors in a row between the turrets
+        sensors: [
+            { x: 72,  y: 88 },
+            { x: 100, y: 88 },
+            { x: 128, y: 88 },
+            { x: 156, y: 88 },
+        ],
+    };
+}
 
 // Tile palette per theme — dark painted tones, NOT bright video-game colors.
 // `solid` is the body, `solidTop` is the highlight band where the player walks.

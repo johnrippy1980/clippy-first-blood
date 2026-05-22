@@ -149,6 +149,12 @@ export const STAGES = [
     // clearing The Algorithm (clear_game). Steve Jobs as the titan who
     // slipped through the cracks of the main hit list.
     { id: 14, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
+    // R229: hidden FPS-arena stage — locked camera, strafe-and-shoot-up
+    // Contra arcade Stage 3 vibe. Reachable only via konami code → stage
+    // select. Boss is Dr. Spindler in his lab. Uses its own scene type
+    // (SCENE.FPS_PLAY) wired through fps_arena.js, NOT the platformer
+    // pipeline. Same boss as Stage 4 — different gameplay entirely.
+    { id: 15, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
 ];
 
 // Damage flash colors per source.
