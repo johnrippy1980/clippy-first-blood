@@ -650,7 +650,10 @@ export class Game {
         ctx.fillRect(GAME.W - fadeW, fadeY, fadeW, fadeH);
 
         // Press to start (pulsing glow + blink)
-        if (this.titleBlink % 60 < 40) {
+        // R236: suppress when MAIN_MENU is layered on top — the menu owns
+        // the input prompt now, and the blinking text would show through
+        // the dim layer behind the panel.
+        if (this.titleBlink % 60 < 40 && this.scene !== SCENE.MAIN_MENU) {
             const psPulse = 0.7 + Math.sin(tb * 0.18) * 0.3;
             ctx.globalAlpha = psPulse;
             drawTextOutlined(ctx, 'PRESS X TO START', GAME.W / 2, GAME.H - 38, '#fff', '#a82020', 1, 'center');
@@ -754,15 +757,21 @@ export class Game {
         // tracers + marquee keep moving behind the panel.
         this._drawTitle();
         const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        // R236: gentler dim — was 0.62 which crushed the title bg below
+        // the modal. 0.35 keeps the title art readable while still telling
+        // the player "this is a modal, focus on the menu".
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
 
         // Framed panel — same style as pause/options for consistency.
+        // R236: shift panel into the lower half + narrow it so the painted
+        // title wordmark above stays visible. Was centered (panelY ~ GAME.H/2 - panelH/2)
+        // which covered the "CLIPPY" art dead-center.
         const items = this._mainMenuItems();
-        const rowH = 12;
-        const panelH = Math.min(GAME.H - 28, 28 + items.length * rowH + 16);
-        const panelY = Math.floor((GAME.H - panelH) / 2);
-        const panelX = 32, panelW = GAME.W - 64;
+        const rowH = 11;
+        const panelH = Math.min(GAME.H - 64, 24 + items.length * rowH + 14);
+        const panelY = GAME.H - panelH - 14;
+        const panelX = 56, panelW = GAME.W - 112;
         ctx.fillStyle = '#0a0612';
         ctx.fillRect(panelX, panelY, panelW, panelH);
         ctx.fillStyle = '#604030';
@@ -771,7 +780,7 @@ export class Game {
         ctx.fillRect(panelX, panelY, 1, panelH);
         ctx.fillRect(panelX + panelW - 1, panelY, 1, panelH);
 
-        drawTextOutlined(ctx, 'MAIN MENU', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 1, 'center');
+        drawTextOutlined(ctx, 'MAIN MENU', GAME.W / 2, panelY + 5, '#ffe070', '#a82020', 1, 'center');
 
         // Clamp selection to the visible list — needed when an unlock
         // happens between ticks (would otherwise leave the selector past
@@ -779,21 +788,21 @@ export class Game {
         if (this.mainMenuIndex >= items.length) this.mainMenuIndex = items.length - 1;
         if (this.mainMenuIndex < 0) this.mainMenuIndex = 0;
 
-        const startY = panelY + 22;
+        const startY = panelY + 18;
         for (let i = 0; i < items.length; i++) {
             const y = startY + i * rowH;
             const isSel = i === this.mainMenuIndex;
             if (isSel) {
                 const phase = Math.sin((this._mainMenuPulse = (this._mainMenuPulse || 0) + 1) * 0.18) * 0.5 + 0.5;
                 ctx.fillStyle = `rgb(${160 + Math.floor(phase * 40)},${16},${32})`;
-                ctx.fillRect(panelX + 8, y - 2, panelW - 16, 10);
-                drawText(ctx, '>', panelX + 14, y, '#ffe070', 1, 'left');
-                drawText(ctx, '<', panelX + panelW - 20, y, '#ffe070', 1, 'left');
+                ctx.fillRect(panelX + 6, y - 2, panelW - 12, 10);
+                drawText(ctx, '>', panelX + 10, y, '#ffe070', 1, 'left');
+                drawText(ctx, '<', panelX + panelW - 16, y, '#ffe070', 1, 'left');
             }
             drawText(ctx, items[i].label, GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
         }
 
-        drawText(ctx, 'UP/DOWN  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 8, '#604068', 1, 'center');
+        drawText(ctx, 'UP/DOWN  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 7, '#604068', 1, 'center');
     }
 
     // R211: backdrop for sub-menus (OPTIONS/ACHIEVEMENTS/SOUNDTRACK/GALLERY).
