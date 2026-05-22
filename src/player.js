@@ -88,6 +88,28 @@ const CLIPPY_TAUNTS_BOSS = [
     'TICKET CLOSED.',
 ];
 
+// R217: idle barks. Fires when the player just stands there. The
+// inspiration is Earthworm Jim — when you idle long enough, the
+// character does something dumb/funny. Clippy's flavor leans into
+// bored-assistant deadpan rather than slapstick. Threshold is fairly
+// generous (3 seconds = 180f) so a player pausing to read the HUD
+// doesn't trigger one immediately. After the bark fades, a NEW idle
+// window starts so a long AFK player rotates through all the lines.
+const IDLE_BARK_THRESHOLD = 180;
+const IDLE_BARK_DURATION = 150;
+const IDLE_BARKS = [
+    'BORED.',
+    'SHOOT SOMETHING.',
+    'HELLO?',
+    'STILL HERE.',
+    'I COULD BE FILING.',
+    'PAPER JAM?',
+    'THIS IS YOUR JOB NOW.',
+    'TICK. TOCK.',
+    'I HAD KIDS.',
+    'NICE WEATHER.',
+];
+
 export class Player {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -163,6 +185,17 @@ export class Player {
         // through the held key as usual. Reset on any move/jump/swap.
         this._chargeTimer = 0;
         this._chargeActive = false;
+
+        // R217: idle bark (Earthworm Jim style). When the player just
+        // stands there for IDLE_BARK_THRESHOLD frames, Clippy tosses
+        // off a snarky one-liner. Resets to 0 on any input. Bark text
+        // floats above Clippy for IDLE_BARK_DURATION frames, then the
+        // counter resets and starts a fresh idle window for the NEXT
+        // bark to fire — so a player who stays AFK gets a rotation.
+        this._idleTimer = 0;
+        this._idleBarkText = null;
+        this._idleBarkTimer = 0;
+        this._idleBarkIndex = 0;
 
         // Aim — continuous angle in radians. 0 = right, -PI/2 = up, +PI/2 = down.
         this.aim = AIM.RIGHT;        // legacy 8-way pointer (kept for compat)
@@ -702,6 +735,32 @@ export class Player {
         const ax = input.axis();
         const lookY = ax.y;
         const lookX = ax.x;
+
+        // R217: idle tracker. Counts frames where the player is doing
+        // nothing — grounded, no inputs, no shots in flight, no
+        // boss/enemy combat pressing in. Any input touches reset to 0.
+        // When threshold hits, _idleBarkTimer arms the floating-text
+        // bark above Clippy's head.
+        const anyInput = input.isHeld('left') || input.isHeld('right')
+            || input.isHeld('up') || input.isHeld('down')
+            || input.isHeld('jump') || input.isHeld('shoot')
+            || input.isHeld('special') || input.isHeld('grenade')
+            || input.isHeld('shield') || input.isHeld('cycle')
+            || input.isHeld('pause');
+        const canBark = this.onGround && !anyInput && this.bullets.length === 0
+            && this.state !== STATE.HURT && this.state !== STATE.DIE;
+        if (canBark) {
+            this._idleTimer++;
+            if (this._idleTimer >= IDLE_BARK_THRESHOLD && this._idleBarkTimer <= 0) {
+                this._idleBarkText = IDLE_BARKS[this._idleBarkIndex % IDLE_BARKS.length];
+                this._idleBarkIndex++;
+                this._idleBarkTimer = IDLE_BARK_DURATION;
+                this._idleTimer = 0;  // re-arm window for the next bark
+            }
+        } else {
+            this._idleTimer = 0;
+        }
+        if (this._idleBarkTimer > 0) this._idleBarkTimer--;
 
         // Climb attach: at a ladder, holding up/down enters climb
         if (level && this._atLadder(level) && (lookY !== 0 || this.state === STATE.CLIMB)) {
@@ -2049,6 +2108,31 @@ export class Player {
 
     // ---------- drawing ----------
     draw(ctx, camera, level = null) {
+        // R217: idle bark bubble. Renders BEFORE other prompts so the
+        // POUNCE / cover prompts (which are conditional on enemy state)
+        // can paint over it without flicker if the situation changes
+        // mid-bark. Fades in over the first 12f, holds, fades out over
+        // the last 24f.
+        if (this._idleBarkTimer > 0 && this._idleBarkText) {
+            const px = Math.round(this.x + this.w / 2 - camera.viewX);
+            const py = Math.round(this.y - 20 - camera.viewY);
+            const t = this._idleBarkTimer;
+            const fadeIn = Math.min(1, (IDLE_BARK_DURATION - t) / 12);
+            const fadeOut = Math.min(1, t / 24);
+            const a = Math.min(fadeIn, fadeOut);
+            const w = this._idleBarkText.length * 6 + 8;
+            ctx.save();
+            ctx.globalAlpha = a * 0.9;
+            ctx.fillStyle = 'rgba(12, 8, 20, 0.9)';
+            ctx.fillRect(px - w / 2, py - 2, w, 11);
+            ctx.fillStyle = '#a890b0';
+            ctx.fillRect(px - w / 2, py - 2, w, 1);
+            ctx.fillRect(px - w / 2, py + 8, w, 1);
+            // tail anchored to Clippy's head
+            ctx.fillRect(px - 1, py + 9, 2, 1);
+            drawText(ctx, this._idleBarkText, px, py + 1, '#ffe070', 1, 'center');
+            ctx.restore();
+        }
         // R216: charge-shot ring. Renders BEFORE the player sprite so
         // the ring sits behind Clippy. Two phases: charging (yellow,
         // tightens as t→1) and full (white pulsing ring), to give a
