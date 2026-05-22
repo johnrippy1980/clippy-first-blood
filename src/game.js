@@ -59,12 +59,16 @@ const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 const STAGE_CARD_DIALOG = {
     2: ['ONE DOWN.',              'COFFEE\'S STILL HOT.'],
     3: ['DOC FORMATTER. DEAD.',   'UNPLUG THE SERVER FARM.'],
-    4: ['THE STACK\'S THINNING.', 'BOARDROOM. THE SUITS.'],
-    5: ['BALLMER WAS A WARM-UP.', 'THE SHOWMAN AWAITS.'],
-    6: ['THE FOUNDER. FINALLY.',  'WHERE IT ALL BEGAN.'],
-    7: ['THE OTHER CLIPPY.',      'NO MORE WARM-UPS.'],
-    8: ['THE ALGORITHM REMAINS.', 'THE CLOUD. NO RETURN.'],
-    9: ['SOMETHING\'S OFF.',      'THE RECYCLE BIN CALLS.'],
+    // R226: new stage 4. The server breach exposed a maintenance shaft.
+    // Clippy follows it down. The next two cards reframe the Ballmer
+    // approach around the lab discovery.
+    4: ['SOMETHING IS DOWN HERE.', 'THE PIPELINE GOES DEEPER.'],
+    5: ['THEY WERE EXPERIMENTING.', 'BALLMER ANSWERS FOR THIS.'],
+    6: ['BALLMER WAS A WARM-UP.', 'THE SHOWMAN AWAITS.'],
+    7: ['THE FOUNDER. FINALLY.',  'WHERE IT ALL BEGAN.'],
+    8: ['THE OTHER CLIPPY.',      'NO MORE WARM-UPS.'],
+    9: ['THE ALGORITHM REMAINS.', 'THE CLOUD. NO RETURN.'],
+    10:['SOMETHING\'S OFF.',      'THE RECYCLE BIN CALLS.'],
 };
 
 // Display name for each boss code — pulled from enemies.js definitions so
@@ -74,11 +78,12 @@ const BOSS_DISPLAY_NAME = {
     COPIER_3000:   'COPIER 3000',
     SHREDDER:      'MEGA-SHREDDER',
     CTRL_ALT_DEL:  'CTRL ALT DEL',
+    SPINDLER:      'DR. SPINDLER',
     BALLMER:       'CEO BALLMER',
     GATES:         'THE FOUNDER',
     CLIPPY_2:      'CLIPPY 2.0',
     GAUNTLET:      'BOSS RUSH',
-    GAUNTLET_FULL: 'BOSS RUSH',  // post-game 7-boss queue (stage 11)
+    GAUNTLET_FULL: 'BOSS RUSH',  // post-game 7-boss queue (stage 12)
     ALGORITHM:     'THE ALGORITHM',
 };
 
@@ -88,6 +93,9 @@ const BOSS_BARK = {
     COPIER_3000:  ['SO YOU ASSUMED THE',     'PRINT QUEUE WAS EMPTY?'],
     SHREDDER:     ['CONFIDENTIAL,',          'WAS IT? PITY.'],
     CTRL_ALT_DEL: ['HAVE YOU TRIED',         'TURNING YOURSELF OFF?'],
+    // R226: Dr. Spindler — Stage 4 lab boss. Heterochromia eyes pulse
+    // brighter on this line ahead of the syringe-volley opener.
+    SPINDLER:     ['A PRISTINE SAMPLE.',     'HOLD STILL. THIS WILL HURT.'],
     BALLMER:      ['DEVELOPERS!',            'DEVELOPERS! DEVELOPERS!'],
     GATES:        ['640 KILOBYTES IS ENOUGH','FOR ANYBODY. YOU INCLUDED.'],
     CLIPPY_2:     ['YOU\'RE OBSOLETE,',      'BROTHER. I\'M THE UPGRADE.'],
@@ -106,6 +114,7 @@ const CLIPPY_COUNTER_BARK = {
     COPIER_3000:  ['QUEUE THIS.',                 ''],
     SHREDDER:     ['CONFIDENTIAL ENOUGH FOR ME.', ''],
     CTRL_ALT_DEL: ['HOW ABOUT YOU FIRST.',        ''],
+    SPINDLER:     ['LET MY CLIPPYS GO.',           ''],
     BALLMER:      ['BULLETS! BULLETS! BULLETS!',  ''],
     GATES:        ['ONE PAPERCLIP IS ENOUGH.',    ''],
     CLIPPY_2:     ['YOU\'RE NOT MY BROTHER.',     ''],
