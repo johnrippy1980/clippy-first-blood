@@ -3703,7 +3703,11 @@ export class Game {
         const dmg = this.player?.dmgDealt || {};
         let best = 'MG', bestV = -1;
         for (const [k, v] of Object.entries(dmg)) if (v > bestV) { best = k; bestV = v; }
-        return best === 'MG' ? 'MACHINE' : best;
+        // R254: human-readable weapon name for the FAVORITE line. Internal
+        // ids (MG, HOMING) get translated; rest pass through.
+        if (best === 'MG') return 'MACHINE';
+        if (best === 'HOMING') return 'ROCKET';
+        return best;
     }
 
     _tickGameOver() {

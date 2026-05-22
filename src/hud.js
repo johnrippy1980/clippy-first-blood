@@ -205,9 +205,12 @@ export function drawHUD(ctx, state) {
 
     // Weapon: small color-coded glyph + abbreviated name
     const w = WEAPON[player.weapon];
+    // R254: HOMING internal id remains for save compat, but the user-facing
+    // label is ROCKET to match its R248 redesign (orange-red RPG with
+    // explosive impact, not a magical pink homing bolt).
     const WEAPON_LABELS = {
         MG: 'MACHINE', SPREAD: 'SPREAD', LASER: 'LASER',
-        FLAME: 'FLAME',   HOMING: 'HOMING', THUNDER: 'THUNDER',
+        FLAME: 'FLAME',   HOMING: 'ROCKET', THUNDER: 'THUNDER',
         SHOTGUN: 'SHOTGUN', CHAINSAW: 'CHAINSAW',
     };
     // Weapon icon glyph: 7x7 colored bullet shape based on weapon.
