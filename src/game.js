@@ -3223,15 +3223,12 @@ export class Game {
             this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
             this._spawnNextGauntlet();
         } else if (stg.boss === 'GAUNTLET_FULL') {
-            // Post-game Boss Rush — all 7 UNIQUE campaign bosses back-to-back.
-            // Stages 1-8 = 7 unique kinds (stage 7 is the GAUNTLET recap of
-            // the first 3, so we skip it and fight each unique boss exactly
-            // once). Order matches campaign progression so the final fight
-            // is still ALGORITHM. The first kind is spawned by
-            // _spawnNextGauntlet shifting off the head; the next-boss-on-kill
-            // path in _tickPlayHandleBossTriggers spawns the remainder.
+            // R281: Post-game Boss Rush — all 8 UNIQUE campaign bosses
+            // back-to-back. Order matches campaign progression so the
+            // final fight is still ALGORITHM. Pre-R281 this queue skipped
+            // SPINDLER (the stage-4 boss); now included.
             this._gauntletQueue = [
-                'COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL',
+                'COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL', 'SPINDLER',
                 'BALLMER', 'GATES', 'CLIPPY_2', 'ALGORITHM',
             ];
             this._spawnNextGauntlet();
@@ -3440,21 +3437,24 @@ export class Game {
         const stray = this.enemies.activeMiniBoss();
         if (stray) { stray.alive = false; stray.hp = 0; }
         audio.stopTrack();
-        audio.sfx('explode');
-        // Big payoff: schedule 8 explosion bursts at boss position via the game's
-        // own frame counter (NOT setTimeout — those survive scene transitions and
-        // could fire in the next stage).
-        // Boss is null by the time this fires (enemyManager spliced the kill
-        // earlier in the same tick), so use the position stashed by
-        // _tickPlayHandleStageClear. Falls back to powerup chirp on no-boss
-        // stage-clear paths (debug exit-tile, etc.).
-        if (this._lastBossPos) {
+        // R281: bossEscapes stages (e.g. Board Room — Ballmer flees) skip
+        // the explosion burst payoff. Boss "escaping" shouldn't read as
+        // "boss exploding into chunks." Play a softer thump + small camera
+        // shake instead.
+        const stg = STAGES[this.currentStage];
+        if (stg?.bossEscapes) {
+            audio.sfx('land');
+            this.camera.shake?.(3);
+            this._clearBursts = [];
+            this._lastBossPos = null;
+        } else if (this._lastBossPos) {
+            audio.sfx('explode');
             this._clearBursts = [];
             const bx = this._lastBossPos.x;
             const by = this._lastBossPos.y;
             for (let i = 0; i < 8; i++) {
                 this._clearBursts.push({
-                    fireAt: i * 5, // every 5 frames (~83ms)
+                    fireAt: i * 5,
                     x: bx + (Math.random() - 0.5) * 40,
                     y: by + (Math.random() - 0.5) * 30,
                 });
