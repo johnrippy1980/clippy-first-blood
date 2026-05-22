@@ -32,6 +32,26 @@ export class Camera {
         this.targetY = target.y - GAME.H / 2 - 24 + this._leadY;
     }
 
+    // R232: during a boss fight, both player AND boss must stay framed.
+    // Standard follow() chases the player and lets the boss drift off the
+    // right edge. This biases the camera toward the midpoint between them,
+    // weighted slightly toward the boss so the player can't cheese it
+    // off-screen by walking left.
+    followBossArena(player, boss) {
+        // Decay velocity lookahead — chasing the player's dash pulls the
+        // camera off the boss.
+        this._leadX += (0 - this._leadX) * 0.12;
+        this._leadY += (0 - this._leadY) * 0.12;
+        const pcx = player.x + (player.w || 0) / 2;
+        const bcx = boss.x + (boss.w || 0) / 2;
+        const midX = pcx * 0.4 + bcx * 0.6;
+        this.targetX = midX - GAME.W / 2;
+        const pcy = player.y + (player.h || 0) / 2;
+        const bcy = boss.y + (boss.h || 0) / 2;
+        const midY = pcy * 0.5 + bcy * 0.5;
+        this.targetY = midY - GAME.H / 2 - 8;
+    }
+
     shake(intensity, decay = CAMERA.SHAKE_DECAY) {
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
         this._shakeDecay = decay;

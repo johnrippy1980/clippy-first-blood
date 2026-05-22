@@ -1306,12 +1306,21 @@ export class Game {
         if (hitPause) {
             this.player.hitPauseFrames--;
         } else if (slowMoSkipEnemies) {
-            this.camera.follow(this.player, this.player.facing);
+            // R232: use boss-arena camera if boss is active so it stays framed.
+            if (this.boss && this.boss.alive) {
+                this.camera.followBossArena(this.player, this.boss);
+            } else {
+                this.camera.follow(this.player, this.player.facing);
+            }
             this.camera.update();
         } else {
             this.enemies.update(this.level, this.player);
             this.pickups.update(this.level, this.player);
-            this.camera.follow(this.player, this.player.facing);
+            if (this.boss && this.boss.alive) {
+                this.camera.followBossArena(this.player, this.boss);
+            } else {
+                this.camera.follow(this.player, this.player.facing);
+            }
             this.camera.update();
         }
         if (this.player.requestShake) {
@@ -2907,7 +2916,9 @@ export class Game {
     _spawnMiniBoss() {
         this.miniBossSpawned = true;
         const stg = STAGES[this.currentStage];
-        const bx = this.player.x + 100;
+        // R232: mini-boss anchors a screen ahead of the player, but clamped
+        // inside the level so it never spawns past the right wall.
+        const bx = Math.min(this.player.x + 100, this.level.width - 48);
         const by = this.level.height - 32;
         // Pick a thematic mini-boss kind based on stage. Default to the stage's own boss
         // sprite at 35% HP and no phase-2 transition.
@@ -2942,7 +2953,22 @@ export class Game {
     // BOSS_INTRO cinematic, OR directly if cinematic is skipped.
     _finishBossIntro() {
         const stg = STAGES[this.currentStage];
-        const bx = this.player.x + 100;
+        // R232: spawn boss at a FIXED arena center, NOT relative to player.x.
+        // Math: rightmost camera-X is `level.width - GAME.W`. With the
+        // boss-arena follow, camera centers on midpoint(player, boss). For
+        // the boss to stay fully inside the viewport with patrol drift (±72),
+        // anchor must satisfy: bossCenter + PATROL_RANGE + boss.w/2 ≤
+        // level.width. With PATROL_RANGE=72 + boss.w/2≤28, that's
+        // anchor ≤ level.width - 100. We use level.width - GAME.W * 0.45
+        // (= width - 115) for safety. Lower bound is player.x + 80 so we
+        // don't anchor behind the player on short levels; UPPER bound caps
+        // it to the safe arena even if the player rushes the trigger.
+        const safeAnchorX = this.level.width - GAME.W * 0.45;
+        const arenaX = Math.min(safeAnchorX,
+                                Math.max(this.player.x + 80,
+                                         this.level.width - GAME.W * 0.9));
+        this._bossArenaX = arenaX;
+        const bx = arenaX;
         const by = this.level.height - 32;
         if (stg.boss === 'GAUNTLET') {
             this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
@@ -2999,7 +3025,15 @@ export class Game {
         this.triggerSlowMo(Math.floor(AMBIENT.SLOWMO_BOSS_KILL_F * 0.5));
         this.camera.shake(4);
         const kind = this._gauntletQueue.shift();
-        const bx = this.player.x + 100;
+        // R232: reuse the fixed arena center so each gauntlet boss spawns at
+        // the same anchor — keeps all of them framed on camera consistently.
+        const safeAnchorX = this.level.width - GAME.W * 0.45;
+        const bx = this._bossArenaX != null
+            ? this._bossArenaX
+            : Math.min(safeAnchorX,
+                       Math.max(this.player.x + 80,
+                                this.level.width - GAME.W * 0.9));
+        if (this._bossArenaX == null) this._bossArenaX = bx;
         const by = this.level.height - 32;
         this.enemies.spawnBoss(bx, by, kind);
         this.camera.shake(8);

@@ -810,12 +810,12 @@ class Boss extends Enemy {
             const yRes = level.moveY(this, this.vy, true, this.vy);
             this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
         }
-        // R231: PATROL MOVEMENT. Every boss now visibly moves around its
-        // arena anchor so the fight reads as dynamic rather than a statue
-        // shoot. Speed scales with phase 2. PATROL_RANGE caps drift to a
-        // half-screen radius — the camera arena around the trigger is
-        // roughly ±64px, and we want the boss inside that 99% of the time.
-        const PATROL_RANGE = 56;
+        // R232: PATROL MOVEMENT. Every boss visibly moves around its arena
+        // anchor so the fight reads as dynamic. Camera does followBossArena
+        // now (biases toward player↔boss midpoint), so we can give bosses a
+        // wider patrol — they stay framed because the camera follows. Phase 2
+        // boosts speed. Hop bosses get their own kinematic logic below.
+        const PATROL_RANGE = 72;
         const speedMul = this.phase === 2 ? 1.6 : 1.0;
         const baseSpeed = this._moveSpeed * speedMul;
         const cx = this.x + this.w / 2;
@@ -987,17 +987,35 @@ class Boss extends Enemy {
         const fan = this.phase === 2 ? 7 : 5;
         const speed = 1.6 + (this.phase === 2 ? 0.6 : 0);
 
+        // R232: helper — aimed shot DIRECTLY at the player. Used by most
+        // bosses as a third "punisher" variant when the player tries to
+        // stand still and chip-shoot from a corner.
+        const aimed = (vx, vy, count = 1, spread = 0) => {
+            const cx = this.x + this.w / 2;
+            const cy = this.y + this.h / 2;
+            const tdx = (player.x + player.w / 2) - cx;
+            const tdy = (player.y + player.h / 2) - cy;
+            const mag = Math.max(1, Math.sqrt(tdx * tdx + tdy * tdy));
+            const baseA = Math.atan2(tdy, tdx);
+            const out = [];
+            for (let i = 0; i < count; i++) {
+                const a = baseA + (count > 1 ? ((i - (count - 1) / 2) / count) * spread : 0);
+                out.push({ vx: Math.cos(a) * (vx || speed), vy: Math.sin(a) * (vx || speed) });
+            }
+            return { cx, cy, shots: out };
+        };
+
         switch (this.kind) {
             case 'COPIER_3000':
-                // Pattern: paper jam line + ink rain
-                if (this.attackIndex % 2 === 0) {
+                // 3-variant cycle: paper line, ink rain, aimed staple-burst.
+                if (this.attackIndex % 3 === 0) {
                     // Horizontal paper line, fast
                     for (let i = -1; i <= 1; i++) {
                         const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + i * 6, aim * speed * 1.4, 0, 1);
                         b.color = '#f0f0e0';
                         globalEnemyBullets.push(b);
                     }
-                } else {
+                } else if (this.attackIndex % 3 === 1) {
                     // Ink rain from above
                     for (let i = 0; i < 5 + this.phase * 2; i++) {
                         const bx = this.x + (i - 2) * 16 + (Math.random() - 0.5) * 12;
@@ -1005,72 +1023,180 @@ class Boss extends Enemy {
                         b.color = '#1a1a1a';
                         globalEnemyBullets.push(b);
                     }
+                } else {
+                    // R232: aimed staple-burst — 5 shots aimed AT player.
+                    const { cx, cy, shots } = aimed(speed * 1.2, 0, 5, 0.5);
+                    for (const s of shots) {
+                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                        b.color = '#c0c0d0';
+                        globalEnemyBullets.push(b);
+                    }
                 }
                 break;
             case 'SHREDDER':
-                // Triple claw swipe → paper vortex
-                for (let i = 0; i < fan; i++) {
-                    const a = ((i - (fan - 1) / 2) / fan) * 1.4 + (aim < 0 ? Math.PI : 0);
-                    const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed * 0.6, 1);
-                    b.color = '#d8b890';
-                    globalEnemyBullets.push(b);
+                // 3-variant: fan vortex, paper sweep wave, aimed claw.
+                if (this.attackIndex % 3 === 0) {
+                    for (let i = 0; i < fan; i++) {
+                        const a = ((i - (fan - 1) / 2) / fan) * 1.4 + (aim < 0 ? Math.PI : 0);
+                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed * 0.6, 1);
+                        b.color = '#d8b890';
+                        globalEnemyBullets.push(b);
+                    }
+                } else if (this.attackIndex % 3 === 1) {
+                    // R232: paper-strip sweep — rotating wave that traces an arc
+                    for (let i = 0; i < 7; i++) {
+                        const a = (-0.6 + (i / 6) * 1.2) + (aim < 0 ? Math.PI : 0);
+                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
+                            Math.cos(a) * speed * 0.9, Math.sin(a) * speed * 0.9, 1);
+                        b.color = '#e8c8a0';
+                        globalEnemyBullets.push(b);
+                    }
+                } else {
+                    // R232: aimed claw-rake — 3-shot tight burst at player
+                    const { cx, cy, shots } = aimed(speed * 1.4, 0, 3, 0.2);
+                    for (const s of shots) {
+                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                        b.color = '#b89060';
+                        globalEnemyBullets.push(b);
+                    }
                 }
                 break;
             case 'CTRL_ALT_DEL':
-                // BSOD 3-head zigzag
-                for (let i = 0; i < 3; i++) {
-                    const b = new Bullet(this.x + this.w / 2, this.y + 8 + i * 10, aim * speed, Math.sin(this.timer / 10 + i) * 1.2, 1);
-                    b.color = '#4080c0';
+                // 3-variant: BSOD zigzag, error-popup ring, aimed crash.
+                if (this.attackIndex % 3 === 0) {
+                    for (let i = 0; i < 3; i++) {
+                        const b = new Bullet(this.x + this.w / 2, this.y + 8 + i * 10, aim * speed, Math.sin(this.timer / 10 + i) * 1.2, 1);
+                        b.color = '#4080c0';
+                        globalEnemyBullets.push(b);
+                    }
+                } else if (this.attackIndex % 3 === 1) {
+                    // R232: error-popup ring — 6 popups radiate out
+                    for (let i = 0; i < 6; i++) {
+                        const a = (i / 6) * Math.PI * 2 + this.timer / 50;
+                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
+                            Math.cos(a) * speed * 0.8, Math.sin(a) * speed * 0.8, 1);
+                        b.color = '#6090e0';
+                        globalEnemyBullets.push(b);
+                    }
+                } else {
+                    // R232: aimed crash-bullet — heavy aimed shot
+                    const { cx, cy, shots } = aimed(speed * 1.3, 0, 1);
+                    const b = new Bullet(cx, cy, shots[0].vx, shots[0].vy, 2);
+                    b.color = '#3060b0';
                     globalEnemyBullets.push(b);
                 }
                 break;
             case 'BALLMER':
-                // Chair throw + sweat rain
-                const chair = new Bullet(this.x + this.w / 2, this.y + 6, aim * speed * 1.2, -1.6, 2);
-                chair.color = '#806040';
-                globalEnemyBullets.push(chair);
-                if (this.phase === 2) {
-                    for (let i = -3; i <= 3; i++) {
-                        const b = new Bullet(this.x + this.w / 2 + i * 8, this.y - 6, i * 0.3, 1.4, 1);
-                        b.color = '#80c8ff';
+                // 3-variant: chair throw + sweat, ground stomp wave, aimed roar.
+                if (this.attackIndex % 3 === 0) {
+                    const chair = new Bullet(this.x + this.w / 2, this.y + 6, aim * speed * 1.2, -1.6, 2);
+                    chair.color = '#806040';
+                    globalEnemyBullets.push(chair);
+                    if (this.phase === 2) {
+                        for (let i = -3; i <= 3; i++) {
+                            const b = new Bullet(this.x + this.w / 2 + i * 8, this.y - 6, i * 0.3, 1.4, 1);
+                            b.color = '#80c8ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    }
+                } else if (this.attackIndex % 3 === 1) {
+                    // R232: ground stomp wave — 2 shockwave shots out from feet
+                    const cy = this.y + this.h - 4;
+                    for (const dir of [-1, 1]) {
+                        const b = new Bullet(this.x + this.w / 2, cy, dir * speed * 1.1, 0, 1);
+                        b.color = '#a05030';
+                        b._wave = true;
+                        globalEnemyBullets.push(b);
+                    }
+                } else {
+                    // R232: aimed roar — 7-shot wide spread at player
+                    const { cx, cy, shots } = aimed(speed, 0, 7, 0.9);
+                    for (const s of shots) {
+                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                        b.color = '#d0a060';
                         globalEnemyBullets.push(b);
                     }
                 }
                 break;
             case 'GATES':
-                // Windows-blade laser line + summons
-                for (let i = 0; i < 4; i++) {
-                    const a = (i / 4) * Math.PI * 2 + this.timer / 30;
-                    const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed, 1);
-                    b.color = '#80c0ff';
+                // 3-variant: spinning ring, Windows-blade laser, aimed beam.
+                if (this.attackIndex % 3 === 0) {
+                    for (let i = 0; i < 4; i++) {
+                        const a = (i / 4) * Math.PI * 2 + this.timer / 30;
+                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed, 1);
+                        b.color = '#80c0ff';
+                        globalEnemyBullets.push(b);
+                    }
+                } else if (this.attackIndex % 3 === 1) {
+                    // R232: blade-laser — fast horizontal pair at two heights
+                    for (const yOff of [-12, 12]) {
+                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + yOff,
+                            aim * speed * 1.8, 0, 1);
+                        b.color = '#a0d0ff';
+                        globalEnemyBullets.push(b);
+                    }
+                } else {
+                    // R232: aimed lance — heavy aimed shot at player
+                    const { cx, cy, shots } = aimed(speed * 1.5, 0, 1);
+                    const b = new Bullet(cx, cy, shots[0].vx, shots[0].vy, 2);
+                    b.color = '#4090e0';
                     globalEnemyBullets.push(b);
                 }
                 break;
             case 'CLIPPY_2':
-                // Mirror moveset: scrolls own attacks
-                if (this.attackIndex % 2 === 0) {
+                // 3-variant: mirror line, mirror spread, aimed pink crit.
+                if (this.attackIndex % 3 === 0) {
                     for (let i = -1; i <= 1; i++) {
                         const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + i * 6, aim * speed * 1.4, 0, 1);
                         b.color = '#ff60ff';
                         globalEnemyBullets.push(b);
                     }
-                } else {
+                } else if (this.attackIndex % 3 === 1) {
                     for (let i = 0; i < 5; i++) {
                         const a = ((i - 2) / 5) * 1.2;
                         const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, aim * speed * Math.cos(a), Math.sin(a) * speed, 1);
                         b.color = '#ff60ff';
                         globalEnemyBullets.push(b);
                     }
+                } else {
+                    // R232: aimed crit — 4-shot tight beam at player
+                    const { cx, cy, shots } = aimed(speed * 1.5, 0, 4, 0.25);
+                    for (const s of shots) {
+                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                        b.color = '#ff90ff';
+                        globalEnemyBullets.push(b);
+                    }
                 }
                 break;
             case 'ALGORITHM':
-                // Geometric ring pattern
-                const ringCount = this.phase === 2 ? 16 : 10;
-                for (let i = 0; i < ringCount; i++) {
-                    const a = (i / ringCount) * Math.PI * 2 + this.timer / 40;
-                    const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed * 0.7, Math.sin(a) * speed * 0.7, 1);
-                    b.color = '#7af0ff';
-                    globalEnemyBullets.push(b);
+                // 3-variant: full ring, spiral arms, aimed beam.
+                if (this.attackIndex % 3 === 0) {
+                    const ringCount = this.phase === 2 ? 16 : 10;
+                    for (let i = 0; i < ringCount; i++) {
+                        const a = (i / ringCount) * Math.PI * 2 + this.timer / 40;
+                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed * 0.7, Math.sin(a) * speed * 0.7, 1);
+                        b.color = '#7af0ff';
+                        globalEnemyBullets.push(b);
+                    }
+                } else if (this.attackIndex % 3 === 1) {
+                    // R232: spiral arms — 4 arms each with 3 shots offset
+                    for (let arm = 0; arm < 4; arm++) {
+                        for (let i = 0; i < 3; i++) {
+                            const a = (arm / 4) * Math.PI * 2 + i * 0.15 + this.timer / 30;
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
+                                Math.cos(a) * speed, Math.sin(a) * speed, 1);
+                            b.color = '#60d0ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    }
+                } else {
+                    // R232: aimed cascade — 5-shot wave at player
+                    const { cx, cy, shots } = aimed(speed * 1.3, 0, 5, 0.4);
+                    for (const s of shots) {
+                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                        b.color = '#a0f0ff';
+                        globalEnemyBullets.push(b);
+                    }
                 }
                 break;
             case 'JOBS':
