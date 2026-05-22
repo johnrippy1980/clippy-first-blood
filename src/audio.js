@@ -110,7 +110,11 @@ class Audio {
         if (!this.ctx || this.muted) return;
         const t = this.ctx.currentTime;
         switch (name) {
-            case 'mg':       return this._gunshot(t, { thump: 80, body: 1400, bodyDur: 0.10, crack: 5000 });
+            // R251: MG — sharper rifle bark. Higher crack (5000 -> 6200) for
+            // the snap, beefier sub thump (80 -> 95) for chest punch, slightly
+            // tighter body decay (0.10 -> 0.09) so consecutive shots stay
+            // distinct at MG's fast fire rate.
+            case 'mg':       return this._gunshot(t, { thump: 95, body: 1500, bodyDur: 0.09, crack: 6200, layers: 1 });
             case 'spread':   return this._gunshot(t, { thump: 70, body: 900,  bodyDur: 0.16, crack: 4200, layers: 2 });
             case 'laser':    return this._laserBeam(t);
             case 'flame':    return this._flameLick(t);
@@ -233,22 +237,26 @@ class Audio {
     // Chainsaw rev — short sawtooth burst layered with noise. Called every
     // few frames while shoot is held, so each call is short (~80ms) and
     // overlaps with the next for a continuous chainsaw drone.
+    // R251: CHAINSAW rev — grindier teeth. Boosted sawtooth gain (0.18 -> 0.24)
+    // for the motor, plus a metallic high-frequency whine layer (~2800Hz BP)
+    // that simulates the chain teeth biting. Noise gain bumped 0.12 -> 0.16
+    // so the grind has bite. Called every few frames while shoot is held, so
+    // each call stays short (~100-120ms) and overlaps for a continuous drone.
     _chainsawRev(t) {
-        // Sawtooth growl
+        // Sawtooth growl — wobble between 110-160Hz for the "chuga-chuga"
         const o = this.ctx.createOscillator();
         const g = this.ctx.createGain();
         o.type = 'sawtooth';
-        // Wobble between 110-160Hz for the "chuga-chuga" feel
         const baseF = 110 + Math.random() * 50;
         o.frequency.setValueAtTime(baseF, t);
         o.frequency.linearRampToValueAtTime(baseF * 1.4, t + 0.04);
         o.frequency.linearRampToValueAtTime(baseF, t + 0.08);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.24, t + 0.005);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
         o.connect(g).connect(this.master);
         o.start(t); o.stop(t + 0.12);
-        // Noise layer — chain grinding teeth
+        // Noise layer — chain teeth grinding
         const n = this.ctx.createBufferSource();
         const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.08, this.ctx.sampleRate);
         const d = buf.getChannelData(0);
@@ -260,10 +268,24 @@ class Audio {
         bp.Q.value = 4;
         const ng = this.ctx.createGain();
         ng.gain.setValueAtTime(0.0001, t);
-        ng.gain.exponentialRampToValueAtTime(0.12, t + 0.005);
+        ng.gain.exponentialRampToValueAtTime(0.16, t + 0.005);
         ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
         n.connect(bp).connect(ng).connect(this.master);
         n.start(t); n.stop(t + 0.08);
+        // R251: metallic whine layer — high-frequency sine that wobbles 60Hz
+        // around 2800Hz, simulating the chain teeth singing as they spin.
+        // Quiet (~0.06) so it sits atop the growl without dominating.
+        const w = this.ctx.createOscillator(); const wg = this.ctx.createGain();
+        w.type = 'sine';
+        const whineBase = 2800 + Math.random() * 200;
+        w.frequency.setValueAtTime(whineBase, t);
+        w.frequency.linearRampToValueAtTime(whineBase - 60, t + 0.05);
+        w.frequency.linearRampToValueAtTime(whineBase, t + 0.10);
+        wg.gain.setValueAtTime(0.0001, t);
+        wg.gain.exponentialRampToValueAtTime(0.06, t + 0.005);
+        wg.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
+        w.connect(wg).connect(this.master);
+        w.start(t); w.stop(t + 0.12);
     }
 
     // Grenade throw — short metallic pin-pull click followed by a cloth/air
@@ -792,8 +814,11 @@ class Audio {
         this._tonal(t, type, fStart * 1.2, fEnd * 0.5, dur * 0.4, vol * 0.5);
     }
 
+    // R251: LASER beam — sci-fi zap. Detuned saw pair sweeping down for the
+    // pew, PLUS a tonal sine "energy wash" beneath, PLUS a sharp high
+    // crackle at the head. Reads as a charged beam, not Atari blip.
     _laserBeam(t) {
-        // Detuned square pair sweeping down — sci-fi pew
+        // Detuned saw pair sweeping down (the classic pew)
         for (let i = 0; i < 2; i++) {
             const o = this.ctx.createOscillator();
             const g = this.ctx.createGain();
@@ -806,12 +831,42 @@ class Audio {
             o.connect(g).connect(this.sfxBus);
             o.start(t); o.stop(t + 0.2);
         }
-        // High noise sizzle
-        this._noise(t, 0.18, 0.10, 4000, 'hp', 1);
+        // Energy wash — pure sine descending an octave below the saws.
+        // Adds body to the beam so it doesn't read as just "click".
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(900, t);
+        o.frequency.exponentialRampToValueAtTime(160, t + 0.20);
+        this._envOn(g, 0.12, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.24);
+        // High-frequency sizzle + sharp head crackle
+        this._noise(t,         0.18, 0.10, 4000, 'hp', 1);
+        this._noise(t + 0.005, 0.10, 0.04, 6500, 'hp', 1);
     }
 
+    // R251: FLAME — proper flamethrower hiss. Combustion rumble (sub),
+    // turbulent body noise (the actual flame), bright ember crackle, and a
+    // pitched gas-escape whine on top. Old version was a single thin
+    // lowpass burst; this layers like a real torch.
     _flameLick(t) {
-        this._noise(t, 0.10, 0.28, 600, 'lp', 1);
+        // Combustion rumble — low sub thrum
+        this._noise(t,         0.14, 0.32, 250,  'lp', 1);
+        // Flame body — long bp noise with mid frequency for the roar
+        this._noise(t + 0.005, 0.10, 0.28, 1100, 'bp', 1.2);
+        // Bright ember crackle on top — short HP burst for "spark" snap
+        this._noise(t,         0.08, 0.10, 5200, 'hp', 1);
+        // Gas-escape whine — high-pitched sine bleed (~2.6kHz) for the
+        // "fsssss" hiss read. Very quiet so it doesn't dominate the body.
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(2400 + Math.random() * 400, t);
+        o.frequency.exponentialRampToValueAtTime(1800, t + 0.20);
+        this._envOn(g, 0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.24);
     }
 
     _homingWoosh(t) {
@@ -827,11 +882,18 @@ class Audio {
         this._noise(t, 0.16, 0.10, 2200, 'bp', 4);
     }
 
+    // R251: THUNDER — punchier thunderclap. Previous version was decent but
+    // soft. Now: full low-frequency boom + delayed mid roll + 4 high-freq
+    // crackles (was 3) staggered for the chain-lightning sizzle, and a
+    // second sub thump for the "echo" feel of a real thunderclap.
     _thunderHit(t) {
-        this._noise(t, 0.45, 0.5, 220, 'lp', 1.6);
-        // Bright crack on top
-        for (let i = 0; i < 3; i++) {
-            this._noise(t + i * 0.04, 0.08, 0.18, 3600 + i * 800, 'bp', 4);
+        // Low-frequency boom — beefier (gain 0.5 -> 0.65) and slightly longer
+        this._noise(t, 0.55, 0.65, 220, 'lp', 1.6);
+        // Mid roll — bp tail for that "rumble" after the snap
+        this._noise(t + 0.05, 0.40, 0.30, 600, 'bp', 1.4);
+        // Bright crack on top (4 staggered crackles for more shimmer)
+        for (let i = 0; i < 4; i++) {
+            this._noise(t + i * 0.035, 0.08, 0.20, 3600 + i * 900, 'bp', 4);
         }
         // Sub thump
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
