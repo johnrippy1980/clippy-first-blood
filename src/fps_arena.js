@@ -23,7 +23,7 @@ import { GAME } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { sprites } from './sprites.js';
-import { drawText } from './pixelfont.js';
+import { drawText, drawTextOutlined } from './pixelfont.js';
 
 // ============== Layout ==============
 const RAIL_Y       = GAME.H - 28;            // ground rail y
@@ -809,18 +809,53 @@ export class FpsArena {
             drawText(ctx, 'CEO', cx, cy - 12, '#ffe070', 1, 'center');
             drawText(ctx, 'STEVE BALLMER', GAME.W / 2, GAME.H - 40, '#ff80a0', 1, 'center');
         }
-        // Boss entry telegraph
+        // R290: boss entry telegraph. Lower-half panel slides up showing the
+        // painted boss portrait + name (matches the platformer BOSS_INTRO
+        // visual language). 90-frame phase before the arena unlocks.
         if (this.phase === 'bossEntry') {
+            const t = this.bossEntryT;
             const cx = GAME.W / 2;
-            const cy = BACK_WALL_Y + 30;
-            const a = 0.4 + 0.4 * Math.sin(this.bossEntryT * 0.3);
-            ctx.strokeStyle = `rgba(255, 96, 160, ${a})`;
+            // Background dim wash that fades in
+            const dimA = Math.min(0.55, t * 0.015);
+            ctx.fillStyle = `rgba(20, 8, 28, ${dimA})`;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            // Pulsing telegraph ring at back wall
+            const ringA = 0.4 + 0.4 * Math.sin(t * 0.3);
+            ctx.strokeStyle = `rgba(255, 96, 160, ${ringA})`;
             ctx.lineWidth = 1;
-            const r = 30 + Math.sin(this.bossEntryT * 0.15) * 6;
+            const r = 30 + Math.sin(t * 0.15) * 6;
             ctx.beginPath();
-            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.arc(cx, BACK_WALL_Y + 30, r, 0, Math.PI * 2);
             ctx.stroke();
-            drawText(ctx, 'CORE ONLINE', GAME.W / 2, 80, '#ff60a0', 1, 'center');
+            // Painted boss portrait — slides up from below across t=20..50
+            const portraitKey = this.data.bossPortraitKey;
+            const img = portraitKey ? sprites.images.get(portraitKey) : null;
+            if (img) {
+                const slideK = Math.max(0, Math.min(1, (t - 20) / 30));
+                const eased = 1 - Math.pow(1 - slideK, 3);
+                const pH = Math.min(120, GAME.H * 0.6);
+                const pW = pH * (img.width / img.height);
+                const pY = GAME.H - pH * eased;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(img, GAME.W / 2 - pW / 2, pY, pW, pH);
+            }
+            // Boss name banner — slides in from right at t > 35
+            if (t > 35) {
+                const slideK = Math.min(1, (t - 35) / 22);
+                const eased = 1 - Math.pow(1 - slideK, 3);
+                const startX = GAME.W + 80;
+                const endX = GAME.W / 2;
+                const nameX = startX - (startX - endX) * eased;
+                const name = this.data.bossDisplayName || 'BOSS';
+                drawTextOutlined(ctx, name, nameX, 20, '#ff5050', '#1a0010', 2, 'center');
+            }
+            // "VS" / "BOSS" tag pulses near top
+            if (t > 12) {
+                const a = 0.6 + 0.4 * Math.sin(t * 0.25);
+                ctx.globalAlpha = a;
+                drawText(ctx, '!! BOSS !!', cx, 8, '#ffe070', 1, 'center');
+                ctx.globalAlpha = 1;
+            }
         }
         // HUD
         this._drawHUD();

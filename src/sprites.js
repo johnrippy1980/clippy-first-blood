@@ -154,6 +154,9 @@ export const SCENE_MANIFEST = {
     'card_ballmer_office':  'card_ballmer_office.png',
     'card_ballmer_escapes': 'card_ballmer_escapes.png',
     'card_ballmer_arena':   'card_ballmer_arena.png',
+    // R291: Gates mini-arc cards — keynote corridor + escape + arena.
+    'card_gates_escapes':   'card_gates_escapes.png',
+    'card_gates_arena':     'card_gates_arena.png',
     // Boss intro cinematic backgrounds — painted villain stages shown
     // during the BOSS_INTRO scene. Keyed by boss code so _drawBossIntro
     // can look up the matching backdrop. Falls back to dim _drawPlay when
@@ -274,6 +277,8 @@ export const CLIPPY_MANIFEST = {
     'office_drone':      'office_drone.png',      // desk-lamp shield drone
     'boss_ballmer_fps':  'boss_ballmer_fps.png',  // Ballmer w/ chair (core boss)
     'bg_office':         'bg_office.png',         // corridor backdrop
+    // R291: Gates FPS arc — keynote auditorium theme.
+    'bg_keynote_corridor': 'bg_keynote_corridor.png',
     // R269: FPS-arena electric barrier hazard — 4-frame pulse cycle
     // (full-on → crackling → off → powering up). Tiled across the corridor
     // at mid-depth when segment 3 is active.

@@ -52,9 +52,9 @@ function _formatTime(frames) {
 }
 
 const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SCENE GALLERY', 'SOUNDTRACK', 'QUIT TO TITLE'];
-const OPTIONS_ITEMS = ['MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
-// Key per OPTIONS_ITEMS index for options.get/set dispatch. BACK has no key.
-const OPTIONS_KEYS = ['musicVol', 'sfxVol', 'scanlines', 'shakeScale', 'BACK'];
+// R288: master + music + sfx volume sliders (all default 100%).
+const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
+const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'shakeScale',     'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 // Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
@@ -2218,10 +2218,14 @@ export class Game {
         const dir = (input.isPressed('left') ? -1 : 0) + (input.isPressed('right') ? 1 : 0);
         if (dir !== 0) {
             const k = OPTIONS_KEYS[this.optionsIndex];
-            if (k === 'musicVol' || k === 'sfxVol') {
-                options.set(k, Math.max(0, Math.min(1, options.get(k) + dir * 0.1)));
-                if (audio.musicBus && k === 'musicVol') audio.musicBus.gain.value = options.get('musicVol');
-                if (audio.sfxBus && k === 'sfxVol')     audio.sfxBus.gain.value   = options.get('sfxVol');
+            if (k === 'masterVol' || k === 'musicVol' || k === 'sfxVol') {
+                const v = Math.max(0, Math.min(1, options.get(k) + dir * 0.1));
+                options.set(k, v);
+                // R288: use the audio API setters so the sidechainBase stays
+                // in sync + the bus is set via a single source-of-truth path.
+                if (k === 'masterVol') audio.setMasterVolume(v);
+                if (k === 'musicVol')  audio.setMusicVolume(v);
+                if (k === 'sfxVol')    audio.setSfxVolume(v);
             } else if (k === 'scanlines') {
                 options.set(k, !options.get(k));
                 document.getElementById('scanlines')?.style.setProperty('display', options.get(k) ? 'block' : 'none');
@@ -2263,25 +2267,25 @@ export class Game {
                 drawText(ctx, '<', panelX + panelW - 18, y, '#ffe070', 1, 'left');
             }
             drawText(ctx, OPTIONS_ITEMS[i], panelX + 22, y, sel ? '#fff' : '#c0a0d0', 1, 'left');
-            // Value: for slider types, draw a filled bar; for toggle, just text.
-            if (i === 0 || i === 1) {
-                const v = options.get(i === 0 ? 'musicVol' : 'sfxVol');
-                const barX = panelX + panelW - 64, barY = y + 3, barW = 32, barH = 4;
+            // R288: route render by OPTIONS_KEYS[i] instead of hardcoded
+            // indices so adding/removing items doesn't break sliders.
+            const key = OPTIONS_KEYS[i];
+            const barX = panelX + panelW - 64, barY = y + 3, barW = 32, barH = 4;
+            if (key === 'masterVol' || key === 'musicVol' || key === 'sfxVol') {
+                const v = options.get(key);
                 ctx.fillStyle = '#241830';
                 ctx.fillRect(barX, barY, barW, barH);
                 ctx.fillStyle = sel ? '#ffe070' : '#80a0c0';
                 ctx.fillRect(barX, barY, Math.round(barW * v), barH);
                 drawText(ctx, Math.round(v * 100) + '%', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
-            } else if (i === 3) {
-                // Shake intensity 0..2 normalized into a wider bar.
+            } else if (key === 'shakeScale') {
                 const v = options.get('shakeScale') / 2;
-                const barX = panelX + panelW - 64, barY = y + 3, barW = 32, barH = 4;
                 ctx.fillStyle = '#241830';
                 ctx.fillRect(barX, barY, barW, barH);
                 ctx.fillStyle = sel ? '#ffe070' : '#80a0c0';
                 ctx.fillRect(barX, barY, Math.round(barW * v), barH);
                 drawText(ctx, options.get('shakeScale').toFixed(2), panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
-            } else if (i === 2) {
+            } else if (key === 'scanlines') {
                 drawText(ctx, options.get('scanlines') ? 'ON' : 'OFF', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
             }
         }

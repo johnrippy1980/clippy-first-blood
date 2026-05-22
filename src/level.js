@@ -1730,6 +1730,10 @@ function makeFpsStageBallmerArena() {
         // R280: skip-to-boss mode — bypass segments 0-2, drop the player
         // straight into the core fight.
         startSegment: 3,
+        // R290: boss-intro painted portrait + display name shown during
+        // the bossEntry phase (matches platformer BOSS_INTRO visuals).
+        bossPortraitKey:  'boss_intro_BALLMER',
+        bossDisplayName:  'BALLMER',
     };
 }
 

@@ -4,8 +4,11 @@
 const KEY = 'clippy_options';
 
 const DEFAULTS = {
-    musicVol: 0.7,
-    sfxVol:   0.85,
+    // R288: default volumes to 100% so the game ships loud — players can
+    // turn it down via the in-game volume sliders.
+    musicVol: 1.0,
+    sfxVol:   1.0,
+    masterVol: 1.0,
     scanlines: true,
     shakeScale: 1.0,
     crtCurve: true,

@@ -85,14 +85,14 @@ class Audio {
         // shoot-to-sound lag by 15-20ms.
         this.ctx = new AC({ latencyHint: 'interactive' });
         this.master = this.ctx.createGain();
-        this.master.gain.value = 0.65;
+        this.master.gain.value = 1.0;            // R288: default master 100%
         this.musicBus = this.ctx.createGain();
-        this.musicBus.gain.value = 0.55;
+        this.musicBus.gain.value = 1.0;          // R288: default music 100%
         this.sfxBus = this.ctx.createGain();
-        this.sfxBus.gain.value = 0.85;
+        this.sfxBus.gain.value = 1.0;            // R288: default SFX 100%
 
         // Sidechain envelope on music bus (modulated by kick)
-        this.sidechainBase = 0.55;
+        this.sidechainBase = 1.0;                // R288: matches default 100%
         this.musicBus.connect(this.master);
         this.sfxBus.connect(this.master);
 
@@ -107,6 +107,18 @@ class Audio {
         this.master.disconnect();
         this.master.connect(lim);
         lim.connect(this.ctx.destination);
+
+        // R288: pull persisted volumes from options module if available.
+        try {
+            import('./options.js').then(mod => {
+                const opt = mod.options;
+                if (opt) {
+                    this.setMusicVolume(opt.get('musicVol') ?? 1.0);
+                    this.setSfxVolume(opt.get('sfxVol') ?? 1.0);
+                    this.setMasterVolume(opt.get('masterVol') ?? 1.0);
+                }
+            }).catch(() => {});
+        } catch (e) {}
 
         // R274: explicitly resume the context. Chromium starts AudioContext
         // suspended until a user gesture; without this the first sfx() call
@@ -131,8 +143,29 @@ class Audio {
 
     toggleMute() {
         this.muted = !this.muted;
-        if (this.master) this.master.gain.value = this.muted ? 0 : 0.65;
+        // R288: respect persisted master volume (default 1.0) instead of
+        // hardcoded 0.65 — pre-fix, toggleMute always slammed master back
+        // to 0.65 regardless of user's slider position.
+        if (this.master) this.master.gain.value = this.muted ? 0 : (this._masterVol ?? 1.0);
     }
+
+    // R288: volume API — values are 0..1. Persisted via options.set.
+    setMusicVolume(v) {
+        this._musicVol = Math.max(0, Math.min(1, v));
+        if (this.musicBus) this.musicBus.gain.value = this._musicVol;
+        this.sidechainBase = this._musicVol;
+    }
+    setSfxVolume(v) {
+        this._sfxVol = Math.max(0, Math.min(1, v));
+        if (this.sfxBus) this.sfxBus.gain.value = this._sfxVol;
+    }
+    setMasterVolume(v) {
+        this._masterVol = Math.max(0, Math.min(1, v));
+        if (this.master && !this.muted) this.master.gain.value = this._masterVol;
+    }
+    getMusicVolume() { return this._musicVol ?? 1.0; }
+    getSfxVolume()   { return this._sfxVol ?? 1.0; }
+    getMasterVolume(){ return this._masterVol ?? 1.0; }
 
     // ============= SFX =============
     // No more Atari beeps. Each shot = layered: low thump (sub kick), mid
