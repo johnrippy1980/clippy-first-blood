@@ -156,13 +156,78 @@ class Audio {
             case 'grenadeThrow': return this._grenadeThrow(t);
             case 'shotgun':  return this._shotgunBlast(t);
             case 'chainsaw': return this._chainsawRev(t);
+            // R248: RPG-style sound split for HOMING — launch on fire,
+            // explosion on impact. Old 'homing' was a single woosh.
+            case 'rpgLaunch': return this._rpgLaunch(t);
+            case 'rpgImpact': return this._rpgImpact(t);
         }
     }
 
-    // Shotgun: heavy thump + wide-band noise body + bright crack.
-    // Tuned heavier than MG/SPREAD so the player FEELS the pellet spread.
+    // R249: DOOM-style shotgun — three-stage blast.
+    //   1) sub kick (sub-30Hz body thump for chest punch)
+    //   2) long mid-band noise body (~280ms) with low-pass roll-off for the
+    //      "BOOM-RRRR" tail that defines DOOM's super-shotty
+    //   3) bright high-pass crack at the head for the percussive snap
+    // Heavier and longer than MG/SPREAD so the player FEELS each blast.
     _shotgunBlast(t) {
-        this._gunshot(t, { thump: 55, body: 600, bodyDur: 0.22, crack: 3200, layers: 2 });
+        // Sub thump — sine sweep 80Hz → 28Hz
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(80, t);
+        o.frequency.exponentialRampToValueAtTime(28, t + 0.15);
+        this._envOn(g, 0.65, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.2);
+        // Mid body — long noise tail that rolls off lowpass for the BOOM
+        this._noise(t,         0.45, 0.30, 700,  'lp', 1.2);
+        this._noise(t + 0.005, 0.30, 0.28, 1200, 'bp', 1.6);
+        // Bright crack — sharp head transient
+        this._noise(t,         0.10, 0.18, 4200, 'hp', 1);
+        // Mechanical "kachunk" tail — quick square click at 220Hz for the
+        // pump-action read.
+        this._tonal(t + 0.18, 'square', 220, 110, 0.06, 0.12);
+    }
+
+    // R248: RPG launch — whoosh ignition. Layered:
+    //   - sub-frequency ignition thump (~60Hz)
+    //   - rising noise sweep (the rocket motor spinning up)
+    //   - high crackle (propellant)
+    _rpgLaunch(t) {
+        // Sub ignition
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(60, t);
+        o.frequency.exponentialRampToValueAtTime(40, t + 0.18);
+        this._envOn(g, 0.4, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.2);
+        // Rising motor noise — bp sweep upward to suggest acceleration
+        this._noise(t,        0.25, 0.30, 1400, 'bp', 1.8);
+        this._noise(t + 0.04, 0.20, 0.25, 2200, 'bp', 2.2);
+        // Propellant crackle on top
+        this._noise(t, 0.10, 0.18, 4800, 'hp', 1);
+    }
+
+    // R248: RPG impact — explosion. Reuses _explode's layering but with a
+    // brighter top + slightly more aggressive sub for the rocket-warhead read.
+    _rpgImpact(t) {
+        // Sub rumble — punchier and longer than _explode
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(95, t);
+        o.frequency.exponentialRampToValueAtTime(24, t + 0.5);
+        this._envOn(g, 0.6, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.6);
+        // Mid + low + high noise burst — full-spectrum boom
+        this._noise(t,        0.55, 0.45, 180,  'lp', 1);
+        this._noise(t,        0.30, 0.35, 900,  'bp', 1.2);
+        this._noise(t + 0.02, 0.12, 0.20, 4400, 'hp', 1);
+        // Bright debris crackle ~0.1s after the boom
+        this._noise(t + 0.08, 0.10, 0.18, 5200, 'hp', 1);
     }
 
     // Chainsaw rev — short sawtooth burst layered with noise. Called every

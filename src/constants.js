@@ -90,11 +90,21 @@ export const WEAPON = Object.freeze({
     SPREAD:  { name: 'SPREAD',  damage: 1,  fireRate: 12, bulletSpeed: 3.8, color: '#ff8050', shots: 5,    spread: 0.35, sound: 'spread' },
     LASER:   { name: 'LASER',   damage: 3,  fireRate: 8,  bulletSpeed: 7.2, color: '#7af0ff', piercing: true, sound: 'laser' },
     FLAME:   { name: 'FLAME',   damage: 0.5, fireRate: 3, bulletSpeed: 2.8, color: '#ff5040', maxRange: 60, dot: true, sound: 'flame' },
-    HOMING:  { name: 'HOMING',  damage: 2,  fireRate: 18, bulletSpeed: 3.2, color: '#ff60ff', homing: true, sound: 'homing' },
+    // R248: HOMING is an RPG — orange-red projectile + explosive impact.
+    // Was pink #ff60ff which read as a magical/cutesy weapon, not a rocket.
+    // The launch SFX is now 'rpgLaunch', impact triggers 'rpgImpact' explosion.
+    HOMING:  { name: 'HOMING',  damage: 2,  fireRate: 18, bulletSpeed: 3.2, color: '#ff5030', homing: true, sound: 'rpgLaunch' },
     THUNDER: { name: 'THUNDER', damage: 4,  fireRate: 22, bulletSpeed: 0, color: '#fffac8', chain: true, sound: 'thunder' },
-    // SHOTGUN: short-range tight cone of pellets. Each pellet hits hard but the
-    // cone falls off fast (life: 18 ≈ ~70-90px range) so it's a CQB weapon.
-    SHOTGUN: { name: 'SHOTGUN', damage: 1.4, fireRate: 18, bulletSpeed: 4.6, color: '#ffaa30', shots: 6, spread: 0.18, life: 18, sound: 'shotgun' },
+    // SHOTGUN: short-range CQB weapon. R247 buff:
+    //   - spread 0.18 -> 0.32 rad (wider cone, ~36° total — pellets cover
+    //     more arc so close-range crowd clears are reliable)
+    //   - damage 1.4 -> 4.5 per pellet — wider spread means fewer pellets
+    //     hit a single target at point-blank, so each individual pellet
+    //     has to hit harder. 4 connecting pellets = 18 dmg (drops a basic
+    //     grunt), 6 = 27 dmg (point-blank guarantee kill on most grunts).
+    //   - Reflects user feedback that the shotgun felt weak given its
+    //     short range + slow fire rate.
+    SHOTGUN: { name: 'SHOTGUN', damage: 4.5, fireRate: 18, bulletSpeed: 4.6, color: '#ffaa30', shots: 6, spread: 0.32, life: 18, sound: 'shotgun' },
     // CHAINSAW: melee weapon. No projectile — a tick-based hitbox in front
     // of Clippy chews any enemy in arc every `tickRate` frames while shoot
     // is held. range/dmg/arc tuned by _shoot dispatch + chainsaw tick code.

@@ -1823,6 +1823,33 @@ export class Player {
                 if (idx >= 0) this.bullets.splice(idx, 1);
             }
         }
+        // R248: HOMING is an RPG — every impact triggers a real explosion.
+        // Boom SFX + AoE splash damage, full-bright orange ring, screen shake.
+        // The rocket detonates regardless of kill/no-kill (warhead doesn't care).
+        if (bullet.weapon === 'HOMING') {
+            const bx = bullet.x, by = bullet.y;
+            audio.sfx('rpgImpact');
+            particles.explosion(bx, by, '#ff8030', 20);
+            particles.shockRing(bx, by, 14, 16, '#ff5030');
+            this.requestShake = Math.max(this.requestShake || 0, 2.2);
+            // Splash damage — 24px radius, half the bullet's damage at edge,
+            // full at center. Skips the enemy that was directly hit (already
+            // damaged by the bullet) and bullets that already pierced multiple.
+            const game = (typeof window !== 'undefined') ? window.__game : null;
+            const enemyMgr = game?.enemies;
+            if (enemyMgr && enemyMgr.enemies) {
+                const SPLASH_R = 24;
+                const splashMax = bullet.damage * 0.7;
+                for (const e of enemyMgr.enemies) {
+                    if (!e.alive || e === enemy) continue;
+                    const ecx = e.x + e.w / 2, ecy = e.y + e.h / 2;
+                    const d = Math.hypot(ecx - bx, ecy - by);
+                    if (d > SPLASH_R) continue;
+                    const falloff = 0.5 + 0.5 * (1 - d / SPLASH_R);
+                    e.hurt(splashMax * falloff, ecx < bx ? -1 : 1, { knockBack: 1.0 });
+                }
+            }
+        }
         particles.weaponHitBurst(bullet.x, bullet.y, bullet.weapon, bullet.color);
         this.dmgDealt[bullet.weapon] = (this.dmgDealt[bullet.weapon] || 0) + bullet.damage;
         // Damage numbers on non-kill hits — only for high-HP targets (bosses /
