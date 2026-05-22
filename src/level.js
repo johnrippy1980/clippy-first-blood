@@ -736,6 +736,13 @@ function makeStage5() {
     platT(g, 12, 95, 2);
     setT(g, h - 3, w - 4, X);
 
+    // R234: GRAPPLE-ONLY REWARD PLATFORMS. Two high islands above the
+    // catwalk that normal jumping can't reach — but the grapple's 144px
+    // cone-aim hits them easily from the catwalk below. Each holds a
+    // high-value pickup so the route is opt-in but enticing.
+    platT(g, 2, 42, 3);   // floating above scaffold column — LIFE
+    platT(g, 1, 76, 3);   // floating above audio booth — THUNDER
+
     // Podium cover — near the audience-floor sniper.
     setT(g, h - 3, 24, C);
     // Catwalk podium — near the holepunch sniper above audience.
@@ -787,6 +794,12 @@ function makeStage5() {
             { x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
             // Pre-boss LIFE
             { x: 93 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // R234: grapple-only reward — LIFE on the high floating platform
+            // above the scaffold column. Unreachable without grapple.
+            { x: 43 * GAME.TILE, y: ( 2) * GAME.TILE - 8, type: 'LIFE' },
+            // R234: grapple-only reward — THUNDER on the second floating
+            // island above the audio booth.
+            { x: 77 * GAME.TILE, y: ( 1) * GAME.TILE - 8, type: 'THUNDER' },
         ],
         crateSpawns: [
             { x: 18 * GAME.TILE, y: (12) * GAME.TILE - 14, drop: 'CHAINSAW' },
@@ -866,6 +879,16 @@ function makeStage6() {
     rectT(g, 9, w - 4, 1, 3, W);
     setT(g, h - 3, w - 4, X);
 
+    // R234: GRAPPLE SHORTCUT — high reward pedestal sits between the
+    // fork-1 high catwalk and the fork-2 high catwalk, 3 tiles above
+    // both. Normal jumping can't reach; grapple toward the ceiling
+    // edge to swing onto it. Holds a CLIPPY_TAG so completionists
+    // have a reason to chase it.
+    platT(g, 2, 28, 3);
+    // Second grapple-reach pedestal high above the reactor — escape
+    // the spike-pillar corridor by swinging across the top.
+    platT(g, 2, 74, 3);
+
     // Crimson statue cover — near the holepunch sniper at col 52.
     setT(g, h - 3, 52, C);
     // F: third-fork statue cover at col 60.
@@ -913,6 +936,13 @@ function makeStage6() {
             { x: 83 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
             // Pre-boss LIFE
             { x: 97 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            // R234: grapple-reach pedestal between forks 1 & 2 — CLIPPY_TAG
+            // sits up high so the only way to claim it is to grapple from
+            // either catwalk.
+            { x: 29 * GAME.TILE, y: ( 2) * GAME.TILE - 8, type: 'CLIPPY_TAG' },
+            // R234: grapple shortcut over the reactor pillars — THUNDER
+            // pays out skipping the hazard via grapple swing.
+            { x: 75 * GAME.TILE, y: ( 2) * GAME.TILE - 8, type: 'THUNDER' },
         ],
         crateSpawns: [
             // A SPREAD (unchanged)
