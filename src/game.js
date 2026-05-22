@@ -2278,7 +2278,8 @@ export class Game {
     }
     _drawAchievements() {
         const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.88)';
+        // R238: fully opaque — backdrop panel below shouldn't bleed through.
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         drawTextOutlined(ctx, 'ACHIEVEMENTS', GAME.W / 2, 8, '#ffe070', '#a82020', 1, 'center');
         // Progress bar — full-width strip under the title.
@@ -2292,14 +2293,15 @@ export class Game {
         ctx.fillRect(barX, barY, Math.floor(barW * pct), barH);
         drawText(ctx, got + ' / ' + total, GAME.W / 2, 30, '#a0c0e0', 1, 'center');
 
-        // Grid: 5 cols × 4 rows so 18 entries fit (last row had 2 tiles
-        // clipping behind the detail strip on the prior 4×4 layout). 40w×34h
-        // keeps the tile glyph + name legible at the smaller width.
+        // R238: grid extended to 5×5 (was 5×4) — list has grown to 21 entries
+        // and the bottom row was spilling into the detail strip. Tile slightly
+        // shorter (34 -> 30) so 5 rows fit between header (y=44) and detail
+        // strip (y=GAME.H-32 = 192).
         const cols = 5;
-        const tileW = 40, tileH = 34;
+        const tileW = 40, tileH = 28;
         const gridW = cols * tileW + (cols - 1) * 3;
         const gridX = Math.floor((GAME.W - gridW) / 2);
-        const gridY = 44;
+        const gridY = 38;
         const cursor = this.achievementsIndex || 0;
         for (let idx = 0; idx < ACHIEVEMENT_LIST.length; idx++) {
             const a = ACHIEVEMENT_LIST[idx];
@@ -2321,16 +2323,16 @@ export class Game {
             ctx.fillRect(x, y + tileH - 1, tileW, 1);
             ctx.fillRect(x, y, 1, tileH);
             ctx.fillRect(x + tileW - 1, y, 1, tileH);
-            // Trophy icon centered
+            // Trophy icon centered (R238: tightened to fit smaller tile)
             const iconText = unlocked ? a.icon : '?';
             const iconColor = unlocked ? '#ffe070' : '#604068';
-            drawTextOutlined(ctx, iconText, x + tileW / 2, y + 6, iconColor, '#1a0000', 1, 'center');
+            drawTextOutlined(ctx, iconText, x + tileW / 2, y + 4, iconColor, '#1a0000', 1, 'center');
             // Mini-name (tight truncate — 6 chars max @ 1× pixel font ≈ 36px,
             // fits the 40px tile with 2px side margin). Full name renders in
             // the detail strip at the bottom.
             const shortName = unlocked ? a.name : '?????';
             const truncated = shortName.length > 6 ? shortName.substring(0, 5) + '.' : shortName;
-            drawText(ctx, truncated, x + tileW / 2, y + 22, unlocked ? '#fff' : '#403048', 1, 'center');
+            drawText(ctx, truncated, x + tileW / 2, y + 18, unlocked ? '#fff' : '#403048', 1, 'center');
         }
         // Detail strip at the bottom — selected achievement name + description.
         // Sits above the help row so they don't collide.
@@ -2378,7 +2380,9 @@ export class Game {
     }
     _drawSoundtrack() {
         const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0,0,0,0.88)';
+        // R238: fully opaque so the main-menu panel underneath (now anchored
+        // to the lower half — R236) doesn't bleed through at 12% alpha.
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         drawTextOutlined(ctx, 'SOUNDTRACK', GAME.W / 2, 10, '#ffe070', '#a82020', 1, 'center');
 
@@ -2567,7 +2571,9 @@ export class Game {
             return;
         }
         // Grid view
-        ctx.fillStyle = 'rgba(0,0,0,0.88)';
+        // R238: fully opaque so the main-menu panel underneath doesn't bleed
+        // through (R236 anchored it to lower half, exposed the 12% leak).
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         drawTextOutlined(ctx, 'SCENE GALLERY', GAME.W / 2, 12, '#ffe070', '#a82020', 1, 'center');
 
@@ -2860,9 +2866,23 @@ export class Game {
             } else {
                 drawText(ctx, '??', tx + 4, ty + 4, '#604068', 1, 'left');
             }
-            // Name (truncated for tile width)
-            const name = (data?.name || '').slice(0, 10);
-            drawText(ctx, name, tx + 4, ty + 14, unlocked ? '#fff' : '#604068', 1, 'left');
+            // R237: name on two lines so multi-word stages don't truncate
+            // mid-word ("OFFICE PARK JUNGLE" -> "OFFICE PAR"). Split on
+            // first space if the full name exceeds the tile's char budget.
+            const fullName = data?.name || '';
+            const CHARS = 9;
+            const color = unlocked ? '#fff' : '#604068';
+            if (fullName.length <= CHARS) {
+                drawText(ctx, fullName, tx + 4, ty + 14, color, 1, 'left');
+            } else {
+                // Prefer a clean word split — find the first space inside [4..CHARS]
+                let split = fullName.lastIndexOf(' ', CHARS);
+                if (split < 3) split = CHARS; // fallback to hard wrap
+                const line1 = fullName.slice(0, split).trim();
+                const line2 = fullName.slice(split).trim().slice(0, CHARS);
+                drawText(ctx, line1, tx + 4, ty + 14, color, 1, 'left');
+                drawText(ctx, line2, tx + 4, ty + 22, color, 1, 'left');
+            }
 
             // Medal row — 3 slots at bottom of tile
             const med = this.runStats?.medals?.[stage] || { noDamage: false, allKills: false, secret: false };
