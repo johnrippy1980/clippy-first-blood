@@ -1296,7 +1296,9 @@ export class Player {
             if (this.mgHeat >= 100) {
                 this.mgVentLock = 30;
                 this.mgHeat = 100;
-                audio.sfx('comboBreak'); // re-use existing "broken" beat
+                // R258: dedicated overheat SFX (was reusing 'comboBreak'
+                // which is for combo-streak loss — different event).
+                audio.sfx('mgOverheat');
                 // Steam vent puff from the barrel — short white burst.
                 const mz = this._muzzleWorldPos();
                 for (let i = 0; i < 8; i++) {

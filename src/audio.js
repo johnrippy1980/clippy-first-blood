@@ -170,6 +170,10 @@ class Audio {
             // capacitor-whine pre-roll so the release reads as "stored
             // energy unleashed" rather than a lightning strike.
             case 'mgCharged': return this._mgChargedShot(t);
+            // R258: dedicated MG overheat-vent. Was reusing 'comboBreak'
+            // which is for combo-streak loss — different event, deserves
+            // a different sound. Now: steam hiss + mechanical clunk.
+            case 'mgOverheat': return this._mgOverheat(t);
         }
     }
 
@@ -197,6 +201,30 @@ class Audio {
         // Mechanical "kachunk" tail — quick square click at 220Hz for the
         // pump-action read.
         this._tonal(t + 0.18, 'square', 220, 110, 0.06, 0.12);
+    }
+
+    // R258: MG overheat vent. Two-stage:
+    //   1) mechanical "clunk" — square thud at 180Hz dropping to 90Hz,
+    //      the bolt slamming open as the gun locks itself
+    //   2) long steam hiss — bp noise centered at 3.5kHz with slow decay,
+    //      reads as pressurized vapor escaping the barrel
+    _mgOverheat(t) {
+        // Bolt clunk
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(90, t + 0.05);
+        this._envOn(g, 0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1200;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.10);
+        // Steam hiss — long bp noise, slow attack so it ramps in behind
+        // the clunk for a "OH the gun broke" 1-2 read.
+        this._noise(t + 0.02, 0.18, 0.40, 3500, 'bp', 1.4);
+        // Lower-frequency rumble underneath — the pressure building
+        this._noise(t + 0.02, 0.10, 0.30, 600,  'bp', 1.2);
     }
 
     // R257: charged-MG release. Three-stage:
