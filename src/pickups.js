@@ -95,9 +95,15 @@ class BreakableWall {
         this.hitFlash = 0;
         // Crack stages drive the visible "damage" pattern. 0..3.
         this.cracks = 0;
+        // R233: shimmer phase so the idle pulse is desynchronized between
+        // walls (otherwise a row of walls flashes in perfect lockstep,
+        // which reads as a UI element not a hazard cluster).
+        this._shimmerPhase = Math.random() * Math.PI * 2;
+        this._tick = 0;
     }
     update(level, player) {
         if (this.hitFlash > 0) this.hitFlash--;
+        this._tick++;
         if (!this.alive) return null;
         for (let i = player.bullets.length - 1; i >= 0; i--) {
             const b = player.bullets[i];
@@ -129,11 +135,25 @@ class BreakableWall {
             ctx.fillRect(dx, dy, this.w, this.h);
             return;
         }
+        // R233: idle shimmer so destructibles READ as interactable. A slow
+        // yellow pulse across the brick (period ~2s) plus a brighter outline
+        // around walls that hide a real drop. Without this the bricks just
+        // look like static set-dress on painted bgs.
+        const shimmer = 0.5 + 0.5 * Math.sin(this._tick * 0.06 + this._shimmerPhase);
+        const hidesDrop = !!this.drop;
         // Base brick — slightly different palette from the regular
         // crate so the player learns "wall, not crate" at a glance.
         ctx.fillStyle = '#4a3220'; ctx.fillRect(dx, dy, this.w, this.h);
         ctx.fillStyle = '#6a4830'; ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
-        // Mortar lines
+        // Top-left highlight + bottom-right shade — sells the 3D chunk look
+        // and contrasts against flat painted bgs.
+        ctx.fillStyle = '#8a6840';
+        ctx.fillRect(dx + 1, dy + 1, this.w - 2, 1);
+        ctx.fillRect(dx + 1, dy + 1, 1, this.h - 2);
+        ctx.fillStyle = '#2a1810';
+        ctx.fillRect(dx + 1, dy + this.h - 2, this.w - 2, 1);
+        ctx.fillRect(dx + this.w - 2, dy + 1, 1, this.h - 2);
+        // Mortar lines — the "brick" texture readers expect
         ctx.fillStyle = '#3a2218';
         ctx.fillRect(dx, dy + this.h / 2 | 0, this.w, 1);
         ctx.fillRect(dx + this.w / 2 | 0, dy, 1, this.h);
@@ -146,8 +166,28 @@ class BreakableWall {
                 ctx.fillRect(cx, cy, 1, 2);
             }
         }
-        // Hairline border so it sits cleanly on painted bgs
-        ctx.fillStyle = '#1a0a08';
+        // R233: shimmer glint — a single bright pixel sweeps across the brick
+        // surface every cycle. Subtle, but enough to read "interactable" on
+        // painted bgs that would otherwise camouflage a static block.
+        const glintX = ((this._tick * 0.6) | 0) % (this.w + 4) - 2;
+        if (glintX > 0 && glintX < this.w - 1) {
+            const a = Math.max(0, Math.sin(this._tick * 0.06 + this._shimmerPhase));
+            if (a > 0.3) {
+                ctx.fillStyle = hidesDrop ? '#ffe080' : '#c0a070';
+                ctx.fillRect(dx + glintX, dy + 2, 1, 2);
+            }
+        }
+        // R233: drop-hint border — walls hiding a real drop pulse a faint
+        // yellow rim so attentive players can pick out which walls to chase.
+        // Always-visible walls (no drop) get the standard dark border.
+        if (hidesDrop) {
+            const rimMix = 0.4 + 0.4 * shimmer;
+            const r = (0xc0 + (0xff - 0xc0) * rimMix) | 0;
+            const g = (0x80 + (0xe0 - 0x80) * rimMix) | 0;
+            ctx.fillStyle = `rgb(${r},${g},32)`;
+        } else {
+            ctx.fillStyle = '#1a0a08';
+        }
         ctx.fillRect(dx, dy, this.w, 1);
         ctx.fillRect(dx, dy + this.h - 1, this.w, 1);
         ctx.fillRect(dx, dy, 1, this.h);

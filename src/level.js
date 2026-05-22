@@ -257,7 +257,17 @@ function makeStage1() {
             { x: 62 * GAME.TILE, y: ( 6) * GAME.TILE - 14, drop: 'FLAME' },
             // G: bridge mid-pit platform — risk/reward crate
             { x: 81 * GAME.TILE, y: (h - 5) * GAME.TILE - 14, drop: 'GRENADE' },
-        ]
+        ],
+        // R233: tutorial wall on stage 1's main path. Sits right at eye
+        // level on the ground past the first cabinet, so a player can't
+        // miss it. Wall hides a LIFE so the discovery is rewarding,
+        // teaching the mechanic via payoff rather than a tip overlay.
+        wallSpawns: [
+            { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
+            // Hidden CLIPPY_TAG late in the stage — on a high ledge after
+            // the player has had practice with the mid-stage wall.
+            { x: 70 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
     };
 }
 
