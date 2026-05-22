@@ -1433,20 +1433,33 @@ export class Game {
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             ctx.restore();
         }
+        // R213: suppress HUD when a sub-menu is open (OPTIONS/
+        // ACHIEVEMENTS/SOUNDTRACK/GALLERY). _drawPlay is called as the
+        // backdrop for those scenes, but the HUD it normally paints
+        // collides with the panel title row — lives, score, and timer
+        // visibly overlap the "ACHIEVEMENTS" / "SOUNDTRACK" headers.
+        // The PAUSE menu has its own framed overlay so the HUD doesn't
+        // intrude there, but it's a freebie to suppress consistently.
+        const subMenuOpen = this.scene === SCENE.OPTIONS
+            || this.scene === SCENE.ACHIEVEMENTS
+            || this.scene === SCENE.SOUNDTRACK
+            || this.scene === SCENE.GALLERY;
         const showBoss = this.scene === SCENE.PLAY || this.scene === SCENE.PAUSE;
-        drawHUD(ctx, {
-            player: this.player,
-            score: this.player.score,
-            time: this.totalTime,
-            boss: showBoss ? (this.boss || this.enemies.activeMiniBoss()) : null,
-            camera: this.camera,
-            training: this.trainingMode,
-            bossRush: this.bossRushMode,
-            timeTrial: this.timeTrialMode,
-            stageTime: this.stageTime,
-            bestBossRushTime: achievements.stats?.bestBossRushTime || 0,
-            bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
-        });
+        if (!subMenuOpen) {
+            drawHUD(ctx, {
+                player: this.player,
+                score: this.player.score,
+                time: this.totalTime,
+                boss: showBoss ? (this.boss || this.enemies.activeMiniBoss()) : null,
+                camera: this.camera,
+                training: this.trainingMode,
+                bossRush: this.bossRushMode,
+                timeTrial: this.timeTrialMode,
+                stageTime: this.stageTime,
+                bestBossRushTime: achievements.stats?.bestBossRushTime || 0,
+                bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
+            });
+        }
         if (this._bossEntrance) this._drawBossEntrance();
         // Training-ground zone banners — floating instructional text per zone.
         if (this.trainingMode) this._drawTrainingBanners();
