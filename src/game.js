@@ -7,6 +7,7 @@ import { particles } from './particles.js';
 import { Camera } from './camera.js';
 import { Level, STAGE_LOADERS } from './level.js';
 import { AmbientPropManager } from './ambient_props.js';
+import { BossLair, BOSS_LAIRS } from './boss_lair.js';
 import { FpsArena } from './fps_arena.js';
 import { BeatEmUp } from './beatem_up.js';
 import { Player } from './player.js';
@@ -1475,6 +1476,32 @@ export class Game {
         this.totalTime++;
         this.level.update();
         if (this._ambientProps) this._ambientProps.update();
+        // R330: boss lair update + post-fight cleanup
+        if (this._bossLair) {
+            this._bossLair.update();
+            // Track whether we've ever seen this.boss alive — only THEN
+            // does the absence-of-boss mean "boss died." Before the
+            // boss-intro resolves, this.boss is null without meaning death.
+            if (this.boss && this.boss.alive) this._bossLair._sawBoss = true;
+            const bossEverAppeared = this._bossLair._sawBoss === true;
+            const bossNowGone = !this.boss || !this.boss.alive;
+            if (bossEverAppeared && bossNowGone &&
+                this._bossLair.state !== 'exiting' && this._bossLair.state !== 'done') {
+                this._bossLair.triggerExit();
+            }
+            // Clean up when fade-out completes
+            if (this._bossLair.state === 'done') {
+                this._bossLair = null;
+            }
+            // Clamp player x to lair's left wall while active
+            if (this._bossLair && this.player) {
+                const wall = this._bossLair.leftWall();
+                if (this.player.x < wall) {
+                    this.player.x = wall;
+                    if (this.player.vx < 0) this.player.vx = 0;
+                }
+            }
+        }
         this.player.update(this.level, this.camera);
         const hitPause = (this.player.hitPauseFrames || 0) > 0;
         if (hitPause) {
@@ -1658,9 +1685,16 @@ export class Game {
         // of pickups so a dying Clippy doesn't occlude a pickup, but
         // BEHIND enemies so the player + enemies always read on top.
         if (this._ambientProps) this._ambientProps.draw(ctx, this.camera);
+        // R330: boss lair decorations sit ahead of tiles but BEHIND the
+        // gameplay layer — same Z as ambient props.
+        if (this._bossLair) this._bossLair.drawDecorationsBack(ctx, this.camera);
         this.pickups.draw(ctx, this.camera);
         this.enemies.draw(ctx, this.camera);
         this.player.draw(ctx, this.camera, this.level);
+        // R330: gate draws OVER the player so the player can't walk past it
+        // visually. drawNameTag is drawn last in the play-draw chain so
+        // the "LAIR NAME" banner sits over everything.
+        if (this._bossLair) this._bossLair.drawGate(ctx, this.camera);
         particles.draw(ctx, this.camera);
         particles.drawFloats(ctx, this.camera, drawText, drawTextOutlined);
         // Grass tips paint OVER player + enemies so the hidden read is sold.
@@ -1744,6 +1778,8 @@ export class Game {
             });
         }
         if (this._bossEntrance) this._drawBossEntrance();
+        // R330: boss-lair name tag (banner at top of screen during lair entry)
+        if (this._bossLair) this._bossLair.drawNameTag(ctx);
         // Training-ground zone banners — floating instructional text per zone.
         if (this.trainingMode) this._drawTrainingBanners();
         // First-stage demo hint — execs see this on their first play.
@@ -3427,6 +3463,21 @@ export class Game {
             this._finishBossIntro();
             return;
         }
+        // R330: create a BossLair for any boss that has a spec. The lair
+        // is constructed BEFORE the cinematic so it can render its name-tag
+        // + decorations as the boss-intro card resolves. Lair clamps the
+        // left side of the arena so the player can't backtrack mid-fight.
+        if (stg && BOSS_LAIRS[stg.boss]) {
+            // Arena spans from the player's CURRENT x out to the right
+            // edge of the level (or 1.5x screen, whichever is smaller for
+            // tight arenas). Floor anchors at level.height-1 so the bottom
+            // edge is flush with the ground.
+            const arenaX = this.player.x - 16;   // 16px left of player
+            const arenaW = Math.min(this.level.width - arenaX, GAME.W * 1.5);
+            const arenaY = this.level.height - GAME.H + 8;
+            const arenaH = GAME.H - 8;
+            this._bossLair = new BossLair(stg.boss, arenaX, arenaY, arenaW, arenaH);
+        }
         // Route through the cinematic pre-boss slide. The actual spawn +
         // entrance flourish runs at the end of the cinematic in
         // _finishBossIntro(). Skippable with X/jump after a short hold so
@@ -3739,6 +3790,8 @@ export class Game {
         // fires the cinematic again.
         this._pipelineCineStarted = false;
         this._pipelineCineT = null;
+        // R330: clear any leftover boss lair from prior stage.
+        this._bossLair = null;
         this.stageTime = 0;
         this.storyTimer = 0;
         // Training-ground god mode: invincible player, unlimited ammo,
