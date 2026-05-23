@@ -232,6 +232,8 @@ export const BG_MANIFEST = {
     // R311: painted platform tile strips (top-of-strip = playable surface)
     'plat_jungle':       'plat_jungle.png',
     'plat_sewer':        'plat_sewer.png',
+    'plat_founder':      'plat_founder.png',
+    'plat_keynote':      'plat_keynote.png',
     // r108 universal tile sprites — painted via Local Howl, processed
     // through process-v2-sprites.py. Render branches in level.js prefer
     // these when loaded and fall back to the procedural fillRect path
