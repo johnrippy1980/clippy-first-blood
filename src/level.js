@@ -1753,6 +1753,10 @@ function makeFpsStageBallmerArena() {
         // the bossEntry phase (matches platformer BOSS_INTRO visuals).
         bossPortraitKey:  'boss_intro_BALLMER',
         bossDisplayName:  'BALLMER',
+        // R295: after Ballmer goes down, return to the main campaign at
+        // stage 8 (KEYNOTE HALL). Without this the arena clear routes
+        // straight to the title screen, ending the run prematurely.
+        nextStage: 8,
     };
 }
 
@@ -1815,6 +1819,9 @@ function makeFpsStageGatesArena() {
         startSegment: 3,
         bossPortraitKey: 'boss_intro_GATES',
         bossDisplayName: 'BILL GATES',
+        // R295: after Gates goes down, return to the main campaign at
+        // stage 11 (FOUNDER'S LAIR).
+        nextStage: 11,
     };
 }
 
