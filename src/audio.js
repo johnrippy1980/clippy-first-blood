@@ -58,6 +58,12 @@ const FILE_TRACKS = {
     // R303: dedicated FPS Spindler / Core Breach track. "DREAMS FADE"
     // lands the deep-lab confrontation about Clippy's lost family.
     dreamsFade:   'assets/audio/dreams-fade.mp3',              // stage 19 (Core Breach)
+    // R304: final 4 tracks — Training/BossRush Mode/Time Trial + a pure
+    // bonus track for the soundtrack-screen gallery (no stage routing).
+    training:    'assets/audio/resolution.mp3',                // stage 15 (Training Ground)
+    bossRushMode:'assets/audio/evolution.mp3',                 // stage 16 (Boss Rush Mode post-game)
+    timeTrial:   'assets/audio/never-the-same.mp3',            // stage 17 (Time Trial)
+    bonus2:      'assets/audio/bonus-2.mp3',                   // soundtrack-only bonus
     // Bonus track — wired to a hidden alias so the soundtrack gallery
     // can list it without a stage routing yet. Playable via menu.
     bonus:      'assets/audio/youve-been-loving.mp3',
