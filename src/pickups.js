@@ -322,16 +322,56 @@ class Pickup {
             ctx.fillRect(tx + 4, ty + 3, 1, 2);
             return;
         }
-        // Crate
-        ctx.fillStyle = '#1a1a2a';
+        // R318: richer painted-looking crate. Was a 2-tone fill + letter dots;
+        // now reads as a beveled box with a colored body, top sheen, bottom
+        // shadow line, and a halo-tinted letter that pulses with the bob.
+        // Outline (1-px dark border)
+        ctx.fillStyle = '#0a0510';
         ctx.fillRect(dx, dy, this.w, this.h);
-        ctx.fillStyle = '#3a2a4a';
+        // Body fill — slightly darker than the halo color so the letter
+        // reads as the focal point.
+        const bodyDark  = this._tintHex(color, -0.65);
+        const bodyMid   = this._tintHex(color, -0.45);
+        const bodyHi    = this._tintHex(color, -0.20);
+        ctx.fillStyle = bodyDark;
         ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
-        // Letter
+        // Vertical gradient: lighter top, darker bottom
+        ctx.fillStyle = bodyMid;
+        ctx.fillRect(dx + 1, dy + 1, this.w - 2, Math.floor((this.h - 2) / 2));
+        // Top sheen — 1-px bright highlight
+        ctx.fillStyle = bodyHi;
+        ctx.fillRect(dx + 1, dy + 1, this.w - 2, 1);
+        // Inner border accent — tints with type color
         ctx.fillStyle = color;
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(dx + 1, dy + 1, 1, this.h - 2);                  // left
+        ctx.fillRect(dx + this.w - 2, dy + 1, 1, this.h - 2);         // right
+        ctx.globalAlpha = 1;
+        // Bottom shadow line
+        ctx.fillStyle = '#000';
+        ctx.globalAlpha = 0.55;
+        ctx.fillRect(dx + 1, dy + this.h - 2, this.w - 2, 1);
+        ctx.globalAlpha = 1;
+        // Letter — drawn with a 1-px dark drop-shadow for legibility, then
+        // a bright pulse-tinted top layer keyed to the bob phase.
         const letter = this._letter();
-        // Render letter as a 3×5 block of dots
         const glyph = GLYPHS[letter] || GLYPHS['?'];
+        // Letter pulse: 0..1 sine tied to bob
+        const letterPulse = 0.7 + Math.sin(this.bob * 1.5) * 0.3;
+        // Shadow pass
+        ctx.fillStyle = '#000';
+        ctx.globalAlpha = 0.55;
+        for (let r = 0; r < 5; r++) {
+            const row = glyph[r];
+            for (let c = 0; c < 3; c++) {
+                if (row & (1 << (2 - c))) {
+                    ctx.fillRect(dx + 4 + c + 1, dy + 3 + r + 1, 1, 1);
+                }
+            }
+        }
+        // Bright letter
+        ctx.globalAlpha = letterPulse;
+        ctx.fillStyle = this._tintHex(color, 0.40);
         for (let r = 0; r < 5; r++) {
             const row = glyph[r];
             for (let c = 0; c < 3; c++) {
@@ -340,6 +380,49 @@ class Pickup {
                 }
             }
         }
+        ctx.globalAlpha = 1;
+        // R318: rare-pickup corner sparkle (1UP, CLIPPY_TAG). Single white
+        // pixel that drifts around the corners of the crate over time.
+        if (this.type === '1UP' || this.type === 'CLIPPY_TAG') {
+            const sparkPhase = (this.bob * 0.6) % (Math.PI * 2);
+            const sparkIdx = Math.floor(sparkPhase / (Math.PI / 2)) & 3;
+            const corners = [
+                [dx, dy],
+                [dx + this.w - 1, dy],
+                [dx + this.w - 1, dy + this.h - 1],
+                [dx, dy + this.h - 1],
+            ];
+            const sp = corners[sparkIdx];
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sp[0], sp[1], 1, 1);
+        }
+    }
+
+    // R318: cheap tint helper — lighten/darken a #rrggbb hex toward white
+    // (positive amt) or black (negative amt). amt in [-1, 1]. Used to give
+    // the painted crate a vertical gradient + edge highlights from a single
+    // base color.
+    _tintHex(hex, amt) {
+        const h = hex.startsWith('#') ? hex.slice(1) : hex;
+        const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+        let r = parseInt(full.slice(0, 2), 16);
+        let g = parseInt(full.slice(2, 4), 16);
+        let b = parseInt(full.slice(4, 6), 16);
+        if (amt >= 0) {
+            r = Math.round(r + (255 - r) * amt);
+            g = Math.round(g + (255 - g) * amt);
+            b = Math.round(b + (255 - b) * amt);
+        } else {
+            const k = 1 + amt; // amt negative → k < 1
+            r = Math.round(r * k);
+            g = Math.round(g * k);
+            b = Math.round(b * k);
+        }
+        r = Math.max(0, Math.min(255, r));
+        g = Math.max(0, Math.min(255, g));
+        b = Math.max(0, Math.min(255, b));
+        const hx = (n) => n.toString(16).padStart(2, '0');
+        return '#' + hx(r) + hx(g) + hx(b);
     }
     _letter() {
         if (this.type === 'LIFE') return '+';

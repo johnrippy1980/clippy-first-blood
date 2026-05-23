@@ -3406,6 +3406,32 @@ export class Game {
         else audio.sfx('bossHit');
     }
 
+    // R315+R318: shared safe-spawn helper. Given a desired (x,y) in world
+    // coords, returns a sanitized (x,y) inside level bounds and outside any
+    // solid tile. Scans upward in T-px steps for the nearest non-solid AABB
+    // position when the start point is inside terrain. Used by both
+    // _respawn (death recovery) and _startStage (initial spawn).
+    _findSafeSpawn(x, y, w, h) {
+        const T = GAME.TILE;
+        x = Math.max(0, Math.min(this.level.width  - w - 1, x));
+        y = Math.max(0, Math.min(this.level.height - h - 1, y));
+        const lvl = this.level;
+        const aabbSolid = (xx, yy) => (
+            lvl.isSolid(xx + 1,     yy + 1) ||
+            lvl.isSolid(xx + w - 1, yy + 1) ||
+            lvl.isSolid(xx + 1,     yy + h - 1) ||
+            lvl.isSolid(xx + w - 1, yy + h - 1)
+        );
+        if (!aabbSolid(x, y)) return { x, y };
+        console.warn('_findSafeSpawn: requested position is solid — rescanning', x, y);
+        for (let dy = 0; dy < this.level.height; dy += T) {
+            if (y - dy >= 0 && !aabbSolid(x, y - dy)) return { x, y: y - dy };
+            if (y + dy < this.level.height - h && !aabbSolid(x, y + dy)) return { x, y: y + dy };
+        }
+        // Emergency fallback — bail to top of level
+        return { x, y: 0 };
+    }
+
     // R316: compute a safe boss anchor X that:
     //   - sits within the level bounds (clamped to [GAME.W*0.5, level.width-GAME.W*0.45])
     //   - is at least minGap px to the RIGHT of the player center
@@ -3427,38 +3453,13 @@ export class Game {
     }
 
     _respawn() {
-        // R315: validate spawn point. If playerStart is somehow inside a
-        // solid tile (stale level data, recent layout edit, weird stage),
-        // search upward for the nearest non-solid cell so the player
-        // doesn't materialize trapped inside terrain.
-        let sx = this.level.data.playerStart.x;
-        let sy = this.level.data.playerStart.y;
-        const w = this.player.w, h = this.player.h;
-        const T = GAME.TILE;
-        // Clamp into level bounds first
-        sx = Math.max(0, Math.min(this.level.width  - w - 1, sx));
-        sy = Math.max(0, Math.min(this.level.height - h - 1, sy));
-        const lvl = this.level;
-        // Test the four corners of the player AABB; if any sit inside a
-        // solid tile, scan upward in T-px steps for a clear position.
-        const isAABBSolid = (x, y) => (
-            lvl.isSolid(x + 1,     y + 1) ||
-            lvl.isSolid(x + w - 1, y + 1) ||
-            lvl.isSolid(x + 1,     y + h - 1) ||
-            lvl.isSolid(x + w - 1, y + h - 1)
+        // R315/R318: route through shared _findSafeSpawn so respawn never
+        // lands inside solid terrain.
+        const { x: sx, y: sy } = this._findSafeSpawn(
+            this.level.data.playerStart.x,
+            this.level.data.playerStart.y,
+            this.player.w, this.player.h
         );
-        if (isAABBSolid(sx, sy)) {
-            console.warn('_respawn: playerStart is solid — rescanning', sx, sy);
-            // Scan upward first (likely the floor crept up), then downward
-            for (let dy = 0; dy < this.level.height; dy += T) {
-                if (!isAABBSolid(sx, sy - dy)) { sy = sy - dy; break; }
-                if (sy + dy < this.level.height - h &&
-                    !isAABBSolid(sx, sy + dy)) { sy = sy + dy; break; }
-            }
-            // Final clamp + emergency: if still stuck, bail to top of level
-            sy = Math.max(0, Math.min(this.level.height - h - 1, sy));
-            if (isAABBSolid(sx, sy)) sy = 0;
-        }
         this.player.x = sx;
         this.player.y = sy;
         this.player.vx = 0; this.player.vy = 0;
@@ -3570,11 +3571,18 @@ export class Game {
         // R219: link pickup walls into the level's solidity probe so
         // breakable walls block player + enemy movement until destroyed.
         this.level._wallSolidCheck = (px, py) => this.pickups.isWallSolid(px, py);
+        // R315/R318: route through shared safe-spawn so a bad playerStart
+        // (stale layout, math glitch) never traps the player in terrain.
+        const pw = (this.player?.w) || 12;
+        const ph = (this.player?.h) || 24;
+        const safeStart = this._findSafeSpawn(
+            data.playerStart.x, data.playerStart.y, pw, ph
+        );
         if (!this.player) {
-            this.player = new Player(data.playerStart.x, data.playerStart.y);
+            this.player = new Player(safeStart.x, safeStart.y);
         } else {
-            this.player.x = data.playerStart.x;
-            this.player.y = data.playerStart.y;
+            this.player.x = safeStart.x;
+            this.player.y = safeStart.y;
             this.player.vx = 0; this.player.vy = 0;
             this.player.bullets.length = 0;
             this.player.resetForStage();
