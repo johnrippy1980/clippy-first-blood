@@ -1633,8 +1633,10 @@ export const STAGE_LOADERS = [
     () => makeBossRushMode(),          // R291: stage 16 BOSS RUSH MODE (was 14)
     () => makeTimeTrial(),             // R291: stage 17 TIME TRIAL (was 15)
     () => makeStage13(),               // R291: stage 18 REALITY DISTORTION FIELD (was 16)
-    () => makeFpsStage(),              // R291: stage 19 CORE BREACH (was 17)
-    () => makeFpsStageMecha(),         // R301: stage 20 MECHA-GATES super-secret final
+    () => makeFpsStage(),                    // R291: stage 19 CORE BREACH (was 17)
+    () => makeBeatEmUpMechaApproach(),       // R306: stage 20 MECHA APPROACH (beat-em-up)
+    () => makeFpsStageMechaCorridor(),       // R306: stage 21 MECHA CORRIDOR (FPS chase)
+    () => makeFpsStageMecha(),               // R306: stage 22 MECHA-GATES super-secret final
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -1842,10 +1844,57 @@ function makeFpsStageGatesArena() {
     };
 }
 
-// R301: super-secret Mecha-Gates final stage. Konami-only post-game
-// content. Sets in a post-apocalyptic wasteland — Mecha-Gates is the
-// "what if they made one more" final-final boss. No nextStage — beating
-// him returns to title (handled by R299 post-game routing for stage>=15).
+// R306: Mecha-Gates 3-stage arc — beat-em-up approach → FPS corridor → FPS
+// arena boss. Mirrors the Ballmer/Gates pair but with one extra beat-em-up
+// stage UP FRONT for the apocalyptic-street walking moment.
+//
+// Stage 20: MECHA APPROACH — beat-em-up. Walk a ruined street, fight
+// scavengers + drones + helicopters across multiple waves, reach a dead
+// end where Mecha-Gates appears (cinematic) and the player advances.
+function makeBeatEmUpMechaApproach() {
+    return {
+        beatMode: true,
+        theme: THEME.KEYNOTE,
+        music: 'apocalypse',
+        bgKey: 'bg_apocalypse_street',
+        bossKind: 'MECHA_GATES',
+        spriteKeys: {
+            scavenger:  'scavenger',
+            drone:      'drone',
+            helicopter: 'helicopter',
+            brawler:    'brawler',
+        },
+        // 4 waves of escalating enemy mix
+        waves: [
+            { spawns: [
+                { type: 'scavenger', side: 'right', depth: 0.4 },
+                { type: 'scavenger', side: 'right', depth: 0.7 },
+            ]},
+            { spawns: [
+                { type: 'scavenger', side: 'left',  depth: 0.5 },
+                { type: 'scavenger', side: 'right', depth: 0.3 },
+                { type: 'drone',     side: 'right', depth: 0.8 },
+            ]},
+            { spawns: [
+                { type: 'drone',      side: 'left',  depth: 0.6 },
+                { type: 'drone',      side: 'right', depth: 0.4 },
+                { type: 'helicopter', side: 'right', depth: 0.2 },
+            ]},
+            { spawns: [
+                { type: 'brawler',    side: 'right', depth: 0.5 },
+                { type: 'helicopter', side: 'left',  depth: 0.25 },
+                { type: 'scavenger',  side: 'right', depth: 0.8 },
+            ]},
+        ],
+        nextStage: 21,
+        clearText: 'KEEP MOVING',
+        bossDisplayName: 'MECHA-GATES',
+        introBgKey: 'bg_apocalypse',
+    };
+}
+
+// R301/R306: stage 22 — the FPS Mecha-Gates final boss. The mech has a
+// pilot — when destroyed, GATES jumps out for phase 2. Konami-only.
 function makeFpsStageMecha() {
     return {
         fpsMode: true,
@@ -1875,6 +1924,38 @@ function makeFpsStageMecha() {
         bossPortraitKey: 'card_mecha_reveal',
         bossDisplayName: 'MECHA-GATES',
         // True final — no nextStage. R299 routes stage >= 15 to title on clear.
+    };
+}
+
+// R306: stage 21 — FPS corridor approach through the ruined city to
+// where Mecha-Gates is staged. Uses the apocalypse backdrop with FPS
+// rail-shooter mechanics. Chains into stage 22 (the Mecha-Gates arena).
+function makeFpsStageMechaCorridor() {
+    return {
+        fpsMode: true,
+        theme: THEME.KEYNOTE,
+        music: 'backstage',     // chase track works for this transition stretch
+        bgKey: 'bg_apocalypse',
+        bossKind: 'MECHA_GATES',
+        bgKeys: ['bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse'],
+        spriteKeys: {
+            turret: 'keynote_turret',
+            grunt:  'scavenger',     // beat-em-up scavenger doubles as FPS grunt
+            shield: 'keynote_drone',
+            core:   'boss_mecha_gates',
+        },
+        segmentLabels: [
+            'SEGMENT 1 / SCAVENGERS',
+            'SEGMENT 2 / DRONES',
+            'SEGMENT 3 / GAUNTLET',
+            "SEGMENT 4 / HANGAR",
+        ],
+        sfxKeys: GATES_SFX_KEYS,
+        ambientKey: 'fluorescent',
+        gruntBulletAnimKey: 'floppy',
+        endingStyle: 'door',
+        nextStage: 22,          // chains into the Mecha-Gates arena
+        bossDisplayName: 'MECHA-GATES',
     };
 }
 

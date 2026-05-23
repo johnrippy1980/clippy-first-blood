@@ -168,10 +168,11 @@ export const STAGES = [
     { id: 17, name: 'TIME TRIAL',               category: 'postgame', displayId: 'P2', theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'timeTrial',    tagline: 'POST-GAME — BEAT THE CLOCK.' },
     { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'realityField', tagline: 'POST-GAME — ONE MORE TITAN.' },
     { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'dreamsFade', tagline: 'POST-GAME — THE DEEPER LAB.' },
-    // R301: super-secret Mecha-Gates stage — konami-only super-final.
-    // The "what they made after he fell" — Gates piloting a battle mech
-    // over the ruins of dead Clippy clones.
-    { id: 20, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.', introBgKey: 'bg_apocalypse' },
+    // R306: 3-stage Mecha-Gates arc — konami-only super-final arc.
+    // Stage 20 = beat-em-up street approach; 21 = FPS corridor; 22 = arena.
+    { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
+    { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'backstage',  tagline: 'SUPER SECRET — CHASE',           introBgKey: 'bg_apocalypse' },
+    { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
 ];
 
 // Damage flash colors per source.

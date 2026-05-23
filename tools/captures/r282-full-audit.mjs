@@ -44,7 +44,7 @@ console.log('Stages:', manifest.filter(s => s).map(s => `${s.id}.${s.name}`).joi
 // =============================================================
 console.log('\n=== R282 AUDIT 2: STAGE LOADERS ===');
 const stageBoots = [];
-for (let n = 1; n <= 20; n++) {
+for (let n = 1; n <= 22; n++) {
     const r = await page.evaluate(async (s) => {
         try {
             window.__game._startStage(s);
@@ -144,7 +144,7 @@ for (let seg = 0; seg < 3; seg++) {
         const a = window.__game._fpsArena;
         if (a) { a.turrets.forEach(t => t.alive = false); a.grunts.forEach(g => g.alive = false); }
     });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(1220);
 }
 // Should now be in doorApproach phase or auto-chained to stage 7
 const fps6_end = await page.evaluate(() => ({
@@ -228,7 +228,7 @@ await page.evaluate(() => {
     g.player.weapon = 'THUNDER';
     g.player.weaponLevel = 1;
     g.player.aim = { x: 1, y: 0 };  // fire right
-    // Plant a fake enemy 250px away (was unreachable at MAX_RANGE=220, now 320)
+    // Plant a fake enemy 250px away (was unreachable at MAX_RANGE=222, now 322)
     g.enemies.enemies.push({
         x: g.player.x + 250, y: g.player.y, w: 16, h: 16,
         alive: true, hp: 100,
@@ -265,7 +265,7 @@ console.log('\n=== R282 SUMMARY ===');
 // Filter out errors caused by the AUDIT 9 fake enemy (plain object w/o .update/.draw)
 const sigErrors = errors.filter(e => !/\.mp3/.test(e) && !/\.draw is not a function|\.update is not a function/.test(e));
 const sigReqFails = reqFails.filter(r => !/\.mp3/.test(r));
-console.log(`Stage loaders: ${stageBoots.filter(s => !s.error).length}/20 ok`);
+console.log(`Stage loaders: ${stageBoots.filter(s => !s.error).length}/22 ok`);
 console.log(`Konami list size: ${idsList.length}`);
 console.log(`Significant errors: ${sigErrors.length}`);
 sigErrors.forEach(e => console.log('  -', e.slice(0, 180)));

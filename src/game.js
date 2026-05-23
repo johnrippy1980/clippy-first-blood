@@ -7,6 +7,7 @@ import { particles } from './particles.js';
 import { Camera } from './camera.js';
 import { Level, STAGE_LOADERS } from './level.js';
 import { FpsArena } from './fps_arena.js';
+import { BeatEmUp } from './beatem_up.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { PickupManager } from './pickups.js';
@@ -42,6 +43,7 @@ const SCENE = {
     // and sensors, then a boss spawns. Self-contained scene — does not
     // share physics or collision with PLAY.
     FPS_PLAY: 'fpsPlay',
+    BEAT_PLAY: 'beatPlay',   // R306: beat-em-up street brawler scene
 };
 
 // MM:SS format for frame-based timers. Used by mode-best-time displays.
@@ -293,6 +295,7 @@ export class Game {
             case SCENE.READY:        this._tickReady(); break;
             case SCENE.PLAY:         this._tickPlay(); break;
             case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.update(); break;
+            case SCENE.BEAT_PLAY:    if (this._beatEmUp) this._beatEmUp.update(); break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
@@ -364,6 +367,7 @@ export class Game {
             case SCENE.READY:        this._drawReady(); break;
             case SCENE.PLAY:         this._drawPlay(); break;
             case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.draw(); break;
+            case SCENE.BEAT_PLAY:    if (this._beatEmUp) this._beatEmUp.draw(); break;
             case SCENE.PAUSE:        this._drawPlay(); this._drawPauseOverlay(); break;
             // R211: sub-menus opened from MAIN_MENU need the title bg
             // (via _drawMainMenu) underneath, not _drawPlay — the latter
@@ -941,6 +945,13 @@ export class Game {
             if (this._fpsPendingPlay) {
                 this._fpsPendingPlay = false;
                 this._fadeTo(SCENE.FPS_PLAY);
+                return;
+            }
+            // R306: beat-em-up stages route same way — straight to BEAT_PLAY
+            // after the stage-intro card.
+            if (this._beatPendingPlay) {
+                this._beatPendingPlay = false;
+                this._fadeTo(SCENE.BEAT_PLAY);
                 return;
             }
             // R209 — Milos #2: gate PLAY behind READY card unless the
@@ -2892,6 +2903,10 @@ export class Game {
             12: 'card_bossrush',
             13: 'card_cloud',
             14: 'card_recyclebin',
+            // R306: Mecha-Gates arc stage cards.
+            20: 'card_mecha_approach',
+            21: 'card_mecha_reveal',
+            22: 'card_mecha_reveal',
         };
         // R281: extra-cards queue overrides the per-stage default card.
         // If set, paint that card first; queue drains on each X press.
@@ -3026,8 +3041,13 @@ export class Game {
         if (hasSecret || konami) ids.push(14);
         if (gameCleared || konami) ids.push(18);
         if (konami) ids.push(19);
-        // R301: Mecha-Gates super-secret — konami-only true-final.
-        if (konami) ids.push(20);
+        // R306: Mecha-Gates 3-stage super-secret arc — konami-only.
+        // 20 = beat-em-up approach, 21 = FPS corridor, 22 = FPS arena.
+        if (konami) {
+            ids.push(20);
+            ids.push(21);
+            ids.push(22);
+        }
         return ids;
     }
 
@@ -3448,9 +3468,24 @@ export class Game {
             this._fadeTo(SCENE.STAGE_INTRO);
             return;
         }
+        // R306: beat-em-up street-brawler short-circuit. Same pattern as
+        // FPS — route through STAGE_INTRO first, then hand off to BEAT_PLAY.
+        if (data.beatMode) {
+            this._beatEmUp = new BeatEmUp(data, this.ctx, this);
+            this._beatMode = true;
+            this._beatPendingPlay = true;
+            this.parallax.setTheme(data.theme);
+            audio.playTrack(data.music || 'bossBattle');
+            this.storyTimer = 0;
+            this._fadeTo(SCENE.STAGE_INTRO);
+            return;
+        }
         this._fpsPendingPlay = false;
+        this._beatPendingPlay = false;
         this._fpsMode = false;
+        this._beatMode = false;
         this._fpsArena = null;
+        this._beatEmUp = null;
         this.level = new Level(data);
         this.parallax.setTheme(data.theme);
         // Owl roosts: level can declare these in its data; otherwise default to a few sensible spots
