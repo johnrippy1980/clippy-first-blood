@@ -1559,15 +1559,52 @@ export class FpsArena {
 
     _drawHUD() {
         const ctx = this.ctx;
+        // R313: HP cells with bezel + low-HP pulse so the HUD reads as a
+        // designed element, not raw debug rects.
+        const lowHp = this.player.hp <= 2;
+        const pulse = lowHp && ((this.t >> 3) & 1) === 0;
+        // Bezel — dark backplate slightly larger than the cells
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(4, 4, 8 + 6 * 8, 10);
+        // Top + bottom highlight + shadow
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.55)';
+        ctx.fillRect(4, 4, 8 + 6 * 8, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(4, 13, 8 + 6 * 8, 1);
+        // Cells
         for (let i = 0; i < 6; i++) {
             const hot = i < this.player.hp;
-            ctx.fillStyle = hot ? '#ff4040' : '#3a1018';
+            if (hot) {
+                ctx.fillStyle = lowHp ? (pulse ? '#ffe070' : '#ff4040') : '#ff4040';
+            } else {
+                ctx.fillStyle = '#3a1018';
+            }
             ctx.fillRect(6 + i * 8, 6, 6, 6);
+            // 1px top highlight on filled cells
+            if (hot) {
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.fillRect(6 + i * 8, 6, 6, 1);
+            }
         }
-        // Lives counter — small clippy heads beneath the HP bar
+        // Lives counter with bezel
         const lives = Math.max(0, this.player.lives);
-        drawText(ctx, 'x' + lives, 6, 16, '#ffcc80', 1, 'left');
-        // Segment count
-        drawText(ctx, (this.segment + 1) + ' / 4', GAME.W - 6, 6, '#ffcc80', 1, 'right');
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(4, 18, 18, 8);
+        drawText(ctx, 'x' + lives, 6, 20, '#ffcc80', 1, 'left');
+        // Right side — bezeled segment count
+        const segTxt = (this.segment + 1) + ' / 4';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(GAME.W - 32, 4, 28, 10);
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.45)';
+        ctx.fillRect(GAME.W - 32, 4, 28, 1);
+        drawText(ctx, segTxt, GAME.W - 6, 6, '#ffcc80', 1, 'right');
+        // Boss-name marquee that pulses on phase-2 entry
+        if (this.core && this.core.isPhase2 && this.t < 240) {
+            const name = this.data.bossDisplayName || 'BOSS';
+            const a = 0.5 + 0.5 * Math.sin(this.t * 0.2);
+            ctx.globalAlpha = a;
+            drawText(ctx, name, GAME.W / 2, 6, '#ff60a0', 1, 'center');
+            ctx.globalAlpha = 1;
+        }
     }
 }

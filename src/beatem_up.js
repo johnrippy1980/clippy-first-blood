@@ -720,15 +720,41 @@ export class BeatEmUp {
 
     _drawHUD() {
         const ctx = this.ctx;
+        // R313: bezeled HP cells with low-HP pulse, matching the FPS arena.
+        const lowHp = this.player.hp <= 2;
+        const pulse = lowHp && ((this.t >> 3) & 1) === 0;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(4, 4, 8 + 6 * 8, 10);
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.55)';
+        ctx.fillRect(4, 4, 8 + 6 * 8, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(4, 13, 8 + 6 * 8, 1);
         for (let i = 0; i < 6; i++) {
             const hot = i < this.player.hp;
-            ctx.fillStyle = hot ? '#ff4040' : '#3a1018';
+            if (hot) {
+                ctx.fillStyle = lowHp ? (pulse ? '#ffe070' : '#ff4040') : '#ff4040';
+            } else {
+                ctx.fillStyle = '#3a1018';
+            }
             ctx.fillRect(6 + i * 8, 6, 6, 6);
+            if (hot) {
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.fillRect(6 + i * 8, 6, 6, 1);
+            }
         }
-        drawText(ctx, 'x' + Math.max(0, this.player.lives), 6, 16, '#ffcc80', 1, 'left');
-        // Wave counter
+        // Lives bezel
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(4, 18, 18, 8);
+        drawText(ctx, 'x' + Math.max(0, this.player.lives), 6, 20, '#ffcc80', 1, 'left');
+        // Wave counter bezel
         const total = this.data.waves?.length || 1;
-        drawText(ctx, 'WAVE ' + Math.min(this.waveIdx + 1, total) + ' / ' + total, GAME.W - 6, 6, '#ffcc80', 1, 'right');
+        const waveTxt = 'WAVE ' + Math.min(this.waveIdx + 1, total) + ' / ' + total;
+        const waveBezelW = 52;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(GAME.W - waveBezelW - 2, 4, waveBezelW, 10);
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.45)';
+        ctx.fillRect(GAME.W - waveBezelW - 2, 4, waveBezelW, 1);
+        drawText(ctx, waveTxt, GAME.W - 6, 6, '#ffcc80', 1, 'right');
     }
 }
 
