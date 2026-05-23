@@ -1068,6 +1068,25 @@ class Boss extends Enemy {
             // gentle vertical bob
             const baseY = (this._anchorY ||= this.y);
             this.y = baseY + Math.sin(this._patrolPhase * 1.4) * 8;
+        } else if (this._movement === 'chase') {
+            // R334: helicopter chase. Boss tracks the player horizontally
+            // with a fixed lead (~100 px ahead of where player is running)
+            // and maintains a vertical altitude band above the player.
+            // No patrol clamp — the chopper follows the camera the whole
+            // stage, NOT pinned to an anchor. Bob adds menace + makes the
+            // player's aim window dynamic.
+            this._patrolPhase += 0.06 * speedMul;
+            const desiredX = playerCX + 100;
+            const desiredY = (player.y - 80) + Math.sin(this._patrolPhase) * 14;
+            desiredVX = (desiredX - cx) * 0.06;
+            // Vertical lerp toward desiredY — no gravity (it flies)
+            this.y += (desiredY - this.y) * 0.05;
+            // R334: rotor WHUP loop — emit a short thump every ~7 frames
+            // (≈8.5 Hz) so the chopper is constantly audible while alive.
+            this._chopperT = (this._chopperT || 0) + 1;
+            if (this._chopperT % 7 === 0) {
+                audio.sfx?.('chopper');
+            }
         }
         // 'static' bosses skip patrol entirely (use case: bosses whose
         // pattern is "stand and chuck projectiles" by design).
@@ -1536,6 +1555,54 @@ class Boss extends Enemy {
                         b._jobsCube = true;
                         b._gravity = 0.12;     // arc-down acceleration
                         globalEnemyBullets.push(b);
+                    }
+                }
+                break;
+            case 'HELICOPTER':
+                // R334: 3-pattern chase boss attacks.
+                // Pattern 0: BOMB DROP — single heavy bomb falls straight
+                //   down from the chopper position with gravity.
+                // Pattern 1: FORWARD MG — 3 fast shots aimed at the
+                //   player's position, slight downward arc since chopper
+                //   is above.
+                // Pattern 2 (phase 2 only): STRAFE RUN — 5-shot horizontal
+                //   spray sweeping across the player's last known X.
+                {
+                    const mod = (this.phase === 2) ? 3 : 2;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        // BOMB DROP — gravity-affected
+                        const bombs = this.phase === 2 ? 2 : 1;
+                        for (let i = 0; i < bombs; i++) {
+                            const bx = this.x + this.w / 2 + (i - (bombs - 1) / 2) * 18;
+                            const b = new Bullet(bx, this.y + this.h, 0, 0.4, 2);
+                            b.color = '#404048';
+                            b._gravity = 0.18;
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        // FORWARD MG — 3 fast aimed shots with rattling SFX
+                        const { cx: bx, cy, shots } = aimed(speed * 1.6, 0, 3, 0.18);
+                        for (const s of shots) {
+                            const b = new Bullet(bx, cy + 6, s.vx, s.vy, 1);
+                            b.color = '#ffc060';
+                            globalEnemyBullets.push(b);
+                        }
+                        audio.sfx?.('chopperGun');
+                    } else {
+                        // STRAFE RUN (phase 2): 5-shot horizontal spray
+                        for (let i = -2; i <= 2; i++) {
+                            const b = new Bullet(
+                                this.x + this.w / 2 + i * 8,
+                                this.y + this.h,
+                                i * 0.4,
+                                1.6,
+                                1,
+                            );
+                            b.color = '#ff8030';
+                            globalEnemyBullets.push(b);
+                        }
+                        audio.sfx?.('chopperGun');
                     }
                 }
                 break;
@@ -2012,6 +2079,36 @@ const BOSS_TEMPLATES = {
     // clear_game. Painted boss-intro portrait at boss_intro_JOBS in
     // SCENE_MANIFEST handles the cinematic; this draw fallback is the
     // procedural in-fight rendition.
+    // R334: chase-helicopter boss. Flies above the player throughout
+    // stage 21. Hovers in/out of screen, drops bombs, fires forward shots,
+    // occasional swoop-strafe. Player runs right while shooting up.
+    HELICOPTER: {
+        name: 'MECHA CHOPPER', tagline: 'NO PLACE TO HIDE.',
+        barks: {
+            phase2: 'AFTERBURNERS.',
+            taunt: [
+                'NOWHERE TO RUN',
+                'YOU CANT OUTRUN ME',
+                'LOOK UP',
+                'INCOMING',
+                'BOMBS AWAY',
+                'EYES IN THE SKY',
+                'TARGET ACQUIRED',
+            ],
+            lowHp: 'ROTORS DAMAGED.',
+            mockHit: ['DIRECT HIT.', 'BOMBED.', 'STRAFED.'],
+        },
+        w: 56, h: 24, hp: 80, contactDmg: 2, score: 18000,
+        // R334: special movement kind 'chase' — handled inline by the
+        // Boss.update tick (see _runChase).
+        movement: 'chase', moveSpeed: 0.6,
+        color: '#404048', detail: '#a0a8b8',
+        grounded: false,
+        // R334: painted enemy_helicopter sprite handles all rendering.
+        // No procedural fallback — if the sprite fails to load we want
+        // visible "missing asset" rather than an Atari-cheap chopper.
+        draw: () => {},
+    },
     JOBS: {
         name: 'STEVE JOBS', tagline: 'ONE MORE THING.',
         barks: {

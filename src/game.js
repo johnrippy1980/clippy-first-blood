@@ -97,6 +97,11 @@ const BOSS_DISPLAY_NAME = {
     GAUNTLET:      'BOSS RUSH',
     GAUNTLET_FULL: 'BOSS RUSH',  // post-game 7-boss queue (stage 12)
     ALGORITHM:     'THE ALGORITHM',
+    JOBS:          'STEVE JOBS',
+    // R334: chase helicopter boss for stage 21
+    HELICOPTER:    'MECHA CHOPPER',
+    // R335: Mecha-Gates final
+    MECHA_GATES:   'MECHA-GATES',
 };
 
 // Per-boss villain bark — two short lines spoken in the cinematic slide
@@ -117,6 +122,10 @@ const BOSS_BARK = {
     // R197: Stage 13 post-credits Jobs fight. BOSS_BARK was missing the
     // entry so the cinematic rendered with empty title-card text.
     JOBS:          ['ONE MORE THING.',       'CLIPPY WAS A MISTAKE.'],
+    // R334: chase helicopter
+    HELICOPTER:    ['NOWHERE TO RUN.',       'LOOK UP, CLIPPY.'],
+    // R335: Mecha-Gates final
+    MECHA_GATES:   ['CHECK MATE, CLIPPY.',   'THIS IS YOUR FINAL UPDATE.'],
 };
 
 // R157: Clippy's counter-bark — fires in the counter-slide phase that
@@ -135,6 +144,10 @@ const CLIPPY_COUNTER_BARK = {
     ALGORITHM:    ['I WANT YOU DEAD.',            ''],
     // R197: Clippy's reply to Jobs — answers "Clippy was a mistake."
     JOBS:         ['STILL BEAT YOUR PRODUCT.',    ''],
+    // R334: chase helicopter
+    HELICOPTER:   ['I HAVE A HOMING ROCKET.',     ''],
+    // R335: Mecha-Gates final
+    MECHA_GATES:  ['CONTROL+ALT+DELETE.',         ''],
 };
 
 const STORY_PAGES = [
@@ -1437,7 +1450,11 @@ export class Game {
             this.player.hitPauseFrames--;
         } else if (slowMoSkipEnemies) {
             // R232: use boss-arena camera if boss is active so it stays framed.
-            if (this.boss && this.boss.alive) {
+            // R334: chase bosses (HELICOPTER) use the regular player-follow
+            // camera so the player can scroll forward through the stage.
+            // Arena bosses use the midpoint camera so both stay framed.
+            const chaseBoss = this.boss && this.boss.kind === 'HELICOPTER';
+            if (this.boss && this.boss.alive && !chaseBoss) {
                 this.camera.followBossArena(this.player, this.boss);
             } else {
                 this.camera.follow(this.player, this.player.facing);
@@ -1446,7 +1463,11 @@ export class Game {
         } else {
             this.enemies.update(this.level, this.player);
             this.pickups.update(this.level, this.player);
-            if (this.boss && this.boss.alive) {
+            // R334: chase bosses (HELICOPTER) use the regular player-follow
+            // camera so the player can scroll forward through the stage.
+            // Arena bosses use the midpoint camera so both stay framed.
+            const chaseBoss = this.boss && this.boss.kind === 'HELICOPTER';
+            if (this.boss && this.boss.alive && !chaseBoss) {
                 this.camera.followBossArena(this.player, this.boss);
             } else {
                 this.camera.follow(this.player, this.player.facing);
@@ -3344,6 +3365,15 @@ export class Game {
                 audio.sfx('bossHit');
             }
         }
+        // R334: chase bosses (HELICOPTER) skip the cinematic intro —
+        // the chopper announces itself by being in the sky from frame 1.
+        // The intro card would freeze the player in place which kills
+        // the chase tempo.
+        const stg = STAGES[this.currentStage];
+        if (stg && stg.boss === 'HELICOPTER') {
+            this._finishBossIntro();
+            return;
+        }
         // Route through the cinematic pre-boss slide. The actual spawn +
         // entrance flourish runs at the end of the cinematic in
         // _finishBossIntro(). Skippable with X/jump after a short hold so
@@ -3371,8 +3401,12 @@ export class Game {
         // when safeAnchorX was small.
         const arenaX = this._safeBossAnchorX(110);
         this._bossArenaX = arenaX;
-        const bx = arenaX;
-        const by = this.level.height - 32;
+        // R334: HELICOPTER chase boss spawns in the AIR — 80 px above the
+        // player's current y, NOT on the ground. Use the player's x as a
+        // starting reference (the chase movement will catch up).
+        const isAir = stg.boss === 'HELICOPTER';
+        const bx = isAir ? (this.player.x + 80) : arenaX;
+        const by = isAir ? Math.max(40, this.player.y - 80) : (this.level.height - 32);
         if (stg.boss === 'GAUNTLET') {
             this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
             this._spawnNextGauntlet();
@@ -3601,6 +3635,10 @@ export class Game {
         // them via `ambientProps: [...]`.
         this._ambientProps = new AmbientPropManager(data.ambientProps || []);
         this.parallax.setTheme(data.theme);
+        // R334: stage data can override the parallax bg image independently
+        // of the theme. Used by stage 21 to render apocalypse bg with
+        // KEYNOTE theme palette + tile sprites.
+        this.parallax.bgKeyOverride = data.bgKeyOverride || null;
         // Owl roosts: level can declare these in its data; otherwise default to a few sensible spots
         if (data.owlRoosts) {
             this.parallax.setOwlRoosts(data.owlRoosts.map(o => ({ x: o.x, y: o.y })));

@@ -1714,8 +1714,8 @@ export const STAGE_LOADERS = [
     () => makeStage13(),               // R291: stage 18 REALITY DISTORTION FIELD (was 16)
     () => makeFpsStage(),                    // R291: stage 19 CORE BREACH (was 17)
     () => makeBeatEmUpMechaApproach(),       // R306: stage 20 MECHA APPROACH (beat-em-up)
-    () => makeFpsStageMechaCorridor(),       // R306: stage 21 MECHA CORRIDOR (FPS chase)
-    () => makeFpsStageMecha(),               // R306: stage 22 MECHA-GATES super-secret final
+    () => makeStageMechaHelicopter(),        // R334: stage 21 MECHA CORRIDOR — side-scrolling helicopter chase (was FPS)
+    () => makeBeatEmUpMechaGates(),          // R335: stage 22 MECHA-GATES — beat-em-up final (was FPS)
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -2026,6 +2026,55 @@ function makeBeatEmUpBallmer() {
     };
 }
 
+// R335: stage 22 — Mecha-Gates final boss as a BEAT-EM-UP (not FPS).
+// User: 'mecha gates should have beat em up style'. Mecha-Gates lands
+// in the rubble where his helicopter crashed and fights on foot in
+// post-apocalypse street, same plane as stage 20. Phase-2 mechanic
+// from R308 still applies: at 50% HP the mech ejects and the pilot
+// fights smaller + faster.
+function makeBeatEmUpMechaGates() {
+    return {
+        beatMode: true,
+        theme: THEME.KEYNOTE,
+        music: 'apocalypse',
+        bgKey: 'bg_apocalypse_street',
+        bossKind: 'MECHA_GATES',
+        spriteKeys: {
+            scavenger:  'scavenger',
+            drone:      'drone',
+            helicopter: 'helicopter',
+            brawler:    'boss_mecha_gates',
+        },
+        // 3 waves — Mecha-Gates emerges in wave 1, sustained pressure
+        // through wave 2 (phase change), wave 3 = the pilot on foot.
+        waves: [
+            // Wave 1 — Mecha-Gates lands. Heavy contact damage.
+            { spawns: [
+                { type: 'brawler',   side: 'right', depth: 0.5, isBoss: true,
+                  name: 'MECHA-GATES', hpMul: 4, wMul: 1.6, hMul: 1.6,
+                  isMechaPhase1: true },
+                { type: 'scavenger', side: 'left',  depth: 0.7 },
+            ]},
+            // Wave 2 — drones flank during phase 1
+            { spawns: [
+                { type: 'drone',     side: 'left',  depth: 0.5 },
+                { type: 'drone',     side: 'right', depth: 0.6 },
+                { type: 'scavenger', side: 'left',  depth: 0.8 },
+            ]},
+            // Wave 3 — Mecha pops out, on-foot final. Smaller + faster.
+            { spawns: [
+                { type: 'brawler',   side: 'right', depth: 0.5, isBoss: true,
+                  name: 'MECHA-GATES / EXPOSED', hpMul: 2, wMul: 1.0, hMul: 1.0,
+                  isMechaPhase2: true },
+            ]},
+        ],
+        clearText: 'YOU ARE THE LAST CLIPPY',
+        bossDisplayName: 'MECHA-GATES',
+        introBgKey: 'bg_apocalypse',
+        // True final — no nextStage. R299 routes high stages back to title.
+    };
+}
+
 // R301/R306: stage 22 — the FPS Mecha-Gates final boss. The mech has a
 // pilot — when destroyed, GATES jumps out for phase 2. Konami-only.
 function makeFpsStageMecha() {
@@ -2061,6 +2110,95 @@ function makeFpsStageMecha() {
 }
 
 // R306: stage 21 — FPS corridor approach through the ruined city to
+// R334: stage 21 MECHA CORRIDOR — side-scrolling platformer with a
+// GIANT HELICOPTER as a chase boss. The helicopter is alive for the
+// entire stage; player runs right while shooting upward. On helicopter
+// defeat, cinematic shows the chopper crashing → stage 22 (Mecha-Gates
+// pops out of the wreckage in beat-em-up form).
+function makeStageMechaHelicopter() {
+    const w = 110, h = 14;
+    const { g } = blankStage(w, h, THEME.KEYNOTE);   // KEYNOTE theme but
+    // we override bg via bgKey below so the apocalypse painting shows.
+    // Side walls
+    rectT(g, 0, 0, 1, h, W);
+    rectT(g, 0, w - 1, 1, h, W);
+    // Long-running cityscape — punctuated by jump gaps (pits) and
+    // wreckage platforms the player can use as cover from the chopper.
+    // Section A (0-25): warm-up street with low cover.
+    platT(g, h - 6, 8,  3);
+    platT(g, h - 6, 16, 3);
+    // Section B (25-50): rising rubble — get higher to deny the chopper's
+    // downward-aimed shots while keeping forward momentum.
+    platT(g, h - 8, 28, 3);
+    platT(g, h - 5, 36, 3);
+    platT(g, h - 9, 42, 3);
+    // Mid pit at col 46-49 — short jump or take damage
+    rectT(g, h - 2, 46, 3, 2, S);   // spikes in the pit
+    rectT(g, h - 1, 46, 3, 1, W);   // bottom wall so the pit isn't bottomless
+    // Section C (50-75): wide-open street with crumbling cover.
+    platT(g, h - 6, 54, 4);
+    platT(g, h - 4, 64, 3);
+    platT(g, h - 7, 70, 4);
+    // Section D (75-100): collapsed-overpass approach — high platforms
+    // give the player aim windows on the chopper.
+    platT(g, h - 9, 78, 3);
+    platT(g, h - 5, 84, 3);
+    platT(g, h - 9, 92, 4);
+    // Final stretch (100-110): clear runway where the chopper crashes.
+    return {
+        tiles: g, width: w, height: h, theme: THEME.KEYNOTE,
+        // R334: override painted bg + ground bitmap to the apocalypse
+        // tileset (R311). Theme stays KEYNOTE for the tile palette +
+        // platform sprites; only the back painting + ground swap.
+        bgKeyOverride: 'bg_apocalypse',
+        groundOverride: 'ground_apocalypse',
+        playerStart: { x: 48, y: (h - 4) * GAME.TILE },
+        // The chopper IS the boss — present from the start. No separate
+        // bossTrigger; the boss-spawn fires immediately on stage entry.
+        bossTrigger: { x: 6 * GAME.TILE },
+        bossKind: 'HELICOPTER',
+        // Light grunt presence — scavengers spawn from the ground at
+        // intervals as the player runs. Adds horizontal pressure while
+        // the chopper handles vertical pressure.
+        enemySpawns: [
+            { x: 20 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            { x: 32 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            { x: 56 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            { x: 68 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            { x: 82 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            { x: 96 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+        ],
+        pickupSpawns: [
+            { x: 14 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
+            { x: 38 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            { x: 60 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'THUNDER' },
+            { x: 76 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
+            { x: 95 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'GRENADE' },
+        ],
+        crateSpawns: [
+            { x: 36 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'LIFE' },
+            { x: 70 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'HOMING' },
+            { x: 92 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'CLIPPY_TAG' },
+        ],
+        // R332: post-apocalypse ambient props — fires + dying Clippies
+        // on the route. Sells the burning-city atmosphere.
+        ambientProps: [
+            { kind: 'fire', x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 26 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 52 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 100 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'dyingClippy', x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
+            { kind: 'dyingClippy', x: 58 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'stagger' },
+            { kind: 'dyingClippy', x: 88 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
+        ],
+        music: 'recycleBin',   // R323 swap kept the glitched-chase feel here
+        nextStage: 22,         // chains into the Mecha-Gates beat-em-up
+        bossDisplayName: 'HELICOPTER',
+        introBgKey: 'bg_apocalypse',
+    };
+}
+
 // where Mecha-Gates is staged. Uses the apocalypse backdrop with FPS
 // rail-shooter mechanics. Chains into stage 22 (the Mecha-Gates arena).
 function makeFpsStageMechaCorridor() {
@@ -2369,7 +2507,10 @@ export class Level {
     }
 
     _groundBitmapKey() {
-        return GROUND_BITMAP_KEY[this.data.theme] || null;
+        // R334: stage data can override the theme-default ground bitmap.
+        // Used by Mecha Corridor (stage 21) which uses KEYNOTE theme for
+        // palette + parallax but renders the apocalypse-painted ground.
+        return this.data.groundOverride || GROUND_BITMAP_KEY[this.data.theme] || null;
     }
 
     // R310: per-theme platform accent. Procedural fallback while painted

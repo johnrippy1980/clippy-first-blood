@@ -267,7 +267,73 @@ class Audio {
             case 'fluorescent': return this._fluorescentBuzz(t);
             case 'faxRing':     return this._faxRing(t);
             case 'chairWhoosh': return this._chairWhoosh(t);
+            // R334: helicopter chase SFX.
+            case 'chopper':     return this._chopperWhup(t);
+            case 'chopperGun':  return this._chopperGun(t);
         }
+    }
+
+    // R334: a single rotor "WHUP" — short low-freq punch + filtered noise
+    // burst. Called every ~6 frames by the helicopter boss to create the
+    // continuous chopper sound. Frequency-modulated to feel like a real
+    // rotor disk slicing air.
+    _chopperWhup(t) {
+        // Low-freq sine "thump" — the air-displacement pulse
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(95, t);
+        o.frequency.exponentialRampToValueAtTime(55, t + 0.04);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.32, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.09);
+        // High-mid filtered noise — the "wsh" of the blade tip
+        const n = this.ctx.createBufferSource();
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.06, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+        n.buffer = buf;
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1100;
+        bp.Q.value = 1.6;
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        ng.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+        n.connect(bp).connect(ng).connect(this.sfxBus);
+        n.start(t); n.stop(t + 0.07);
+    }
+
+    // R334: short rattling mini-gun burst. 5 fast clicks + low-mid body.
+    _chopperGun(t) {
+        // Click train — 5 sharp pulses, ~12ms apart
+        for (let i = 0; i < 5; i++) {
+            const ts = t + i * 0.012;
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(2200, ts);
+            o.frequency.exponentialRampToValueAtTime(1500, ts + 0.006);
+            g.gain.setValueAtTime(0.0001, ts);
+            g.gain.exponentialRampToValueAtTime(0.10, ts + 0.001);
+            g.gain.exponentialRampToValueAtTime(0.0001, ts + 0.008);
+            o.connect(g).connect(this.sfxBus);
+            o.start(ts); o.stop(ts + 0.012);
+        }
+        // Body thump
+        const o2 = this.ctx.createOscillator();
+        const g2 = this.ctx.createGain();
+        o2.type = 'sawtooth';
+        o2.frequency.setValueAtTime(140, t);
+        o2.frequency.exponentialRampToValueAtTime(70, t + 0.06);
+        g2.gain.setValueAtTime(0.0001, t);
+        g2.gain.exponentialRampToValueAtTime(0.14, t + 0.004);
+        g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.1);
     }
 
     // R249: DOOM-style shotgun — three-stage blast.

@@ -472,6 +472,11 @@ export const ENEMY_MANIFEST = {
     //     that fired when boss_JOBS was unmapped.
     'enemy_jobs':       'enemy_jobs.png',
     'boss_JOBS':        'boss_jobs_portrait.png',
+    // R334: chase-helicopter boss sprite (gemini-pro). 56x20 AH-1-style
+    // attack chopper with motion-blurred rotor baked into the sprite.
+    // Key is lowercased to match the Boss.draw lookup pattern
+    // `'enemy_' + kind.toLowerCase()`.
+    'enemy_helicopter': 'enemy_HELICOPTER.png',
     // R226: Dr. Spindler — stage 4 lab boss. Multi-frame sheet sliced into
     // separate state PNGs so the boss draw can pick by phase.
     'boss_SPINDLER':         'boss_spindler.png',
