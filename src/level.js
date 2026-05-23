@@ -1649,9 +1649,19 @@ function makeFpsStage() {
         bgKey: 'bg_sewer_lab',
         bossKind: 'SPINDLER',
         // R293: full polish for the long-neglected FPS Spindler bonus stage.
-        // 4-segment progression matches the Ballmer + Gates pairs: ducts/
-        // grunts/barrier waves then the bio-lab boss.
+        // 4-segment progression matches the Ballmer + Gates pairs.
         bgKeys: ['bg_sewer', 'bg_sewer', 'bg_sewer_lab', 'bg_sewer_lab'],
+        // R299: use the actual Spindler sprite as the core boss — the
+        // default lab_core was the generic biotech-reactor cyclops-eye
+        // which had nothing to do with Dr. Spindler the character.
+        // Keep lab_turret/grunt/shield for the corridor wave segments;
+        // only override the core slot.
+        spriteKeys: {
+            turret: 'lab_turret',
+            grunt:  'lab_grunt',
+            shield: 'lab_shield',
+            core:   'boss_SPINDLER',
+        },
         segmentLabels: [
             'SEGMENT 1 / DUCT TURRETS',
             'SEGMENT 2 / SPECIMENS',
@@ -1665,6 +1675,8 @@ function makeFpsStage() {
         ambientKey: 'fluorescent',
         bossPortraitKey: 'boss_intro_SPINDLER',
         bossDisplayName: 'DR. SPINDLER',
+        // R299: post-game side stage — return to title on clear.
+        // (handled by _tickStageClear's stage >= 15 branch from R299)
     };
 }
 

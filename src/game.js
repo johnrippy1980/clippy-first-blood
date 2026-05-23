@@ -3626,11 +3626,34 @@ export class Game {
                 this._secretDiscoveryCard = true;
                 audio.sfx('secretFound');
             } else if (this.currentStage === 14) {
-                // After secret stage (RECYCLE BIN), drop back to stage 2
+                // R299: secret stage (RECYCLE BIN). Two entry paths:
+                //  (a) discovered via stage 1 no-damage clear → drops the
+                //      player into the campaign at stage 2 (continue run)
+                //  (b) entered from stage select (konami unlock or repeat
+                //      visit) → return to title so the player isn't pulled
+                //      back into the main campaign against their will.
+                // Discriminator: if the campaign was already cleared OR
+                // the player came in via konami/stage-select, fade to title.
+                const cameViaStageSelect = !!this._konamiUnlocked
+                    || achievements.unlocked.has('clear_game');
+                if (cameViaStageSelect) {
+                    audio.stopTrack();
+                    this._fadeTo(SCENE.TITLE);
+                    return;
+                }
                 nextStage = 2;
-            } else if (this.currentStage >= 13) {
-                // R291: Cloud (final main stage) shifted from 11 to 13.
+            } else if (this.currentStage === 13) {
+                // R291: Cloud (final main stage) → game-complete credits roll.
                 this._fadeTo(SCENE.GAME_COMPLETE);
+                return;
+            } else if (this.currentStage >= 15) {
+                // R299: post-game / side stages (Training=15, BossRush
+                // Mode=16, Time Trial=17, Reality Distortion=18, Core
+                // Breach=19) all return to title on clear instead of
+                // triggering GAME_COMPLETE (which is reserved for the
+                // canonical Cloud clear).
+                audio.stopTrack();
+                this._fadeTo(SCENE.TITLE);
                 return;
             } else {
                 nextStage = this.currentStage + 1;
