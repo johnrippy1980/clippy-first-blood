@@ -342,14 +342,45 @@ export class Game {
                     this.enemies.applyOwlPause(h.x, h.y, AMBIENT.OWL_PAUSE_RADIUS, AMBIENT.OWL_PAUSE_FRAMES);
                 }
             }
-            // R227: Stage 4 (THE PIPELINE) painted-bg swap. First half of
-            // the stage is sewer, second half is the experimentation lab.
-            // The act break sits at tile column ~50 (lab entry transition),
-            // so we swap the bg key once the player crosses 50*16 = 800px.
+            // R227+R336: Stage 4 (THE PIPELINE) painted-bg swap. First half
+            // of the stage is sewer, second half is the experimentation lab.
+            // R336 adds a cinematic transition: instead of just swapping bgs
+            // at column 50, when the player first crosses that line we
+            // briefly freeze them, fade to black, play a 'descending into
+            // the lab' beat, then fade up in the lab. Tracks state in
+            // _pipelineCineT.
             if (this.currentStage === 4 && this.player) {
                 const inLab = this.player.x >= 50 * GAME.TILE;
                 const wantKey = inLab ? 'bg_sewer_lab' : 'bg_sewer';
-                if (this.parallax.bgKeyOverride !== wantKey) {
+                // Detect the first frame the player enters lab band
+                if (inLab && !this._pipelineCineStarted) {
+                    this._pipelineCineStarted = true;
+                    this._pipelineCineT = 0;
+                    audio.sfx?.('climbRung');   // descending footstep cue
+                }
+                if (this._pipelineCineT != null) {
+                    this._pipelineCineT++;
+                    // Hold the player in place during the cinematic
+                    this.player.vx = 0;
+                    // Stage occurs over 90 frames:
+                    //   0-30  fade to black
+                    //   30-60 swap bg + hold (during which we play another
+                    //          footstep + descending sfx beat)
+                    //   60-90 fade back up in the lab
+                    if (this._pipelineCineT === 30) {
+                        // Swap painted bg at the midpoint of the fade so the
+                        // player never sees the swap mid-frame.
+                        this.parallax.setBgKey(wantKey);
+                    }
+                    if (this._pipelineCineT === 45) {
+                        audio.sfx?.('respawn');  // arrival chime
+                    }
+                    if (this._pipelineCineT >= 90) {
+                        this._pipelineCineT = null;  // done; resume normal play
+                    }
+                } else if (this.parallax.bgKeyOverride !== wantKey) {
+                    // Out of the cinematic — if for some reason bg doesn't
+                    // match (e.g. player retreats then re-enters), just swap.
                     this.parallax.setBgKey(wantKey);
                 }
             }
@@ -1755,6 +1786,28 @@ export class Game {
             drawText(ctx, 'ARROWS MOVE   Z JUMP   X SHOOT',   px, py - 6, '#ffe070', 1, 'center');
             drawText(ctx, 'C GRAPPLE / DASH   V GRENADE',     px, py + 2, '#c0a0d0', 1, 'center');
             ctx.restore();
+        }
+        // R336: sewer → lab cinematic overlay. While _pipelineCineT is
+        // ticking (0..90), paint a black fade + 'DESCENDING' text card so
+        // the bg-swap reads as a real transition instead of a hard cut.
+        if (this._pipelineCineT != null) {
+            const t = this._pipelineCineT;
+            // Fade curve: 0→1 over frames 0-30, hold at 1 for 30-60,
+            // then 1→0 over 60-90.
+            let alpha;
+            if (t < 30) alpha = t / 30;
+            else if (t < 60) alpha = 1;
+            else alpha = (90 - t) / 30;
+            ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            // Mid-card text — 'DESCENDING' subtitle while screen is black
+            if (t >= 28 && t <= 60) {
+                const textAlpha = t < 35 ? (t - 28) / 7 : t > 55 ? (60 - t) / 5 : 1;
+                ctx.globalAlpha = Math.max(0, Math.min(1, textAlpha));
+                drawText(ctx, 'DESCENDING', GAME.W / 2, GAME.H / 2 - 4, '#80c060', 1, 'center');
+                drawText(ctx, '...DEEPER...', GAME.W / 2, GAME.H / 2 + 6, '#506040', 1, 'center');
+                ctx.globalAlpha = 1;
+            }
         }
     }
 
@@ -3682,6 +3735,10 @@ export class Game {
         this.boss = null;
         this._lastBossPos = null;
         this._bossKillBeatFired = false;
+        // R336: reset sewer→lab cinematic state so re-entering stage 4
+        // fires the cinematic again.
+        this._pipelineCineStarted = false;
+        this._pipelineCineT = null;
         this.stageTime = 0;
         this.storyTimer = 0;
         // Training-ground god mode: invincible player, unlimited ammo,
