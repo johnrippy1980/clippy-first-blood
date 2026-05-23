@@ -2614,7 +2614,34 @@ export class Level {
                 // so it visually reads as cover-from-shots.
                 const theme = this.data.theme;
                 const t2 = this.tileAnimTick;
-                // Subtle bright-rim glow so cover objects read against the
+                // R312: prefer painted cover sprite when available. The
+                // sprites are sized ~40 px tall to extend ~24 px above the
+                // 16-tile baseline. Falls through to the per-theme procedural
+                // render when no asset is registered for the theme.
+                const coverKey = {
+                    [THEME.JUNGLE]:     'cover_jungle',
+                    [THEME.BREAKROOM]:  'cover_breakroom',
+                    [THEME.SERVERROOM]: 'cover_serverroom',
+                    [THEME.KEYNOTE]:    'cover_keynote',
+                    [THEME.FOUNDER]:    'cover_founder',
+                    [THEME.SEWER]:      'cover_sewer',
+                }[theme];
+                if (coverKey && sprites.has(coverKey)) {
+                    // Subtle rim glow so the prop reads against bg
+                    ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
+                    ctx.fillRect(x - 2, y - 32, T + 4, T + 40);
+                    const img = sprites.images.get(coverKey);
+                    const drawW = img.width;
+                    const drawH = img.height;
+                    // Center horizontally on tile column, anchor bottom to
+                    // tile floor (y + T) so the prop "sits" on the tile.
+                    const dx = x + (T - drawW) / 2;
+                    const dy = y + T - drawH;
+                    ctx.imageSmoothingEnabled = false;
+                    ctx.drawImage(img, Math.round(dx), Math.round(dy));
+                    break;
+                }
+                // Procedural fallback — subtle bright-rim glow so cover objects read against the
                 // painted parallax bg. Half-tile-wide pulse around the object.
                 ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
                 ctx.fillRect(x - 2, y - 32, T + 4, T + 40);

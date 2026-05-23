@@ -29,6 +29,11 @@ await page.goto('http://localhost:8765/?nocache=' + Date.now(), { waitUntil: 'ne
 await page.waitForTimeout(2000);
 await page.click('#screen');
 await page.waitForTimeout(400);
+// Skip the READY card so stages drop straight into PLAY
+await page.evaluate(async () => {
+    const mod = await import('./src/options.js');
+    if (mod.options && mod.options.set) mod.options.set('showReady', false);
+});
 
 for (const { id, tag } of TARGETS) {
     const ok = await page.evaluate((stageId) => {
@@ -36,8 +41,10 @@ for (const { id, tag } of TARGETS) {
         if (!g) return false;
         try {
             g._startStage(stageId);
-            // Force into PLAY scene immediately (skip intro/story cards)
+            // Force into PLAY scene immediately + dismiss any ready card
             g.scene = 'play';
+            g.readyT = 999;
+            if (g.player) g.player.spawnFreezeT = 0;
             return true;
         } catch (e) {
             return 'ERR: ' + e.message;
@@ -48,13 +55,14 @@ for (const { id, tag } of TARGETS) {
         continue;
     }
     // Let stage card finish + enter PLAY
-    await page.waitForTimeout(1500);
-    // Skip past any intro/card prompts
-    for (let i = 0; i < 6; i++) {
-        await page.keyboard.press('KeyX');
-        await page.waitForTimeout(200);
-    }
     await page.waitForTimeout(800);
+    // Walk right ~6 seconds so the camera lands deep into the level —
+    // enough to clear spawn-area tutorial hints and reach cover tiles
+    // (which live mid-stage, e.g. col 64+ in stage 1).
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(6500);
+    await page.keyboard.up('ArrowRight');
+    await page.waitForTimeout(300);
     await page.screenshot({ path: `/tmp/r309/${id.toString().padStart(2, '0')}-${tag}.png` });
     console.log(`stage ${id} (${tag}) → /tmp/r309/${id.toString().padStart(2, '0')}-${tag}.png`);
 }

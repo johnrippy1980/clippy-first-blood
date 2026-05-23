@@ -473,6 +473,17 @@ export const ENEMY_MANIFEST = {
     'boss_SPINDLER_hurt':    'boss_spindler_hurt.png',
     'boss_SPINDLER_death':   'boss_spindler_death.png',
     'boss_SPINDLER_portrait':'boss_spindler_portrait.png',
+    // R312: painted cover-tile props per theme (tree / vending machine /
+    // server rack / podium / lava boulder / sewer pipe junction). Loaded
+    // alongside enemies because they live in assets/sprites/. level.js
+    // _drawTile branches on `sprites.has('cover_<theme>')` and falls back
+    // to the procedural render when missing.
+    'cover_jungle':     'cover_jungle.png',
+    'cover_breakroom':  'cover_breakroom.png',
+    'cover_serverroom': 'cover_serverroom.png',
+    'cover_keynote':    'cover_keynote.png',
+    'cover_founder':    'cover_founder.png',
+    'cover_sewer':      'cover_sewer.png',
 };
 
 // ============================================================
