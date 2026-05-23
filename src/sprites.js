@@ -350,7 +350,12 @@ export const CLIPPY_MANIFEST = {
     // armless; the new v6_jump.png keeps the rifle visible mid-air so
     // jump-shooting matches the run/idle/aim states. Used for rising,
     // peak, and falling beats of the jump arc.
-    'jump':            'v6_jump.png',
+    // R339: 'jump' was aliased to v6_jump.png which is a shooting pose
+    // (gun extended, muzzle visible). Made it look like Clippy was firing
+    // mid-jump when he wasn't. New 'jump_neutral.png' has gun lowered
+    // at his side — proper non-shooting jump pose. The 'jump_aim' alias
+    // keeps pointing to v6_jump for the mid-air shoot pose.
+    'jump':            'jump_neutral.png',
     'jump_aim':        'v6_jump.png',
     'fall':            'v6_jump.png',
     'spin_1':          'v2_spin_1.png',
@@ -400,7 +405,10 @@ export const CLIPPY_MANIFEST = {
     'death_explode':   'v2_death.png',
     'death_burning':   'v2_death.png',
     // R152: ledge-grab poses — hang from edge, mid-pullup, settled atop.
-    'ledge_hang':      'v2_ledge_hang.png',
+    // R340: v2_ledge_hang lacked the red bandana headband that's on every
+    // other Clippy state — broke character consistency on ledge-grab.
+    // ledge_hang_v3 painted with headband visible + gun slung on back.
+    'ledge_hang':      'ledge_hang_v3.png',
     'ledge_climb_1':   'v2_ledge_climb_1.png',
     'ledge_climb_2':   'v2_ledge_climb_2.png',
 };
