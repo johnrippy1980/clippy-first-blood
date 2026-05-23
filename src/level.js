@@ -1703,7 +1703,7 @@ export const STAGE_LOADERS = [
     () => makeBeatEmUpBallmer(),       // R337: stage 7 BALLMER ARENA — beat-em-up in boardroom (was FPS)
     () => makeStage5(),                // R281: stage 8 KEYNOTE HALL (Gates escapes)
     () => makeFpsStageGates(),         // R291: stage 9 KEYNOTE FPS approach
-    () => makeFpsStageGatesArena(),    // R291: stage 10 GATES ARENA FPS boss
+    () => makeStageGatesArena(),       // R338: stage 10 GATES ARENA — side-scrolling platformer (was FPS)
     () => makeStage6(),                // R291: stage 11 FOUNDER'S LAIR (was 9)
     () => makeStage7(),                // R291: stage 12 BOSS RUSH (was 10)
     () => makeStage8(),                // R291: stage 13 THE CLOUD (was 11)
@@ -2023,6 +2023,55 @@ function makeBeatEmUpBallmer() {
         bossDisplayName: 'BALLMER',
         introBgKey: 'bg_microsoft_hq',
         nextStage: 8,
+    };
+}
+
+// R338: stage 10 — GATES ARENA as side-scrolling platformer (not FPS).
+// User: 'fps only makes sense in interior areas'. While keynote IS
+// interior, Ballmer (stage 7) is now beat-em-up and Mecha-Gates
+// (stage 22) is beat-em-up — Gates being a 3rd-style platformer boss
+// adds variety. Tight keynote-hall arena with two platforms + Gates
+// in the back. R325's Floppy Rain phase-2 attack already wired.
+function makeStageGatesArena() {
+    const w = 48, h = 14;
+    const { g } = blankStage(w, h, THEME.KEYNOTE);
+    // Side walls
+    rectT(g, 0, 0, 1, h, W);
+    rectT(g, 0, w - 1, 1, h, W);
+    // Two side platforms — verticality without dominating the arena
+    platT(g, 8,  10, 4);
+    platT(g, 8,  34, 4);
+    // Center elevated platform — risky high ground
+    platT(g, 6,  22, 4);
+    // Stealth grass at the audience-row entry
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 4 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 42 + i, G);
+    return {
+        tiles: g, width: w, height: h, theme: THEME.KEYNOTE,
+        playerStart: { x: 48, y: (h - 4) * GAME.TILE },
+        bossTrigger: { x: 8 * GAME.TILE },   // boss spawns near start
+        enemySpawns: [
+            // No grunts — pure boss fight to keep the focus on Gates.
+        ],
+        pickupSpawns: [
+            { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE - 10, type: 'LIFE' },
+            { x: 36 * GAME.TILE, y: (h - 3) * GAME.TILE - 10, type: 'LIFE' },
+            { x: 24 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'HOMING' },
+        ],
+        crateSpawns: [
+            { x: 10 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'LASER' },
+            { x: 38 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'SHOTGUN' },
+        ],
+        // R332: ambient props — sparking cables hint at a damaged stage
+        ambientProps: [
+            { kind: 'sparkCable', x: 18 * GAME.TILE, y: ( 3) * GAME.TILE },
+            { kind: 'sparkCable', x: 32 * GAME.TILE, y: ( 3) * GAME.TILE },
+            { kind: 'flicker',    x: 24 * GAME.TILE, y: ( 1) * GAME.TILE },
+        ],
+        music: 'arenaBoss',
+        bossDisplayName: 'GATES',
+        // chains to stage 11 (Founder's Lair)
+        nextStage: 11,
     };
 }
 
