@@ -134,39 +134,30 @@ export const THEME = Object.freeze({
 // training=11, boss rush mode=12, time trial=13, reality=14.
 export const STAGES = [
     null, // 1-indexed
-    { id: 1, name: 'OFFICE PARK JUNGLE',    theme: THEME.JUNGLE,      boss: 'COPIER_3000',  music: 'jungle',     tagline: 'WHERE PAPERWORK GOES TO DIE' },
-    { id: 2, name: 'THE BREAK ROOM',         theme: THEME.BREAKROOM,   boss: 'SHREDDER',      music: 'breakroom',  tagline: 'NO ONE REPLENISHED THE COFFEE'  },
-    { id: 3, name: 'SERVER ROOM',            theme: THEME.SERVERROOM,  boss: 'CTRL_ALT_DEL',  music: 'serverroom', tagline: 'THE FANS SCREAM FOREVER' },
-    // R226: stage 4 — sewer descent into a secret vivisection lab.
-    // Painted bg switches mid-stage (sewer → lab). Boss DR. SPINDLER.
-    { id: 4, name: 'THE PIPELINE',           theme: THEME.SEWER,       boss: 'SPINDLER',      music: 'pipeline',   tagline: 'WHAT ARE THEY DOING DOWN HERE' },
-    // R281: Ballmer mini-arc — platformer Board Room ends with Ballmer
-    // ESCAPING (he doesn't die), then the FPS chase pair finish the job.
-    { id: 5, name: 'THE BOARD ROOM',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS', bossEscapes: true },
-    // R281: FPS approach — chase Ballmer through his office corridor.
-    // Painted Microsoft HQ exterior as the stage-intro backdrop.
-    { id: 6, name: 'BALLMER OFFICE',         theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
-    // R281: FPS arena boss fight — final Ballmer confrontation.
-    { id: 7, name: 'BALLMER ARENA',          theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
-    // R291: Gates escapes from KEYNOTE HALL platformer stage (stage 8),
-    // chased through stages 9 + 10 — mirrors the Ballmer arc structure.
-    { id: 8, name: 'KEYNOTE HALL',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB', bossEscapes: true },
-    { id: 9, name: 'KEYNOTE CORRIDOR',       theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'BACKSTAGE PASS REQUIRED.' },
-    { id: 10, name: 'GATES ARENA',           theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'bossBattle', tagline: 'DEVELOPERS. DEVELOPERS.' },
-    { id: 11, name: "FOUNDER'S LAIR",        theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
-    { id: 12, name: 'BOSS RUSH',             theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
-    { id: 13, name: 'THE CLOUD',             theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'IT KNOWS WHAT YOU WANT' },
-    // Secret stage — only accessible via the hidden entrance on stage 1 no-damage clear
-    { id: 14, name: 'THE RECYCLE BIN',       theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'EVERY DELETED FILE WAITS HERE' },
-    // Training ground — god mode + unlimited ammo + scripted lessons.
-    { id: 15, name: 'TRAINING GROUND',       theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
-    // Post-game unlock modes. Gated on achievements.unlocked.has('clear_game').
-    { id: 16, name: 'BOSS RUSH MODE',        theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'NO TALKING. JUST FIGHTING.' },
-    { id: 17, name: 'TIME TRIAL',            theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'BEAT THE CLOCK.' },
-    // REALITY DISTORTION FIELD — after-credits secret stage.
-    { id: 18, name: 'REALITY DISTORTION FIELD', theme: THEME.REALITY,  boss: 'JOBS',          music: 'cloud',      tagline: 'ONE MORE TITAN.' },
-    // R229: hidden FPS-arena stage — Spindler FPS variant. Konami-only.
-    { id: 19, name: 'CORE BREACH',             theme: THEME.SEWER,    boss: 'SPINDLER',      music: 'pipeline',   tagline: 'THE DEEPER LAB.' },
+    // R300: category + displayId let stage-select label canon stages 1-13
+    // separately from side stages. Loader ids stay 1-19 internally for save
+    // compat; displayId is what shows on the tile (e.g. "S1" for secret,
+    // "P1/P2/P3/P4" for post-game).
+    { id: 1, name: 'OFFICE PARK JUNGLE',    category: 'campaign', displayId: '01', theme: THEME.JUNGLE,      boss: 'COPIER_3000',  music: 'jungle',     tagline: 'WHERE PAPERWORK GOES TO DIE' },
+    { id: 2, name: 'THE BREAK ROOM',         category: 'campaign', displayId: '02', theme: THEME.BREAKROOM,   boss: 'SHREDDER',      music: 'breakroom',  tagline: 'NO ONE REPLENISHED THE COFFEE'  },
+    { id: 3, name: 'SERVER ROOM',            category: 'campaign', displayId: '03', theme: THEME.SERVERROOM,  boss: 'CTRL_ALT_DEL',  music: 'serverroom', tagline: 'THE FANS SCREAM FOREVER' },
+    { id: 4, name: 'THE PIPELINE',           category: 'campaign', displayId: '04', theme: THEME.SEWER,       boss: 'SPINDLER',      music: 'pipeline',   tagline: 'WHAT ARE THEY DOING DOWN HERE' },
+    { id: 5, name: 'THE BOARD ROOM',         category: 'campaign', displayId: '05', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS', bossEscapes: true },
+    { id: 6, name: 'BALLMER OFFICE',         category: 'campaign', displayId: '06', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
+    { id: 7, name: 'BALLMER ARENA',          category: 'campaign', displayId: '07', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
+    { id: 8, name: 'KEYNOTE HALL',           category: 'campaign', displayId: '08', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB', bossEscapes: true },
+    { id: 9, name: 'KEYNOTE CORRIDOR',       category: 'campaign', displayId: '09', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'BACKSTAGE PASS REQUIRED.' },
+    { id: 10, name: 'GATES ARENA',           category: 'campaign', displayId: '10', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'bossBattle', tagline: 'DEVELOPERS. DEVELOPERS.' },
+    { id: 11, name: "FOUNDER'S LAIR",        category: 'campaign', displayId: '11', theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
+    { id: 12, name: 'BOSS RUSH',             category: 'campaign', displayId: '12', theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
+    { id: 13, name: 'THE CLOUD',             category: 'campaign', displayId: '13', theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'FINAL STAGE — IT KNOWS WHAT YOU WANT' },
+    // Side stages — displayId uses S/P prefix so they read as bonus content.
+    { id: 14, name: 'THE RECYCLE BIN',          category: 'secret',   displayId: 'S1', theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'SECRET — EVERY DELETED FILE WAITS HERE' },
+    { id: 15, name: 'TRAINING GROUND',          category: 'extra',    displayId: 'T',  theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
+    { id: 16, name: 'BOSS RUSH MODE',           category: 'postgame', displayId: 'P1', theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'POST-GAME — NO TALKING. JUST FIGHTING.' },
+    { id: 17, name: 'TIME TRIAL',               category: 'postgame', displayId: 'P2', theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'POST-GAME — BEAT THE CLOCK.' },
+    { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'cloud',      tagline: 'POST-GAME — ONE MORE TITAN.' },
+    { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'pipeline',   tagline: 'POST-GAME — THE DEEPER LAB.' },
 ];
 
 // Damage flash colors per source.

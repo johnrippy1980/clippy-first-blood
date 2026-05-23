@@ -492,6 +492,7 @@ export class Game {
         audio.init();
         audio.playTrack('title');
         this.titleBlink++;
+        this._tickUnlockToasts();
         const gameCleared = achievements.unlocked.has('clear_game');
         // R228: hidden Konami code. Hold SHIFT (aim-lock) and tap the
         // sequence UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A. On match,
@@ -523,7 +524,10 @@ export class Game {
                         achievements.stats.konamiUnlocked = true;   // R279: persist
                         achievements.unlocked.add('clear_game');
                         achievements._save();
-                        // Drop straight into stage select
+                        // R300: announce the unlock so the player knows what
+                        // just happened (was silent before).
+                        this._pushUnlockToast('ALL STAGES UNLOCKED',
+                            'KONAMI CODE — STAGE SELECT IS NOW OPEN');
                         this.stageSelectIndex = 0;
                         this.scene = SCENE.STAGE_SELECT;
                     }
@@ -686,6 +690,7 @@ export class Game {
             drawText(ctx, 'HI-SCORE  ' + best.toLocaleString(), GAME.W / 2, GAME.H - 50, '#ffe070', 1, 'center');
         }
         drawText(ctx, '(C) 2026 OFFICE WARFARE LTD  v1.0', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+        this._drawUnlockToasts();
     }
 
     // ============== main menu (R210) ==============
@@ -1152,6 +1157,43 @@ export class Game {
         if (t > 70 && (t % 60) < 40) {
             drawTextOutlined(ctx, 'X TO START', GAME.W / 2, GAME.H - 22, '#fff', '#a82020', 1, 'center');
         }
+    }
+
+    // R300: unlock toast queue — small banner that floats in from the right
+    // for ~240 frames whenever the player unlocks something significant
+    // (secret stage, konami, post-game modes). Drawn on title + stage-select.
+    _pushUnlockToast(title, subtitle) {
+        if (!this._unlockToasts) this._unlockToasts = [];
+        this._unlockToasts.push({ title, subtitle, age: 0, life: 240 });
+    }
+    _tickUnlockToasts() {
+        if (!this._unlockToasts) return;
+        for (const t of this._unlockToasts) t.age++;
+        this._unlockToasts = this._unlockToasts.filter(t => t.age < t.life);
+    }
+    _drawUnlockToasts() {
+        if (!this._unlockToasts || this._unlockToasts.length === 0) return;
+        const ctx = this.ctx;
+        const t = this._unlockToasts[0];
+        // Slide in from the right for the first 20f, hold, fade out last 40f.
+        const slideIn = Math.min(1, t.age / 20);
+        const slideEased = 1 - Math.pow(1 - slideIn, 3);
+        const fadeOut = t.age > t.life - 40 ? (t.life - t.age) / 40 : 1;
+        const alpha = Math.max(0, fadeOut);
+        const panelW = 200, panelH = 28;
+        const x = GAME.W - panelW * slideEased - 4;
+        const y = 4;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#1a0a08';
+        ctx.fillRect(x, y, panelW, panelH);
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(x, y, panelW, 1);
+        ctx.fillRect(x, y + panelH - 1, panelW, 1);
+        ctx.fillRect(x, y, 1, panelH);
+        ctx.fillRect(x + panelW - 1, y, 1, panelH);
+        drawText(ctx, '★ ' + t.title, x + 6, y + 4, '#ffe070', 1, 'left');
+        drawText(ctx, t.subtitle,    x + 6, y + 16, '#c0a0d0', 1, 'left');
+        ctx.globalAlpha = 1;
     }
 
     // ============== play ==============
@@ -2988,6 +3030,7 @@ export class Game {
     }
 
     _tickStageSelect() {
+        this._tickUnlockToasts();
         if (input.isPressed('pause')) { this.scene = SCENE.TITLE; audio.sfx('pause'); return; }
         const ids = this._stageSelectList();
         const total = ids.length;
@@ -3083,15 +3126,36 @@ export class Game {
             ctx.fillRect(tx, ty, 1, tileH);
             ctx.fillRect(tx + tileW - 1, ty, 1, tileH);
 
-            // R267: display sequential tile numbers (1-N) instead of loader
-            // indices (which jump 10→14→15 because 11/12/13 are non-stage
-            // game modes). The loader index lives in `stage` for routing;
-            // we just relabel for the user.
-            const displayNum = i + 1;
+            // R300: per-stage displayId from STAGES manifest. Campaign
+            // stages stay numeric (01..13), side stages get letter prefixes:
+            //   S1 = secret (Recycle Bin)
+            //   T  = training
+            //   P1..P4 = post-game (Boss Rush Mode, Time Trial, RDF, Core Breach)
+            // Side-stage tiles also get a colored frame so they read as bonus
+            // content, not "stages 14+".
+            const stgData = STAGES[stage];
+            const displayLabel = stgData?.displayId || String(i + 1).padStart(2, '0');
+            const cat = stgData?.category || 'campaign';
+            const idColor = unlocked
+                ? (cat === 'secret'   ? '#7af0ff'
+                : cat === 'extra'     ? '#80ff80'
+                : cat === 'postgame'  ? '#ff90c8'
+                : '#ffe070')
+                : '#604068';
             if (unlocked) {
-                drawText(ctx, String(displayNum).padStart(2, '0'), tx + 4, ty + 4, '#ffe070', 1, 'left');
+                drawText(ctx, displayLabel, tx + 4, ty + 4, idColor, 1, 'left');
             } else {
                 drawText(ctx, '??', tx + 4, ty + 4, '#604068', 1, 'left');
+            }
+            // R300: side-stage frame accent — paint top + bottom edges of
+            // the tile in the category color so bonus stages visually
+            // separate from canon campaign tiles.
+            if (unlocked && cat !== 'campaign') {
+                ctx.fillStyle = idColor;
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(tx, ty, tileW, 1);
+                ctx.fillRect(tx, ty + tileH - 1, tileW, 1);
+                ctx.globalAlpha = 1;
             }
             // R278: wrap name onto up to 3 lines — find a split where BOTH
             // resulting lines fit; if no clean 2-line fit exists, fall back
@@ -3177,6 +3241,7 @@ export class Game {
             }
         }
         drawText(ctx, 'ARROWS SELECT   X START   P BACK', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+        this._drawUnlockToasts();
     }
 
     _spawnMiniBoss() {
@@ -4129,6 +4194,14 @@ export class Game {
     _tickGameComplete() {
         audio.playTrack('gameComplete');
         this.storyTimer++;
+        // R300: on first frame of game-complete, push a toast so the player
+        // knows post-game modes are now available on title (Boss Rush Mode,
+        // Time Trial, Reality Distortion Field, Core Breach).
+        if (this.storyTimer === 1 && !this._postGameToastFired) {
+            this._postGameToastFired = true;
+            this._pushUnlockToast('POST-GAME UNLOCKED',
+                'BOSS RUSH MODE, TIME TRIAL, RDF, CORE BREACH');
+        }
         // R191: first input after the result screen advances to the epilogue
         // cinematic (Clippy's redemption arc). Second input from the epilogue
         // returns to title via _restartRun. Skippable via `start` for replay
