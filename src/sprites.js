@@ -357,7 +357,11 @@ export const CLIPPY_MANIFEST = {
     // keeps pointing to v6_jump for the mid-air shoot pose.
     'jump':            'jump_neutral.png',
     'jump_aim':        'v6_jump.png',
-    'fall':            'v6_jump.png',
+    // R353: 'fall' was still aliased to v6_jump.png (rifle-extended shoot
+    // pose) which made Clippy look like he was firing mid-fall when he
+    // wasn't. Use the neutral pose so non-firing falls match non-firing
+    // jumps. Shooting-while-falling still hits the 'jump_aim' branch.
+    'fall':            'jump_neutral.png',
     'spin_1':          'v2_spin_1.png',
     'spin_2':          'v2_spin_2.png',
     'crouch':          'pack_crouch_aim.png',

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 
 const URL = 'http://localhost:8765/';
 const OUT = '/tmp/clippy-stages';
-const STAGES = Array.from({ length: 23 }, (_, i) => i + 1);
+const STAGES = Array.from({ length: 22 }, (_, i) => i + 1);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
@@ -33,10 +33,24 @@ for (const stage of STAGES) {
     }, stage);
     // Wait long enough for the intro card to finish (≥ ~2s)
     await page.waitForTimeout(2400);
-    // Force-flip if still on intro
+    // Punch through STAGE_INTRO + READY + BOSS_INTRO with up to 6 X-presses
+    // (each press dismisses one scene). FPS / beat-em-up modes skip the
+    // READY card entirely so they land in fpsPlay / beatPlay directly.
+    for (let attempt = 0; attempt < 6; attempt++) {
+        const s = await page.evaluate(() => window.__game?.scene);
+        if (s === 'play' || s === 'fpsPlay' || s === 'beatPlay') break;
+        await page.keyboard.press('KeyX');
+        await page.waitForTimeout(180);
+    }
+    // Final safety: if some scene flow is wedged, force-flip
     await page.evaluate(() => {
         const g = window.__game;
-        if (g && g.scene === 'stageIntro') g.scene = 'play';
+        if (!g) return;
+        if (g.scene !== 'play' && g.scene !== 'fpsPlay' && g.scene !== 'beatPlay') {
+            if (g._fpsArena) g.scene = 'fpsPlay';
+            else if (g._beatEmUp) g.scene = 'beatPlay';
+            else g.scene = 'play';
+        }
     });
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/stage-${stage}.png` });

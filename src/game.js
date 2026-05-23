@@ -3736,7 +3736,7 @@ export class Game {
 
     // ============== stage transitions ==============
     _startStage(n) {
-        // Bounds-clamp: STAGE_LOADERS[0] is null, indices 1..9 are real stages.
+        // Bounds-clamp: STAGE_LOADERS[0] is null, indices 1..22 are real stages.
         // Out-of-range arrivals (stale save, tampered URL, math glitch) shouldn't crash —
         // fall back to stage 1.
         if (!Number.isInteger(n) || n < 1 || n >= STAGE_LOADERS.length || !STAGE_LOADERS[n]) {

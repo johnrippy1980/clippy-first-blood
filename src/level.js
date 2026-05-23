@@ -3008,24 +3008,23 @@ export class Level {
                     }[theme];
                 }
                 if (coverKey && sprites.has(coverKey)) {
-                    // Subtle rim glow so the prop reads against bg
-                    ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
-                    ctx.fillRect(x - 2, y - 32, T + 4, T + 40);
+                    // R353: dropped the rim-glow fillRect — it drew a
+                    // visible translucent rectangle around the sprite
+                    // that read as a square "box" halo against the
+                    // painted parallax bg, especially on jungle trees.
+                    // Painted covers are already silhouetted; no rim.
                     const img = sprites.images.get(coverKey);
                     const drawW = img.width;
                     const drawH = img.height;
-                    // Center horizontally on tile column, anchor bottom to
-                    // tile floor (y + T) so the prop "sits" on the tile.
                     const dx = x + (T - drawW) / 2;
                     const dy = y + T - drawH;
                     ctx.imageSmoothingEnabled = false;
                     ctx.drawImage(img, Math.round(dx), Math.round(dy));
                     break;
                 }
-                // Procedural fallback — subtle bright-rim glow so cover objects read against the
-                // painted parallax bg. Half-tile-wide pulse around the object.
-                ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
-                ctx.fillRect(x - 2, y - 32, T + 4, T + 40);
+                // R353: removed the rim-glow fillRect — see painted-path
+                // note above. Procedural covers paint their own outline
+                // via per-theme branches below.
                 if (theme === THEME.JUNGLE) {
                     // Tree trunk — wider + brighter so it reads against bg
                     ctx.fillStyle = '#3a2010';
