@@ -1717,6 +1717,9 @@ function makeFpsStageBallmer() {
         endingStyle: 'door',
         // R281: chain into the Ballmer arena (stage 7) on stage_clear.
         nextStage: 7,
+        // R297: door label uses bossDisplayName so the corridor's
+        // glowing door reads the correct name for this arc.
+        bossDisplayName: 'BALLMER',
     };
 }
 
@@ -1795,6 +1798,7 @@ function makeFpsStageGates() {
         gruntBulletAnimKey: 'floppy',
         endingStyle: 'door',
         nextStage: 10,            // R291: chains into the Gates arena (stage 10)
+        bossDisplayName: 'BILL GATES',
     };
 }
 

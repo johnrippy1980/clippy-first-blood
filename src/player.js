@@ -1413,10 +1413,72 @@ export class Player {
             const thunderDmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5) * comboMult;
             // Perpendicular axis to the aim ray, used for the band test.
             const perpX = -ndy, perpY = ndx;
+            // R298: THUNDER decorative-bullet has damage=0, so crates + walls
+            // never took damage when struck by lightning. Iterate the pickup
+            // manager's crates + walls in the same ray-walk loop so the visual
+            // "lightning hits crate" reads as "lightning destroys crate."
+            const crates = game?.pickups?.crates || [];
+            const walls  = game?.pickups?.walls || [];
             for (let s = STEP; s <= MAX_RANGE; s += STEP) {
                 const sx = baseX + ndx * s;
                 const sy = baseY + ndy * s;
-                if (lvl && lvl.isSolid && lvl.isSolid(sx, sy)) { hitX = sx; hitY = sy; break; }
+                if (lvl && lvl.isSolid && lvl.isSolid(sx, sy)) {
+                    // R298: only stop the ray at a TRUE tile wall, not a
+                    // breakable wall — let the bolt continue past the wall
+                    // and still keep the wall in the damage list below.
+                    const onBreakable = lvl._wallSolidCheck && lvl._wallSolidCheck(sx, sy);
+                    if (!onBreakable) { hitX = sx; hitY = sy; break; }
+                }
+                // R298: crate hits at this depth
+                for (const c of crates) {
+                    if (!c.alive || struck.has(c)) continue;
+                    const ccx = c.x + c.w / 2, ccy = c.y + c.h / 2;
+                    const axial = (ccx - baseX) * ndx + (ccy - baseY) * ndy;
+                    if (axial < 0 || axial > s + STEP) continue;
+                    const perp = Math.abs((ccx - baseX) * perpX + (ccy - baseY) * perpY);
+                    const grazeR = HALF_WIDTH + Math.min(c.w, c.h) * 0.5;
+                    if (perp <= grazeR) {
+                        struck.add(c);
+                        c.hp -= thunderDmg;
+                        c.hitFlash = 4;
+                        if (c.hp <= 0) {
+                            c.alive = false;
+                            particles.explosion(ccx, ccy, '#604030', 12);
+                            audio.sfx('explode');
+                            // Spawn the crate's drop
+                            if (c.drop && game?.pickups?.spawn) {
+                                game.pickups.spawn(ccx - 4, ccy - 4, c.drop);
+                            }
+                        } else {
+                            audio.sfx('crateHit');
+                        }
+                    }
+                }
+                // R298: breakable-wall hits at this depth
+                for (const wall of walls) {
+                    if (!wall.alive || struck.has(wall)) continue;
+                    const wcx = wall.x + wall.w / 2, wcy = wall.y + wall.h / 2;
+                    const axial = (wcx - baseX) * ndx + (wcy - baseY) * ndy;
+                    if (axial < 0 || axial > s + STEP) continue;
+                    const perp = Math.abs((wcx - baseX) * perpX + (wcy - baseY) * perpY);
+                    const grazeR = HALF_WIDTH + Math.min(wall.w, wall.h) * 0.5;
+                    if (perp <= grazeR) {
+                        struck.add(wall);
+                        wall.hp -= thunderDmg;
+                        wall.hitFlash = 5;
+                        wall.cracks = Math.min(3, Math.floor((6 - wall.hp) / 2));
+                        if (wall.hp <= 0) {
+                            wall.alive = false;
+                            particles.explosion(wcx, wcy, '#604030', 16);
+                            audio.sfx('explode');
+                            if (wall.drop && game?.pickups?.spawn) {
+                                game.pickups.spawn(wcx - 4, wcy - 4, wall.drop);
+                            }
+                        } else {
+                            audio.sfx('crateHit');
+                        }
+                    }
+                }
                 for (const e of enemies) {
                     if (!e.alive || struck.has(e)) continue;
                     // R239: AABB-vs-band test. Enemy center distance from the
@@ -1859,6 +1921,49 @@ export class Player {
                     if (d > SPLASH_R) continue;
                     const falloff = 0.5 + 0.5 * (1 - d / SPLASH_R);
                     e.hurt(splashMax * falloff, ecx < bx ? -1 : 1, { knockBack: 1.0 });
+                }
+            }
+            // R298: HOMING splash should also break crates + breakable walls.
+            // Pre-fix, rockets did NO damage to destructibles in their splash
+            // radius — only the direct-hit enemy. Now crates + walls in the
+            // 24px blast radius take splash damage with the same falloff.
+            const crates2 = game?.pickups?.crates || [];
+            const walls2  = game?.pickups?.walls  || [];
+            const SPLASH_R2 = 24;
+            const splashMax2 = bullet.damage * 0.7;
+            for (const c of crates2) {
+                if (!c.alive) continue;
+                const ccx = c.x + c.w / 2, ccy = c.y + c.h / 2;
+                const d = Math.hypot(ccx - bx, ccy - by);
+                if (d > SPLASH_R2) continue;
+                const fall = 0.5 + 0.5 * (1 - d / SPLASH_R2);
+                c.hp -= splashMax2 * fall;
+                c.hitFlash = 4;
+                if (c.hp <= 0) {
+                    c.alive = false;
+                    particles.explosion(ccx, ccy, '#604030', 12);
+                    audio.sfx('explode');
+                    if (c.drop && game?.pickups?.spawn) {
+                        game.pickups.spawn(ccx - 4, ccy - 4, c.drop);
+                    }
+                }
+            }
+            for (const wall of walls2) {
+                if (!wall.alive) continue;
+                const wcx = wall.x + wall.w / 2, wcy = wall.y + wall.h / 2;
+                const d = Math.hypot(wcx - bx, wcy - by);
+                if (d > SPLASH_R2) continue;
+                const fall = 0.5 + 0.5 * (1 - d / SPLASH_R2);
+                wall.hp -= splashMax2 * fall;
+                wall.hitFlash = 5;
+                wall.cracks = Math.min(3, Math.floor((6 - wall.hp) / 2));
+                if (wall.hp <= 0) {
+                    wall.alive = false;
+                    particles.explosion(wcx, wcy, '#604030', 16);
+                    audio.sfx('explode');
+                    if (wall.drop && game?.pickups?.spawn) {
+                        game.pickups.spawn(wcx - 4, wcy - 4, wall.drop);
+                    }
                 }
             }
         }

@@ -789,12 +789,12 @@ export class FpsArena {
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             drawText(ctx, 'ADVANCING', GAME.W / 2, 90, '#a0d8ff', 1, 'center');
         }
-        // R280: door-approach phase — glowing door at the vanishing point
-        // with a "TO BALLMER" overlay, then auto-clears after 180f.
+        // R280: door-approach phase — glowing door at the vanishing point.
+        // R297: name on the door reads from stage data (bossDisplayName)
+        // so it doesn't say "STEVE BALLMER" on the Gates corridor approach.
         if (this.phase === 'doorApproach') {
             const cx = GAME.W / 2;
             const cy = BACK_WALL_Y + 8;
-            // Door shape — vertical rect with glowing outline
             const t = this.doorT || 0;
             const glow = 0.5 + 0.5 * Math.sin(t * 0.12);
             ctx.fillStyle = '#1a1010';
@@ -802,12 +802,11 @@ export class FpsArena {
             ctx.strokeStyle = `rgba(255, 200, 80, ${0.4 + glow * 0.5})`;
             ctx.lineWidth = 1;
             ctx.strokeRect(cx - 10, cy - 4, 20, 28);
-            // Door handle
             ctx.fillStyle = '#ffe070';
             ctx.fillRect(cx + 6, cy + 12, 2, 2);
-            // Nameplate
             drawText(ctx, 'CEO', cx, cy - 12, '#ffe070', 1, 'center');
-            drawText(ctx, 'STEVE BALLMER', GAME.W / 2, GAME.H - 40, '#ff80a0', 1, 'center');
+            const doorName = this.data.bossDisplayName || this.data.bossKind || 'BOSS';
+            drawText(ctx, doorName, GAME.W / 2, GAME.H - 40, '#ff80a0', 1, 'center');
         }
         // R290: boss entry telegraph. Lower-half panel slides up showing the
         // painted boss portrait + name (matches the platformer BOSS_INTRO
@@ -865,12 +864,29 @@ export class FpsArena {
             ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, t * 0.02)})`;
             ctx.fillRect(0, 0, GAME.W, GAME.H);
             if (t > 60) {
-                // R280: vary the clear text by ending style.
-                const clearText = this.endingStyle === 'door' ? 'ENTERING...' : 'CORE BREACHED';
+                // R297: clear text driven by stage data so "CORE BREACHED"
+                // doesn't show on every FPS arena boss. Defaults:
+                //   - endingStyle 'door' → "ENTERING..."
+                //   - boss kill on Ballmer/Gates → "BOSS DOWN"
+                //   - Spindler → "CORE BREACHED" (kept for thematic fit)
+                let clearText;
+                if (this.endingStyle === 'door') {
+                    clearText = 'ENTERING...';
+                } else if (this.data.clearText) {
+                    clearText = this.data.clearText;
+                } else {
+                    const name = this.data.bossDisplayName || 'BOSS';
+                    clearText = name + ' DOWN';
+                }
                 drawText(ctx, clearText, GAME.W / 2, GAME.H / 2 - 8, '#ffe070', 2, 'center');
+                // R297: when an autoNext is configured, the arena auto-
+                // advances after 120 frames — surface that to the player
+                // instead of "PRESS X" so they don't think they're stuck.
+                const autoNext = this.data.nextStage;
+                const hint = autoNext ? '...' : 'PRESS X';
                 const a = 0.6 + 0.4 * Math.sin(t * 0.15);
                 ctx.globalAlpha = a;
-                drawText(ctx, 'PRESS X', GAME.W / 2, GAME.H / 2 + 12, '#a890b0', 1, 'center');
+                drawText(ctx, hint, GAME.W / 2, GAME.H / 2 + 12, '#a890b0', 1, 'center');
                 ctx.globalAlpha = 1;
             }
         }
