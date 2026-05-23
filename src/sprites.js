@@ -192,6 +192,14 @@ export const SCENE_MANIFEST = {
     // R226: Dr. Spindler boss-intro plate. Re-uses the cinematic portrait
     // from boss_spindler_portrait.png (lab backdrop already baked in).
     'boss_intro_SPINDLER':     'boss_intros/boss_intro_spindler.png',
+    // R359: post-game boss intros — reuse cinematic-card art so the
+    // post-game stages have painted intro plates instead of falling
+    // through to the dim _drawPlay fallback. HELICOPTER and MECHA_GATES
+    // get their R357 painted Mecha-trilogy cards; GAUNTLET_FULL reuses
+    // the original boss-rush plate.
+    'boss_intro_HELICOPTER':     'card_chopper_horizon.png',
+    'boss_intro_MECHA_GATES':    'card_chopper_crash.png',
+    'boss_intro_GAUNTLET_FULL':  'boss_intros/boss_intro_bossrush.png',
     // R177: post-game epilogue beats. Clippy's redemption arc shown after
     // the main ending: laughing-stock → memes → 2026 comeback → wonders
     // about Siri. Cinematic plays only after the player has beaten the
