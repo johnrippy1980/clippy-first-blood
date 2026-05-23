@@ -308,6 +308,14 @@ class Pickup {
             '1UP':        'pickup_1up',
             'CHAINSAW':   'pickup_chainsaw',
             'CLIPPY_TAG': 'pickup_1up',  // same chrome paperclip — visually unified
+            // R319: weapon pickup icons
+            'MG':         'pickup_mg',
+            'SPREAD':     'pickup_spread',
+            'LASER':      'pickup_laser',
+            'FLAME':      'pickup_flame',
+            'HOMING':     'pickup_homing',
+            'THUNDER':    'pickup_thunder',
+            'SHOTGUN':    'pickup_shotgun',
         };
         const paintedKey = PAINTED_KEYS[this.type];
         if (paintedKey && sprites.has(paintedKey)) {

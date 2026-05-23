@@ -491,6 +491,14 @@ export const ENEMY_MANIFEST = {
     'pickup_grenade':   'pickup_grenade.png',
     'pickup_1up':       'pickup_1up.png',
     'pickup_chainsaw':  'pickup_chainsaw.png',
+    // R319: painted weapon-pickup icons.
+    'pickup_mg':        'pickup_mg.png',
+    'pickup_spread':    'pickup_spread.png',
+    'pickup_laser':     'pickup_laser.png',
+    'pickup_flame':     'pickup_flame.png',
+    'pickup_homing':    'pickup_homing.png',
+    'pickup_thunder':   'pickup_thunder.png',
+    'pickup_shotgun':   'pickup_shotgun.png',
 };
 
 // ============================================================
