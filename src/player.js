@@ -511,7 +511,15 @@ export class Player {
             // Break-out conditions: input release, cover unavailable, or
             // durability drained from incoming fire. coverHp drain happens
             // in enemy bullet tick (when shots hit while in cover).
-            if (!input.isHeld('up') || !this._coverAvailable(level) || this.coverHp <= 0) {
+            // R354: also exit on any directional press (left/right/down/jump)
+            // so the player can't get wedged when UP is still held — the
+            // original bug let players stick in COVER until they manually
+            // released UP, which a pause→resume cycle was the only way out
+            // of in some input edge-cases.
+            const wantsToMove = input.isPressed('left') || input.isPressed('right')
+                || input.isPressed('down') || input.isPressed('jump')
+                || input.isPressed('shoot');
+            if (!input.isHeld('up') || wantsToMove || !this._coverAvailable(level) || this.coverHp <= 0) {
                 this.state = STATE.IDLE;
                 this.onCover = false;
                 this._coverT = 0;
