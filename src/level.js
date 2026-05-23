@@ -2228,6 +2228,117 @@ export class Level {
         return GROUND_BITMAP_KEY[this.data.theme] || null;
     }
 
+    // R310: per-theme platform accent. Procedural fallback while painted
+    // platform tilesets are being generated. Cheap deterministic positions.
+    _drawPlatformAccent(ctx, x, y, c, r) {
+        const T = GAME.TILE;
+        const pal = this.palette;
+        switch (this.data.theme) {
+            case THEME.SERVERROOM: {
+                // Rivets + a tiny blinking LED on every 4th plank tile
+                ctx.fillStyle = pal.plank;
+                ctx.fillRect(x + 1, y + 2, 1, 1);
+                ctx.fillRect(x + T - 2, y + 2, 1, 1);
+                if ((c & 3) === 0) {
+                    const lit = (this.tileAnimTick + c * 5) % 60 < 18;
+                    ctx.fillStyle = lit ? '#80f0ff' : '#103040';
+                    ctx.fillRect(x + T / 2, y + 2, 1, 1);
+                }
+                break;
+            }
+            case THEME.JUNGLE: {
+                // Vine fronds dangling off the bottom edge
+                ctx.fillStyle = pal.accent;
+                ctx.fillRect(x + (c * 3 % T), y + 4, 1, 2);
+                if ((c & 1) === 0) ctx.fillRect(x + ((c * 7 + 5) % T), y + 4, 1, 3);
+                // Mossy top speckle
+                ctx.fillStyle = pal.highlight;
+                ctx.fillRect(x + ((c * 5 + 2) % T), y + 1, 1, 1);
+                break;
+            }
+            case THEME.SEWER: {
+                // Wet metal stripe + drip on every other tile
+                ctx.fillStyle = pal.accent;
+                ctx.fillRect(x, y + 2, T, 1);
+                if ((c & 1) === 0) {
+                    ctx.fillStyle = '#80a060';
+                    ctx.fillRect(x + (c * 11 % T), y + 4, 1, 2);
+                }
+                break;
+            }
+            case THEME.FOUNDER: {
+                // Cracked stone — a dark fissure runs across each tile
+                ctx.fillStyle = pal.plank;
+                ctx.fillRect(x + 2, y + 2, T - 4, 1);
+                ctx.fillRect(x + 4 + (c % 3), y + 3, 2, 1);
+                // Glowing ember in the crack
+                if ((c & 3) === 1) {
+                    ctx.fillStyle = '#ff4020';
+                    ctx.fillRect(x + 6 + (c % 4), y + 2, 1, 1);
+                }
+                break;
+            }
+            case THEME.CLOUD: {
+                // Tech-grid lines — moving lit "data flow" line
+                ctx.fillStyle = pal.plank;
+                ctx.fillRect(x, y + 2, T, 1);
+                const flowOff = (this.tileAnimTick / 2) % T;
+                ctx.fillStyle = pal.highlight;
+                ctx.fillRect(x + ((flowOff + c * 4) | 0) % T, y + 2, 2, 1);
+                break;
+            }
+            case THEME.BOARDROOM: {
+                // Brass-trim platform with screws at edges
+                ctx.fillStyle = pal.highlight;
+                ctx.fillRect(x, y + 1, T, 1);
+                ctx.fillStyle = pal.plank;
+                ctx.fillRect(x + 1, y + 2, 1, 1);
+                ctx.fillRect(x + T - 2, y + 2, 1, 1);
+                break;
+            }
+            case THEME.KEYNOTE: {
+                // Stage truss — purple bolted truss appearance
+                ctx.fillStyle = pal.plank;
+                ctx.fillRect(x, y + 2, T, 1);
+                ctx.fillStyle = pal.accent;
+                ctx.fillRect(x + 1, y + 3, 1, 1);
+                ctx.fillRect(x + T - 2, y + 3, 1, 1);
+                if ((c & 1) === 0) {
+                    ctx.fillStyle = pal.highlight;
+                    ctx.fillRect(x + T / 2, y + 1, 1, 1);
+                }
+                break;
+            }
+            case THEME.BREAKROOM: {
+                // Linoleum tile seam every other tile
+                ctx.fillStyle = pal.plank;
+                if ((c & 1) === 0) ctx.fillRect(x, y + 1, 1, 4);
+                ctx.fillStyle = pal.accent;
+                ctx.fillRect(x + ((c * 3) % T), y + 2, 1, 1);
+                break;
+            }
+            case THEME.REALITY: {
+                // Mirror-finish — black with a thin lavender highlight pulse
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(x, y + 2, T, 1);
+                const pulse = Math.sin(this.tileAnimTick * 0.04 + c * 0.5);
+                if (pulse > 0.6) {
+                    ctx.fillStyle = pal.highlight;
+                    ctx.fillRect(x, y + 2, T, 1);
+                }
+                break;
+            }
+            default: {
+                // Generic wood-grain speckle (original look)
+                ctx.fillStyle = pal.plank;
+                for (let i = 0; i < T; i++) {
+                    if ((i * 5 + c * 7) & 3) continue;
+                    ctx.fillRect(x + i, y + 1 + (i & 1), 1, 1);
+                }
+            }
+        }
+    }
+
     _drawTile(ctx, t, x, y, r, c) {
         const T = GAME.TILE;
         const pal = this.palette;
@@ -2295,19 +2406,15 @@ export class Level {
                 break;
             }
             case TILE.PLATFORM:
-                // Painted plank with brass/metal trim — 4px tall surface
+                // R310: per-theme painted platform. Base body + top highlight
+                // + bottom shadow stay shared; the *accent layer* changes per
+                // theme so each level reads as its own material (rivets for
+                // server racks, vines for jungle, etc.) without an asset gen.
                 ctx.fillStyle = pal.platform;
                 ctx.fillRect(x, y, T, 4);
-                // Top edge — slim highlight
                 ctx.fillStyle = pal.highlight || pal.accent;
                 ctx.fillRect(x, y, T, 1);
-                // Wood grain speckle
-                ctx.fillStyle = pal.plank;
-                for (let i = 0; i < T; i++) {
-                    if ((i * 5 + c * 7) & 3) continue;
-                    ctx.fillRect(x + i, y + 1 + (i & 1), 1, 1);
-                }
-                // Bottom shadow line
+                this._drawPlatformAccent(ctx, x, y, c, r);
                 ctx.fillStyle = pal.plank;
                 ctx.fillRect(x, y + 4, T, 1);
                 ctx.fillStyle = 'rgba(0,0,0,0.4)';
