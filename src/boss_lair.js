@@ -62,11 +62,13 @@ export const BOSS_LAIRS = {
         arenaTint: '#1c1208',
         tintAlpha: 0.30,
         decorations: [
-            { kind: 'fileBoxes',    dx: 30,  dy: -4 },
-            { kind: 'fileBoxes',    dx: 220, dy: -4 },
-            { kind: 'shreddedHang', dx: 80,  dy: -50 },
-            { kind: 'shreddedHang', dx: 180, dy: -45 },
-            { kind: 'tornBox',      dx: 130, dy: -5 },
+            { kind: 'bigFileCabinet', dx: 50,  dy: -4 },
+            { kind: 'bigFileCabinet', dx: 210, dy: -4 },
+            { kind: 'shreddedHang',   dx: 80,  dy: -50 },
+            { kind: 'shreddedHang',   dx: 180, dy: -45 },
+            { kind: 'tornBox',        dx: 130, dy: -5 },
+            { kind: 'paperStack',     dx: 95,  dy: -6 },
+            { kind: 'paperStack',     dx: 165, dy: -8 },
         ],
     },
     CTRL_ALT_DEL: {
@@ -79,10 +81,11 @@ export const BOSS_LAIRS = {
         arenaTint: '#0a1228',
         tintAlpha: 0.34,
         decorations: [
-            { kind: 'serverRack',   dx: 30,  dy: -2 },
-            { kind: 'serverRack',   dx: 220, dy: -2 },
-            { kind: 'cableTangle',  dx: 100, dy: -56 },
-            { kind: 'cableTangle',  dx: 160, dy: -56 },
+            { kind: 'smashedServerTower', dx: 130, dy: -2 },
+            { kind: 'serverRack',         dx: 30,  dy: -2 },
+            { kind: 'serverRack',         dx: 220, dy: -2 },
+            { kind: 'cableTangle',        dx: 90,  dy: -56 },
+            { kind: 'cableTangle',        dx: 170, dy: -56 },
         ],
     },
     SPINDLER: {
@@ -124,10 +127,11 @@ export const BOSS_LAIRS = {
         arenaTint: '#180828',
         tintAlpha: 0.32,
         decorations: [
-            { kind: 'micStand',   dx: 60,  dy: -2 },
-            { kind: 'micStand',   dx: 200, dy: -2 },
-            { kind: 'spotlight',  dx: 100, dy: -56 },
-            { kind: 'spotlight',  dx: 160, dy: -56 },
+            { kind: 'brokenPodium', dx: 130, dy: -2 },
+            { kind: 'micStand',     dx: 60,  dy: -2 },
+            { kind: 'micStand',     dx: 200, dy: -2 },
+            { kind: 'spotlight',    dx: 100, dy: -56 },
+            { kind: 'spotlight',    dx: 160, dy: -56 },
         ],
     },
     CLIPPY_2: {
@@ -170,9 +174,11 @@ export const BOSS_LAIRS = {
         arenaTint: '#100020',
         tintAlpha: 0.38,
         decorations: [
-            { kind: 'iMacHang',  dx: 60,  dy: -50 },
-            { kind: 'iMacHang',  dx: 180, dy: -55 },
-            { kind: 'spotlight', dx: 130, dy: -56 },
+            { kind: 'crackedIMac', dx: 130, dy: -50 },
+            { kind: 'iMacHang',    dx: 60,  dy: -50 },
+            { kind: 'iMacHang',    dx: 200, dy: -55 },
+            { kind: 'spotlight',   dx: 100, dy: -56 },
+            { kind: 'spotlight',   dx: 160, dy: -56 },
         ],
     },
     // R356: stage 22 final boss + post-game variants needed lair entries.
@@ -219,11 +225,13 @@ export const BOSS_LAIRS = {
         arenaTint: '#080a20',
         tintAlpha: 0.36,
         decorations: [
-            { kind: 'serverRack',  dx: 30,  dy: -2 },
-            { kind: 'serverRack',  dx: 80,  dy: -2 },
-            { kind: 'serverRack',  dx: 180, dy: -2 },
-            { kind: 'serverRack',  dx: 220, dy: -2 },
-            { kind: 'cableTangle', dx: 130, dy: -56 },
+            { kind: 'wreckedTurntable', dx: 130, dy: -2 },
+            { kind: 'serverRack',       dx: 30,  dy: -2 },
+            { kind: 'serverRack',       dx: 80,  dy: -2 },
+            { kind: 'serverRack',       dx: 180, dy: -2 },
+            { kind: 'serverRack',       dx: 220, dy: -2 },
+            { kind: 'cableTangle',      dx: 100, dy: -56 },
+            { kind: 'cableTangle',      dx: 170, dy: -56 },
         ],
     },
     GAUNTLET_FULL: {
@@ -483,6 +491,151 @@ const DECOR = {
         ctx.fillStyle = '#e8e0c8';
         ctx.fillRect(x - 3, y - 11, 4, 2);
         ctx.fillRect(x + 1, y - 10, 3, 1);
+    },
+    // R358: bigger flagship props for the other themed lairs so SHREDDER
+    // / CTRL_ALT_DEL / GATES / JOBS arenas read like distinct rooms too.
+    // Each is ~28-32 px wide / 36-44 px tall — comparable to giantPrinterHusk.
+    bigFileCabinet(ctx, x, y) {
+        // 4-drawer steel cabinet, drawer half open, paper spilling out
+        ctx.fillStyle = '#403838';
+        ctx.fillRect(x - 12, y - 44, 24, 44);
+        ctx.fillStyle = '#1a1818';
+        ctx.fillRect(x - 12, y - 44, 24, 1);
+        ctx.fillRect(x - 12, y, 24, 1);
+        // Drawers
+        for (let i = 0; i < 4; i++) {
+            const dy = y - 42 + i * 10;
+            ctx.fillStyle = '#5a5050';
+            ctx.fillRect(x - 11, dy, 22, 8);
+            ctx.fillStyle = '#202020';
+            ctx.fillRect(x - 11, dy, 22, 1);
+            // Handle
+            ctx.fillStyle = '#8a7860';
+            ctx.fillRect(x - 2, dy + 3, 4, 1);
+        }
+        // Top drawer hanging open (offset down + paper spilling)
+        ctx.fillStyle = '#5a5050';
+        ctx.fillRect(x - 11 - 2, y - 32 - 2, 14, 8);
+        ctx.fillStyle = '#1a1818';
+        ctx.fillRect(x - 11 - 2, y - 32 - 2, 14, 1);
+        // Paper spilling out
+        ctx.fillStyle = '#e0d8c0';
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(x - 16 + i, y - 26 + i, 6, 2);
+        }
+    },
+    smashedServerTower(ctx, x, y) {
+        // 30x44 server tower, dented, broken display, sparks
+        ctx.fillStyle = '#0a0a14';
+        ctx.fillRect(x - 15, y - 44, 30, 44);
+        ctx.fillStyle = '#181828';
+        ctx.fillRect(x - 15, y - 44, 30, 1);
+        ctx.fillRect(x - 15, y, 30, 1);
+        // Drives in vertical column
+        for (let i = 0; i < 5; i++) {
+            const dy = y - 40 + i * 7;
+            ctx.fillStyle = '#1a1a2a';
+            ctx.fillRect(x - 13, dy, 26, 5);
+            // Drive bezel
+            ctx.fillStyle = '#2a2a3a';
+            ctx.fillRect(x - 12, dy + 1, 24, 1);
+            // Status LEDs
+            ctx.fillStyle = (i % 2) ? '#50f070' : '#ff3040';
+            ctx.fillRect(x + 9, dy + 2, 1, 1);
+            ctx.fillRect(x + 11, dy + 2, 1, 1);
+        }
+        // Dent on left side
+        ctx.fillStyle = '#000005';
+        ctx.fillRect(x - 15, y - 30, 4, 8);
+        // Smoke wisp rising
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#3a3a48';
+        ctx.fillRect(x - 2, y - 48, 4, 4);
+        ctx.fillRect(x - 4, y - 52, 8, 3);
+        ctx.restore();
+    },
+    brokenPodium(ctx, x, y) {
+        // Smashed keynote presentation podium — wood + mic + cracked screen
+        ctx.fillStyle = '#3a2818';
+        ctx.fillRect(x - 12, y - 18, 24, 18);
+        ctx.fillStyle = '#1a1008';
+        ctx.fillRect(x - 12, y - 18, 24, 1);
+        // Marble veining
+        ctx.fillStyle = '#5a4028';
+        ctx.fillRect(x - 10, y - 14, 2, 12);
+        ctx.fillRect(x + 6, y - 12, 1, 10);
+        // Cracked screen on top
+        ctx.fillStyle = '#101018';
+        ctx.fillRect(x - 8, y - 28, 16, 10);
+        ctx.fillStyle = '#2a1018';
+        ctx.fillRect(x - 8, y - 28, 16, 1);
+        // Cracks
+        ctx.fillStyle = '#080010';
+        ctx.fillRect(x - 4, y - 26, 1, 6);
+        ctx.fillRect(x, y - 25, 1, 4);
+        ctx.fillRect(x + 3, y - 24, 1, 3);
+        // Toppled mic
+        ctx.fillStyle = '#202028';
+        ctx.fillRect(x + 10, y - 22, 8, 1);
+        ctx.fillStyle = '#404048';
+        ctx.fillRect(x + 16, y - 24, 3, 3);
+    },
+    crackedIMac(ctx, x, y) {
+        // Hanging cube iMac with massive crack across the screen
+        ctx.fillStyle = '#1a1a22';
+        ctx.fillRect(x - 1, y - 40, 2, 14);
+        // Frame
+        ctx.fillStyle = '#a0a0b8';
+        ctx.fillRect(x - 12, y - 28, 24, 24);
+        ctx.fillStyle = '#606078';
+        ctx.fillRect(x - 12, y - 28, 24, 1);
+        // Screen
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = '#80c0ff';
+        ctx.fillRect(x - 10, y - 26, 20, 20);
+        ctx.restore();
+        // Massive crack: lightning-bolt jag across the screen
+        ctx.fillStyle = '#101018';
+        ctx.fillRect(x - 8, y - 26, 2, 4);
+        ctx.fillRect(x - 6, y - 22, 1, 3);
+        ctx.fillRect(x - 5, y - 19, 1, 3);
+        ctx.fillRect(x - 4, y - 16, 1, 3);
+        ctx.fillRect(x - 3, y - 13, 1, 3);
+        ctx.fillRect(x - 2, y - 10, 1, 4);
+        // Smaller branching cracks
+        ctx.fillRect(x - 4, y - 16, 4, 1);
+        ctx.fillRect(x + 2, y - 21, 4, 1);
+        // Apple-logo glow remnant
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 4, y - 24, 2, 2);
+    },
+    wreckedTurntable(ctx, x, y) {
+        // Boss-rush trophy: smashed DJ turntable / mixer with broken vinyl
+        ctx.fillStyle = '#202028';
+        ctx.fillRect(x - 14, y - 8, 28, 8);
+        ctx.fillStyle = '#404048';
+        ctx.fillRect(x - 14, y - 8, 28, 1);
+        // Two turntables (left + right)
+        for (const cx of [x - 8, x + 8]) {
+            ctx.fillStyle = '#101010';
+            ctx.fillRect(cx - 5, y - 14, 10, 10);
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(cx - 4, y - 13, 8, 8);
+            // Vinyl ring
+            ctx.fillStyle = '#181818';
+            ctx.fillRect(cx - 3, y - 12, 6, 6);
+            // Broken — diagonal crack
+            ctx.fillStyle = '#7a3030';
+            ctx.fillRect(cx - 2, y - 10, 4, 1);
+        }
+        // Cracked LCD between them
+        ctx.fillStyle = '#0a0a18';
+        ctx.fillRect(x - 4, y - 12, 8, 4);
+        ctx.fillStyle = '#7a3030';
+        ctx.fillRect(x - 3, y - 11, 1, 2);
+        ctx.fillRect(x + 1, y - 10, 2, 1);
     },
 };
 
