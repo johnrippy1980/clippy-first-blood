@@ -500,6 +500,9 @@ export class Player {
         } else if (this.state === STATE.COVER) {
             this.vx = 0; this.vy = 0;
             this.iFrames = Math.max(this.iFrames, 2);
+            // R344: tick the cover-entry timer so the player sprite can
+            // fade out as Clippy "steps inside" the door/cave.
+            this._coverT = (this._coverT || 0) + 1;
             // Pounce from cover — special button launches the stealth attack.
             if (input.isPressed('special') && this._pounceTarget) {
                 this._startPounce(this._pounceTarget);
@@ -511,6 +514,7 @@ export class Player {
             if (!input.isHeld('up') || !this._coverAvailable(level) || this.coverHp <= 0) {
                 this.state = STATE.IDLE;
                 this.onCover = false;
+                this._coverT = 0;
                 if (this.coverHp <= 0) {
                     // Cover broke — knock the player out with a small kick so
                     // they have to reposition instead of standing in place.
@@ -779,6 +783,8 @@ export class Player {
         if (level && lookY < 0 && this.onGround && this._coverAvailable(level)) {
             this.state = STATE.COVER;
             this.onCover = true;
+            // R344: track frames-in-cover for the enter/exit fade.
+            this._coverT = 0;
             audio.sfx('select');
             return;
         }
@@ -2612,7 +2618,21 @@ export class Player {
                 drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
                 ctx.restore();
             } else {
-                drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+                // R344: when hiding in cover, fade Clippy out as he 'steps
+                // inside' the door/cave. After 15 frames he's at 25% alpha
+                // so the player can still see his position without him
+                // visually standing in front of the cover prop.
+                if (this.state === STATE.COVER) {
+                    const ct = this._coverT || 0;
+                    const fadeT = Math.min(15, ct);
+                    const alpha = 1 - (fadeT / 15) * 0.75;
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+                    ctx.restore();
+                } else {
+                    drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
+                }
             }
 
             // R199: procedural leg overlay removed. User feedback:
