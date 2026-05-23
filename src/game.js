@@ -309,8 +309,14 @@ export class Game {
             case SCENE.STAGE_INTRO:  this._tickStageIntro(); break;
             case SCENE.READY:        this._tickReady(); break;
             case SCENE.PLAY:         this._tickPlay(); break;
-            case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.update(); break;
-            case SCENE.BEAT_PLAY:    if (this._beatEmUp) this._beatEmUp.update(); break;
+            case SCENE.FPS_PLAY:
+                if (input.isPressed('pause')) { this._enterPauseFrom(SCENE.FPS_PLAY); break; }
+                if (this._fpsArena) this._fpsArena.update();
+                break;
+            case SCENE.BEAT_PLAY:
+                if (input.isPressed('pause')) { this._enterPauseFrom(SCENE.BEAT_PLAY); break; }
+                if (this._beatEmUp) this._beatEmUp.update();
+                break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
@@ -414,7 +420,17 @@ export class Game {
             case SCENE.PLAY:         this._drawPlay(); break;
             case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.draw(); break;
             case SCENE.BEAT_PLAY:    if (this._beatEmUp) this._beatEmUp.draw(); break;
-            case SCENE.PAUSE:        this._drawPlay(); this._drawPauseOverlay(); break;
+            case SCENE.PAUSE: {
+                // R351: pause overlay must paint over whichever play scene we
+                // came from (platformer / FPS / beat-em-up). Falls back to
+                // PLAY for the legacy code path.
+                const from = this._pauseReturnScene || SCENE.PLAY;
+                if (from === SCENE.FPS_PLAY && this._fpsArena) this._fpsArena.draw();
+                else if (from === SCENE.BEAT_PLAY && this._beatEmUp) this._beatEmUp.draw();
+                else this._drawPlay();
+                this._drawPauseOverlay();
+                break;
+            }
             // R211: sub-menus opened from MAIN_MENU need the title bg
             // (via _drawMainMenu) underneath, not _drawPlay — the latter
             // renders a black void since player/level are null.
@@ -1420,11 +1436,20 @@ export class Game {
     // Pause is a hard return — drop the rest of the tick if pressed.
     _tickPlayHandlePause() {
         if (!input.isPressed('pause')) return false;
+        this._enterPauseFrom(SCENE.PLAY);
+        return true;
+    }
+
+    // R351: shared pause-entry — used by platformer PLAY, FPS_PLAY, and
+    // BEAT_PLAY so every gameplay scene can pause uniformly. The return
+    // scene is captured so the draw side renders the right backdrop and
+    // RESUME knows where to send the player.
+    _enterPauseFrom(fromScene) {
         audio.sfx('pause');
         this.pauseIndex = 0;
         this._pauseAnim = 0;
+        this._pauseReturnScene = fromScene;
         this.scene = SCENE.PAUSE;
-        return true;
     }
 
     // Slow-mo: tick the countdown and decide whether to skip world tick.
@@ -2413,7 +2438,9 @@ export class Game {
             audio.sfx('menu');
             const sel = PAUSE_OPTIONS[this.pauseIndex];
             if (sel === 'RESUME') {
-                this.scene = SCENE.PLAY;
+                // R351: return to whichever play scene we paused from
+                // (PLAY / FPS_PLAY / BEAT_PLAY), not blindly to PLAY.
+                this.scene = this._pauseReturnScene || SCENE.PLAY;
                 // Music may be paused after a tab-switch auto-pause; the
                 // playTrack call is idempotent (returns early if already
                 // on this track + playing), so it's safe to always call.
