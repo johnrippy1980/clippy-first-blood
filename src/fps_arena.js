@@ -426,6 +426,11 @@ export class FpsArena {
                 this.clearT = 0;
                 audio.stopTrack();
             }
+        } else if (this.phase === 'mechaEject') {
+            // R308: Mecha-Gates phase-1 → phase-2 cinematic. Player can
+            // still strafe + shoot (handled above), but no boss ticks
+            // happen during the eject sequence.
+            this._tickMechaEject();
         }
         this._tickParticles();
     }
@@ -554,12 +559,22 @@ export class FpsArena {
                         c.hitFlash = 4;
                         this.bullets.splice(i, 1);
                         if (c.hp <= 0) {
-                            c.alive = false;
-                            this.player.score += 9500;
-                            audio.sfx('bossDie');
-                            this._explosion(c.x, c.y, '#ff60a0');
-                            this.phase = 'clear';
-                            this.clearT = 0;
+                            // R308: Mecha-Gates has a phase 2 — pilot ejects
+                            // from the destroyed mech and the fight continues
+                            // against Gates-on-foot with reduced HP + faster
+                            // attacks. All other bosses end the fight here.
+                            const isMechaP1 = (this.data.bossKind === 'MECHA_GATES' && !c.isPhase2);
+                            if (isMechaP1) {
+                                this._mechaEject();
+                                audio.sfx('bossHit');
+                            } else {
+                                c.alive = false;
+                                this.player.score += 9500;
+                                audio.sfx('bossDie');
+                                this._explosion(c.x, c.y, '#ff60a0');
+                                this.phase = 'clear';
+                                this.clearT = 0;
+                            }
                         } else {
                             audio.sfx('bossHit');
                         }
@@ -729,7 +744,9 @@ export class FpsArena {
         if (!c || !c.alive) return;
         if (c.hitFlash > 0) c.hitFlash--;
         c.fireT++;
-        if (c.fireT >= CORE_FIRE_PERIOD) {
+        // R308: phase-2 Mecha-Gates fires faster via fireCdMul shrinkage
+        const firePeriod = CORE_FIRE_PERIOD * (c.fireCdMul || 1);
+        if (c.fireT >= firePeriod) {
             c.fireT = 0;
             // R271: per-stage attack pattern. Default = 5-way spread fan
             // (Spindler's bio-core). Ballmer = chair-throw arcs.
@@ -797,6 +814,73 @@ export class FpsArena {
         }
     }
 
+    // R308: Mecha-Gates phase-2 transition. The mech's "core" hits 0 hp,
+    // it staggers + explodes, the pilot ejects skyward, and a smaller +
+    // faster on-foot boss appears. Phase-2 inherits the same core slot
+    // (so existing hit-detection still works) but with new stats.
+    _mechaEject() {
+        const c = this.core;
+        // Phase 1 freeze — drop into the eject cinematic. Mechanics resume
+        // when phase === 'play' is restored at the end of the cinematic.
+        this.phase = 'mechaEject';
+        this.mechaEjectT = 0;
+        this.mechaEjectX = c.x;
+        this.mechaEjectY = c.y;
+        // Big multi-burst explosion sequence over ~90 frames driven from
+        // _tickMechaEject below.
+        audio.sfx('bossDie');
+        this._explosion(c.x, c.y, '#ff60a0');
+        this._explosion(c.x - 10, c.y + 4, '#ffa040');
+        this._explosion(c.x + 10, c.y - 4, '#ffa040');
+        // Mark the existing core slot as dead during the cinematic so
+        // bullets pass through. The phase-2 boss will replace it.
+        c.alive = false;
+    }
+
+    _spawnMechaPhase2() {
+        // Smaller, faster Gates-on-foot. Reuse the core slot so the
+        // existing hit-detection block above continues to work; flag it
+        // with isPhase2 so a second 0-hp event ends the fight.
+        this.core = {
+            x: GAME.W / 2,
+            y: BACK_WALL_Y + 22,
+            w: 18, h: 22,
+            hp: Math.max(8, Math.floor(CORE_HP * 0.45)),
+            maxHp: Math.max(8, Math.floor(CORE_HP * 0.45)),
+            alive: true,
+            fireT: 0, hitFlash: 0,
+            isPhase2: true,
+            // Phase-2 attack cadence — roughly half the cooldown, double
+            // the danger.
+            fireCdMul: 0.5,
+        };
+        // No new shields in phase 2 — the eject cinematic stripped them.
+        this.shields = [];
+        this.phase = 'boss';
+    }
+
+    _tickMechaEject() {
+        const t = ++this.mechaEjectT;
+        // Stuttered detonations across the first 60 frames
+        if (t === 18 || t === 36 || t === 52) {
+            this._explosion(
+                this.mechaEjectX + (Math.random() - 0.5) * 18,
+                this.mechaEjectY + (Math.random() - 0.5) * 10,
+                t === 52 ? '#ffe070' : '#ff8040'
+            );
+            audio.sfx('bossHit');
+        }
+        // Final big burst + spawn phase 2
+        if (t === 90) {
+            this._explosion(this.mechaEjectX, this.mechaEjectY - 6, '#ffe070');
+            this._explosion(this.mechaEjectX, this.mechaEjectY - 6, '#ff60a0');
+            audio.sfx('bossDie');
+        }
+        if (t >= 120) {
+            this._spawnMechaPhase2();
+        }
+    }
+
     _tickParticles() {
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
@@ -835,6 +919,15 @@ export class FpsArena {
         this._drawTurrets();
         this._drawGrunts();
         this._drawBoss();
+        // R308: Mecha-Gates eject cinematic — drawn over the dead phase-1
+        // boss position. Shows the ejecting pilot rising into the sky on a
+        // chute. Only renders during this.phase === 'mechaEject'.
+        if (this.phase === 'mechaEject') this._drawMechaEject(ctx);
+        // R308: phase-2 banner — first ~120 frames after the eject, show
+        // "PHASE 2" in red over the new boss.
+        if (this.core && this.core.isPhase2 && this.core.hp === this.core.maxHp && (this.t % 30) < 18) {
+            drawText(ctx, 'PHASE 2', GAME.W / 2, BACK_WALL_Y + 50, '#ff60a0', 1, 'center');
+        }
         // Player bullets
         for (const b of this.bullets) {
             ctx.fillStyle = '#ffe070';
@@ -1168,6 +1261,54 @@ export class FpsArena {
                 ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#a8c060';
                 ctx.fillRect(gx, gy, gw, gh);
             }
+        }
+    }
+
+    // R308: Mecha-Gates ejection cinematic.
+    _drawMechaEject(ctx) {
+        const t = this.mechaEjectT;
+        const ex = this.mechaEjectX;
+        const ey = this.mechaEjectY;
+        // 0-40: smoke billowing out of the dead mech position
+        if (t < 60) {
+            const smokeA = Math.min(0.6, t / 40 * 0.6);
+            ctx.save();
+            ctx.globalAlpha = smokeA;
+            ctx.fillStyle = '#404048';
+            for (let i = 0; i < 5; i++) {
+                const sx = ex + Math.sin(t * 0.1 + i) * 8;
+                const sy = ey - (t * 0.3 + i * 4);
+                ctx.fillRect(sx | 0, sy | 0, 6, 5);
+            }
+            ctx.restore();
+        }
+        // 30-120: ejecting pilot rises. Tiny silhouette + parachute appears
+        // around frame 50.
+        if (t >= 30) {
+            const riseT = Math.min(1, (t - 30) / 90);
+            const px = ex;
+            const py = ey - riseT * 80;
+            // Pilot dot
+            ctx.save();
+            ctx.fillStyle = '#202028';
+            ctx.fillRect((px - 1) | 0, (py - 1) | 0, 3, 4);
+            // Chute deploys around riseT=0.25
+            if (riseT > 0.2) {
+                const chuteR = Math.min(7, (riseT - 0.2) * 24);
+                ctx.fillStyle = '#c04040';
+                ctx.fillRect((px - chuteR) | 0, (py - 4) | 0, chuteR * 2, 2);
+                ctx.fillStyle = '#802020';
+                ctx.fillRect((px - chuteR + 1) | 0, (py - 5) | 0, chuteR * 2 - 2, 1);
+                // Strings
+                ctx.fillStyle = '#202028';
+                ctx.fillRect((px - chuteR + 1) | 0, (py - 2) | 0, 1, 2);
+                ctx.fillRect((px + chuteR - 2) | 0, (py - 2) | 0, 1, 2);
+            }
+            ctx.restore();
+        }
+        // 60-120: "EJECT!" text flashes
+        if (t > 60 && (t % 12) < 8) {
+            drawText(ctx, 'EJECT!', GAME.W / 2, BACK_WALL_Y + 20, '#ff8040', 1, 'center');
         }
     }
 
