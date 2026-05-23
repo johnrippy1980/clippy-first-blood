@@ -137,6 +137,29 @@ export class FpsArena {
         this.ambientKey = stageData.ambientKey || null;
         this.ambientT = 0;
         this._refreshBg();
+        // R307: atmospheric particle pool — drifting embers/sparks across
+        // the corridor. Per-stage color matches the theme of the level.
+        const themeEmber = {
+            'bg_sewer_lab':       { color: '#80c060', count: 8,  rise: 0.4 },
+            'bg_sewer':           { color: '#80c060', count: 6,  rise: 0.4 },
+            'bg_office':          { color: '#ffc060', count: 4,  rise: 0.1 },
+            'bg_keynote_corridor':{ color: '#a070ff', count: 4,  rise: 0.05 },
+            'bg_apocalypse':      { color: '#ff5020', count: 14, rise: 0.5 },
+        };
+        this._emberSpec = themeEmber[stageData.bgKey] || { color: '#ffaa50', count: 4, rise: 0.2 };
+        this._ambientEmbers = [];
+        for (let i = 0; i < this._emberSpec.count; i++) {
+            this._ambientEmbers.push({
+                x: Math.random() * GAME.W,
+                y: GAME.H * 0.4 + Math.random() * GAME.H * 0.5,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: -this._emberSpec.rise * (0.5 + Math.random()),
+                phase: Math.random() * Math.PI * 2,
+            });
+        }
+        // R307: lightning trigger for apocalypse-themed FPS stages.
+        this._lightningT = 0;
+        this._lightningCooldown = 180 + (Math.random() * 360) | 0;
 
         // R280: boot the configured starting segment (default 0). The
         // Ballmer arena overrides to 3 so the player drops straight into
@@ -226,6 +249,63 @@ export class FpsArena {
         this.bgImg = sprites.images.get(key) || sprites.images.get(this.data.bgKey) || null;
     }
 
+    // R307: drift ambient embers — they rise toward the vanishing point with
+    // wind gusts. Cheap, decorative; no collision.
+    _tickAmbientEmbers() {
+        if (!this._ambientEmbers) return;
+        for (const e of this._ambientEmbers) {
+            const gust = 1 + Math.sin((this.t + e.phase * 40) * 0.02) * 0.6;
+            e.x += e.vx * gust;
+            e.y += e.vy;
+            if (e.y < 60) {
+                e.y = GAME.H + 4;
+                e.x = Math.random() * GAME.W;
+                e.vx = (Math.random() - 0.5) * 0.3;
+                e.vy = -this._emberSpec.rise * (0.5 + Math.random());
+            }
+            if (e.x < -4) e.x = GAME.W + 4;
+            if (e.x > GAME.W + 4) e.x = -4;
+        }
+    }
+
+    _drawAmbientEmbers(ctx) {
+        if (!this._ambientEmbers) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = this._emberSpec.color;
+        for (const e of this._ambientEmbers) {
+            const flicker = 0.6 + 0.4 * Math.sin((this.t + e.phase * 50) * 0.18);
+            ctx.globalAlpha = 0.55 * flicker;
+            ctx.fillRect(e.x | 0, e.y | 0, 1, 1);
+        }
+        ctx.restore();
+    }
+
+    _tickLightning() {
+        // Only enabled for apocalypse-themed stages
+        const isApocalypse = this.data.bgKey === 'bg_apocalypse';
+        if (!isApocalypse) return;
+        this._lightningCooldown--;
+        if (this._lightningCooldown <= 0) {
+            this._lightningT = 16;
+            this._lightningCooldown = 240 + (Math.random() * 360) | 0;
+        }
+        if (this._lightningT > 0) this._lightningT--;
+    }
+
+    _drawLightning(ctx) {
+        if (this._lightningT <= 0) return;
+        let a;
+        if (this._lightningT > 12) a = (16 - this._lightningT) / 4;
+        else a = this._lightningT / 12;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = 'rgba(255, 180, 120, 0.45)';
+        ctx.globalAlpha = Math.max(0, Math.min(1, a));
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        ctx.restore();
+    }
+
     _segmentClear() {
         if (this.segment >= 3) return false;
         // Segment 0: all turrets dead
@@ -240,6 +320,10 @@ export class FpsArena {
     // ============== tick ==============
     update() {
         this.t++;
+        // R307: ambient embers + lightning. Always tick — visual depth on
+        // every frame regardless of phase.
+        this._tickAmbientEmbers();
+        this._tickLightning();
         // R273: ambient SFX looper (office fluorescent hum, etc.) — fires
         // the configured ambient key every ~1.2s so the buzz feels continuous.
         if (this.ambientKey) {
@@ -724,6 +808,8 @@ export class FpsArena {
         // point in the center-upper area. Sells the "into-the-screen" framing
         // even if the bg image is flat.
         this._drawCorridor();
+        // R307: drifting ambient embers/sparks behind the action.
+        this._drawAmbientEmbers(ctx);
         // Segment indicator (top-center)
         this._drawSegmentTag();
         // Sensors/turrets/grunts/barriers (in depth-sorted order — far first)
@@ -856,6 +942,8 @@ export class FpsArena {
                 ctx.globalAlpha = 1;
             }
         }
+        // R307: lightning flash before HUD so HUD stays legible.
+        this._drawLightning(ctx);
         // HUD
         this._drawHUD();
         // Stage-clear overlay

@@ -85,8 +85,101 @@ export class BeatEmUp {
         this.bgImg = sprites.images.get(stageData.bgKey) || null;
         this.spriteKeys = stageData.spriteKeys || {};
 
+        // R307: atmospheric layers — fire embers blowing in the wind,
+        // distant window lights flickering, and lightning flashes for the
+        // post-apocalypse mood. All decorative, no gameplay impact.
+        this._ambientEmbers = [];
+        for (let i = 0; i < 18; i++) {
+            this._ambientEmbers.push({
+                x: Math.random() * GAME.W,
+                y: STREET_TOP + Math.random() * (STREET_BOTTOM - STREET_TOP) * 0.8,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: -0.4 - Math.random() * 0.6,
+                phase: Math.random() * Math.PI * 2,
+                hue: Math.random() < 0.6 ? '#ff7030' : '#ffb050',
+            });
+        }
+        this._windowLights = [];
+        for (let i = 0; i < 14; i++) {
+            this._windowLights.push({
+                x: Math.random() * GAME.W,
+                y: 28 + Math.random() * (STREET_TOP - 36),
+                w: 1 + (Math.random() < 0.4 ? 1 : 0),
+                h: 1 + (Math.random() < 0.4 ? 1 : 0),
+                phase: Math.random() * Math.PI * 2,
+                rate: 0.04 + Math.random() * 0.08,
+                duty: 0.45 + Math.random() * 0.3,
+            });
+        }
+        this._lightningT = 0;
+        this._lightningCooldown = 240 + (Math.random() * 360) | 0;
+
         // Boot first wave
         this._spawnWave(0);
+    }
+
+    // R307 — ambient layer helpers
+    _tickAmbience() {
+        for (const e of this._ambientEmbers) {
+            const gust = 1 + Math.sin((this.t + e.phase * 40) * 0.025) * 0.7;
+            e.x += e.vx * gust;
+            e.y += e.vy;
+            if (e.y < 16) {
+                e.y = STREET_BOTTOM + 4;
+                e.x = Math.random() * GAME.W;
+                e.vx = (Math.random() - 0.5) * 0.4;
+                e.vy = -0.4 - Math.random() * 0.6;
+            }
+            if (e.x < -4) e.x = GAME.W + 4;
+            if (e.x > GAME.W + 4) e.x = -4;
+        }
+        for (const w of this._windowLights) {
+            w.phase += w.rate;
+        }
+        this._lightningCooldown--;
+        if (this._lightningCooldown <= 0) {
+            this._lightningT = 18;
+            this._lightningCooldown = 280 + (Math.random() * 400) | 0;
+        }
+        if (this._lightningT > 0) this._lightningT--;
+    }
+
+    _drawWindowLights(ctx) {
+        ctx.save();
+        for (const w of this._windowLights) {
+            const lit = (Math.sin(w.phase) * 0.5 + 0.5) > (1 - w.duty);
+            if (!lit) continue;
+            const flick = 0.7 + 0.3 * Math.sin(w.phase * 5.7);
+            ctx.globalAlpha = 0.55 * flick;
+            ctx.fillStyle = '#ffd060';
+            ctx.fillRect(w.x | 0, w.y | 0, w.w, w.h);
+        }
+        ctx.restore();
+    }
+
+    _drawAmbientEmbers(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const e of this._ambientEmbers) {
+            const flicker = 0.6 + 0.4 * Math.sin((this.t + e.phase * 50) * 0.18);
+            ctx.globalAlpha = 0.6 * flicker;
+            ctx.fillStyle = e.hue;
+            ctx.fillRect(e.x | 0, e.y | 0, 1, 1);
+        }
+        ctx.restore();
+    }
+
+    _drawLightning(ctx) {
+        if (this._lightningT <= 0) return;
+        let a;
+        if (this._lightningT > 14) a = (18 - this._lightningT) / 4;
+        else a = this._lightningT / 14;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.max(0, Math.min(1, a)) * 0.5;
+        ctx.fillStyle = '#ffe0b0';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        ctx.restore();
     }
 
     // ==== wave spawning ====
@@ -137,6 +230,8 @@ export class BeatEmUp {
     // ==== update ====
     update() {
         this.t++;
+        // R307: ambient particles/lights tick every frame regardless of phase
+        this._tickAmbience();
         if (this.phase === 'clear') {
             this.clearT++;
             const autoNext = this.data.nextStage;
@@ -411,6 +506,9 @@ export class BeatEmUp {
         const flick = 0.05 + (this._flickerSeed || 0.5) * 0.05;
         ctx.fillStyle = `rgba(255, 90, 30, ${flick})`;
         ctx.fillRect(0, 0, GAME.W, STREET_TOP);
+        // R307: discrete window-light points + drifting embers behind the action.
+        this._drawWindowLights(ctx);
+        this._drawAmbientEmbers(ctx);
         // Floor line — subtle separator between street and far area
         ctx.fillStyle = 'rgba(20, 8, 12, 0.55)';
         ctx.fillRect(0, STREET_TOP - 1, GAME.W, 2);
@@ -445,6 +543,8 @@ export class BeatEmUp {
             ctx.fillRect(p.x, p.y, 2, 2);
         }
         ctx.globalAlpha = 1;
+        // R307: lightning flash overlay (above scene, below HUD)
+        this._drawLightning(ctx);
         // HUD
         this._drawHUD();
         // Stage-clear overlay

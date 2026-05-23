@@ -41,6 +41,18 @@ export class Parallax {
         // animate the painted bgs (dust, steam, embers, data sparks…).
         this.motes = [];
         this._spawnMotes();
+        // R307: extra atmospheric depth layers.
+        // - embers: bigger, glowing, drift on wind. Per-theme.
+        // - windowLights: pseudo-random window flicker pulses on building bgs.
+        // - lightning: full-screen pulse for stormy themes (Cloud, Mecha).
+        // - foregroundSilhouettes: dark close-camera layer (leaves/vines/banners)
+        //   drawn AFTER the player to sell foreground depth.
+        this.embers = [];
+        this.windowLights = [];
+        this._lightningT = 0;
+        this._lightningCooldown = 0;
+        this._spawnEmbers();
+        this._spawnWindowLights();
     }
     setTheme(theme) {
         this.theme = theme;
@@ -52,6 +64,11 @@ export class Parallax {
         // R227: clear any per-stage bg override on theme change.
         this.bgKeyOverride = null;
         this._spawnMotes();
+        // R307: respawn embers + window lights per theme.
+        this._spawnEmbers();
+        this._spawnWindowLights();
+        this._lightningT = 0;
+        this._lightningCooldown = 240 + Math.random() * 480;
     }
     // R227: Stage 4 swaps painted bgs mid-stage (sewer → lab). Setting
     // bgKeyOverride wins over the theme lookup until cleared. Set to null
@@ -117,6 +134,283 @@ export class Parallax {
         }
         ctx.restore();
     }
+
+    // R307: GLOWING EMBERS — bigger than motes, drift with wind, additive
+    // blend. Per-theme count + color. Most active in fire/storm themes.
+    _emberSpec() {
+        switch (this.theme) {
+            case THEME.JUNGLE:
+                return { count: 6, color: '#ff8030', wind: 0.10, rise: 0.25, size: 2, alpha: 0.55 };
+            case THEME.BREAKROOM:
+                return { count: 4, color: '#ffa050', wind: 0.05, rise: 0.30, size: 1, alpha: 0.40 };
+            case THEME.SERVERROOM:
+                return null;     // no embers — too cold
+            case THEME.BOARDROOM:
+                return { count: 5, color: '#ffc060', wind: 0.04, rise: 0.10, size: 1, alpha: 0.35 };
+            case THEME.KEYNOTE:
+                return { count: 3, color: '#a070ff', wind: 0.03, rise: 0.05, size: 1, alpha: 0.30 };  // stage smoke
+            case THEME.FOUNDER:
+                return { count: 12, color: '#ff5020', wind: 0.18, rise: 0.45, size: 2, alpha: 0.65 };  // angry fire
+            case THEME.CLOUD:
+                return { count: 8, color: '#80f0ff', wind: 0.30, rise: -0.05, size: 1, alpha: 0.50 }; // data sparks horizontal
+            case THEME.SEWER:
+                return { count: 3, color: '#80c060', wind: 0.02, rise: 0.20, size: 1, alpha: 0.32 };  // bioluminescent
+            case THEME.REALITY:
+                return { count: 10, color: '#c080ff', wind: 0.06, rise: -0.15, size: 1, alpha: 0.42 }; // reality particles
+            default:
+                return null;
+        }
+    }
+    _spawnEmbers() {
+        this.embers.length = 0;
+        const s = this._emberSpec();
+        if (!s) return;
+        for (let i = 0; i < s.count; i++) {
+            this.embers.push({
+                x: Math.random() * GAME.W,
+                y: GAME.H * 0.4 + Math.random() * GAME.H * 0.6,
+                vx: (Math.random() - 0.5) * s.wind * 2,
+                vy: -s.rise * (0.5 + Math.random()),
+                phase: Math.random() * Math.PI * 2,
+                life: 60 + (Math.random() * 240) | 0,
+            });
+        }
+    }
+    _updateEmbers() {
+        const s = this._emberSpec();
+        if (!s) return;
+        for (const e of this.embers) {
+            // Gust modulation — wind picks up in pulses
+            const gust = 1 + Math.sin((this.t + e.phase * 40) * 0.02) * 0.6;
+            e.x += e.vx * gust + Math.sin((this.t + e.phase * 30) * 0.06) * 0.3;
+            e.y += e.vy;
+            e.life--;
+            if (e.y < -4 || e.life <= 0) {
+                // Respawn at bottom
+                e.x = Math.random() * GAME.W;
+                e.y = GAME.H + 4;
+                e.vx = (Math.random() - 0.5) * s.wind * 2;
+                e.vy = -s.rise * (0.5 + Math.random());
+                e.life = 60 + (Math.random() * 240) | 0;
+            }
+            if (e.x < -4) e.x = GAME.W + 4;
+            if (e.x > GAME.W + 4) e.x = -4;
+        }
+    }
+    _drawEmbers(ctx) {
+        const s = this._emberSpec();
+        if (!s) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = s.color;
+        for (const e of this.embers) {
+            const flicker = 0.6 + 0.4 * Math.sin((this.t + e.phase * 50) * 0.18);
+            ctx.globalAlpha = s.alpha * flicker;
+            ctx.fillRect(e.x | 0, e.y | 0, s.size, s.size);
+            // Soft glow ring around larger embers
+            if (s.size >= 2) {
+                ctx.globalAlpha = s.alpha * flicker * 0.3;
+                ctx.fillRect((e.x | 0) - 1, e.y | 0, s.size + 2, s.size);
+                ctx.fillRect(e.x | 0, (e.y | 0) - 1, s.size, s.size + 2);
+            }
+        }
+        ctx.restore();
+    }
+
+    // R307: WINDOW LIGHTS — pseudo-random distant building windows that
+    // flicker on/off. Per-theme positions baked at spawn; flicker pattern
+    // driven by per-window phase + seeded blink intervals.
+    _windowLightSpec() {
+        switch (this.theme) {
+            case THEME.JUNGLE:
+                // Distant office park windows seen between trees
+                return { count: 8, color: '#ffd060', alpha: 0.4, sizeW: 2, sizeH: 2,
+                         yBand: [0.55, 0.75], blinkRate: 0.005 };
+            case THEME.BREAKROOM:
+                return null;  // indoor — no distant windows
+            case THEME.SERVERROOM:
+                return null;
+            case THEME.BOARDROOM:
+                // City lights through office window
+                return { count: 14, color: '#fff080', alpha: 0.42, sizeW: 1, sizeH: 1,
+                         yBand: [0.40, 0.62], blinkRate: 0.003 };
+            case THEME.KEYNOTE:
+                return null;
+            case THEME.FOUNDER:
+                return { count: 10, color: '#ff8030', alpha: 0.55, sizeW: 2, sizeH: 2,
+                         yBand: [0.30, 0.65], blinkRate: 0.012 };  // fire-lit windows
+            case THEME.CLOUD:
+                return null;
+            case THEME.SEWER:
+                return null;
+            case THEME.REALITY:
+                // Distant city lights through the keynote-hall windows
+                return { count: 18, color: '#ffe070', alpha: 0.42, sizeW: 1, sizeH: 1,
+                         yBand: [0.42, 0.70], blinkRate: 0.004 };
+            default:
+                return null;
+        }
+    }
+    _spawnWindowLights() {
+        this.windowLights.length = 0;
+        const s = this._windowLightSpec();
+        if (!s) return;
+        for (let i = 0; i < s.count; i++) {
+            const [y0, y1] = s.yBand;
+            this.windowLights.push({
+                x: Math.random() * GAME.W,
+                y: GAME.H * (y0 + Math.random() * (y1 - y0)),
+                phase: Math.random() * Math.PI * 2,
+                on: Math.random() > 0.3,
+                blinkAt: this.t + 100 + Math.random() * 600,
+            });
+        }
+    }
+    _updateWindowLights() {
+        const s = this._windowLightSpec();
+        if (!s) return;
+        for (const w of this.windowLights) {
+            if (this.t >= w.blinkAt) {
+                w.on = !w.on;
+                w.blinkAt = this.t + 30 + Math.random() / s.blinkRate;
+            }
+        }
+    }
+    _drawWindowLights(ctx) {
+        const s = this._windowLightSpec();
+        if (!s) return;
+        ctx.save();
+        ctx.fillStyle = s.color;
+        for (const w of this.windowLights) {
+            if (!w.on) continue;
+            const flick = 0.7 + 0.3 * Math.sin((this.t + w.phase * 60) * 0.4);
+            ctx.globalAlpha = s.alpha * flick;
+            ctx.fillRect(w.x | 0, w.y | 0, s.sizeW, s.sizeH);
+        }
+        ctx.restore();
+    }
+
+    // R307: LIGHTNING — full-screen white flash pulse for stormy themes.
+    // Fires every 4-12 seconds with a 2-3 frame strike + slower 12-frame fade.
+    _lightningSpec() {
+        if (this.theme === THEME.CLOUD || this.theme === THEME.REALITY) {
+            return { color: 'rgba(200, 220, 255, 0.55)', minGap: 240, maxGap: 720 };
+        }
+        // Mecha-Gates uses KEYNOTE theme but should ALSO flash for "burning city"
+        // — handled by bgKeyOverride hook.
+        if (this.bgKeyOverride === 'bg_apocalypse' || this.bgKeyOverride === 'bg_apocalypse_street') {
+            return { color: 'rgba(255, 180, 120, 0.45)', minGap: 180, maxGap: 480 };
+        }
+        return null;
+    }
+    _updateLightning() {
+        const s = this._lightningSpec();
+        if (!s) { this._lightningT = 0; return; }
+        this._lightningCooldown--;
+        if (this._lightningCooldown <= 0) {
+            this._lightningT = 16;   // ~16-frame strike+fade
+            this._lightningCooldown = s.minGap + Math.random() * (s.maxGap - s.minGap);
+        }
+        if (this._lightningT > 0) this._lightningT--;
+    }
+    _drawLightning(ctx) {
+        const s = this._lightningSpec();
+        if (!s || this._lightningT <= 0) return;
+        // Curve: bright 0-3, fade 3-16
+        let a;
+        if (this._lightningT > 12) a = (16 - this._lightningT) / 4;
+        else a = this._lightningT / 12;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = Math.max(0, Math.min(1, a));
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        ctx.restore();
+    }
+
+    // R307: FOREGROUND SILHOUETTES — close-to-camera dark band drawn AFTER
+    // player + enemies. Sells the "you're inside something" depth by
+    // suggesting closer-than-floor elements (overhanging vines, dangling
+    // banner edges, broken ceiling tiles, etc.). Pure decorative; doesn't
+    // collide with anything. Drawn at the bottom 18px (matches HUD band)
+    // so it doesn't occlude critical gameplay.
+    _drawForegroundSilhouettes(ctx, camera) {
+        const t = this.t;
+        const sway = Math.sin(t / 30) * 1.2;
+        ctx.save();
+        switch (this.theme) {
+            case THEME.JUNGLE: {
+                // Hanging vines from the top — drawn as thin dark strips
+                // with leaf clumps, swaying slowly. Parallax-scrolled
+                // 1.5x faster than the camera for foreground feel.
+                ctx.fillStyle = 'rgba(8, 16, 4, 0.85)';
+                const camOff = (camera?.viewX || 0) * 1.5;
+                for (let i = 0; i < 4; i++) {
+                    const baseX = ((i * 80 - camOff) % (GAME.W + 80)) | 0;
+                    const x = baseX + Math.sin(t * 0.05 + i) * 1.5;
+                    ctx.fillRect(x, 0, 2, 22 + (i & 1) * 6);
+                    ctx.fillRect(x - 2, 18 + (i & 1) * 4, 6, 4);
+                }
+                break;
+            }
+            case THEME.FOUNDER: {
+                // Cracked stone arch fragments at the top of the screen
+                ctx.fillStyle = 'rgba(16, 4, 6, 0.75)';
+                ctx.fillRect(0, 0, GAME.W, 6);
+                // Dripping stones
+                for (let i = 0; i < 5; i++) {
+                    const x = (i * 64 + Math.sin(t * 0.05 + i) * 1) | 0;
+                    ctx.fillRect(x, 6, 8, 4);
+                }
+                break;
+            }
+            case THEME.SERVERROOM: {
+                // Hanging ceiling cables left + right edges
+                ctx.fillStyle = 'rgba(4, 6, 12, 0.85)';
+                for (let i = 0; i < 3; i++) {
+                    ctx.fillRect(8 + i * 4, 0, 1, 14 + (i & 1) * 4);
+                    ctx.fillRect(GAME.W - 12 - i * 4, 0, 1, 14 + (i & 1) * 4);
+                }
+                break;
+            }
+            case THEME.KEYNOTE: {
+                // Hanging banner edges (only the FOLDED bottoms peek down)
+                ctx.fillStyle = 'rgba(20, 8, 30, 0.6)';
+                ctx.fillRect(0, 0, GAME.W, 4);
+                for (let i = 0; i < 4; i++) {
+                    const x = 24 + i * 56;
+                    ctx.fillRect(x, 4, 16, 5);
+                    ctx.fillRect(x + 3, 9, 10, 1);
+                }
+                break;
+            }
+            case THEME.BOARDROOM: {
+                // Drawn curtain edges at top corners
+                ctx.fillStyle = 'rgba(20, 8, 4, 0.7)';
+                ctx.fillRect(0, 0, 24 + sway, 14);
+                ctx.fillRect(GAME.W - 24 + sway, 0, 24, 14);
+                break;
+            }
+            case THEME.CLOUD: {
+                // Wispy front-cloud silhouettes
+                ctx.fillStyle = 'rgba(20, 30, 60, 0.40)';
+                for (let i = 0; i < 3; i++) {
+                    const x = ((i * 100 + t * 0.5) % (GAME.W + 100)) | 0;
+                    ctx.fillRect(x - 24, 4, 48, 6);
+                    ctx.fillRect(x - 18, 10, 36, 3);
+                }
+                break;
+            }
+            case THEME.REALITY: {
+                // Edge-of-stage spotlight glare (dim purple)
+                ctx.fillStyle = 'rgba(80, 40, 100, 0.18)';
+                ctx.fillRect(0, 0, 32, GAME.H);
+                ctx.fillRect(GAME.W - 32, 0, 32, GAME.H);
+                break;
+            }
+        }
+        ctx.restore();
+    }
     setOwlRoosts(roosts) { this.owlRoosts = roosts || []; }
     update(playerWorldX = null, playerWorldY = null) {
         this.t++;
@@ -125,6 +419,10 @@ export class Parallax {
         if (isDarkTheme) this._updateBats();
         if (isDarkTheme) this._updateOwls(playerWorldX, playerWorldY);
         this._updateMotes();
+        // R307: extra atmospheric layers — embers, window flicker, lightning.
+        this._updateEmbers();
+        this._updateWindowLights();
+        this._updateLightning();
     }
 
     _updateBats() {
@@ -285,7 +583,11 @@ export class Parallax {
                 ctx.fillRect(0, 0, GAME.W, GAME.H);
             }
             this._drawDepthHaze(ctx);
+            // R307: window-lights flicker BEHIND motes so they read as
+            // "distant building lights" not "in-air particles."
+            this._drawWindowLights(ctx);
             this._drawMotes(ctx);
+            this._drawEmbers(ctx);
             this._drawSignatureEffect(ctx);
             return;
         }
@@ -299,7 +601,9 @@ export class Parallax {
             case THEME.CLOUD:      this._cloudBack(ctx, camera); break;
         }
         this._drawDepthHaze(ctx);
+        this._drawWindowLights(ctx);
         this._drawMotes(ctx);
+        this._drawEmbers(ctx);
         this._drawSignatureEffect(ctx);
     }
 
@@ -555,6 +859,11 @@ export class Parallax {
         // Ambient layer — bats fly in front of trees, owl eyes glow at canopy
         this.drawOwlRoosts(ctx, camera);
         this.drawBats(ctx, camera);
+        // R307: foreground silhouettes (vines / banners / cables / curtains)
+        // and lightning flashes go LAST — over the painted bg + ambient
+        // layer so they read as the closest thing to the camera.
+        this._drawForegroundSilhouettes(ctx, camera);
+        this._drawLightning(ctx);
     }
 
     // Painted sky: top + bottom + 1px noise dither band to fake gradient depth.
