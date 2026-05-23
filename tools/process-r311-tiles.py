@@ -66,4 +66,11 @@ if __name__ == '__main__':
     process_platform('plat_founder_raw.png', 'plat_founder.png')
     process_platform('plat_keynote_raw.png', 'plat_keynote.png')
 
+    print('\n=== R320 — remaining platform strips ===')
+    process_platform('plat_breakroom_raw.png',  'plat_breakroom.png')
+    process_platform('plat_serverroom_raw.png', 'plat_serverroom.png')
+    process_platform('plat_boardroom_raw.png',  'plat_boardroom.png')
+    process_platform('plat_cloud_raw.png',      'plat_cloud.png')
+    process_platform('plat_reality_raw.png',    'plat_reality.png')
+
     print('Done.')

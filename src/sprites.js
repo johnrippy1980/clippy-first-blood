@@ -234,6 +234,12 @@ export const BG_MANIFEST = {
     'plat_sewer':        'plat_sewer.png',
     'plat_founder':      'plat_founder.png',
     'plat_keynote':      'plat_keynote.png',
+    // R320: remaining platform strips. Every theme now painted.
+    'plat_breakroom':    'plat_breakroom.png',
+    'plat_serverroom':   'plat_serverroom.png',
+    'plat_boardroom':    'plat_boardroom.png',
+    'plat_cloud':        'plat_cloud.png',
+    'plat_reality':      'plat_reality.png',
     // r108 universal tile sprites — painted via Local Howl, processed
     // through process-v2-sprites.py. Render branches in level.js prefer
     // these when loaded and fall back to the procedural fillRect path

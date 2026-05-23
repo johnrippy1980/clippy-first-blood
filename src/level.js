@@ -121,6 +121,13 @@ const PLATFORM_BITMAP_KEY = {
     [THEME.SEWER]:      'plat_sewer',
     [THEME.FOUNDER]:    'plat_founder',
     [THEME.KEYNOTE]:    'plat_keynote',
+    // R320: filled the rest of the themes. Procedural _drawPlatformAccent
+    // now only fires if a sprite fails to load (defensive fallback).
+    [THEME.BREAKROOM]:  'plat_breakroom',
+    [THEME.SERVERROOM]: 'plat_serverroom',
+    [THEME.BOARDROOM]:  'plat_boardroom',
+    [THEME.CLOUD]:      'plat_cloud',
+    [THEME.REALITY]:    'plat_reality',
 };
 
 const W = 1; const E = 0;
