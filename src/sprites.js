@@ -509,6 +509,12 @@ export const ENEMY_MANIFEST = {
     'cover_keynote':    'cover_keynote.png',
     'cover_founder':    'cover_founder.png',
     'cover_sewer':      'cover_sewer.png',
+    // R344: outdoor-stage covers are CAVES / ROCK ALCOVES (no doors).
+    // cover_jungle + cover_founder were re-painted as caves; cloud and
+    // apocalypse are new — for stages that didn't have COVER tiles
+    // placed before R344.
+    'cover_cloud':      'cover_cloud.png',
+    'cover_apocalypse': 'cover_apocalypse.png',
     // R317: painted pickup icons (gemini-pro). pickups.js draw() prefers
     // these when available + falls back to the R318 painted-crate render
     // (gradient body + letter glyph) when the icon for a type is missing.

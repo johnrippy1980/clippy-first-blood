@@ -2980,14 +2980,28 @@ export class Level {
                 // sprites are sized ~40 px tall to extend ~24 px above the
                 // 16-tile baseline. Falls through to the per-theme procedural
                 // render when no asset is registered for the theme.
-                const coverKey = {
-                    [THEME.JUNGLE]:     'cover_jungle',
-                    [THEME.BREAKROOM]:  'cover_breakroom',
-                    [THEME.SERVERROOM]: 'cover_serverroom',
-                    [THEME.KEYNOTE]:    'cover_keynote',
-                    [THEME.FOUNDER]:    'cover_founder',
-                    [THEME.SEWER]:      'cover_sewer',
-                }[theme];
+                // R344: outdoor themes (JUNGLE, FOUNDER, CLOUD, and the
+                // apocalypse-bg KEYNOTE stages 20/21) use CAVE sprites
+                // instead of indoor objects. Indoor themes keep their
+                // doors/podiums/server racks/etc.
+                // Apocalypse override: if stage data sets bgKeyOverride
+                // to 'bg_apocalypse', use cover_apocalypse regardless of
+                // theme (stage 21 helicopter chase is KEYNOTE-themed but
+                // visually apocalypse).
+                let coverKey;
+                if (this.data.bgKeyOverride === 'bg_apocalypse') {
+                    coverKey = 'cover_apocalypse';
+                } else {
+                    coverKey = {
+                        [THEME.JUNGLE]:     'cover_jungle',
+                        [THEME.BREAKROOM]:  'cover_breakroom',
+                        [THEME.SERVERROOM]: 'cover_serverroom',
+                        [THEME.KEYNOTE]:    'cover_keynote',
+                        [THEME.FOUNDER]:    'cover_founder',
+                        [THEME.SEWER]:      'cover_sewer',
+                        [THEME.CLOUD]:      'cover_cloud',
+                    }[theme];
+                }
                 if (coverKey && sprites.has(coverKey)) {
                     // Subtle rim glow so the prop reads against bg
                     ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
