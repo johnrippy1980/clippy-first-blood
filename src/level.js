@@ -2033,20 +2033,21 @@ export class Level {
         xs.push(rightEdge);
         for (const px of xs) {
             const t = this.tileAt(px, probeY);
-            // Platform landing: player must be CROSSING the platform top downward.
-            // Use the BOX's prior bottom (which is box.y + box.h, since dy hasn't
-            // been applied yet) compared against the platform's top edge.
-            // Allow a small overlap (4px) so platforms catch even when the player
-            // is falling fast — otherwise high vy can tunnel through.
             const tileTop = Math.floor(probeY / GAME.TILE) * GAME.TILE;
             const prevBottom = box.y + box.h;
             const isPlatformLanding = (t === TILE.PLATFORM) && sign > 0 && allowPlatform &&
                 (prevBottom <= tileTop + 4);
-            // Crumble tile lands like SOLID unless already broken
             const tx = Math.floor(px / GAME.TILE);
             const ty2 = Math.floor(probeY / GAME.TILE);
             const isCrumbleSolid = (t === TILE.BREAKABLE) && !this.isBrokenCrumble(tx, ty2);
-            if (t === TILE.SOLID || isPlatformLanding || isCrumbleSolid) {
+            // R296: breakable walls (BreakableWall entities, not tile-grid)
+            // were invisible to moveY. Pre-fix, vertical knockback could
+            // tunnel the player INTO a wall's footprint — they'd land on
+            // the tile floor BELOW the wall but be visually "stuck under"
+            // it because moveX still blocked horizontal escape. Now moveY
+            // honors the same wall-solid check moveX/isSolid use.
+            const isBreakableWall = !!(this._wallSolidCheck && this._wallSolidCheck(px, probeY));
+            if (t === TILE.SOLID || isPlatformLanding || isCrumbleSolid || isBreakableWall) {
                 const ty = Math.floor(probeY / GAME.TILE);
                 const tileEdge = sign > 0 ? ty * GAME.TILE : (ty + 1) * GAME.TILE;
                 return {
