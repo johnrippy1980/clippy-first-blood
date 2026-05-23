@@ -30,6 +30,9 @@ import { drawText } from './pixelfont.js';
 // know absolute world coords).
 export const BOSS_LAIRS = {
     // COPIER_3000 — Stage 1 Jungle (outdoor)
+    // R356: arena now reads as a dim overgrown clearing — deep green tint
+    // + vignette + a giant skeletal printer husk and a hanging shred banner
+    // so the player visually knows "you've entered the copier's lair".
     COPIER_3000: {
         kind: 'outdoor-element',
         gateStyle: 'vine',
@@ -37,12 +40,16 @@ export const BOSS_LAIRS = {
         gateColor: '#284018',
         gateAccent: '#608028',
         nameTag: "COPIER'S CLEARING",
+        arenaTint: '#0e2818',
+        tintAlpha: 0.32,
         decorations: [
-            // Scattered paper stacks
-            { kind: 'paperStack',   dx: 40,  dy: -8 },
-            { kind: 'paperStack',   dx: 200, dy: -6 },
-            // Broken printer husk silhouette in the back
-            { kind: 'brokenPrinter', dx: 120, dy: -16 },
+            { kind: 'giantPrinterHusk', dx: 130, dy: -8 },
+            { kind: 'paperBanner',      dx: 60,  dy: -64 },
+            { kind: 'paperBanner',      dx: 200, dy: -68 },
+            { kind: 'paperStack',       dx: 30,  dy: -6 },
+            { kind: 'paperStack',       dx: 220, dy: -8 },
+            { kind: 'tornBox',          dx: 90,  dy: -5 },
+            { kind: 'tornBox',          dx: 170, dy: -5 },
         ],
     },
     SHREDDER: {
@@ -52,11 +59,14 @@ export const BOSS_LAIRS = {
         gateColor: '#3a2820',
         gateAccent: '#806040',
         nameTag: 'STORAGE LOCKER',
+        arenaTint: '#1c1208',
+        tintAlpha: 0.30,
         decorations: [
             { kind: 'fileBoxes',    dx: 30,  dy: -4 },
             { kind: 'fileBoxes',    dx: 220, dy: -4 },
             { kind: 'shreddedHang', dx: 80,  dy: -50 },
             { kind: 'shreddedHang', dx: 180, dy: -45 },
+            { kind: 'tornBox',      dx: 130, dy: -5 },
         ],
     },
     CTRL_ALT_DEL: {
@@ -66,10 +76,13 @@ export const BOSS_LAIRS = {
         gateColor: '#1a1a28',
         gateAccent: '#4080c0',
         nameTag: 'MAINFRAME CORE',
+        arenaTint: '#0a1228',
+        tintAlpha: 0.34,
         decorations: [
-            { kind: 'serverRack', dx: 30,  dy: -2 },
-            { kind: 'serverRack', dx: 220, dy: -2 },
-            { kind: 'cableTangle', dx: 100, dy: -56 },
+            { kind: 'serverRack',   dx: 30,  dy: -2 },
+            { kind: 'serverRack',   dx: 220, dy: -2 },
+            { kind: 'cableTangle',  dx: 100, dy: -56 },
+            { kind: 'cableTangle',  dx: 160, dy: -56 },
         ],
     },
     SPINDLER: {
@@ -78,10 +91,28 @@ export const BOSS_LAIRS = {
         gateColor: '#101810',
         gateAccent: '#80c060',
         nameTag: "SPINDLER'S LAB",
+        arenaTint: '#082010',
+        tintAlpha: 0.34,
         decorations: [
-            { kind: 'bioTank',    dx: 40,  dy: -8 },
-            { kind: 'bioTank',    dx: 210, dy: -8 },
+            { kind: 'bioTank',       dx: 40,  dy: -8 },
+            { kind: 'bioTank',       dx: 210, dy: -8 },
             { kind: 'biohazardSign', dx: 130, dy: -40 },
+            { kind: 'tornBox',       dx: 90,  dy: -5 },
+        ],
+    },
+    BALLMER: {
+        kind: 'indoor-gated',
+        gateStyle: 'curtainDrop',
+        gateColor: '#1a0820',
+        gateAccent: '#a060ff',
+        nameTag: 'BALLMER ARENA',
+        arenaTint: '#180810',
+        tintAlpha: 0.32,
+        decorations: [
+            { kind: 'micStand',  dx: 60,  dy: -2 },
+            { kind: 'micStand',  dx: 200, dy: -2 },
+            { kind: 'spotlight', dx: 100, dy: -56 },
+            { kind: 'spotlight', dx: 160, dy: -56 },
         ],
     },
     GATES: {
@@ -90,11 +121,13 @@ export const BOSS_LAIRS = {
         gateColor: '#1a0820',
         gateAccent: '#a060ff',
         nameTag: 'KEYNOTE STAGE',
+        arenaTint: '#180828',
+        tintAlpha: 0.32,
         decorations: [
-            { kind: 'micStand',  dx: 60,  dy: -2 },
-            { kind: 'micStand',  dx: 200, dy: -2 },
-            { kind: 'spotlight', dx: 100, dy: -56 },
-            { kind: 'spotlight', dx: 160, dy: -56 },
+            { kind: 'micStand',   dx: 60,  dy: -2 },
+            { kind: 'micStand',   dx: 200, dy: -2 },
+            { kind: 'spotlight',  dx: 100, dy: -56 },
+            { kind: 'spotlight',  dx: 160, dy: -56 },
         ],
     },
     CLIPPY_2: {
@@ -104,6 +137,8 @@ export const BOSS_LAIRS = {
         gateColor: '#a01018',
         gateAccent: '#ff7030',
         nameTag: 'FOUNDER FORGE',
+        arenaTint: '#280808',
+        tintAlpha: 0.38,
         decorations: [
             { kind: 'obelisk',  dx: 30,  dy: -8 },
             { kind: 'obelisk',  dx: 220, dy: -8 },
@@ -118,9 +153,11 @@ export const BOSS_LAIRS = {
         gateColor: '#102040',
         gateAccent: '#7af0ff',
         nameTag: 'DATA NEXUS',
+        arenaTint: '#081830',
+        tintAlpha: 0.40,
         decorations: [
-            { kind: 'dataPillar',  dx: 40,  dy: -6 },
-            { kind: 'dataPillar',  dx: 220, dy: -6 },
+            { kind: 'dataPillar',   dx: 40,  dy: -6 },
+            { kind: 'dataPillar',   dx: 220, dy: -6 },
             { kind: 'hologramTerm', dx: 120, dy: -40 },
         ],
     },
@@ -130,10 +167,81 @@ export const BOSS_LAIRS = {
         gateColor: '#0a0a12',
         gateAccent: '#c080ff',
         nameTag: 'REALITY DISTORTION',
+        arenaTint: '#100020',
+        tintAlpha: 0.38,
         decorations: [
-            { kind: 'iMacHang', dx: 60,  dy: -50 },
-            { kind: 'iMacHang', dx: 180, dy: -55 },
+            { kind: 'iMacHang',  dx: 60,  dy: -50 },
+            { kind: 'iMacHang',  dx: 180, dy: -55 },
             { kind: 'spotlight', dx: 130, dy: -56 },
+        ],
+    },
+    // R356: stage 22 final boss + post-game variants needed lair entries.
+    // Without these the lair was null and arena fell back to "just a bar".
+    MECHA_GATES: {
+        kind: 'outdoor-element',
+        gateStyle: 'lavaWall',
+        gateSprite: 'lair_gate_lava',
+        gateColor: '#3a1808',
+        gateAccent: '#ff4020',
+        nameTag: 'GATES ASCENDED',
+        arenaTint: '#280808',
+        tintAlpha: 0.42,
+        decorations: [
+            { kind: 'brazier',  dx: 50,  dy: -6 },
+            { kind: 'brazier',  dx: 210, dy: -6 },
+            { kind: 'obelisk',  dx: 130, dy: -10 },
+        ],
+    },
+    HELICOPTER: {
+        kind: 'outdoor-element',
+        gateStyle: 'dataWall',
+        gateColor: '#181818',
+        gateAccent: '#ff4020',
+        nameTag: 'NO PLACE TO HIDE',
+        arenaTint: '#180a08',
+        tintAlpha: 0.34,
+        decorations: [
+            { kind: 'brazier',  dx: 40,  dy: -6 },
+            { kind: 'brazier',  dx: 220, dy: -6 },
+        ],
+    },
+    // R356: GAUNTLET (stage 12 Boss Rush, server-themed) and
+    // GAUNTLET_FULL (stage 16 post-game variant) — both are wave fights,
+    // so the lair sells "you're in the final arena now" with deeper
+    // server-blue tint + clustered server racks.
+    GAUNTLET: {
+        kind: 'indoor-gated',
+        gateStyle: 'serverDoor',
+        gateSprite: 'lair_gate_server',
+        gateColor: '#0a0a18',
+        gateAccent: '#7af0ff',
+        nameTag: 'BOSS RUSH',
+        arenaTint: '#080a20',
+        tintAlpha: 0.36,
+        decorations: [
+            { kind: 'serverRack',  dx: 30,  dy: -2 },
+            { kind: 'serverRack',  dx: 80,  dy: -2 },
+            { kind: 'serverRack',  dx: 180, dy: -2 },
+            { kind: 'serverRack',  dx: 220, dy: -2 },
+            { kind: 'cableTangle', dx: 130, dy: -56 },
+        ],
+    },
+    GAUNTLET_FULL: {
+        kind: 'indoor-gated',
+        gateStyle: 'serverDoor',
+        gateSprite: 'lair_gate_server',
+        gateColor: '#0a0018',
+        gateAccent: '#ff7080',
+        nameTag: 'BOSS RUSH — UNCHAINED',
+        arenaTint: '#100018',
+        tintAlpha: 0.40,
+        decorations: [
+            { kind: 'serverRack',  dx: 30,  dy: -2 },
+            { kind: 'serverRack',  dx: 80,  dy: -2 },
+            { kind: 'serverRack',  dx: 180, dy: -2 },
+            { kind: 'serverRack',  dx: 220, dy: -2 },
+            { kind: 'cableTangle', dx: 100, dy: -56 },
+            { kind: 'cableTangle', dx: 160, dy: -56 },
         ],
     },
 };
@@ -302,6 +410,79 @@ const DECOR = {
         ctx.restore();
         ctx.fillStyle = '#202028';
         ctx.fillRect(x - 4, y - 12, 8, 6);
+    },
+    // R356: bigger jungle-arena decorations so the COPIER lair reads
+    // as a real overgrown clearing instead of an empty stage segment.
+    giantPrinterHusk(ctx, x, y) {
+        // 28x40 silhouette of a smashed industrial copier
+        ctx.fillStyle = '#1a1820';
+        ctx.fillRect(x - 14, y - 36, 28, 36);
+        ctx.fillStyle = '#0a0810';
+        ctx.fillRect(x - 14, y - 36, 28, 2);
+        // Display crack
+        ctx.fillStyle = '#2a3040';
+        ctx.fillRect(x - 10, y - 32, 12, 6);
+        ctx.fillStyle = '#08101a';
+        ctx.fillRect(x - 8, y - 30, 2, 4);
+        ctx.fillRect(x - 4, y - 30, 1, 4);
+        ctx.fillRect(x, y - 30, 1, 4);
+        // Paper-feed tray hanging out
+        ctx.fillStyle = '#403828';
+        ctx.fillRect(x - 16, y - 14, 32, 4);
+        ctx.fillStyle = '#1a1810';
+        ctx.fillRect(x - 16, y - 10, 32, 1);
+        // Moss climbing up the husk
+        ctx.fillStyle = '#284018';
+        ctx.fillRect(x - 14, y - 8, 4, 8);
+        ctx.fillRect(x + 10, y - 12, 4, 12);
+        ctx.fillStyle = '#3a5824';
+        ctx.fillRect(x - 13, y - 4, 2, 4);
+        ctx.fillRect(x + 11, y - 8, 2, 8);
+        // Toner-leak puddle at the base
+        ctx.fillStyle = '#080810';
+        ctx.fillRect(x - 18, y - 1, 36, 2);
+    },
+    paperBanner(ctx, x, y) {
+        // 16x14 hanging shred of office paper / banner from above
+        ctx.save();
+        // Rope/cord
+        ctx.fillStyle = '#403828';
+        ctx.fillRect(x - 1, y - 2, 1, 6);
+        ctx.fillRect(x + 8, y - 2, 1, 6);
+        // Banner cloth
+        ctx.fillStyle = '#d8d0b8';
+        ctx.fillRect(x - 4, y + 2, 16, 14);
+        ctx.fillStyle = '#a0987a';
+        ctx.fillRect(x - 4, y + 2, 16, 1);
+        ctx.fillRect(x - 4, y + 14, 16, 2);
+        // Torn bottom edge
+        ctx.fillStyle = '#d8d0b8';
+        ctx.fillRect(x - 4, y + 16, 4, 2);
+        ctx.fillRect(x + 4, y + 16, 4, 1);
+        // Ink streak (logo / text suggestion)
+        ctx.fillStyle = '#1a1828';
+        ctx.fillRect(x - 2, y + 6, 12, 1);
+        ctx.fillRect(x - 2, y + 10, 8, 1);
+        ctx.restore();
+    },
+    tornBox(ctx, x, y) {
+        // 12x10 ripped-open paper box on the floor
+        ctx.fillStyle = '#a08060';
+        ctx.fillRect(x - 6, y - 10, 12, 10);
+        ctx.fillStyle = '#604838';
+        ctx.fillRect(x - 6, y - 10, 12, 1);
+        ctx.fillRect(x - 6, y - 1, 12, 1);
+        // Jagged tear across the top
+        ctx.fillStyle = '#1a0810';
+        ctx.fillRect(x - 4, y - 9, 1, 2);
+        ctx.fillRect(x - 2, y - 9, 1, 3);
+        ctx.fillRect(x,     y - 9, 1, 2);
+        ctx.fillRect(x + 2, y - 9, 1, 3);
+        ctx.fillRect(x + 4, y - 9, 1, 2);
+        // Paper sticking out
+        ctx.fillStyle = '#e8e0c8';
+        ctx.fillRect(x - 3, y - 11, 4, 2);
+        ctx.fillRect(x + 1, y - 10, 3, 1);
     },
 };
 
@@ -482,6 +663,51 @@ export class BossLair {
         if (this.state === 'entering' && this.enterT < 30) return -Infinity;
         if (this.state === 'done') return -Infinity;
         return this.arenaX + this.gateW;
+    }
+
+    // R356: arena backdrop — atmospheric tint + vignette over the arena
+    // region, painted AFTER parallax+level but BEFORE decorations and
+    // gameplay. Sells "this is a distinct place" without redrawing the
+    // background art. The tint color comes from the spec so each boss
+    // gets a unique mood (jungle=green, lava=red, server=blue, etc.).
+    // Faded in/out by enter/exit timers so the transition is smooth.
+    drawArenaBackdrop(ctx, camera) {
+        if (!this.spec) return;
+        const tint = this.spec.arenaTint;
+        if (!tint) return;
+        // Compute fade. 0 during early-enter so the original bg shows,
+        // ramps to spec.tintAlpha over the enter window, and fades back
+        // out symmetrically when the boss dies (exit window).
+        let f;
+        if (this.state === 'entering') {
+            f = Math.min(1, this.enterT / BossLair.ENTER_FRAMES);
+        } else if (this.state === 'exiting') {
+            f = Math.max(0, 1 - this.exitT / BossLair.EXIT_FRAMES);
+        } else {
+            f = 1;
+        }
+        const alpha = (this.spec.tintAlpha || 0.28) * f;
+        const x = Math.round(this.arenaX - camera.viewX);
+        const y = Math.round(this.arenaY - camera.viewY);
+        // Solid tint quad first (flat wash)
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = tint;
+        ctx.fillRect(x, y, this.arenaW, this.arenaH);
+        ctx.restore();
+        // Radial vignette: darker corners pull the focus inward. Cheap
+        // approximation — 4 corner fades layered with destination-out.
+        ctx.save();
+        ctx.globalAlpha = 0.45 * f;
+        const grad = ctx.createRadialGradient(
+            x + this.arenaW / 2, y + this.arenaH / 2, this.arenaH * 0.2,
+            x + this.arenaW / 2, y + this.arenaH / 2, this.arenaW * 0.55,
+        );
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.7)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, this.arenaW, this.arenaH);
+        ctx.restore();
     }
 
     drawDecorationsBack(ctx, camera) {

@@ -1731,6 +1731,10 @@ export class Game {
         }
         this.parallax.drawBack(ctx, this.camera);
         this.level.draw(ctx, this.camera);
+        // R356: arena backdrop — sits AFTER the level so the tint
+        // washes over tiles too (sells "darker place"), but BEFORE
+        // ambient props and decorations so those still read clearly.
+        if (this._bossLair) this._bossLair.drawArenaBackdrop(ctx, this.camera);
         // R332: ambient props (dying Clippies, fires, flickers, sparks)
         // draw between the level tiles and gameplay entities — sits AHEAD
         // of pickups so a dying Clippy doesn't occlude a pickup, but
