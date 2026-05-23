@@ -1141,7 +1141,9 @@ class Boss extends Enemy {
             if (this._guardActive && !wasGuardActive) this._parryCount = 0;
         }
 
-        if (this.phase === 1 && this.hp <= this.maxHp / 2) {
+        // R348: _noPhase2 caps the boss to phase 1 forever — used by mini
+        // bosses so they never unlock the phase-2 advanced attack variants.
+        if (this.phase === 1 && this.hp <= this.maxHp / 2 && !this._noPhase2) {
             this.phase = 2;
             this.attackTimer = 60;
             this.hitFlash = 18;
@@ -1250,6 +1252,11 @@ class Boss extends Enemy {
         const aim = dx > 0 ? 1 : -1;
         const fan = this.phase === 2 ? 7 : 5;
         const speed = 1.6 + (this.phase === 2 ? 0.6 : 0);
+        // R348: mini-bosses only fire pattern variant 0 — they're limited
+        // to the basic attack so the main boss feels genuinely scarier.
+        // Pin attackIndex to a multiple of every modulus the patterns use
+        // (lcm of 2, 3, 4 = 12) — guarantees `attackIndex % N === 0`.
+        if (this._miniAttackOnly) this.attackIndex = 0;
 
         // R232: helper — aimed shot DIRECTLY at the player. Used by most
         // bosses as a third "punisher" variant when the player tries to
@@ -1621,8 +1628,14 @@ class Boss extends Enemy {
                 break;
         }
 
-        this.attackIndex++;
-        this.attackTimer = Math.max(30, 90 - this.phase * 20);
+        // R348: mini-bosses don't advance attackIndex — they cycle the
+        // same first variant forever (paired with the pin to 0 in
+        // _runPattern entry).
+        if (!this._miniAttackOnly) this.attackIndex++;
+        // R348: _fireRateMul lets mini-bosses fire faster (lower multiplier)
+        // to compensate for their limited attack variety.
+        const baseTimer = Math.max(30, 90 - this.phase * 20);
+        this.attackTimer = Math.max(20, Math.round(baseTimer * (this._fireRateMul || 1)));
 
         // Drift toward / away from player a bit (NES boss behavior)
         if (this.attackIndex % 2 === 0) {

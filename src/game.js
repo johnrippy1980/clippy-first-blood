@@ -1640,8 +1640,34 @@ export class Game {
                 this._restartRun();
                 return;
             }
+            // R349: stages that HAVE a boss require the boss to be dead
+            // before the exit tile clears the stage. Stages without a
+            // boss (any debug / no-boss-trigger level) exit normally.
+            // Boss-kill path above (bossSpawned && !this.boss) already
+            // routes to _onStageClear, so reaching the exit tile is
+            // either an early-exit cheese OR a legitimate post-boss walk.
+            const stg = STAGES[this.currentStage];
+            const stageHasBoss = !!(stg && stg.boss);
+            if (stageHasBoss && !this._bossKillBeatFired) {
+                // Floating tag tells the player WHY the exit isn't firing.
+                // Throttled so it doesn't spam every frame they stand here.
+                if ((this._exitWarnCD || 0) <= 0) {
+                    this._exitWarnCD = 90;   // 1.5s cooldown
+                    if (particles.floatingText) {
+                        particles.floatingText(
+                            this.player.x + this.player.w / 2,
+                            this.player.y - 8,
+                            'BOSS NOT DEFEATED',
+                            '#ff6080', 60, -0.4, 1,
+                        );
+                    }
+                    audio.sfx?.('hurt');
+                }
+                return;
+            }
             this._onStageClear();
         }
+        if (this._exitWarnCD > 0) this._exitWarnCD--;
     }
 
     // Death handler: decrement lives, route to GAME_OVER if exhausted,
@@ -3428,9 +3454,23 @@ export class Game {
             m.hp = Math.ceil(m.maxHp * 0.35);
             m.maxHp = m.hp;
             m.score = Math.round(m.score * 0.4);
-            // Smaller mini → tagline override
             m.name = 'MINI ' + m.name;
             m.tagline = 'WARMUP ROUND';
+            // R348: visually smaller — 0.75x w/h so the player reads it
+            // as a smaller, lesser threat than the real boss.
+            m.w = Math.round(m.w * 0.75);
+            m.h = Math.round(m.h * 0.75);
+            // R348: mini-boss attack-cadence is FASTER but the patterns
+            // are limited to the FIRST variant only. They never fire the
+            // phase-2-only attacks (Paper Cyclone, Floppy Rain, Shred
+            // Field) — those are reserved for the real fight.
+            m._miniAttackOnly = true;
+            // R348: faster attack cadence (60f vs ~90f for the main boss)
+            // so the mini still feels threatening despite limited variety.
+            m._fireRateMul = 0.6;
+            // R348: mini-boss can never enter phase 2 — keeps the moveset
+            // strictly limited.
+            m._noPhase2 = true;
         }
         audio.sfx('bossHit');
         this.camera.shake(6);
