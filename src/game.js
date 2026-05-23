@@ -3026,6 +3026,8 @@ export class Game {
         if (hasSecret || konami) ids.push(14);
         if (gameCleared || konami) ids.push(18);
         if (konami) ids.push(19);
+        // R301: Mecha-Gates super-secret — konami-only true-final.
+        if (konami) ids.push(20);
         return ids;
     }
 

@@ -44,7 +44,7 @@ console.log('Stages:', manifest.filter(s => s).map(s => `${s.id}.${s.name}`).joi
 // =============================================================
 console.log('\n=== R282 AUDIT 2: STAGE LOADERS ===');
 const stageBoots = [];
-for (let n = 1; n <= 19; n++) {
+for (let n = 1; n <= 20; n++) {
     const r = await page.evaluate(async (s) => {
         try {
             window.__game._startStage(s);
@@ -265,7 +265,7 @@ console.log('\n=== R282 SUMMARY ===');
 // Filter out errors caused by the AUDIT 9 fake enemy (plain object w/o .update/.draw)
 const sigErrors = errors.filter(e => !/\.mp3/.test(e) && !/\.draw is not a function|\.update is not a function/.test(e));
 const sigReqFails = reqFails.filter(r => !/\.mp3/.test(r));
-console.log(`Stage loaders: ${stageBoots.filter(s => !s.error).length}/19 ok`);
+console.log(`Stage loaders: ${stageBoots.filter(s => !s.error).length}/20 ok`);
 console.log(`Konami list size: ${idsList.length}`);
 console.log(`Significant errors: ${sigErrors.length}`);
 sigErrors.forEach(e => console.log('  -', e.slice(0, 180)));

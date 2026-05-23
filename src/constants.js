@@ -158,6 +158,10 @@ export const STAGES = [
     { id: 17, name: 'TIME TRIAL',               category: 'postgame', displayId: 'P2', theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'POST-GAME — BEAT THE CLOCK.' },
     { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'cloud',      tagline: 'POST-GAME — ONE MORE TITAN.' },
     { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'pipeline',   tagline: 'POST-GAME — THE DEEPER LAB.' },
+    // R301: super-secret Mecha-Gates stage — konami-only super-final.
+    // The "what they made after he fell" — Gates piloting a battle mech
+    // over the ruins of dead Clippy clones.
+    { id: 20, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'bossBattle', tagline: 'SUPER SECRET — TRUE FINAL.', introBgKey: 'bg_apocalypse' },
 ];
 
 // Damage flash colors per source.

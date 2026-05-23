@@ -149,7 +149,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 291,
+                schemaVersion: 301,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,

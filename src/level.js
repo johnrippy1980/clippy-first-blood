@@ -1634,6 +1634,7 @@ export const STAGE_LOADERS = [
     () => makeTimeTrial(),             // R291: stage 17 TIME TRIAL (was 15)
     () => makeStage13(),               // R291: stage 18 REALITY DISTORTION FIELD (was 16)
     () => makeFpsStage(),              // R291: stage 19 CORE BREACH (was 17)
+    () => makeFpsStageMecha(),         // R301: stage 20 MECHA-GATES super-secret final
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
@@ -1838,6 +1839,42 @@ function makeFpsStageGatesArena() {
         // R295: after Gates goes down, return to the main campaign at
         // stage 11 (FOUNDER'S LAIR).
         nextStage: 11,
+    };
+}
+
+// R301: super-secret Mecha-Gates final stage. Konami-only post-game
+// content. Sets in a post-apocalyptic wasteland — Mecha-Gates is the
+// "what if they made one more" final-final boss. No nextStage — beating
+// him returns to title (handled by R299 post-game routing for stage>=15).
+function makeFpsStageMecha() {
+    return {
+        fpsMode: true,
+        theme: THEME.KEYNOTE,
+        music: 'bossBattle',
+        bgKey: 'bg_apocalypse',
+        bossKind: 'MECHA_GATES',
+        bgKeys: ['bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse'],
+        // Reuse Gates corridor enemy art for the wave segments (when boss
+        // arena uses startSegment 3 the corridor segments don't fire anyway).
+        spriteKeys: {
+            turret: 'keynote_turret',
+            grunt:  'keynote_grunt',
+            shield: 'keynote_drone',
+            core:   'boss_mecha_gates',
+        },
+        segmentLabels: ['MECHA-GATES', 'MECHA-GATES', 'MECHA-GATES', 'MECHA-GATES'],
+        bossLabels: {
+            shielded: 'MECHA-GATES / ARMORED',
+            exposed:  'MECHA-GATES / EXPOSED',
+        },
+        sfxKeys: GATES_SFX_KEYS,
+        ambientKey: 'fluorescent',
+        coreAttackStyle: 'chair',   // chair-throw style for the gatling cluster
+        gruntBulletAnimKey: 'floppy',
+        startSegment: 3,
+        bossPortraitKey: 'card_mecha_reveal',
+        bossDisplayName: 'MECHA-GATES',
+        // True final — no nextStage. R299 routes stage >= 15 to title on clear.
     };
 }
 

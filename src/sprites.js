@@ -143,6 +143,8 @@ export const SCENE_MANIFEST = {
     'story_tower':     'scene_story_tower.png',
     // R293: Spindler FPS lab reveal card (stage 19 CORE BREACH).
     'card_spindler_lab': 'card_spindler_lab.png',
+    // R301: Mecha-Gates reveal card — towering mech over apocalyptic ruins.
+    'card_mecha_reveal': 'card_mecha_reveal.png',
     'card_breakroom':  'card_stage2_breakroom.png',
     'card_serverroom': 'card_stage3_serverroom.png',
     'card_pipeline':   'card_stage4_pipeline.png',
@@ -287,6 +289,9 @@ export const CLIPPY_MANIFEST = {
     'keynote_grunt':       'keynote_grunt.png',
     'keynote_drone':       'keynote_drone.png',
     'boss_gates_fps':      'boss_gates_fps.png',
+    // R301: super-secret Mecha-Gates stage — post-apocalypse final boss.
+    'bg_apocalypse':       'bg_apocalypse.png',
+    'boss_mecha_gates':    'boss_mecha_gates.png',
     // R269: FPS-arena electric barrier hazard — 4-frame pulse cycle
     // (full-on → crackling → off → powering up). Tiled across the corridor
     // at mid-depth when segment 3 is active.
