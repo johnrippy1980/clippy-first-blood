@@ -210,6 +210,7 @@ export class FpsArena {
                     alive: true,
                     fireT: 60 + i * 20,
                     hitFlash: 0,
+                    muzzleT: 0,
                 });
             }
         } else if (n === 2) {
@@ -445,6 +446,30 @@ export class FpsArena {
         if (ax.x < -0.1)      p.facing = -1;
         else if (ax.x > 0.1)  p.facing = 1;
         else                  p.facing = 0;
+        // R350: jump support — FPS player can now jump + double-jump
+        // to dodge the laser-barrier band. Jump-1 has full strength;
+        // jump-2 (double) has 70%. Gravity returns player to RAIL_Y.
+        if (p.vy == null) p.vy = 0;
+        if (p.jumpsLeft == null) p.jumpsLeft = 2;
+        const onGround = p.y >= RAIL_Y - PLAYER_H - 0.5;
+        if (onGround) {
+            p.y = RAIL_Y - PLAYER_H;
+            p.vy = 0;
+            p.jumpsLeft = 2;
+        }
+        if (input.isPressed && input.isPressed('jump') && p.jumpsLeft > 0) {
+            // First jump: full hop. Second: shorter (double-jump).
+            p.vy = (p.jumpsLeft === 2) ? -5.5 : -4.0;
+            p.jumpsLeft--;
+            audio.sfx?.('jump');
+        }
+        p.vy += 0.32;   // gravity
+        p.y += p.vy;
+        if (p.y > RAIL_Y - PLAYER_H) {
+            p.y = RAIL_Y - PLAYER_H;
+            p.vy = 0;
+            p.jumpsLeft = 2;
+        }
         if (p.iframes > 0) p.iframes--;
         if (p.shootCD > 0) p.shootCD--;
         if (input.isHeld('shoot') && p.shootCD <= 0) {
@@ -670,6 +695,7 @@ export class FpsArena {
         for (const g of this.grunts) {
             if (!g.alive) continue;
             if (g.hitFlash > 0) g.hitFlash--;
+            if (g.muzzleT > 0) g.muzzleT--;
             g.runT++;
             if (g.runT < g.spawnDelay) continue;
             const tt = (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES;
@@ -692,6 +718,7 @@ export class FpsArena {
             g.fireT++;
             if (g.fireT >= GRUNT_FIRE_PERIOD) {
                 g.fireT = 0;
+                g.muzzleT = 6;
                 const cx = depthX(g.originX, tt);
                 const cy = depthY(tt) - 14 * depthScale(tt);
                 // R270: grunt bullets get the floppy-disk projectile sprite
@@ -714,17 +741,25 @@ export class FpsArena {
             b.phase = (b.phase + 1) % BARRIER_PERIOD;
             const on = b.phase < BARRIER_ON_FRAMES;
             if (!on) continue;
-            // Damage the player if they're in the barrier band (mid-screen at row depthY(0.6))
-            const by = depthY(0.6);
+            // R350: electric laser ACTUALLY damages the player when their
+            // feet are on the ground rail during an active pulse. Player
+            // must JUMP (or double-jump) to clear the laser sweep.
+            // The laser fires at ground-rail level — the player's standing
+            // foot position. Their chest at jump-apex clears the danger.
             const p = this.player;
-            if (p.iframes <= 0 &&
-                p.y + p.h / 2 > by - 20 && p.y + p.h / 2 < by + 20) {
-                // Barriers span the whole corridor width — moving into the
-                // barrier zone is the hazard.
-                // Player rail is below the barrier band so they normally
-                // can't touch it; barriers only matter when the player tries
-                // to advance forward (future segments). For now leave the
-                // band purely visual until forward movement is added.
+            const playerFeetY = p.y + p.h;     // bottom of player AABB
+            // Danger zone: 18 px above and below the rail line.
+            // When grounded, feet are at RAIL_Y which is inside the zone.
+            // When jumping, feet rise above RAIL_Y - 18 → safe.
+            const dangerTop = RAIL_Y - 18;
+            const dangerBot = RAIL_Y + 18;
+            if (p.iframes <= 0 && playerFeetY > dangerTop && playerFeetY < dangerBot) {
+                p.hp = Math.max(0, p.hp - 1);
+                p.iframes = 60;
+                audio.sfx?.('hurt');
+                audio.sfx?.('thunder');
+                this._explosion?.(p.x + p.w / 2, p.y + p.h - 4, '#a0e0ff');
+                if (this._shake) this._shake(4, 12);
             }
         }
     }
@@ -1299,7 +1334,10 @@ export class FpsArena {
                 frameIdx = (offPhase < offLen * 0.7) ? 3 : 4;
             }
             const img = sprites.images.get('barrier_' + frameIdx);
-            const y = depthY(0.6);
+            // R350: barrier now renders at floor-rail level (player's
+            // feet) instead of mid-corridor — matches the new hit-zone
+            // so player can VISUALLY see where the laser sweeps.
+            const y = RAIL_Y;
             if (img) {
                 ctx.imageSmoothingEnabled = false;
                 // Tile the sprite across the corridor width so the barrier
@@ -1363,12 +1401,21 @@ export class FpsArena {
             if (!g.alive || g.runT < g.spawnDelay) continue;
             const tt = Math.min(1, (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES);
             const scale = depthScale(tt);
-            // R264: sprite is taller than the rect was (32×40 vs 16×24);
-            // keep the drawn size proportional so depth scaling still reads.
             const gw = 24 * scale;
             const gh = 32 * scale;
-            const gx = depthX(g.originX, tt) - gw / 2;
-            const gy = depthY(tt) - gh;
+            // R350: running animation — vertical bob + horizontal weave +
+            // pre-fire crouch make grunts feel alive instead of just zooming
+            // toward the camera. Bob amplitude scales with depth so far-away
+            // grunts only twitch and near grunts visibly stride.
+            const stride = g.runT * 0.42;
+            const bobY = Math.sin(stride) * (3 * scale);
+            const swayX = Math.sin(stride * 0.5 + g.originX * 0.01) * (2 * scale);
+            // Crouch dip in the 12 frames before a fire event
+            const framesToFire = GRUNT_FIRE_PERIOD - g.fireT;
+            const crouching = framesToFire > 0 && framesToFire < 12;
+            const crouchY = crouching ? (12 - framesToFire) * 0.5 * scale : 0;
+            const gx = depthX(g.originX, tt) - gw / 2 + swayX;
+            const gy = depthY(tt) - gh + bobY + crouchY;
             if (img) {
                 ctx.imageSmoothingEnabled = false;
                 ctx.drawImage(img, 0, 0, img.width, img.height,
@@ -1384,6 +1431,31 @@ export class FpsArena {
             } else {
                 ctx.fillStyle = g.hitFlash > 0 ? '#ffffff' : '#a8c060';
                 ctx.fillRect(gx, gy, gw, gh);
+            }
+            // Muzzle flash overlay for ~6 frames after firing
+            if (g.muzzleT > 0) {
+                const mx = depthX(g.originX, tt) + swayX;
+                const my = gy + gh * 0.55;
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = g.muzzleT / 6;
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect((mx - 3 * scale) | 0, (my - 2 * scale) | 0,
+                             (6 * scale) | 0, (4 * scale) | 0);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect((mx - 1) | 0, (my - 1) | 0, 2, 2);
+                ctx.restore();
+            }
+            // Tiny dust puff under feet on every other stride frame
+            if (((g.runT >> 2) & 3) === 0 && tt > 0.15 && tt < 0.95) {
+                const dx = depthX(g.originX, tt) + swayX;
+                const dy = depthY(tt) - 1;
+                ctx.save();
+                ctx.globalAlpha = 0.35 * (1 - tt);
+                ctx.fillStyle = '#9a8b6a';
+                ctx.fillRect((dx - 3 * scale) | 0, (dy) | 0,
+                             (6 * scale) | 0, Math.max(1, scale | 0));
+                ctx.restore();
             }
         }
     }
