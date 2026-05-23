@@ -259,6 +259,10 @@ function makeStage1() {
             // G: BRIDGE — one holepunch on the far ledge harassing during
             // the pit-crossing. Doesn't move (perch behavior).
             { x: 87 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'holepunch' },
+            // R325: dive_bomber introduces the new behavior on stage 1 —
+            // glides above the bridge approach, commits to a 45° dive when
+            // the player walks underneath. Teaches the player to watch the sky.
+            { x: 78 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'dive_bomber' },
         ],
         pickupSpawns: [
             // After clearing the first cabinet on the swamp 1 far bank
@@ -574,6 +578,11 @@ function makeStage3() {
             // G: FAN GAUNTLET — folder hovering between the spike rows
             // so player can't camp on the upper crumble bridge.
             { x: 86 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
+            // R325: shielder mid-corridor — slow approach, blocks bullets
+            // from the front. Player has to flank or wait for shield drop.
+            { x: 36 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'shielder' },
+            // R325: dive_bomber above the cable maze.
+            { x: 70 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'dive_bomber' },
         ],
         pickupSpawns: [
             // Top-tier verticality reward (was already here)
@@ -707,6 +716,9 @@ function makeStage4() {
             // G: WHITEBOARD CLIMB — sniper at top of the wall, cabinet
             // at the base to soak shots while climbing.
             { x: 90 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'holepunch' },
+            // R325: shielder at the boardroom — boardroom = executive
+            // protection. Player has to flank around the conference table.
+            { x: 44 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'shielder' },
             { x: 82 * GAME.TILE, y: ( 9) * GAME.TILE, type: 'cabinet' },
         ],
         pickupSpawns: [
@@ -989,6 +1001,13 @@ function makeStage6() {
             { x: 88 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'holepunch' },
             // E: BOSS APPROACH — last grunt to soak before founder fight
             { x: 96 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'cabinet' },
+            // R325: summoner in the Founder's Lair — thematically the
+            // Founder/Algorithm is the source of all Clippies. A Clippy-
+            // doppelganger spawning folder grunts fits the mythos perfectly.
+            { x: 52 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'summoner' },
+            // R325: dive_bomber over the wider pit — pressure on top of
+            // the existing folder/sniper combo.
+            { x: 64 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'dive_bomber' },
         ],
         pickupSpawns: [
             // B top: LASER (unchanged)
@@ -1187,6 +1206,12 @@ function makeStage8() {
             // hovering the pit to deny easy fall-recovery.
             { x: 96 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 93 * GAME.TILE, y: ( 8) * GAME.TILE, type: 'folder' },
+            // R325: final-stage gauntlet — a summoner mid-stage + 2 dive_
+            // bombers in the data storm. By stage 13 the player knows the
+            // new behaviors, so use them all together.
+            { x: 50 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'summoner' },
+            { x: 72 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'dive_bomber' },
+            { x: 88 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'dive_bomber' },
         ],
         pickupSpawns: [
             // C top: THUNDER (unchanged)

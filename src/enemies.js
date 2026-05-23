@@ -67,6 +67,43 @@ const TYPES = {
         // Off-screen snipers cannot fire at the player — fair gameplay.
         activateRange: 200,
     },
+    // R325: paper airplane / data drone — fast, low-hp aerial. Glides
+    // horizontally at fixed Y; commits to a 45° dive when player passes
+    // beneath. Reuses 'folder' sprite (server-room reskins client-side).
+    dive_bomber: {
+        sprite: 'folder',
+        w: 12, h: 10,
+        hp: 1, contactDmg: 1, score: 120,
+        speed: 1.6, behavior: 'dive_bomb',
+        diveSpeed: 3.4, diveTriggerDx: 16,
+        activateRange: 280,
+        gibPalette: ['#e0e0e8', '#a0a0b0', '#404048'],
+    },
+    // R325: clippy doppelgänger summoner. Stationary; spawns folder
+    // grunts up to 3 active. Killing it stops summons but spawned
+    // folders persist. Reuses 'holepunch' sprite (greyer tone).
+    summoner: {
+        sprite: 'holepunch',
+        w: 14, h: 18,
+        hp: 5, contactDmg: 1, score: 280,
+        speed: 0, behavior: 'summon',
+        summonInterval: 240, summonMax: 3, summonType: 'folder',
+        activateRange: 220,
+        gibPalette: ['#a0a0b8', '#505068', '#202028'],
+    },
+    // R325: riot-shield file cabinet. Walks toward player; front shield
+    // (12px wide) deflects bullets. Periodically drops shield ~60 frames
+    // for body-exposure window. Reuses 'cabinet' sprite.
+    shielder: {
+        sprite: 'cabinet',
+        w: 18, h: 22,
+        hp: 4, contactDmg: 2, score: 220,
+        speed: 0.45, behavior: 'shielded_walk',
+        shieldW: 12, shieldH: 16,
+        shieldUpTime: 240, shieldDownTime: 60,
+        activateRange: 220,
+        gibPalette: ['#707880', '#404848', '#202028'],
+    },
 };
 
 class Bullet {
@@ -97,6 +134,22 @@ class Bullet {
         this.x += this.vx; this.y += this.vy;
         this.life--;
         if (level.isSolid(this.x, this.y)) {
+            // R325: ricochet path for cyclone-style bullets (`bouncesLeft > 0`).
+            // Reflects velocity along the axis it actually hit (horizontal wall
+            // → invert vy; vertical wall → invert vx). Decrements bouncesLeft;
+            // when it hits 0 the next wall-hit falls through to stuck.
+            if (this.bouncesLeft && this.bouncesLeft > 0) {
+                this.x = this.prevX; this.y = this.prevY;
+                // Probe which axis hit
+                const hitX = level.isSolid(this.x + this.vx, this.y);
+                const hitY = level.isSolid(this.x, this.y + this.vy);
+                if (hitX) this.vx = -this.vx;
+                if (hitY) this.vy = -this.vy;
+                if (!hitX && !hitY) { this.vx = -this.vx; this.vy = -this.vy; } // diagonal corner
+                this.bouncesLeft--;
+                particles.hitSpark(this.x, this.y, this.color);
+                return;
+            }
             // Snap to last valid position so the divot sits flush against the wall.
             this.x = this.prevX; this.y = this.prevY;
             this.stuck = true;
@@ -254,6 +307,10 @@ class Enemy {
             case 'hop':            this._hop(level, player); break;
             case 'charge':         this._charge(level, player); break;
             case 'hover_sniper':   this._hoverSniper(level, player); break;
+            // R325: new behaviors
+            case 'dive_bomb':      this._diveBomb(level, player); break;
+            case 'summon':         this._summon(level, player); break;
+            case 'shielded_walk':  this._shieldedWalk(level, player); break;
         }
     }
 
@@ -417,6 +474,105 @@ class Enemy {
                 globalEnemyBullets.push(b);
                 audio.sfx?.('shoot');
             }
+        }
+    }
+
+    // R325: dive-bomber — glides horizontally at fixed Y. When player's
+    // X is within `diveTriggerDx` of dive-bomber's X, the bomber commits
+    // to a 45° dive trajectory toward the player. Single-use; explodes
+    // on terrain or contact.
+    _diveBomb(level, player) {
+        const tpl = this.tpl;
+        const dx = player.x - this.x;
+        if (this._dived) {
+            // Already committed: maintain ballistic velocity
+            this.x += this._diveVx;
+            this.y += this._diveVy;
+            // Hit terrain?
+            if (level.isSolid(this.x + this.w / 2, this.y + this.h / 2)) {
+                this.hp = 0;
+                this.alive = false;
+                particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#ffaa50', 14);
+                return;
+            }
+            return;
+        }
+        // Glide phase — drift horizontally toward player at base speed
+        const dir = dx > 0 ? 1 : -1;
+        this.facing = dir;
+        this.x += dir * tpl.speed;
+        // Mild Y-bob for character
+        this.y = this.spawnY + Math.sin(this.timer / 18) * 2;
+        // Commit to dive when player is below + close in X
+        if (Math.abs(dx) < tpl.diveTriggerDx && player.y > this.y + this.h) {
+            this._dived = true;
+            this._telegraph = 1;   // bright outline on commit frame
+            // 45° dive vector toward player
+            const dy = player.y - this.y;
+            const a = Math.atan2(dy, dx);
+            this._diveVx = Math.cos(a) * tpl.diveSpeed;
+            this._diveVy = Math.sin(a) * tpl.diveSpeed;
+            audio.sfx?.('bossChargeTell');
+        }
+    }
+
+    // R325: summoner — stationary; spawns folder grunts up to summonMax
+    // active. Killed summons stop production but persist.
+    _summon(level, player) {
+        const tpl = this.tpl;
+        this.y = this.spawnY + Math.sin(this.timer / 60) * 2;
+        const dx = player.x - this.x;
+        this.facing = dx > 0 ? 1 : -1;
+        // Don't summon while player hidden / owl-paused
+        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
+            this._noticeTargetLost();
+            return;
+        }
+        if (this.owlPause > 0) return;
+        // Track active spawned children. We tag them with _summonedBy = this
+        // so we can count them quickly.
+        this._spawned = (this._spawned || []).filter(e => e.alive);
+        if (this._spawned.length >= tpl.summonMax) return;
+        // Telegraph: bright outline pulse 30 frames before summon
+        const summonPhase = this.timer % tpl.summonInterval;
+        if (summonPhase >= tpl.summonInterval - 30) {
+            this._telegraph = 1 - (tpl.summonInterval - summonPhase) / 30;
+        }
+        if (summonPhase === 0 && this.timer > 0) {
+            const spawnX = this.x + (this.facing > 0 ? 16 : -16);
+            const spawnY = this.y - 6;
+            this._spawned.push({ x: spawnX, y: spawnY, type: tpl.summonType, alive: true });
+            // Request the EnemyManager to spawn it on its next tick
+            this._pendingSummon = { x: spawnX, y: spawnY, type: tpl.summonType };
+            particles.shockRing(this.x + this.w / 2, this.y + this.h / 2, 14, 18, '#a0a0ff');
+            audio.sfx?.('respawn');
+        }
+    }
+
+    // R325: shielded walker — slow approach with a front shield that
+    // blocks bullets. Shield cycles UP (240f, deflect-mode) then DOWN
+    // (60f, exposed). Player needs to time shots OR flank.
+    _shieldedWalk(level, player) {
+        const tpl = this.tpl;
+        const dx = player.x - this.x;
+        this.facing = dx > 0 ? 1 : -1;
+        // Approach if player is more than 24px away
+        if (Math.abs(dx) > 24) {
+            this.x += this.facing * tpl.speed;
+        }
+        // Walk frame for animation
+        if (Math.abs(this.x - (this._lastWalkX || 0)) > 1) {
+            this.frame = (this.frame + 0.08) % 4;
+            this._lastWalkX = this.x;
+        }
+        // Shield cycle
+        this._shieldT = (this._shieldT || 0) + 1;
+        const cycleLen = tpl.shieldUpTime + tpl.shieldDownTime;
+        const phaseT = this._shieldT % cycleLen;
+        this.shieldUp = phaseT < tpl.shieldUpTime;
+        // Falling to gravity if not on ground
+        if (!this._isOnGround(level)) {
+            this.y += 1.6;
         }
     }
 
@@ -777,6 +933,48 @@ class Enemy {
             ctx.fillRect(ax - 1, ay - dotR, 2, dotR * 2);
             ctx.globalAlpha = 1;
         }
+        // R325: shielder front-shield overlay. Drawn AFTER the body sprite
+        // so the shield reads as a visible deflection surface in front.
+        if (this.behavior === 'shielded_walk' && this.shieldUp) {
+            const sW = this.tpl.shieldW || 12;
+            const sH = this.tpl.shieldH || 16;
+            const sX = Math.round(((this.facing > 0) ? this.x + this.w : this.x - sW) - camera.viewX);
+            const sY = Math.round(this.y + 2 - camera.viewY);
+            ctx.save();
+            // Dark body
+            ctx.fillStyle = '#2a3038';
+            ctx.fillRect(sX, sY, sW, sH);
+            // Bright metallic edge facing the player
+            ctx.fillStyle = '#a0a8b8';
+            const edgeX = (this.facing > 0) ? sX + sW - 1 : sX;
+            ctx.fillRect(edgeX, sY, 1, sH);
+            // Bolts
+            ctx.fillStyle = '#404048';
+            ctx.fillRect(sX + 2, sY + 2, 1, 1);
+            ctx.fillRect(sX + 2, sY + sH - 3, 1, 1);
+            ctx.fillRect(sX + sW - 3, sY + 2, 1, 1);
+            ctx.fillRect(sX + sW - 3, sY + sH - 3, 1, 1);
+            // Cross-hatch ridges for depth
+            ctx.fillStyle = '#404048';
+            for (let i = 4; i < sH - 4; i += 4) {
+                ctx.fillRect(sX + 1, sY + i, sW - 2, 1);
+            }
+            ctx.restore();
+        }
+        // R325: dive-bomber commit-flash. When the bomber commits to a
+        // dive, it briefly outlines bright orange so the player gets a
+        // visual telegraph beat (already has audio cue from bossChargeTell).
+        if (this.behavior === 'dive_bomb' && this._dived && this._telegraph > 0) {
+            this._telegraph -= 0.08;
+            const bx = Math.round(this.x - camera.viewX) - 1;
+            const by = Math.round(this.y - camera.viewY) - 1;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, this._telegraph);
+            ctx.strokeStyle = '#ffaa50';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx + 0.5, by + 0.5, this.w + 1, this.h + 1);
+            ctx.restore();
+        }
     }
 }
 
@@ -989,6 +1187,27 @@ class Boss extends Enemy {
             particles.chargeRing(cx, cy, startR, 30, color, this);
             audio.sfx?.('bossChargeTell');
         }
+        // R325: tick hazard zones (SHREDDER Shred Field, etc.).
+        if (this.hazards && this.hazards.length) {
+            for (let i = this.hazards.length - 1; i >= 0; i--) {
+                const h = this.hazards[i];
+                h.life--;
+                if (h.warning > 0) h.warning--;
+                if (h.life <= 0) {
+                    this.hazards.splice(i, 1);
+                    continue;
+                }
+                // Damage player ONLY when warning is over (active phase).
+                if (h.warning <= 0 && h.kind === 'shred') {
+                    if (player.x < h.x + h.w && player.x + player.w > h.x &&
+                        player.y < h.y + h.h && player.y + player.h > h.y) {
+                        if ((player.iFrames || 0) <= 0) {
+                            player.hurt(1, player.vx > 0 ? -1 : 1);
+                        }
+                    }
+                }
+            }
+        }
         if (this.attackTimer <= 0) {
             this._runPattern(level, player);
         }
@@ -1020,57 +1239,102 @@ class Boss extends Enemy {
 
         switch (this.kind) {
             case 'COPIER_3000':
-                // 3-variant cycle: paper line, ink rain, aimed staple-burst.
-                if (this.attackIndex % 3 === 0) {
-                    // Horizontal paper line, fast
-                    for (let i = -1; i <= 1; i++) {
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + i * 6, aim * speed * 1.4, 0, 1);
-                        b.color = '#f0f0e0';
-                        globalEnemyBullets.push(b);
-                    }
-                } else if (this.attackIndex % 3 === 1) {
-                    // Ink rain from above
-                    for (let i = 0; i < 5 + this.phase * 2; i++) {
-                        const bx = this.x + (i - 2) * 16 + (Math.random() - 0.5) * 12;
-                        const b = new Bullet(bx, this.y - 10, 0, 1.4, 1);
-                        b.color = '#1a1a1a';
-                        globalEnemyBullets.push(b);
-                    }
-                } else {
-                    // R232: aimed staple-burst — 5 shots aimed AT player.
-                    const { cx, cy, shots } = aimed(speed * 1.2, 0, 5, 0.5);
-                    for (const s of shots) {
-                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
-                        b.color = '#c0c0d0';
-                        globalEnemyBullets.push(b);
+                // R325: 3-variant cycle in phase 1, 4-variant in phase 2 (adds
+                // Paper Cyclone — 360° radial spray with ricochet). Modulo
+                // expands so the cyclone shows up roughly every 4th attack
+                // once the boss is in phase 2.
+                {
+                    const mod = (this.phase === 2) ? 4 : 3;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        // Horizontal paper line, fast
+                        for (let i = -1; i <= 1; i++) {
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + i * 6, aim * speed * 1.4, 0, 1);
+                            b.color = '#f0f0e0';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        // Ink rain from above
+                        for (let i = 0; i < 5 + this.phase * 2; i++) {
+                            const bx = this.x + (i - 2) * 16 + (Math.random() - 0.5) * 12;
+                            const b = new Bullet(bx, this.y - 10, 0, 1.4, 1);
+                            b.color = '#1a1a1a';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 2) {
+                        // R232: aimed staple-burst — 5 shots aimed AT player.
+                        const { cx, cy, shots } = aimed(speed * 1.2, 0, 5, 0.5);
+                        for (const s of shots) {
+                            const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                            b.color = '#c0c0d0';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else {
+                        // R325: PAPER CYCLONE — 360° radial spray of 8 paper
+                        // pages. Each ricochets ONCE off a wall before
+                        // expiring (handled in Bullet.update via bouncesLeft).
+                        // Phase-2 only.
+                        const cx = this.x + this.w / 2;
+                        const cy = this.y + this.h / 2;
+                        for (let i = 0; i < 8; i++) {
+                            const a = (i / 8) * Math.PI * 2;
+                            const b = new Bullet(cx, cy,
+                                Math.cos(a) * speed * 1.1,
+                                Math.sin(a) * speed * 1.1, 1);
+                            b.color = '#f0f0e0';
+                            b.bouncesLeft = 1;   // ricochet 1× off walls
+                            globalEnemyBullets.push(b);
+                        }
                     }
                 }
                 break;
             case 'SHREDDER':
-                // 3-variant: fan vortex, paper sweep wave, aimed claw.
-                if (this.attackIndex % 3 === 0) {
-                    for (let i = 0; i < fan; i++) {
-                        const a = ((i - (fan - 1) / 2) / fan) * 1.4 + (aim < 0 ? Math.PI : 0);
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed * 0.6, 1);
-                        b.color = '#d8b890';
-                        globalEnemyBullets.push(b);
-                    }
-                } else if (this.attackIndex % 3 === 1) {
-                    // R232: paper-strip sweep — rotating wave that traces an arc
-                    for (let i = 0; i < 7; i++) {
-                        const a = (-0.6 + (i / 6) * 1.2) + (aim < 0 ? Math.PI : 0);
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
-                            Math.cos(a) * speed * 0.9, Math.sin(a) * speed * 0.9, 1);
-                        b.color = '#e8c8a0';
-                        globalEnemyBullets.push(b);
-                    }
-                } else {
-                    // R232: aimed claw-rake — 3-shot tight burst at player
-                    const { cx, cy, shots } = aimed(speed * 1.4, 0, 3, 0.2);
-                    for (const s of shots) {
-                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
-                        b.color = '#b89060';
-                        globalEnemyBullets.push(b);
+                // R325: 3 variants in phase 1; phase 2 cycles 4 including
+                // SHRED FIELD — a 3-tile-wide hazard strip on the floor
+                // that whirls for 90 frames, damaging the player inside it.
+                {
+                    const mod = (this.phase === 2) ? 4 : 3;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        for (let i = 0; i < fan; i++) {
+                            const a = ((i - (fan - 1) / 2) / fan) * 1.4 + (aim < 0 ? Math.PI : 0);
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed * 0.6, 1);
+                            b.color = '#d8b890';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        // R232: paper-strip sweep — rotating wave that traces an arc
+                        for (let i = 0; i < 7; i++) {
+                            const a = (-0.6 + (i / 6) * 1.2) + (aim < 0 ? Math.PI : 0);
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
+                                Math.cos(a) * speed * 0.9, Math.sin(a) * speed * 0.9, 1);
+                            b.color = '#e8c8a0';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 2) {
+                        // R232: aimed claw-rake — 3-shot tight burst at player
+                        const { cx, cy, shots } = aimed(speed * 1.4, 0, 3, 0.2);
+                        for (const s of shots) {
+                            const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                            b.color = '#b89060';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else {
+                        // R325: SHRED FIELD — 3-tile wide hazard strip on the
+                        // floor near the player. 30-frame warning blink, then
+                        // 60 frames of whirling blades that damage on contact.
+                        const T = 16;
+                        const px = player.x + player.w / 2;
+                        const stripX = Math.floor(px / T) * T - T;   // 3-tile-wide centered on player tile
+                        const stripY = player.y + player.h + 2;
+                        if (!this.hazards) this.hazards = [];
+                        this.hazards.push({
+                            kind: 'shred',
+                            x: stripX, y: stripY,
+                            w: T * 3, h: 8,
+                            life: 90,            // total lifetime (30 warning + 60 active)
+                            warning: 30,         // frames remaining as warning blink
+                        });
                     }
                 }
                 break;
@@ -1132,28 +1396,51 @@ class Boss extends Enemy {
                 }
                 break;
             case 'GATES':
-                // 3-variant: spinning ring, Windows-blade laser, aimed beam.
-                if (this.attackIndex % 3 === 0) {
-                    for (let i = 0; i < 4; i++) {
-                        const a = (i / 4) * Math.PI * 2 + this.timer / 30;
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed, 1);
-                        b.color = '#80c0ff';
+                // R325: 3 variants in phase 1; phase 2 cycles 4 including the
+                // FLOPPY RAIN — 6 light-homing floppies fall from above with
+                // light horizontal drift toward the player.
+                {
+                    const mod = (this.phase === 2) ? 4 : 3;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        for (let i = 0; i < 4; i++) {
+                            const a = (i / 4) * Math.PI * 2 + this.timer / 30;
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed, 1);
+                            b.color = '#80c0ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        // R232: blade-laser — fast horizontal pair at two heights
+                        for (const yOff of [-12, 12]) {
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + yOff,
+                                aim * speed * 1.8, 0, 1);
+                            b.color = '#a0d0ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 2) {
+                        // R232: aimed lance — heavy aimed shot at player
+                        const { cx, cy, shots } = aimed(speed * 1.5, 0, 1);
+                        const b = new Bullet(cx, cy, shots[0].vx, shots[0].vy, 2);
+                        b.color = '#4090e0';
                         globalEnemyBullets.push(b);
+                    } else {
+                        // R325: FLOPPY RAIN — 6 floppies spawn off-screen above
+                        // the arena and rain down with slight horizontal drift
+                        // toward the player. Phase-2 only. Color reads as
+                        // floppy-disk grey (#202028).
+                        const playerCx = player.x + player.w / 2;
+                        for (let i = 0; i < 6; i++) {
+                            // Spawn position: spread evenly across a 220-wide
+                            // band centered on the boss's x.
+                            const bx = this.x + this.w / 2 + (i - 2.5) * 36;
+                            const by = this.y - 40 - Math.random() * 12;
+                            // Drift toward the player slightly.
+                            const dx = (playerCx - bx) * 0.01;
+                            const b = new Bullet(bx, by, dx, 1.6, 1);
+                            b.color = '#202028';
+                            globalEnemyBullets.push(b);
+                        }
                     }
-                } else if (this.attackIndex % 3 === 1) {
-                    // R232: blade-laser — fast horizontal pair at two heights
-                    for (const yOff of [-12, 12]) {
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + yOff,
-                            aim * speed * 1.8, 0, 1);
-                        b.color = '#a0d0ff';
-                        globalEnemyBullets.push(b);
-                    }
-                } else {
-                    // R232: aimed lance — heavy aimed shot at player
-                    const { cx, cy, shots } = aimed(speed * 1.5, 0, 1);
-                    const b = new Bullet(cx, cy, shots[0].vx, shots[0].vy, 2);
-                    b.color = '#4090e0';
-                    globalEnemyBullets.push(b);
                 }
                 break;
             case 'CLIPPY_2':
@@ -1266,6 +1553,44 @@ class Boss extends Enemy {
     }
 
     draw(ctx, camera) {
+        // R325: draw hazard zones (SHREDDER Shred Field). Drawn FIRST so
+        // enemies/bullets/player render on top. Warning phase = blinking
+        // dashed outline. Active phase = whirling-blade animated strip.
+        if (this.hazards && this.hazards.length) {
+            for (const h of this.hazards) {
+                const hx = Math.round(h.x - camera.viewX);
+                const hy = Math.round(h.y - camera.viewY);
+                if (h.warning > 0) {
+                    // Telegraph: red blinking outline + ghost fill
+                    const blink = (h.warning >> 2) & 1;
+                    ctx.save();
+                    ctx.globalAlpha = blink ? 0.55 : 0.25;
+                    ctx.fillStyle = '#601018';
+                    ctx.fillRect(hx, hy, h.w, h.h);
+                    ctx.strokeStyle = '#ff4040';
+                    ctx.setLineDash([3, 2]);
+                    ctx.strokeRect(hx + 0.5, hy + 0.5, h.w - 1, h.h - 1);
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                } else {
+                    // Active: whirling-blade strip — bright steel base + a
+                    // moving X-pattern of "blades" scrolling sideways.
+                    ctx.save();
+                    ctx.fillStyle = '#404048';
+                    ctx.fillRect(hx, hy, h.w, h.h);
+                    ctx.fillStyle = '#c0c0d0';
+                    const offset = (h.life * 2) % 8;
+                    for (let bx = 0; bx < h.w; bx += 4) {
+                        const x0 = hx + ((bx + offset) % h.w);
+                        ctx.fillRect(x0, hy + 2, 2, 4);
+                    }
+                    ctx.fillStyle = '#ff5040';
+                    ctx.fillRect(hx, hy, h.w, 1);              // top warning line
+                    ctx.fillRect(hx, hy + h.h - 1, h.w, 1);    // bottom warning line
+                    ctx.restore();
+                }
+            }
+        }
         // Larger ground-contact shadow for grounded bosses. Sells the weight
         // of the silhouette against painted boss arenas; flying bosses skip.
         if (BOSS_TEMPLATES[this.kind]?.grounded) {
@@ -1834,6 +2159,16 @@ export class EnemyManager {
             }
             e.update(level, player);
 
+            // R325: summoner spawn request. The behavior method sets
+            // _pendingSummon when it wants the manager to spawn a child.
+            // We can't push from inside the iterating for-loop without
+            // skewing indices, so accumulate and apply after the loop.
+            if (e._pendingSummon) {
+                if (!this._summonQueue) this._summonQueue = [];
+                this._summonQueue.push(e._pendingSummon);
+                e._pendingSummon = null;
+            }
+
             // Dash-attack melee: knife slash hits any enemy the player intersects during the dash.
             // Each enemy can only be hit once per dash via dashAtkHits set.
             if (player.state === 'dashatk' && e.intersects(player)) {
@@ -1895,6 +2230,28 @@ export class EnemyManager {
                 const b = player.bullets[bi];
                 if (b.stuck) continue; // Wall-stuck bullets are inert decoration
                 if (b.piercing && b.hits.has(e)) continue;
+                // R325: shielder front-shield deflection. Front of the
+                // enemy = facing direction; a 12x16 shield in front blocks
+                // bullets while shieldUp is true. Bullets bounce off with
+                // a spark; deal no damage. Player must time the shield-down
+                // window or flank from behind.
+                if (e.behavior === 'shielded_walk' && e.shieldUp) {
+                    const sW = e.tpl.shieldW || 12;
+                    const sH = e.tpl.shieldH || 16;
+                    const sX = e.facing > 0 ? (e.x + e.w) : (e.x - sW);
+                    const sY = e.y + 2;
+                    if (b.x > sX && b.x < sX + sW && b.y > sY && b.y < sY + sH) {
+                        // Deflect: reverse bullet, mark deflected so it
+                        // doesn't damage same enemy again immediately.
+                        particles.hitSpark(b.x, b.y, '#a0a0c0');
+                        audio.sfx?.('bossHit');
+                        b.vx = -b.vx * 0.7;
+                        b.vy = (Math.random() - 0.5) * 1.2;
+                        b.damage = 0;  // deflected bullets become harmless
+                        player.bullets.splice(bi, 1);
+                        continue;
+                    }
+                }
                 if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
                     // Mini-boss parry: if guardActive, deflect this bullet back
                     // toward the player instead of taking damage. Move it from
