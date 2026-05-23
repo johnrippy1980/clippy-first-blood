@@ -137,25 +137,37 @@ export class FpsArena {
         this.ambientKey = stageData.ambientKey || null;
         this.ambientT = 0;
         this._refreshBg();
-        // R307: atmospheric particle pool — drifting embers/sparks across
-        // the corridor. Per-stage color matches the theme of the level.
+        // R307→R308: atmospheric particle pool — drifting embers/sparks/haze
+        // across the corridor. Per-stage spec; INDOOR corridors get either
+        // null (no embers) or a soft indoor variant (dust motes / stage haze).
+        // Fire embers are reserved for outdoor or burning environments.
         const themeEmber = {
-            'bg_sewer_lab':       { color: '#80c060', count: 8,  rise: 0.4 },
-            'bg_sewer':           { color: '#80c060', count: 6,  rise: 0.4 },
-            'bg_office':          { color: '#ffc060', count: 4,  rise: 0.1 },
-            'bg_keynote_corridor':{ color: '#a070ff', count: 4,  rise: 0.05 },
-            'bg_apocalypse':      { color: '#ff5020', count: 14, rise: 0.5 },
+            // Sewer tunnels — bioluminescent green specks, slow drift, no rise
+            'bg_sewer_lab':       { color: '#80c060', count: 6,  rise: 0.05, alpha: 0.45 },
+            'bg_sewer':           { color: '#80c060', count: 5,  rise: 0.05, alpha: 0.45 },
+            // Indoor office — Ballmer arena. No fire embers; just faint dust
+            // motes drifting on HVAC. Cool grey/blue, very slow.
+            'bg_office':          { color: '#a0b0c0', count: 5,  rise: 0.05, alpha: 0.22 },
+            // Indoor keynote corridor — stage fog/haze (fog machine).
+            // Purple, low count, drifts almost flat.
+            'bg_keynote_corridor':{ color: '#a070ff', count: 4,  rise: 0.05, alpha: 0.28 },
+            // OUTDOOR apocalypse — burning city, angry orange embers.
+            'bg_apocalypse':      { color: '#ff5020', count: 14, rise: 0.50, alpha: 0.55 },
         };
-        this._emberSpec = themeEmber[stageData.bgKey] || { color: '#ffaa50', count: 4, rise: 0.2 };
+        // No spec = no particles. Don't fall through to a generic ember default
+        // because most corridors are indoor; we'd be drawing fire inside an office.
+        this._emberSpec = themeEmber[stageData.bgKey] || null;
         this._ambientEmbers = [];
-        for (let i = 0; i < this._emberSpec.count; i++) {
-            this._ambientEmbers.push({
-                x: Math.random() * GAME.W,
-                y: GAME.H * 0.4 + Math.random() * GAME.H * 0.5,
-                vx: (Math.random() - 0.5) * 0.3,
-                vy: -this._emberSpec.rise * (0.5 + Math.random()),
-                phase: Math.random() * Math.PI * 2,
-            });
+        if (this._emberSpec) {
+            for (let i = 0; i < this._emberSpec.count; i++) {
+                this._ambientEmbers.push({
+                    x: Math.random() * GAME.W,
+                    y: GAME.H * 0.4 + Math.random() * GAME.H * 0.5,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: -this._emberSpec.rise * (0.5 + Math.random()),
+                    phase: Math.random() * Math.PI * 2,
+                });
+            }
         }
         // R307: lightning trigger for apocalypse-themed FPS stages.
         this._lightningT = 0;
@@ -252,7 +264,7 @@ export class FpsArena {
     // R307: drift ambient embers — they rise toward the vanishing point with
     // wind gusts. Cheap, decorative; no collision.
     _tickAmbientEmbers() {
-        if (!this._ambientEmbers) return;
+        if (!this._emberSpec || !this._ambientEmbers) return;
         for (const e of this._ambientEmbers) {
             const gust = 1 + Math.sin((this.t + e.phase * 40) * 0.02) * 0.6;
             e.x += e.vx * gust;
@@ -269,13 +281,19 @@ export class FpsArena {
     }
 
     _drawAmbientEmbers(ctx) {
-        if (!this._ambientEmbers) return;
+        if (!this._emberSpec || !this._ambientEmbers) return;
+        // Indoor specs (dust motes, stage haze) use normal blend so they
+        // don't glow like fire. Outdoor / fire specs use additive.
+        const isFire = this._emberSpec.rise >= 0.3;
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
+        if (isFire) ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = this._emberSpec.color;
+        const baseA = this._emberSpec.alpha ?? 0.55;
         for (const e of this._ambientEmbers) {
-            const flicker = 0.6 + 0.4 * Math.sin((this.t + e.phase * 50) * 0.18);
-            ctx.globalAlpha = 0.55 * flicker;
+            const flicker = isFire
+                ? 0.6 + 0.4 * Math.sin((this.t + e.phase * 50) * 0.18)
+                : 0.85 + 0.15 * Math.sin((this.t + e.phase * 50) * 0.05);
+            ctx.globalAlpha = baseA * flicker;
             ctx.fillRect(e.x | 0, e.y | 0, 1, 1);
         }
         ctx.restore();

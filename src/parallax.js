@@ -138,25 +138,36 @@ export class Parallax {
     // R307: GLOWING EMBERS — bigger than motes, drift with wind, additive
     // blend. Per-theme count + color. Most active in fire/storm themes.
     _emberSpec() {
+        // R307→R308: indoor themes get NO outdoor fire embers. Embers are
+        // reserved for outdoor / fire-lit / supernatural themes only.
+        // Indoor (BREAKROOM, SERVERROOM, BOARDROOM) — handled by motes only.
+        // KEYNOTE keeps a low-count haze (stage fog machine — indoor-appropriate).
         switch (this.theme) {
             case THEME.JUNGLE:
+                // Outdoor jungle near a burning founder's compound — fireflies
+                // by day, embers blown in by night.
                 return { count: 6, color: '#ff8030', wind: 0.10, rise: 0.25, size: 2, alpha: 0.55 };
             case THEME.BREAKROOM:
-                return { count: 4, color: '#ffa050', wind: 0.05, rise: 0.30, size: 1, alpha: 0.40 };
+                return null;     // indoor break room — no fire embers
             case THEME.SERVERROOM:
-                return null;     // no embers — too cold
+                return null;     // indoor server room — no embers
             case THEME.BOARDROOM:
-                return { count: 5, color: '#ffc060', wind: 0.04, rise: 0.10, size: 1, alpha: 0.35 };
+                return null;     // indoor boardroom — no embers (motes already cover dust)
             case THEME.KEYNOTE:
-                return { count: 3, color: '#a070ff', wind: 0.03, rise: 0.05, size: 1, alpha: 0.30 };  // stage smoke
+                // Stage fog/haze machine — purple wisps. Plausible indoors.
+                return { count: 3, color: '#a070ff', wind: 0.03, rise: 0.05, size: 1, alpha: 0.30 };
             case THEME.FOUNDER:
-                return { count: 12, color: '#ff5020', wind: 0.18, rise: 0.45, size: 2, alpha: 0.65 };  // angry fire
+                // Outdoor founder shrine — angry fire embers.
+                return { count: 12, color: '#ff5020', wind: 0.18, rise: 0.45, size: 2, alpha: 0.65 };
             case THEME.CLOUD:
-                return { count: 8, color: '#80f0ff', wind: 0.30, rise: -0.05, size: 1, alpha: 0.50 }; // data sparks horizontal
+                // Sky/data realm — horizontal data sparks.
+                return { count: 8, color: '#80f0ff', wind: 0.30, rise: -0.05, size: 1, alpha: 0.50 };
             case THEME.SEWER:
-                return { count: 3, color: '#80c060', wind: 0.02, rise: 0.20, size: 1, alpha: 0.32 };  // bioluminescent
+                // Tunnel — faint bioluminescent specks (not fire).
+                return { count: 3, color: '#80c060', wind: 0.02, rise: 0.20, size: 1, alpha: 0.32 };
             case THEME.REALITY:
-                return { count: 10, color: '#c080ff', wind: 0.06, rise: -0.15, size: 1, alpha: 0.42 }; // reality particles
+                // Supernatural — reality particles.
+                return { count: 10, color: '#c080ff', wind: 0.06, rise: -0.15, size: 1, alpha: 0.42 };
             default:
                 return null;
         }
@@ -229,24 +240,25 @@ export class Parallax {
             case THEME.BREAKROOM:
                 return null;  // indoor — no distant windows
             case THEME.SERVERROOM:
-                return null;
+                return null;  // indoor
             case THEME.BOARDROOM:
-                // City lights through office window
-                return { count: 14, color: '#fff080', alpha: 0.42, sizeW: 1, sizeH: 1,
-                         yBand: [0.40, 0.62], blinkRate: 0.003 };
-            case THEME.KEYNOTE:
+                // Indoor boardroom — bg painting already shows lightning
+                // storm through windows; adding free-floating dots would
+                // bleed into wall/curtain areas. Skip.
                 return null;
+            case THEME.KEYNOTE:
+                return null;  // indoor stage hall
             case THEME.FOUNDER:
+                // Outdoor — fire-lit windows in distant burning compound.
                 return { count: 10, color: '#ff8030', alpha: 0.55, sizeW: 2, sizeH: 2,
-                         yBand: [0.30, 0.65], blinkRate: 0.012 };  // fire-lit windows
+                         yBand: [0.30, 0.65], blinkRate: 0.012 };
             case THEME.CLOUD:
                 return null;
             case THEME.SEWER:
-                return null;
+                return null;  // underground
             case THEME.REALITY:
-                // Distant city lights through the keynote-hall windows
-                return { count: 18, color: '#ffe070', alpha: 0.42, sizeW: 1, sizeH: 1,
-                         yBand: [0.42, 0.70], blinkRate: 0.004 };
+                // Indoor Reality Distortion stage hall — no exterior windows.
+                return null;
             default:
                 return null;
         }
@@ -293,7 +305,10 @@ export class Parallax {
     // R307: LIGHTNING — full-screen white flash pulse for stormy themes.
     // Fires every 4-12 seconds with a 2-3 frame strike + slower 12-frame fade.
     _lightningSpec() {
-        if (this.theme === THEME.CLOUD || this.theme === THEME.REALITY) {
+        // OUTDOOR ONLY. Lightning is a sky phenomenon; indoor halls (REALITY,
+        // KEYNOTE, BOARDROOM) shouldn't strobe like a thunderstorm even if
+        // their static paintings include storm imagery.
+        if (this.theme === THEME.CLOUD) {
             return { color: 'rgba(200, 220, 255, 0.55)', minGap: 240, maxGap: 720 };
         }
         // Mecha-Gates uses KEYNOTE theme but should ALSO flash for "burning city"
