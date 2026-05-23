@@ -475,6 +475,16 @@ function makeStage2() {
             // Hidden CLIPPY_TAG up high — requires looking up + aim-lock
             { x: 60 * GAME.TILE, y: ( 3) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
+        // R332: break-room atmosphere — flickering fluorescent tubes
+        // (matches the painted bg's broken-ceiling-fixtures aesthetic).
+        // One dying Clippy slumped against the vending area sells
+        // "everyone here was already shredded."
+        ambientProps: [
+            { kind: 'flicker', x: 24 * GAME.TILE, y: ( 2) * GAME.TILE },
+            { kind: 'flicker', x: 52 * GAME.TILE, y: ( 2) * GAME.TILE },
+            { kind: 'flicker', x: 76 * GAME.TILE, y: ( 2) * GAME.TILE },
+            { kind: 'dyingClippy', x: 38 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
+        ],
     };
 }
 
@@ -620,6 +630,17 @@ function makeStage3() {
             { x: 35 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
             { x: 72 * GAME.TILE, y: ( 6) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
             { x: 56 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
+        // R332: server-room atmosphere. Sparking severed cables hang from
+        // the ceiling; one fluorescent tube flickers; a dead Clippy lies
+        // by the cable maze — selling "the data center is failing."
+        ambientProps: [
+            { kind: 'sparkCable', x: 20 * GAME.TILE, y: ( 4) * GAME.TILE },
+            { kind: 'sparkCable', x: 50 * GAME.TILE, y: ( 4) * GAME.TILE },
+            { kind: 'sparkCable', x: 84 * GAME.TILE, y: ( 3) * GAME.TILE },
+            { kind: 'flicker',    x: 32 * GAME.TILE, y: ( 2) * GAME.TILE },
+            { kind: 'flicker',    x: 76 * GAME.TILE, y: ( 2) * GAME.TILE },
+            { kind: 'dyingClippy', x: 64 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
         ],
     };
 }
@@ -1053,6 +1074,18 @@ function makeStage6() {
             { x: 22 * GAME.TILE, y: ( 8) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
             { x: 74 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
             { x: 92 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
+        // R332: ambient storytelling props — burning Founder's compound.
+        // Dying Clippy NPCs throughout the lair sell "you're walking
+        // through the aftermath of a massacre." Fires + sparking cables
+        // add motion to the static painted lava bg.
+        ambientProps: [
+            { kind: 'dyingClippy', x: 18 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'stagger' },
+            { kind: 'dyingClippy', x: 40 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
+            { kind: 'dyingClippy', x: 70 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'stagger', t: 30 },
+            { kind: 'fire', x: 26 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 58 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 86 * GAME.TILE, y: (h - 3) * GAME.TILE },
         ],
     };
 }

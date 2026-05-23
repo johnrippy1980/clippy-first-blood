@@ -6,6 +6,7 @@ import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { Camera } from './camera.js';
 import { Level, STAGE_LOADERS } from './level.js';
+import { AmbientPropManager } from './ambient_props.js';
 import { FpsArena } from './fps_arena.js';
 import { BeatEmUp } from './beatem_up.js';
 import { Player } from './player.js';
@@ -1429,6 +1430,7 @@ export class Game {
         this.stageTime++;
         this.totalTime++;
         this.level.update();
+        if (this._ambientProps) this._ambientProps.update();
         this.player.update(this.level, this.camera);
         const hitPause = (this.player.hitPauseFrames || 0) > 0;
         if (hitPause) {
@@ -1599,6 +1601,11 @@ export class Game {
         }
         this.parallax.drawBack(ctx, this.camera);
         this.level.draw(ctx, this.camera);
+        // R332: ambient props (dying Clippies, fires, flickers, sparks)
+        // draw between the level tiles and gameplay entities — sits AHEAD
+        // of pickups so a dying Clippy doesn't occlude a pickup, but
+        // BEHIND enemies so the player + enemies always read on top.
+        if (this._ambientProps) this._ambientProps.draw(ctx, this.camera);
         this.pickups.draw(ctx, this.camera);
         this.enemies.draw(ctx, this.camera);
         this.player.draw(ctx, this.camera, this.level);
@@ -3589,6 +3596,10 @@ export class Game {
         this._fpsArena = null;
         this._beatEmUp = null;
         this.level = new Level(data);
+        // R332: ambient props (dying-Clippy NPCs, fires, flickers, sparks)
+        // — purely decorative, no gameplay impact. Stage data declares
+        // them via `ambientProps: [...]`.
+        this._ambientProps = new AmbientPropManager(data.ambientProps || []);
         this.parallax.setTheme(data.theme);
         // Owl roosts: level can declare these in its data; otherwise default to a few sensible spots
         if (data.owlRoosts) {
