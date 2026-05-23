@@ -192,7 +192,7 @@ export class BeatEmUp {
         this.waveSpawned = true;
     }
 
-    _spawnEnemy({ type, side = 'right', depth = null, x = null }) {
+    _spawnEnemy({ type, side = 'right', depth = null, x = null, isBoss = false, name = null, hpMul = 1, wMul = 1, hMul = 1 }) {
         // Position: side = 'left'/'right' spawns off-screen at that edge.
         // depth = 0..1 maps to STREET_TOP..STREET_BOTTOM.
         const spawnX = x != null ? x
@@ -201,13 +201,18 @@ export class BeatEmUp {
         const dy = depth != null ? depth : 0.3 + Math.random() * 0.6;
         const spawnY = STREET_TOP + (STREET_BOTTOM - STREET_TOP) * dy;
         const stats = ENEMY_STATS[type] || ENEMY_STATS.scavenger;
+        // R337: spawn-spec can flag this enemy as the stage boss. Boss
+        // enemies get an HP multiplier, an HP bar at the bottom of the
+        // screen (rendered separately), and a name banner. Defaults
+        // preserve all existing spawn calls (isBoss=false, hpMul=1).
+        const hp = Math.ceil(stats.hp * hpMul);
         const e = {
             type,
             x: spawnX, y: spawnY,
-            w: stats.w, h: stats.h,
+            w: Math.round(stats.w * wMul), h: Math.round(stats.h * hMul),
             vx: 0, vy: 0,
-            hp: stats.hp,
-            maxHp: stats.hp,
+            hp,
+            maxHp: hp,
             alive: true,
             speed: stats.speed,
             damage: stats.damage,
@@ -219,8 +224,12 @@ export class BeatEmUp {
             isFlying: type === 'helicopter',
             hoverPhase: Math.random() * Math.PI * 2,
             baseY: spawnY,
+            // R337: boss flags
+            isBoss,
+            name,
         };
         this.enemies.push(e);
+        if (isBoss) this._boss = e;
     }
 
     _waveCleared() {
@@ -273,10 +282,18 @@ export class BeatEmUp {
                 this.phase = 'clear';
                 this.clearT = 0;
             } else {
-                // Small breath between waves
-                setTimeout(() => {
-                    if (this.phase === 'fight') this._spawnWave(this.waveIdx);
-                }, 800);
+                // R337 fix: use a frame-counted breath instead of setTimeout.
+                // setTimeout doesn't honor pause/freeze frames and races with
+                // the next-frame _tickEnemies. _nextWaveAt is a frame counter
+                // ticked here; once it hits 0 we spawn the wave.
+                this._nextWaveAt = 48;   // ~0.8s at 60fps
+            }
+        }
+        // R337: tick the inter-wave breath counter + spawn when ready.
+        if (this._nextWaveAt && this._nextWaveAt > 0 && this.phase === 'fight') {
+            this._nextWaveAt--;
+            if (this._nextWaveAt === 0 && !this.waveSpawned) {
+                this._spawnWave(this.waveIdx);
             }
         }
     }
@@ -755,6 +772,27 @@ export class BeatEmUp {
         ctx.fillStyle = 'rgba(255, 200, 100, 0.45)';
         ctx.fillRect(GAME.W - waveBezelW - 2, 4, waveBezelW, 1);
         drawText(ctx, waveTxt, GAME.W - 6, 6, '#ffcc80', 1, 'right');
+
+        // R337: boss HP bar at the bottom of the screen + name banner.
+        // Mirrors the platformer boss HUD pattern (src/hud.js ~line 482).
+        const boss = this._boss && this._boss.alive ? this._boss : null;
+        if (boss) {
+            const bx = 30, by = GAME.H - 18, bw = GAME.W - 60, bh = 6;
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillRect(bx - 2, by - 8, bw + 4, bh + 12);
+            drawText(ctx, boss.name || 'BOSS', GAME.W / 2, by - 7, '#ff5050', 1, 'center');
+            const bp = boss.hp / boss.maxHp;
+            ctx.fillStyle = '#1a0810';
+            ctx.fillRect(bx, by, bw, bh);
+            let barColor;
+            if (bp > 0.75) barColor = '#7a1018';
+            else if (bp > 0.25) barColor = '#c01a28';
+            else barColor = (Math.sin(this.t * 0.2) > 0) ? '#ff5050' : '#ff9030';
+            ctx.fillStyle = barColor;
+            ctx.fillRect(bx, by, Math.max(0, Math.floor(bw * bp)), bh);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx, by, bw, 1);
+        }
     }
 }
 

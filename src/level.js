@@ -1700,7 +1700,7 @@ export const STAGE_LOADERS = [
     () => makeStagePipeline(),         // R226: stage 4 — sewer/lab + Dr. Spindler
     () => makeStage4(),                // R281: stage 5 BOARD ROOM (Ballmer escapes)
     () => makeFpsStageBallmer(),       // R281: stage 6 BALLMER OFFICE FPS approach
-    () => makeFpsStageBallmerArena(),  // R281: stage 7 BALLMER ARENA FPS boss fight
+    () => makeBeatEmUpBallmer(),       // R337: stage 7 BALLMER ARENA — beat-em-up in boardroom (was FPS)
     () => makeStage5(),                // R281: stage 8 KEYNOTE HALL (Gates escapes)
     () => makeFpsStageGates(),         // R291: stage 9 KEYNOTE FPS approach
     () => makeFpsStageGatesArena(),    // R291: stage 10 GATES ARENA FPS boss
@@ -1969,6 +1969,60 @@ function makeBeatEmUpMechaApproach() {
         clearText: 'KEEP MOVING',
         bossDisplayName: 'MECHA-GATES',
         introBgKey: 'bg_apocalypse',
+    };
+}
+
+// R337: stage 7 — BALLMER ARENA, beat-em-up in the boardroom. User
+// feedback: the giant Ballmer fight should happen in the boardroom, not
+// the FPS corridor, and it should introduce the beat-em-up gameplay
+// element in the main campaign (not just in the super-secret stage 20).
+// Reuses the BeatEmUp class with boardroom-themed waves climaxing in
+// the BALLMER brawler boss.
+function makeBeatEmUpBallmer() {
+    return {
+        beatMode: true,
+        theme: THEME.BOARDROOM,
+        music: 'arenaBoss',
+        bgKey: 'bg_boardroom',
+        bossKind: 'BALLMER',
+        spriteKeys: {
+            // Reuse generic beat-em-up grunts but skin them as office staff
+            // (visual blend with boardroom theme). Brawler = Ballmer himself
+            // using his FPS-arena chair-throw sprite (3/4 angle side view).
+            scavenger:  'scavenger',
+            drone:      'drone',
+            helicopter: 'helicopter',
+            brawler:    'boss_ballmer_fps',
+        },
+        // 4 waves — chair-staff sweep, mixed wave, helicopter pressure,
+        // then Ballmer himself shows up.
+        waves: [
+            { spawns: [
+                { type: 'scavenger', side: 'right', depth: 0.4 },
+                { type: 'scavenger', side: 'left',  depth: 0.7 },
+            ]},
+            { spawns: [
+                { type: 'scavenger', side: 'right', depth: 0.5 },
+                { type: 'drone',     side: 'right', depth: 0.3 },
+                { type: 'scavenger', side: 'left',  depth: 0.8 },
+            ]},
+            { spawns: [
+                { type: 'drone',      side: 'left',  depth: 0.6 },
+                { type: 'drone',      side: 'right', depth: 0.4 },
+                { type: 'helicopter', side: 'right', depth: 0.2 },
+            ]},
+            // Final wave: Ballmer himself + escort. isBoss=true gives him
+            // 3x HP + the boss HP-bar at the bottom of the screen.
+            // 1.4x size makes him visually distinct from the brawler grunts.
+            { spawns: [
+                { type: 'brawler',    side: 'right', depth: 0.5, isBoss: true, name: 'BALLMER', hpMul: 3, wMul: 1.4, hMul: 1.4 },
+                { type: 'scavenger',  side: 'left',  depth: 0.7 },
+            ]},
+        ],
+        clearText: 'BOARDROOM CLEARED',
+        bossDisplayName: 'BALLMER',
+        introBgKey: 'bg_microsoft_hq',
+        nextStage: 8,
     };
 }
 
