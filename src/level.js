@@ -107,6 +107,20 @@ const GROUND_BITMAP_KEY = {
     [THEME.KEYNOTE]:    'ground_keynote',
     [THEME.FOUNDER]:    'ground_founder',
     [THEME.CLOUD]:      'ground_cloud',
+    // R311 sprites in flight — once registered in sprites.js these will
+    // override the procedural fallback in _drawTile.
+    [THEME.SEWER]:      'ground_sewer',
+    [THEME.REALITY]:    'ground_reality',
+};
+
+// R311: per-theme painted platform tile. Looked up the same way as ground
+// bitmaps. If the asset is missing in sprites.images, falls back to the
+// procedural _drawPlatformAccent body. Top row is the bevel cap.
+const PLATFORM_BITMAP_KEY = {
+    [THEME.JUNGLE]:     'plat_jungle',
+    [THEME.SEWER]:      'plat_sewer',
+    [THEME.FOUNDER]:    'plat_founder',
+    [THEME.KEYNOTE]:    'plat_keynote',
 };
 
 const W = 1; const E = 0;
@@ -2405,21 +2419,40 @@ export class Level {
                 }
                 break;
             }
-            case TILE.PLATFORM:
-                // R310: per-theme painted platform. Base body + top highlight
-                // + bottom shadow stay shared; the *accent layer* changes per
-                // theme so each level reads as its own material (rivets for
-                // server racks, vines for jungle, etc.) without an asset gen.
-                ctx.fillStyle = pal.platform;
-                ctx.fillRect(x, y, T, 4);
-                ctx.fillStyle = pal.highlight || pal.accent;
-                ctx.fillRect(x, y, T, 1);
-                this._drawPlatformAccent(ctx, x, y, c, r);
-                ctx.fillStyle = pal.plank;
-                ctx.fillRect(x, y + 4, T, 1);
-                ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                ctx.fillRect(x, y + 5, T, 1);
+            case TILE.PLATFORM: {
+                // R311: prefer painted platform sprite when one exists for
+                // this theme. Falls through to procedural body + per-theme
+                // accent if not registered.
+                const platKey = PLATFORM_BITMAP_KEY[this.data.theme];
+                const platImg = platKey ? sprites.images.get(platKey) : null;
+                if (platImg) {
+                    // The painted platform strip is taller than the 6-px
+                    // visible platform region — its top ~half is the playable
+                    // surface, its bottom ~half is the underside (dripping
+                    // algae, vines, etc.). Sample from the top band and
+                    // downscale-fit into the 6-px destination so the bolts
+                    // + edge highlights survive the squish.
+                    ctx.imageSmoothingEnabled = false;
+                    const xCells = Math.max(1, Math.floor(platImg.width / T));
+                    const srcX = (c % xCells) * T;
+                    // Use top half of the strip (the platform "surface" band)
+                    const srcSampleH = Math.min(platImg.height, Math.max(12, Math.floor(platImg.height * 0.55)));
+                    const dstH = 6;
+                    ctx.drawImage(platImg, srcX, 0, T, srcSampleH, x, y, T, dstH);
+                } else {
+                    // R310: per-theme painted platform — procedural fallback.
+                    ctx.fillStyle = pal.platform;
+                    ctx.fillRect(x, y, T, 4);
+                    ctx.fillStyle = pal.highlight || pal.accent;
+                    ctx.fillRect(x, y, T, 1);
+                    this._drawPlatformAccent(ctx, x, y, c, r);
+                    ctx.fillStyle = pal.plank;
+                    ctx.fillRect(x, y + 4, T, 1);
+                    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                    ctx.fillRect(x, y + 5, T, 1);
+                }
                 break;
+            }
             case TILE.LADDER:
                 // r108: prefer painted ladder sprite when loaded. Falls back
                 // to the procedural fillRect rails+rung when the asset is

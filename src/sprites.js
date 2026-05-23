@@ -225,6 +225,13 @@ export const BG_MANIFEST = {
     'ground_keynote':    'ground_keynote.png',
     'ground_founder':    'ground_founder.png',
     'ground_cloud':      'ground_cloud.png',
+    // R311: painted ground tilesets for previously-procedural themes
+    'ground_sewer':      'ground_sewer.png',
+    'ground_reality':    'ground_reality.png',
+    'ground_apocalypse': 'ground_apocalypse.png',
+    // R311: painted platform tile strips (top-of-strip = playable surface)
+    'plat_jungle':       'plat_jungle.png',
+    'plat_sewer':        'plat_sewer.png',
     // r108 universal tile sprites — painted via Local Howl, processed
     // through process-v2-sprites.py. Render branches in level.js prefer
     // these when loaded and fall back to the procedural fillRect path
