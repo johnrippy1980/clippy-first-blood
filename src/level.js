@@ -2385,13 +2385,27 @@ export class Level {
                 const groundKey = this._groundBitmapKey();
                 const img = groundKey ? sprites.images.get(groundKey) : null;
                 if (img) {
+                    // R324: hash-shuffled tile sampling. Was `(c % xCells) * T`,
+                    // which means columns 0, xCells, 2*xCells, ... all sample
+                    // the SAME bitmap column — visible vertical-stripe
+                    // repetition on levels wider than xCells (48 cells at 768
+                    // bitmap / 16 tile). Now picks a sample column via a
+                    // cheap deterministic hash of (r, c) so wide levels don't
+                    // show identical-tile stripes. Same hash within a frame
+                    // means tiles still read as "contiguous material" — no
+                    // visible flicker.
                     const xCells = Math.max(1, Math.floor(img.width / T));
                     const bodyH = Math.max(T, img.height - T);
                     const yCells = Math.max(1, Math.floor(bodyH / T));
-                    const srcX = (c % xCells) * T;
+                    // Mulberry-style cheap hash: keep results deterministic
+                    // per (r,c) so tiles don't flicker between frames.
+                    const hashC = ((c * 2654435761) ^ (r * 374761393)) >>> 0;
+                    const sampleCol = hashC % xCells;
+                    const sampleRow = ((hashC >>> 8) % yCells);
+                    const srcX = sampleCol * T;
                     const srcY = topIsAir
-                        ? 0                                 // top edge — first row of bitmap
-                        : T + ((r % yCells) * T);           // body — cycle through body band
+                        ? 0                                  // top edge — first row of bitmap
+                        : T + (sampleRow * T);               // body — hash-picked row in body band
                     ctx.imageSmoothingEnabled = false;
                     ctx.drawImage(img,
                         srcX, Math.min(srcY, img.height - T),
