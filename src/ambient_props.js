@@ -52,33 +52,42 @@ const KINDS = {
         draw(ctx, p, camera) {
             const dx = Math.round(p.x - camera.viewX);
             const dy = Math.round(p.y - camera.viewY + (p.fallY || 0));
-            // Sample 'clippy_hurt' if available, else 'clippy_walk_01', else fallback
-            // to a simple 8x10 pixel-art silhouette.
-            // (Reuse the standard v5 Clippy character art at desaturated
-            // tone so it reads as "another Clippy, dying" not the hero.)
-            const desat = p.state === 'dead' ? 0.85 : 0.65;
+            // R347: painted sprites for the dying-Clippy ambient prop.
+            // Falls back to the legacy procedural blob if assets missing.
+            const desat = p.state === 'dead' ? 0.85 : 0.7;
             ctx.save();
             ctx.globalAlpha = desat;
-            // Body — small grey clippy shape
-            ctx.fillStyle = p.state === 'dead' ? '#605860' : '#807888';
-            if (p.state === 'dead') {
-                // Lying horizontal — 12 wide x 4 tall
-                ctx.fillRect(dx - 6, dy - 2, 12, 4);
-                // Bandana smear
-                ctx.fillStyle = '#601018';
-                ctx.fillRect(dx - 5, dy - 1, 4, 1);
-            } else if (p.state === 'stagger') {
-                // Upright but tilted — 4 wide x 12 tall, slight sway
-                const sway = Math.sin(p.t * 0.3) * 2;
-                ctx.fillRect(dx - 2 + (sway | 0), dy - 12, 4, 12);
-                ctx.fillStyle = '#a01020';
-                ctx.fillRect(dx - 3 + (sway | 0), dy - 11, 6, 1);
+            const useStaggerSprite = sprites.images.get('clippy_dying_stagger');
+            const useDeadSprite = sprites.images.get('clippy_dying_dead');
+            if (p.state === 'dead' && useDeadSprite) {
+                // Lying horizontal — anchored at bottom of bbox
+                const img = useDeadSprite;
+                ctx.drawImage(img, dx - img.width / 2 | 0, dy - img.height + 1);
+            } else if (p.state === 'stagger' && useStaggerSprite) {
+                // Upright; subtle sway via integer offset
+                const sway = Math.sin(p.t * 0.18) * 1;
+                const img = useStaggerSprite;
+                ctx.drawImage(img, (dx - img.width / 2 + sway) | 0, dy - img.height);
+            } else if (p.state === 'falling' && useStaggerSprite) {
+                // Falling — reuse stagger sprite tilted via translate/rotate
+                const img = useStaggerSprite;
+                const lean = Math.min(0.6, p.t * 0.02);
+                ctx.translate(dx, dy);
+                ctx.rotate(lean);
+                ctx.drawImage(img, -img.width / 2 | 0, -img.height);
             } else {
-                // Falling — diagonal
-                const lean = Math.min(8, p.t * 0.2);
-                ctx.fillRect(dx - 2 + (lean | 0), dy - 12 + (lean | 0), 4, 12);
-                ctx.fillStyle = '#a01020';
-                ctx.fillRect(dx - 3 + (lean | 0), dy - 11 + (lean | 0), 6, 1);
+                // Procedural fallback (legacy R332 path) — kept for the
+                // moment when sprites haven't loaded yet during boot.
+                ctx.fillStyle = p.state === 'dead' ? '#605860' : '#807888';
+                if (p.state === 'dead') {
+                    ctx.fillRect(dx - 6, dy - 2, 12, 4);
+                } else if (p.state === 'stagger') {
+                    const sway = Math.sin(p.t * 0.3) * 2;
+                    ctx.fillRect(dx - 2 + (sway | 0), dy - 12, 4, 12);
+                } else {
+                    const lean = Math.min(8, p.t * 0.2);
+                    ctx.fillRect(dx - 2 + (lean | 0), dy - 12 + (lean | 0), 4, 12);
+                }
             }
             ctx.restore();
         },

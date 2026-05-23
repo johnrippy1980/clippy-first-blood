@@ -462,6 +462,11 @@ export const ENEMY_MANIFEST = {
     'dive_bomber':      'dive_bomber.png',
     'summoner':         'summoner.png',
     'shielder':         'shielder.png',
+    // R347: painted dying-Clippy NPC for the R332 ambient_props system.
+    // Replaces the procedural 4-pixel grey blob with a wounded paperclip
+    // silhouette + corpse on the ground.
+    'clippy_dying_stagger': 'clippy_dying_stagger.png',
+    'clippy_dying_dead':    'clippy_dying_dead.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',
