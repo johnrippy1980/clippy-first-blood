@@ -65,8 +65,14 @@ export class Camera {
     }
 
     shake(intensity, decay = CAMERA.SHAKE_DECAY) {
+        // R322: add a brief sustain at peak intensity before exponential
+        // decay starts. A 3-frame hold makes hits feel like an impact
+        // ("BOOM") rather than a flick ("blip"). Bigger shakes get
+        // proportionally longer sustains.
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
         this._shakeDecay = decay;
+        const sustain = Math.min(6, Math.floor(intensity / 2));
+        this._shakeSustain = Math.max(this._shakeSustain || 0, sustain);
     }
 
     update() {
@@ -80,12 +86,20 @@ export class Camera {
 
         // Shake
         if (this.shakeIntensity > 0.05) {
+            // R322: vertical-biased shake (1.4× y-magnitude) — impact
+            // hits read more "thumpy" with stronger vertical motion.
             this.shakeX = (Math.random() - 0.5) * this.shakeIntensity;
-            this.shakeY = (Math.random() - 0.5) * this.shakeIntensity;
-            this.shakeIntensity *= this._shakeDecay || CAMERA.SHAKE_DECAY;
+            this.shakeY = (Math.random() - 0.5) * this.shakeIntensity * 1.4;
+            // R322: hold at peak for `_shakeSustain` frames before decay.
+            if (this._shakeSustain && this._shakeSustain > 0) {
+                this._shakeSustain--;
+            } else {
+                this.shakeIntensity *= this._shakeDecay || CAMERA.SHAKE_DECAY;
+            }
         } else {
             this.shakeX = 0; this.shakeY = 0;
             this.shakeIntensity = 0;
+            this._shakeSustain = 0;
         }
     }
 

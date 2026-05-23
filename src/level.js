@@ -2222,6 +2222,17 @@ export class Level {
         const endCol = Math.min(this.data.width, Math.ceil((camera.viewX + GAME.W) / T) + 1);
         const startRow = Math.max(0, Math.floor(camera.viewY / T));
         const endRow = Math.min(this.data.height, Math.ceil((camera.viewY + GAME.H) / T) + 1);
+        // R321 perf: cache per-frame sin/cos values that _drawTile reads
+        // for animated tiles. Was calling Math.sin per tile per frame; a
+        // 96x14 viewport at 60Hz = ~80,000 trig calls/sec wasted on
+        // values that don't vary by tile.
+        this._frameSinSlow = Math.sin(this.frame * 0.15);             // crumble-ghost outline pulse
+        this._tileAnimSinSlow = Math.sin(this.tileAnimTick * 0.15);   // crumble-debris bob
+        // REALITY platform pulse — varies per column, but the column factor
+        // is `c * 0.5`. Precompute the time-only term once; _drawTile adds
+        // the column phase. (sin(a+b) expansion would let us LUT this, but
+        // a single per-frame term is the easy 95% win.)
+        this._realityPulseBase = this.tileAnimTick * 0.04;
 
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
@@ -2545,7 +2556,7 @@ export class Level {
                     // Ghost outline + respawn countdown ring
                     const respawn = this._broken.get(key) || 0;
                     ctx.strokeStyle = '#ffa040';
-                    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(this.frame * 0.15);
+                    ctx.globalAlpha = 0.35 + 0.25 * this._frameSinSlow;
                     ctx.setLineDash([2, 2]);
                     ctx.lineWidth = 1;
                     ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
@@ -2763,8 +2774,9 @@ export class Level {
                         ctx.fillRect(x + 8, y - 10, 1, 6);
                     }
                 } else if (theme === THEME.CLOUD) {
-                    // Floating data-pillar — hovers above the tile
-                    const bob = Math.sin(t2 * 0.15) * 2;
+                    // R321 perf: bob uses tileAnimTick — same for every
+                    // tile in the frame. Read cached value from draw().
+                    const bob = this._tileAnimSinSlow * 2;
                     ctx.fillStyle = '#0a0a18';
                     ctx.fillRect(x + 3, y - 18 + bob, 10, 30);
                     ctx.fillStyle = '#205080';

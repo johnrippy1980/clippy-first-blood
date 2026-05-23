@@ -1210,6 +1210,9 @@ export class Game {
     // ============== play ==============
     triggerSlowMo(frames = 30) {
         this.slowMoFrames = Math.max(this.slowMoFrames || 0, frames);
+        // R322: remember the original total so the ramped tick can
+        // compute "how deep into the slow-mo we are" for the speed envelope.
+        this.slowMoTotal = Math.max(this.slowMoTotal || 0, frames);
     }
     // Top-level play tick. Drives the per-frame world update, then runs
     // post-update telemetry + state-machine gates. Each phase is a small
@@ -1378,11 +1381,34 @@ export class Game {
         return true;
     }
 
-    // Slow-mo: tick the countdown and alternate the skip flag so enemies +
-    // bullets advance every other frame, halving their apparent speed.
+    // Slow-mo: tick the countdown and decide whether to skip world tick.
+    // R322: ramped envelope. Was a hard 50% (skip every other frame).
+    // New envelope:
+    //   - First ~20% of slow-mo duration: ramp from 0% → 50% slow (skip 1 of 3)
+    //   - Middle 60%: full 50% slow (skip every other frame)
+    //   - Last 20%: ramp back from 50% → 0% (skip 1 of 3)
+    // Sells the dramatic-zoom feel instead of an abrupt time-jolt.
     _tickPlayAdvanceSlowMo() {
-        if (this.slowMoFrames <= 0) return false;
+        if (this.slowMoFrames <= 0) {
+            this.slowMoTotal = 0;
+            return false;
+        }
+        const remaining = this.slowMoFrames;
+        const total = this.slowMoTotal || remaining;
         this.slowMoFrames--;
+        // Position within the envelope: 0 = just triggered, 1 = just ending.
+        const elapsed = total - remaining;
+        const rampIn = total * 0.20;
+        const rampOut = total * 0.20;
+        const inRampIn  = elapsed < rampIn;
+        const inRampOut = remaining < rampOut;
+        // During ramps: skip 1 in 3 (33% slower). Counter increments on every
+        // call; skip when counter % 3 === 0.
+        // During hold: skip 1 in 2 (50% slower) — original behavior.
+        if (inRampIn || inRampOut) {
+            this._slowMoRampCount = (this._slowMoRampCount || 0) + 1;
+            return this._slowMoRampCount % 3 === 0;
+        }
         this._slowMoSkip = !this._slowMoSkip;
         return this._slowMoSkip;
     }

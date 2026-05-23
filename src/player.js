@@ -1020,8 +1020,20 @@ export class Player {
         const ax = input.axis();
         if (input.isPressed('right')) this.tapHistory.push({ dir: 1, t: 0 });
         if (input.isPressed('left'))  this.tapHistory.push({ dir: -1, t: 0 });
-        for (const tap of this.tapHistory) tap.t++;
-        this.tapHistory = this.tapHistory.filter(tap => tap.t < DOUBLE_TAP_WINDOW);
+        // R321 perf: in-place tick + shift instead of `.filter()` which
+        // allocates a new array every frame. tapHistory is tiny (~2-3
+        // entries) but this fires 60 times/sec; cheap allocation × 60 ×
+        // every player session is real GC pressure over time.
+        const th = this.tapHistory;
+        let writeIdx = 0;
+        for (let i = 0; i < th.length; i++) {
+            th[i].t++;
+            if (th[i].t < DOUBLE_TAP_WINDOW) {
+                if (writeIdx !== i) th[writeIdx] = th[i];
+                writeIdx++;
+            }
+        }
+        th.length = writeIdx;
     }
     _consumeDoubleTap() {
         if (this.tapHistory.length < 2) return 0;
