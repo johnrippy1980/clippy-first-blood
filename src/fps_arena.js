@@ -1101,21 +1101,30 @@ export class FpsArena {
         // R280: door-approach phase — glowing door at the vanishing point.
         // R297: name on the door reads from stage data (bossDisplayName)
         // so it doesn't say "STEVE BALLMER" on the Gates corridor approach.
+        // R333: skip the door entirely on apocalypse-themed corridors —
+        // post-apocalypse cityscape doesn't have a "CEO office door" at
+        // the end. Without an override, the door label is configurable.
         if (this.phase === 'doorApproach') {
-            const cx = GAME.W / 2;
-            const cy = BACK_WALL_Y + 8;
-            const t = this.doorT || 0;
-            const glow = 0.5 + 0.5 * Math.sin(t * 0.12);
-            ctx.fillStyle = '#1a1010';
-            ctx.fillRect(cx - 10, cy - 4, 20, 28);
-            ctx.strokeStyle = `rgba(255, 200, 80, ${0.4 + glow * 0.5})`;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(cx - 10, cy - 4, 20, 28);
-            ctx.fillStyle = '#ffe070';
-            ctx.fillRect(cx + 6, cy + 12, 2, 2);
-            drawText(ctx, 'CEO', cx, cy - 12, '#ffe070', 1, 'center');
-            const doorName = this.data.bossDisplayName || this.data.bossKind || 'BOSS';
-            drawText(ctx, doorName, GAME.W / 2, GAME.H - 40, '#ff80a0', 1, 'center');
+            const isApocalypse = (this.data.bgKey === 'bg_apocalypse');
+            if (!isApocalypse) {
+                const cx = GAME.W / 2;
+                const cy = BACK_WALL_Y + 8;
+                const t = this.doorT || 0;
+                const glow = 0.5 + 0.5 * Math.sin(t * 0.12);
+                ctx.fillStyle = '#1a1010';
+                ctx.fillRect(cx - 10, cy - 4, 20, 28);
+                ctx.strokeStyle = `rgba(255, 200, 80, ${0.4 + glow * 0.5})`;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(cx - 10, cy - 4, 20, 28);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(cx + 6, cy + 12, 2, 2);
+                // R333: door label is configurable via stage data (was hardcoded
+                // 'CEO'). Stages can pass doorLabel to override.
+                const doorTopLabel = this.data.doorLabel || 'CEO';
+                drawText(ctx, doorTopLabel, cx, cy - 12, '#ffe070', 1, 'center');
+                const doorName = this.data.bossDisplayName || this.data.bossKind || 'BOSS';
+                drawText(ctx, doorName, GAME.W / 2, GAME.H - 40, '#ff80a0', 1, 'center');
+            }
         }
         // R290: boss entry telegraph. Lower-half panel slides up showing the
         // painted boss portrait + name (matches the platformer BOSS_INTRO
