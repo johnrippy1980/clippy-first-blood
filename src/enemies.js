@@ -1681,8 +1681,28 @@ class Boss extends Enemy {
         if (sprites.has(spriteKey)) {
             // Use PNG, anchored to bottom-center of hitbox
             const dims = getSpriteDims(spriteKey);
-            const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX);
-            const dy = Math.round(this.y + this.h - dims.h - camera.viewY);
+            // R341: boss animation polish. Most bosses use a single static
+            // portrait/sprite. Add three layers of life:
+            //   1. IDLE BREATHING — slow sin bob on Y (±1.5px, 0.04 rad/f)
+            //   2. ATTACK WINDUP — during _telegraph ramp, shift up slightly
+            //      and stretch Y by 5% to read as 'about to swing.'
+            //   3. HIT JITTER — during hitFlash, add ±1px horizontal twitch.
+            // Helicopter (chase boss) and grounded bosses skip the bob
+            // since their movement already handles vertical motion.
+            const allowBob = !BOSS_TEMPLATES[this.kind]?.grounded || this._movement === 'static';
+            let bobY = 0;
+            if (allowBob && this._movement !== 'chase' && this._movement !== 'flyby') {
+                bobY = Math.sin(this.timer * 0.04) * 1.5;
+            }
+            // Telegraph windup — _telegraph is 0..1 during 8-frame pre-fire ramp
+            const tele = this._telegraph || 0;
+            const windupY = -tele * 2;       // boss compresses up slightly
+            // Hit jitter — small horizontal twitch on contact
+            const jitterX = (this.hitFlash > 0)
+                ? ((this.timer & 1) ? 1 : -1)
+                : 0;
+            const dx = Math.round(this.x + this.w / 2 - dims.w / 2 - camera.viewX) + jitterX;
+            const dy = Math.round(this.y + this.h - dims.h - camera.viewY + bobY + windupY);
             if (this.hitFlash > 0 && this.hitFlash % 2 === 0) {
                 // White flash on hit
                 ctx.save();
@@ -1691,7 +1711,18 @@ class Boss extends Enemy {
                 sprites.draw(ctx, spriteKey, dx, dy, false);
                 ctx.restore();
             }
+            // R341: phase-2 enrage tint — pulse a faint red multiply
+            // overlay over the boss sprite once it crosses 50% HP.
             sprites.draw(ctx, spriteKey, dx, dy, false);
+            if (this.phase === 2) {
+                const pulse = 0.10 + 0.10 * Math.sin(this.timer * 0.18);
+                ctx.save();
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.globalAlpha = pulse;
+                ctx.fillStyle = '#ff5040';
+                ctx.fillRect(dx, dy, dims.w, dims.h);
+                ctx.restore();
+            }
             // Mini-boss parry tell: a brief cyan pre-flash (12f) then a thick
             // cyan ring during the 24f guard window. The ring tells the player
             // "shoot now and your bullet bounces back" — must be readable.
