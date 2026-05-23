@@ -423,6 +423,39 @@ export class Parallax {
                 ctx.fillRect(GAME.W - 32, 0, 32, GAME.H);
                 break;
             }
+            case THEME.SEWER: {
+                // R309: dripping ceiling pipes at left + right edges. Thick
+                // dark verticals with green sludge droplet at the tip that
+                // re-grows on a slow cycle.
+                ctx.fillStyle = 'rgba(8, 14, 10, 0.85)';
+                for (let i = 0; i < 3; i++) {
+                    const x = 4 + i * 6;
+                    ctx.fillRect(x, 0, 3, 10 + (i & 1) * 4);
+                    ctx.fillRect(GAME.W - 7 - i * 6, 0, 3, 10 + (i & 1) * 4);
+                }
+                // Sludge droplet — grows for ~120 frames then falls
+                const dropPhase = (t % 120) / 120;
+                const dropY = dropPhase < 0.85 ? 14 : 14 + (dropPhase - 0.85) * 80;
+                ctx.fillStyle = 'rgba(120, 200, 80, 0.65)';
+                ctx.fillRect(5, dropY | 0, 1, 2);
+                ctx.fillRect(GAME.W - 6, ((t + 40) % 120 < 102 ? 14 : 14 + ((t + 40) % 120 - 102) * 0.7) | 0, 1, 2);
+                break;
+            }
+            case THEME.BREAKROOM: {
+                // R309: hanging fluorescent housing + ceiling tile fragments
+                // at the top. Dark grey, low-contrast — just enough to break
+                // up the flat top of the screen.
+                ctx.fillStyle = 'rgba(20, 18, 12, 0.65)';
+                ctx.fillRect(0, 0, GAME.W, 4);
+                // Hanging tube fixture
+                ctx.fillStyle = 'rgba(40, 36, 28, 0.85)';
+                ctx.fillRect(GAME.W / 2 - 28, 4, 56, 3);
+                // Dangling broken tile
+                ctx.fillStyle = 'rgba(60, 50, 36, 0.7)';
+                ctx.fillRect(GAME.W / 2 - 30 + sway, 7, 4, 3);
+                ctx.fillRect(GAME.W / 2 + 26 - sway, 7, 4, 3);
+                break;
+            }
         }
         ctx.restore();
     }
@@ -709,6 +742,8 @@ export class Parallax {
             case THEME.KEYNOTE:   this._keynoteSpotBeam(ctx); break;
             case THEME.FOUNDER:   this._founderEmberGlow(ctx); break;
             case THEME.CLOUD:     this._cloudMatrixRain(ctx); break;
+            case THEME.SEWER:     this._sewerDripSplash(ctx); break;
+            case THEME.REALITY:   this._realityRipple(ctx); break;
         }
     }
 
@@ -849,14 +884,88 @@ export class Parallax {
     // Server room LED flicker — occasional brief column-wide cyan flash
     // on a pseudo-random column, simulating bad rack power.
     _serverFlicker(ctx) {
-        // Cheap deterministic pick — flicker every ~30 frames on a varying column
-        if ((this.t % 27) > 2) return;
-        const col = ((this.t * 17) % GAME.W) | 0;
+        // R309: multi-column server-rack LED flicker. 6 fixed columns at
+        // deterministic positions, each blinking at its own rate. Sells a
+        // wall of blade servers behind the action without breaking the
+        // painted bg. Cheap (no allocation, no per-frame randomness).
+        if (!this._serverCols) {
+            this._serverCols = [];
+            for (let i = 0; i < 6; i++) {
+                this._serverCols.push({
+                    x: 18 + i * ((GAME.W - 36) / 5) | 0,
+                    rate: 0.04 + (i % 3) * 0.03,
+                    phase: i * 7.3,
+                    color: (i & 1) ? '#a0d0ff' : '#80f0ff',
+                });
+            }
+        }
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.18;
-        ctx.fillStyle = '#80c0ff';
-        ctx.fillRect(col, 0, 4, GAME.H);
+        for (const c of this._serverCols) {
+            // sin^4 → most of the time dim, brief sharp blinks
+            const v = Math.sin(this.t * c.rate + c.phase);
+            const intensity = v > 0 ? v * v * v * v : 0;
+            if (intensity < 0.15) continue;
+            ctx.globalAlpha = 0.22 * intensity;
+            ctx.fillStyle = c.color;
+            // Single-column thin vertical line evokes a tower of blinking LEDs
+            ctx.fillRect(c.x, 4, 1, GAME.H * 0.55);
+            // Brighter dot at the "active" LED
+            ctx.globalAlpha = 0.55 * intensity;
+            const dotY = (8 + ((this.t * 0.5 + c.phase * 9) % (GAME.H * 0.45))) | 0;
+            ctx.fillRect(c.x, dotY, 1, 1);
+        }
+        ctx.restore();
+    }
+
+    // R309: occasional water-drip splash on the sewer floor. Cheap impact
+    // ring that pulses outward 1-2 times per second from a wandering point.
+    _sewerDripSplash(ctx) {
+        if (!this._dripState) {
+            this._dripState = { nextAt: 30, x: GAME.W / 2, y: GAME.H - 18, life: 0 };
+        }
+        const s = this._dripState;
+        s.life--;
+        if (s.life <= 0 && this.t >= s.nextAt) {
+            s.x = 12 + Math.random() * (GAME.W - 24);
+            s.y = GAME.H * 0.62 + Math.random() * GAME.H * 0.30;
+            s.life = 18;
+            s.nextAt = this.t + 30 + (Math.random() * 60) | 0;
+        }
+        if (s.life > 0) {
+            const k = 1 - s.life / 18;
+            const r = 2 + k * 6;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.5 * (1 - k);
+            ctx.strokeStyle = '#a0e0a0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    // R309: Reality Distortion Field ripple — a horizontal sinusoidal
+    // "warp band" that sweeps slowly down the screen. Drawn as a subtle
+    // additive purple band that brightens at the wave peak.
+    _realityRipple(ctx) {
+        const sweepY = (this.t * 0.6) % (GAME.H + 60) - 30;
+        const bandH = 18;
+        if (sweepY + bandH < 0 || sweepY > GAME.H) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let dy = 0; dy < bandH; dy++) {
+            const y = (sweepY + dy) | 0;
+            if (y < 0 || y >= GAME.H) continue;
+            // Triangle envelope — brightest at center of band
+            const env = 1 - Math.abs(dy - bandH / 2) / (bandH / 2);
+            ctx.globalAlpha = 0.18 * env;
+            // Two-tone band: purple bottom, cyan top
+            ctx.fillStyle = dy < bandH / 2 ? '#80d0ff' : '#c080ff';
+            ctx.fillRect(0, y, GAME.W, 1);
+        }
         ctx.restore();
     }
 
