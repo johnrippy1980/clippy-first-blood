@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 
 const URL = 'http://localhost:8765/';
 const OUT = '/tmp/clippy-stages';
-const STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const STAGES = Array.from({ length: 23 }, (_, i) => i + 1);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
@@ -13,6 +13,8 @@ const page = await ctx.newPage();
 const errs = [];
 page.on('pageerror', e => errs.push(`PAGE: ${e.message}`));
 page.on('console', m => { if (m.type() === 'error') errs.push(`CONSOLE: ${m.text()}`); });
+page.on('response', r => { if (r.status() >= 400) errs.push(`HTTP ${r.status()}: ${r.url()}`); });
+page.on('requestfailed', r => errs.push(`REQFAIL: ${r.url()} (${r.failure()?.errorText})`));
 
 await page.goto(URL, { waitUntil: 'networkidle' });
 await page.waitForTimeout(2200);
