@@ -1931,6 +1931,12 @@ function makeFpsStageGatesArena() {
 // scavengers + drones + helicopters across multiple waves, reach a dead
 // end where Mecha-Gates appears (cinematic) and the player advances.
 function makeBeatEmUpMechaApproach() {
+    // R331: Mecha Approach is now a scrolling cityscape — 4 screens wide,
+    // 4 waves spawn at chokepoints as the player advances. Scroll locks
+    // until the current wave is cleared; then the player can push right
+    // to trigger the next wave. Mirrors classic Final Fight / TMNT arcade
+    // flow.
+    const STAGE_W = GAME.W * 4;     // 1024 wide
     return {
         beatMode: true,
         theme: THEME.KEYNOTE,
@@ -1943,27 +1949,41 @@ function makeBeatEmUpMechaApproach() {
             helicopter: 'helicopter',
             brawler:    'brawler',
         },
-        // 4 waves of escalating enemy mix
+        stageWidth: STAGE_W,
+        // First wave starts immediately at scroll=0. Subsequent waves
+        // trigger via _spawnEnemy when scroll reaches the chokepoint x.
         waves: [
+            // Wave 0 — entry: 2 scavengers, both right (player just appeared)
             { spawns: [
                 { type: 'scavenger', side: 'right', depth: 0.4 },
                 { type: 'scavenger', side: 'right', depth: 0.7 },
             ]},
+            // Wave 1 — first chokepoint: pincer + drone
             { spawns: [
                 { type: 'scavenger', side: 'left',  depth: 0.5 },
                 { type: 'scavenger', side: 'right', depth: 0.3 },
                 { type: 'drone',     side: 'right', depth: 0.8 },
             ]},
+            // Wave 2 — second chokepoint: drone pressure + chopper warning
             { spawns: [
                 { type: 'drone',      side: 'left',  depth: 0.6 },
                 { type: 'drone',      side: 'right', depth: 0.4 },
                 { type: 'helicopter', side: 'right', depth: 0.2 },
             ]},
+            // Wave 3 — finale: brawler + chopper + scavengers
             { spawns: [
                 { type: 'brawler',    side: 'right', depth: 0.5 },
                 { type: 'helicopter', side: 'left',  depth: 0.25 },
                 { type: 'scavenger',  side: 'right', depth: 0.8 },
             ]},
+        ],
+        // R331: wave chokepoints — each fires when scroll >= x. Wave 0
+        // fires automatically on stage entry; subsequent waves fire
+        // when the player advances + clears the current wave.
+        waveChokepoints: [
+            { x: GAME.W * 1.0,  wave: 1 },
+            { x: GAME.W * 2.0,  wave: 2 },
+            { x: GAME.W * 3.0,  wave: 3 },
         ],
         nextStage: 21,
         clearText: 'KEEP MOVING',

@@ -195,9 +195,11 @@ export class BeatEmUp {
     _spawnEnemy({ type, side = 'right', depth = null, x = null, isBoss = false, name = null, hpMul = 1, wMul = 1, hMul = 1 }) {
         // Position: side = 'left'/'right' spawns off-screen at that edge.
         // depth = 0..1 maps to STREET_TOP..STREET_BOTTOM.
+        // R331: positions are WORLD coords now. Off-screen-left =
+        // (current scroll - 20); off-screen-right = (scroll + GAME.W + 20).
         const spawnX = x != null ? x
-                     : side === 'left' ? -20
-                     : GAME.W + 20;
+                     : side === 'left' ? this.scroll - 20
+                     : this.scroll + GAME.W + 20;
         const dy = depth != null ? depth : 0.3 + Math.random() * 0.6;
         const spawnY = STREET_TOP + (STREET_BOTTOM - STREET_TOP) * dy;
         const stats = ENEMY_STATS[type] || ENEMY_STATS.scavenger;
@@ -233,6 +235,11 @@ export class BeatEmUp {
     }
 
     _waveCleared() {
+        // R331: a wave is only "cleared" if it actually spawned AND
+        // every spawned enemy is dead. Initial state (no enemies) does
+        // NOT count as cleared — otherwise scroll runs free before wave
+        // 0 even engages.
+        if (!this.enemies.length) return false;
         return this.enemies.every(e => !e.alive);
     }
 
@@ -305,11 +312,44 @@ export class BeatEmUp {
         p.vy = ax.y * PLAYER_SPEED_Y;
         p.x += p.vx;
         p.y += p.vy;
-        // Clamp to street band
-        if (p.x < 8) p.x = 8;
-        if (p.x > GAME.W - p.w - 8) p.x = GAME.W - p.w - 8;
+        // R331: clamp p.x in WORLD coords. p.x is now world-x, not
+        // screen-x. Left bound = current scroll (can't walk off-screen
+        // backwards). Right bound = scroll-locked: if a wave isn't
+        // cleared, scroll holds and player can't push past the right
+        // edge of the visible screen.
+        const worldLeft = this.scroll + 8;
+        const worldRight = this.scroll + GAME.W - p.w - 8;
+        if (p.x < worldLeft) p.x = worldLeft;
+        if (p.x > worldRight) p.x = worldRight;
         if (p.y < STREET_TOP) p.y = STREET_TOP;
         if (p.y > STREET_BOTTOM - p.h) p.y = STREET_BOTTOM - p.h;
+        // R331: scroll the camera forward when the player crosses 60% of
+        // the screen, BUT only if the current wave is cleared (no
+        // surviving enemies). The lock turns the scene into a series of
+        // bounded arenas — classic beat-em-up flow.
+        const screenX = p.x - this.scroll;
+        const SCROLL_THRESH = GAME.W * 0.55;
+        const canScroll = this._waveCleared() && !this.data.scrollLocked;
+        if (canScroll && screenX > SCROLL_THRESH) {
+            const delta = screenX - SCROLL_THRESH;
+            const maxScroll = (this.data.stageWidth || GAME.W * 4) - GAME.W;
+            this.scroll = Math.min(maxScroll, this.scroll + delta);
+            // If scroll hit max, trigger the next wave/boss
+            if (this.scroll >= maxScroll && !this._reachedEnd) {
+                this._reachedEnd = true;
+            }
+        }
+        // R331: spawn the next wave whenever scroll passes a chokepoint
+        // declared in stage data. Each chokepoint is consumed once.
+        if (this.data.waveChokepoints) {
+            for (const cp of this.data.waveChokepoints) {
+                if (!cp._fired && this.scroll >= cp.x) {
+                    cp._fired = true;
+                    this.waveIdx = cp.wave;
+                    this._spawnWave(cp.wave);
+                }
+            }
+        }
         if (Math.abs(ax.x) > 0.1) {
             p.runFrame = (p.runFrame + 0.25) % 4;
             p.facing = ax.x > 0 ? 1 : -1;
@@ -551,13 +591,23 @@ export class BeatEmUp {
     // ==== draw ====
     draw() {
         const ctx = this.ctx;
-        // Background
+        // R331: parallax-scrolling bg. Bg moves at 0.5x scroll so it
+        // reads as distant cityscape. Tile horizontally so we always
+        // cover the screen even when scroll is large.
         if (this.bgImg) {
             ctx.imageSmoothingEnabled = false;
             const scale = Math.max(GAME.W / this.bgImg.width, GAME.H / this.bgImg.height);
             const dw = this.bgImg.width * scale;
             const dh = this.bgImg.height * scale;
-            ctx.drawImage(this.bgImg, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+            // Parallax offset — bg moves 0.5x player scroll
+            const bgOffset = -((this.scroll * 0.5) % dw);
+            // Render two copies side-by-side to handle wrap
+            ctx.drawImage(this.bgImg, bgOffset,           (GAME.H - dh) / 2, dw, dh);
+            ctx.drawImage(this.bgImg, bgOffset + dw,      (GAME.H - dh) / 2, dw, dh);
+            if (bgOffset > -dw / 2) {
+                // Also fill behind on the left side when wrap is partial
+                ctx.drawImage(this.bgImg, bgOffset - dw, (GAME.H - dh) / 2, dw, dh);
+            }
         } else {
             ctx.fillStyle = '#0a0612';
             ctx.fillRect(0, 0, GAME.W, GAME.H);
@@ -590,14 +640,16 @@ export class BeatEmUp {
         // Player bullets
         for (const b of this.bullets) {
             ctx.fillStyle = '#ffe070';
-            ctx.fillRect(b.x, b.y, 4, 2);
+            ctx.fillRect(b.x - this.scroll, b.y, 4, 2);
         }
         // Enemy bullets
         for (const b of this.enemyBullets) {
             ctx.fillStyle = '#ff8040';
-            ctx.fillRect(b.x - 1, b.y - 1, 3, 3);
+            ctx.fillRect(b.x - this.scroll - 1, b.y - 1, 3, 3);
         }
-        // R314: typed particles (ring / smoke / debris / default spark)
+        // R314+R331: typed particles. p.x is world-coords; subtract
+        // scroll for the draw call.
+        const sc = this.scroll;
         for (const p of this.particles) {
             if (p._ring) {
                 const a = p.life / (p.maxLife || 18);
@@ -606,26 +658,27 @@ export class BeatEmUp {
                 ctx.strokeStyle = p.color;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.ringR, 0, Math.PI * 2);
+                ctx.arc(p.x - sc, p.y, p.ringR, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.restore();
             } else if (p._smoke) {
                 const a = Math.min(0.6, p.life / 50);
                 ctx.globalAlpha = a;
                 ctx.fillStyle = p.color;
-                ctx.fillRect((p.x | 0) - 1, (p.y | 0) - 1, 3, 3);
-                ctx.fillRect((p.x | 0) + 1, (p.y | 0), 2, 2);
-                ctx.fillRect((p.x | 0) - 2, (p.y | 0) + 1, 2, 2);
+                const px = (p.x | 0) - sc;
+                ctx.fillRect(px - 1, (p.y | 0) - 1, 3, 3);
+                ctx.fillRect(px + 1, (p.y | 0), 2, 2);
+                ctx.fillRect(px - 2, (p.y | 0) + 1, 2, 2);
             } else if (p._debris) {
                 const a = Math.min(1, p.life / 50);
                 ctx.globalAlpha = a;
                 ctx.fillStyle = p.color;
-                ctx.fillRect(p.x | 0, p.y | 0, 2, 2);
+                ctx.fillRect((p.x | 0) - sc, p.y | 0, 2, 2);
             } else {
                 const a = Math.min(1, p.life / 32);
                 ctx.globalAlpha = a;
                 ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, 2, 2);
+                ctx.fillRect(p.x - sc, p.y, 2, 2);
             }
         }
         ctx.globalAlpha = 1;
@@ -654,6 +707,9 @@ export class BeatEmUp {
         const ctx = this.ctx;
         const p = this.player;
         if (p.iframes > 0 && (p.iframes % 4 < 2)) return;
+        // R331: player position is WORLD coords now; subtract scroll
+        // when drawing.
+        const drawX = p.x - this.scroll;
         const isMoving = (Math.abs(p.vx) + Math.abs(p.vy)) > 0.1;
         const runFrames = ['run_1', 'run_2', 'run_3', 'run_4'];
         const key = isMoving
@@ -667,17 +723,17 @@ export class BeatEmUp {
             ctx.imageSmoothingEnabled = false;
             if (p.facing < 0) {
                 ctx.save();
-                ctx.translate(Math.round(p.x + dw), Math.round(p.y));
+                ctx.translate(Math.round(drawX + dw), Math.round(p.y));
                 ctx.scale(-1, 1);
                 ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, dw, dh);
                 ctx.restore();
             } else {
                 ctx.drawImage(img, 0, 0, img.width, img.height,
-                              Math.round(p.x), Math.round(p.y), dw, dh);
+                              Math.round(drawX), Math.round(p.y), dw, dh);
             }
         } else {
             ctx.fillStyle = '#80889a';
-            ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.fillRect(drawX, p.y, p.w, p.h);
         }
     }
 
@@ -696,7 +752,8 @@ export class BeatEmUp {
         const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
         if (img) {
             ctx.imageSmoothingEnabled = false;
-            const dx = Math.round(e.x);
+            // R331: enemy.x is world coords; subtract scroll for draw.
+            const dx = Math.round(e.x - this.scroll);
             const dy = Math.round(e.y);
             if (facing < 0) {
                 ctx.save();
@@ -722,16 +779,17 @@ export class BeatEmUp {
             }
         } else {
             ctx.fillStyle = e.type === 'helicopter' ? '#5a6a4a' : '#604030';
-            ctx.fillRect(e.x, e.y, dw, dh);
+            ctx.fillRect(e.x - this.scroll, e.y, dw, dh);
         }
         // Mini HP bar above enemy if damaged
         if (e.hp < e.maxHp) {
             const bw = Math.round(dw);
             const fillW = Math.round((e.hp / e.maxHp) * bw);
+            const hbX = e.x - this.scroll;
             ctx.fillStyle = '#2a0a14';
-            ctx.fillRect(e.x, e.y - 4, bw, 2);
+            ctx.fillRect(hbX, e.y - 4, bw, 2);
             ctx.fillStyle = '#ff5040';
-            ctx.fillRect(e.x, e.y - 4, fillW, 2);
+            ctx.fillRect(hbX, e.y - 4, fillW, 2);
         }
     }
 
