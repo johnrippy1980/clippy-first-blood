@@ -55,6 +55,9 @@ const FILE_TRACKS = {
     hope:         'assets/audio/hope.mp3',                     // game-complete credits roll
     realityField: 'assets/audio/time-is-a-flat-circle.mp3',    // stage 18 (Reality Distortion / Jobs)
     recycleBin:   'assets/audio/1.26x.mp3',                    // stage 14 (Recycle Bin secret)
+    // R303: dedicated FPS Spindler / Core Breach track. "DREAMS FADE"
+    // lands the deep-lab confrontation about Clippy's lost family.
+    dreamsFade:   'assets/audio/dreams-fade.mp3',              // stage 19 (Core Breach)
     // Bonus track — wired to a hidden alias so the soundtrack gallery
     // can list it without a stage routing yet. Playable via menu.
     bonus:      'assets/audio/youve-been-loving.mp3',

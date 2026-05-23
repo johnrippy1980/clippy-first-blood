@@ -46,6 +46,7 @@ export const TRACK_MANIFEST = [
     { track: 'cloud',        title: 'THE PATH',               mood: 'STAGE 13',      author: 'R_I_P' },
     { track: 'recycleBin',   title: '1.26X',                  mood: 'SECRET S1',     author: 'R_I_P' },
     { track: 'realityField', title: 'TIME IS A FLAT CIRCLE',  mood: 'POST-GAME P3',  author: 'R_I_P' },
+    { track: 'dreamsFade',   title: 'DREAMS FADE',            mood: 'POST-GAME P4',  author: 'R_I_P' },
     { track: 'apocalypse',   title: 'THE LIGHT BLEEDS THROUGH', mood: 'P5 — TRUE FINAL', author: 'R_I_P' },
     { track: 'hope',         title: 'HOPE',                   mood: 'CREDITS ROLL',  author: 'R_I_P' },
 ];
@@ -161,7 +162,7 @@ export const STAGES = [
     { id: 16, name: 'BOSS RUSH MODE',           category: 'postgame', displayId: 'P1', theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'POST-GAME — NO TALKING. JUST FIGHTING.' },
     { id: 17, name: 'TIME TRIAL',               category: 'postgame', displayId: 'P2', theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'POST-GAME — BEAT THE CLOCK.' },
     { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'realityField', tagline: 'POST-GAME — ONE MORE TITAN.' },
-    { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'pipeline',   tagline: 'POST-GAME — THE DEEPER LAB.' },
+    { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'dreamsFade', tagline: 'POST-GAME — THE DEEPER LAB.' },
     // R301: super-secret Mecha-Gates stage — konami-only super-final.
     // The "what they made after he fell" — Gates piloting a battle mech
     // over the ruins of dead Clippy clones.

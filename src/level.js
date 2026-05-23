@@ -1646,7 +1646,7 @@ function makeFpsStage() {
     return {
         fpsMode: true,
         theme: THEME.SEWER,
-        music: 'pipeline',
+        music: 'dreamsFade',    // R303: dedicated Core Breach track (was sharing 'pipeline')
         bgKey: 'bg_sewer_lab',
         bossKind: 'SPINDLER',
         // R293: full polish for the long-neglected FPS Spindler bonus stage.
