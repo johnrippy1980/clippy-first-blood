@@ -52,6 +52,18 @@ export class Camera {
         this.targetY = midY - GAME.H / 2 - 8;
     }
 
+    // R315: hard-snap the camera to a world point so the next follow()
+    // doesn't lerp in from the previous position. Used on respawn/scene
+    // transitions where a smooth slide is wrong.
+    snapTo(worldX, worldY) {
+        this.targetX = worldX - GAME.W / 2;
+        this.targetY = worldY - GAME.H / 2;
+        this.x = Math.max(this.bounds.minX, Math.min(this.bounds.maxX, this.targetX));
+        this.y = Math.max(this.bounds.minY, Math.min(this.bounds.maxY, this.targetY));
+        this._leadX = 0;
+        this._leadY = 0;
+    }
+
     shake(intensity, decay = CAMERA.SHAKE_DECAY) {
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
         this._shakeDecay = decay;

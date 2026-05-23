@@ -3269,9 +3269,11 @@ export class Game {
     _spawnMiniBoss() {
         this.miniBossSpawned = true;
         const stg = STAGES[this.currentStage];
-        // R232: mini-boss anchors a screen ahead of the player, but clamped
-        // inside the level so it never spawns past the right wall.
-        const bx = Math.min(this.player.x + 100, this.level.width - 48);
+        // R232 + R316: mini-boss anchors at least 100px right of the player
+        // and inside the level. _safeBossAnchorX guarantees the gap so the
+        // mini-boss never spawns on top of or behind the player even if the
+        // player rushed past the trigger.
+        const bx = this._safeBossAnchorX(100);
         const by = this.level.height - 32;
         // Pick a thematic mini-boss kind based on stage. Default to the stage's own boss
         // sprite at 35% HP and no phase-2 transition.
@@ -3316,10 +3318,10 @@ export class Game {
         // (= width - 115) for safety. Lower bound is player.x + 80 so we
         // don't anchor behind the player on short levels; UPPER bound caps
         // it to the safe arena even if the player rushes the trigger.
-        const safeAnchorX = this.level.width - GAME.W * 0.45;
-        const arenaX = Math.min(safeAnchorX,
-                                Math.max(this.player.x + 80,
-                                         this.level.width - GAME.W * 0.9));
+        // R316: enforce minimum 110px gap right of player. Was: Math.min(...,
+        // Math.max(player.x+80, ...)), which could clamp BELOW player.x+80
+        // when safeAnchorX was small.
+        const arenaX = this._safeBossAnchorX(110);
         this._bossArenaX = arenaX;
         const bx = arenaX;
         const by = this.level.height - 32;
@@ -3375,14 +3377,14 @@ export class Game {
         this.triggerSlowMo(Math.floor(AMBIENT.SLOWMO_BOSS_KILL_F * 0.5));
         this.camera.shake(4);
         const kind = this._gauntletQueue.shift();
-        // R232: reuse the fixed arena center so each gauntlet boss spawns at
-        // the same anchor — keeps all of them framed on camera consistently.
-        const safeAnchorX = this.level.width - GAME.W * 0.45;
-        const bx = this._bossArenaX != null
-            ? this._bossArenaX
-            : Math.min(safeAnchorX,
-                       Math.max(this.player.x + 80,
-                                this.level.width - GAME.W * 0.9));
+        // R232 + R316: reuse the fixed arena center so each gauntlet boss
+        // spawns at the same anchor. If the player has wandered past the
+        // stored anchor (post-respawn, slow death + reset), recompute so
+        // the next gauntlet boss still spawns >= 110px right of player.
+        const playerCx = this.player.x + this.player.w / 2;
+        const minBossX = playerCx + 110;
+        let bx = this._bossArenaX != null ? this._bossArenaX : this._safeBossAnchorX(110);
+        if (bx < minBossX) bx = this._safeBossAnchorX(110);
         if (this._bossArenaX == null) this._bossArenaX = bx;
         const by = this.level.height - 32;
         this.enemies.spawnBoss(bx, by, kind);
@@ -3404,12 +3406,70 @@ export class Game {
         else audio.sfx('bossHit');
     }
 
+    // R316: compute a safe boss anchor X that:
+    //   - sits within the level bounds (clamped to [GAME.W*0.5, level.width-GAME.W*0.45])
+    //   - is at least minGap px to the RIGHT of the player center
+    //   - prefers a fixed arena anchor (level.width - GAME.W*0.45) when that
+    //     still satisfies the gap
+    // If the player is far past the safe anchor (post-cinematic skip + dash),
+    // we accept the player+gap anchor and let the camera follow.
+    _safeBossAnchorX(minGap = 110) {
+        const safeAnchorX = this.level.width - GAME.W * 0.45;
+        const leftLimit   = GAME.W * 0.5;
+        const playerCx    = this.player.x + (this.player.w || 0) / 2;
+        const minBoss     = playerCx + minGap;
+        // If the safe anchor is already far enough right, use it.
+        if (safeAnchorX >= minBoss) return safeAnchorX;
+        // Otherwise place the boss just past the gap, but never off-screen
+        // past the right wall.
+        const rightLimit = Math.max(leftLimit, this.level.width - GAME.W * 0.18);
+        return Math.min(rightLimit, minBoss);
+    }
+
     _respawn() {
-        this.player.x = this.level.data.playerStart.x;
-        this.player.y = this.level.data.playerStart.y;
+        // R315: validate spawn point. If playerStart is somehow inside a
+        // solid tile (stale level data, recent layout edit, weird stage),
+        // search upward for the nearest non-solid cell so the player
+        // doesn't materialize trapped inside terrain.
+        let sx = this.level.data.playerStart.x;
+        let sy = this.level.data.playerStart.y;
+        const w = this.player.w, h = this.player.h;
+        const T = GAME.TILE;
+        // Clamp into level bounds first
+        sx = Math.max(0, Math.min(this.level.width  - w - 1, sx));
+        sy = Math.max(0, Math.min(this.level.height - h - 1, sy));
+        const lvl = this.level;
+        // Test the four corners of the player AABB; if any sit inside a
+        // solid tile, scan upward in T-px steps for a clear position.
+        const isAABBSolid = (x, y) => (
+            lvl.isSolid(x + 1,     y + 1) ||
+            lvl.isSolid(x + w - 1, y + 1) ||
+            lvl.isSolid(x + 1,     y + h - 1) ||
+            lvl.isSolid(x + w - 1, y + h - 1)
+        );
+        if (isAABBSolid(sx, sy)) {
+            console.warn('_respawn: playerStart is solid — rescanning', sx, sy);
+            // Scan upward first (likely the floor crept up), then downward
+            for (let dy = 0; dy < this.level.height; dy += T) {
+                if (!isAABBSolid(sx, sy - dy)) { sy = sy - dy; break; }
+                if (sy + dy < this.level.height - h &&
+                    !isAABBSolid(sx, sy + dy)) { sy = sy + dy; break; }
+            }
+            // Final clamp + emergency: if still stuck, bail to top of level
+            sy = Math.max(0, Math.min(this.level.height - h - 1, sy));
+            if (isAABBSolid(sx, sy)) sy = 0;
+        }
+        this.player.x = sx;
+        this.player.y = sy;
         this.player.vx = 0; this.player.vy = 0;
         this.player.state = 'idle';
         this.player.resetForStage();
+        // R315: snap camera to player so the materialize ring doesn't draw
+        // off-screen and the player isn't briefly visible at the old camera
+        // position before the camera follows.
+        if (this.camera && this.camera.snapTo) {
+            this.camera.snapTo(this.player.x + w / 2, this.player.y + h / 2);
+        }
         // Materialize beat — outward shock ring + dust + ready chime so the
         // respawn isn't a silent teleport. The i-frame window is the same;
         // this just makes it visible/audible.
