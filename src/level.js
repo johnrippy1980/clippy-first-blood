@@ -3000,6 +3000,11 @@ export class Level {
                         [THEME.FOUNDER]:    'cover_founder',
                         [THEME.SEWER]:      'cover_sewer',
                         [THEME.CLOUD]:      'cover_cloud',
+                        // R345 note: BOARDROOM + REALITY intentionally fall
+                        // through to the procedural branch below, which
+                        // draws the painted tile_door at correct full size.
+                        // Mapping them here would render tile_door at the
+                        // 30-40px cover-sprite scale, which is too tall.
                     }[theme];
                 }
                 if (coverKey && sprites.has(coverKey)) {

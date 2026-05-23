@@ -2299,7 +2299,7 @@ export class EnemyManager {
 
             // Dash-attack melee: knife slash hits any enemy the player intersects during the dash.
             // Each enemy can only be hit once per dash via dashAtkHits set.
-            if (player.state === 'dashatk' && e.intersects(player)) {
+            if (player.state === STATE.DASH_ATTACK && e.intersects(player)) {
                 if (!player.dashAtkHits.has(e)) {
                     player.dashAtkHits.add(e);
                     const killed = e.hurt(3, player.facing, { knockBack: 1.8 });
