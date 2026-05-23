@@ -40,15 +40,28 @@ def is_bg_pixel(r, g, b, thresh=42):
     return True
 
 
-def knockout(im, thresh=42):
+def is_bg_pixel_light(r, g, b, thresh_lo=200):
+    """R328 fix: handle LIGHT checker backgrounds too (the transparency
+    pattern shown as white-grey checkers in some PNG exports). Any pixel
+    above thresh_lo on all channels + near-grey qualifies as BG."""
+    if r < thresh_lo or g < thresh_lo or b < thresh_lo:
+        return False
+    if max(r, g, b) - min(r, g, b) > 12:
+        return False
+    return True
+
+
+def knockout(im, thresh=42, light_mode=False):
     im = im.convert('RGBA')
     w, h = im.size
     px = im.load()
     visited = bytearray(w * h)
     stack = []
+    bg_test = (lambda r,g,b: is_bg_pixel_light(r,g,b)) if light_mode else \
+              (lambda r,g,b: is_bg_pixel(r,g,b,thresh))
     for cx, cy in [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]:
         r, g, b, _ = px[cx, cy]
-        if is_bg_pixel(r, g, b, thresh):
+        if bg_test(r, g, b):
             stack.append((cx, cy))
     while stack:
         x, y = stack.pop()
@@ -57,7 +70,7 @@ def knockout(im, thresh=42):
             continue
         visited[idx] = 1
         r, g, b, _ = px[x, y]
-        if not is_bg_pixel(r, g, b, thresh):
+        if not bg_test(r, g, b):
             continue
         px[x, y] = (0, 0, 0, 0)
         for nx, ny in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]:
@@ -92,14 +105,14 @@ def post_alpha_threshold(im, alpha_thresh=128):
     return im
 
 
-def process(raw, out_name, knockout_thresh=85):
+def process(raw, out_name, knockout_thresh=85, light_mode=False):
     src = os.path.join(STAGING, raw)
     if not os.path.exists(src):
         print(f'  SKIP {raw}: not downloaded')
         return
     im = Image.open(src).convert('RGBA')
-    if knockout_thresh > 0:
-        im = knockout(im, thresh=knockout_thresh)
+    if knockout_thresh > 0 or light_mode:
+        im = knockout(im, thresh=knockout_thresh, light_mode=light_mode)
     im = crop_to_content(im)
     im = downscale_to_h(im, TARGET_H)
     # R326: clean up LANCZOS halo after downscale
@@ -118,7 +131,9 @@ if __name__ == '__main__':
     # check inside is_bg_pixel prevents eating dark-saturated sprite colors.
     process('cover_jungle_raw.png',     'cover_jungle.png',     knockout_thresh=85)
     process('cover_breakroom_raw.png',  'cover_breakroom.png',  knockout_thresh=85)
-    process('cover_serverroom_raw.png', 'cover_serverroom.png', knockout_thresh=0)
+    # R328: serverroom raw has a LIGHT checker BG (white-grey transparency
+    # checker baked into the PNG). Use light_mode knockout.
+    process('cover_serverroom_raw.png', 'cover_serverroom.png', knockout_thresh=0, light_mode=True)
     process('cover_keynote_raw.png',    'cover_keynote.png',    knockout_thresh=85)
     process('cover_founder_raw.png',    'cover_founder.png',    knockout_thresh=85)
     process('cover_sewer_raw.png',      'cover_sewer.png',      knockout_thresh=85)

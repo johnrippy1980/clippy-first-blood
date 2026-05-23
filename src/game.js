@@ -3322,6 +3322,21 @@ export class Game {
 
     _spawnBoss() {
         this.bossSpawned = true;
+        // R329: kill any still-alive mini-boss before the main boss spawns.
+        // Player otherwise ends up fighting BOTH (the mini-boss has wandered
+        // into the arena while the player crossed the bossTrigger). Despawn
+        // with a payoff burst + grant the score the player would have earned
+        // from finishing it — fair compensation for the unintended skip.
+        for (const e of this.enemies.enemies) {
+            if (e.isMini && e.alive) {
+                particles.explosion(e.x + e.w / 2, e.y + e.h / 2, '#ff8050', 22);
+                particles.shockRing(e.x + e.w / 2, e.y + e.h / 2, 24, 16, '#ffe070');
+                this.player.score += e.score || 0;
+                e.alive = false;
+                e.hp = 0;
+                audio.sfx('bossHit');
+            }
+        }
         // Route through the cinematic pre-boss slide. The actual spawn +
         // entrance flourish runs at the end of the cinematic in
         // _finishBossIntro(). Skippable with X/jump after a short hold so
