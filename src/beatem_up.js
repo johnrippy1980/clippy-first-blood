@@ -461,16 +461,46 @@ export class BeatEmUp {
         // future "scroll-and-fight" multi-screen levels.
     }
 
+    // R314: richer explosion FX — shockwave ring + smoke puff + debris.
     _explosion(x, y, color) {
-        for (let i = 0; i < 14; i++) {
+        this.particles.push({
+            x, y, vx: 0, vy: 0,
+            life: 18, maxLife: 18,
+            color: '#ffffff',
+            _ring: true, ringR: 2, ringRMax: 22,
+        });
+        for (let i = 0; i < 5; i++) {
+            this.particles.push({
+                x: x + (Math.random() - 0.5) * 6,
+                y: y + (Math.random() - 0.5) * 4,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: -0.25 - Math.random() * 0.35,
+                life: 40 + (Math.random() * 20) | 0,
+                color: '#303030',
+                _smoke: true,
+            });
+        }
+        for (let i = 0; i < 22; i++) {
             const a = Math.random() * Math.PI * 2;
-            const s = 1 + Math.random() * 2.5;
+            const s = 1.2 + Math.random() * 3;
             this.particles.push({
                 x, y,
                 vx: Math.cos(a) * s,
                 vy: Math.sin(a) * s,
-                life: 32,
+                life: 28 + (Math.random() * 10) | 0,
                 color,
+            });
+        }
+        for (let i = 0; i < 6; i++) {
+            const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
+            const s = 1 + Math.random() * 2;
+            this.particles.push({
+                x, y,
+                vx: Math.cos(a) * s,
+                vy: Math.sin(a) * s,
+                life: 50,
+                color: '#1a1208',
+                _debris: true,
             });
         }
     }
@@ -478,9 +508,24 @@ export class BeatEmUp {
     _tickParticles() {
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
+            if (p._ring) {
+                p.ringR += (p.ringRMax - p.ringR) * 0.25;
+                p.life--;
+                if (p.life <= 0) this.particles.splice(i, 1);
+                continue;
+            }
+            if (p._smoke) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy *= 0.98;
+                p.life--;
+                if (p.life <= 0) this.particles.splice(i, 1);
+                continue;
+            }
             p.x += p.vx;
             p.y += p.vy;
-            p.vy += 0.05;
+            p.vy += p._debris ? 0.15 : 0.05;
+            if (p._debris) p.vx *= 0.985;
             p.life--;
             if (p.life <= 0) this.particles.splice(i, 1);
         }
@@ -535,12 +580,36 @@ export class BeatEmUp {
             ctx.fillStyle = '#ff8040';
             ctx.fillRect(b.x - 1, b.y - 1, 3, 3);
         }
-        // Particles
+        // R314: typed particles (ring / smoke / debris / default spark)
         for (const p of this.particles) {
-            const a = Math.min(1, p.life / 32);
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = a;
-            ctx.fillRect(p.x, p.y, 2, 2);
+            if (p._ring) {
+                const a = p.life / (p.maxLife || 18);
+                ctx.save();
+                ctx.globalAlpha = a;
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.ringR, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            } else if (p._smoke) {
+                const a = Math.min(0.6, p.life / 50);
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color;
+                ctx.fillRect((p.x | 0) - 1, (p.y | 0) - 1, 3, 3);
+                ctx.fillRect((p.x | 0) + 1, (p.y | 0), 2, 2);
+                ctx.fillRect((p.x | 0) - 2, (p.y | 0) + 1, 2, 2);
+            } else if (p._debris) {
+                const a = Math.min(1, p.life / 50);
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x | 0, p.y | 0, 2, 2);
+            } else {
+                const a = Math.min(1, p.life / 32);
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 2, 2);
+            }
         }
         ctx.globalAlpha = 1;
         // R307: lightning flash overlay (above scene, below HUD)

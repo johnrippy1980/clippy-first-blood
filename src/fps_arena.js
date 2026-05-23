@@ -572,6 +572,11 @@ export class FpsArena {
                                 this.player.score += 9500;
                                 audio.sfx('bossDie');
                                 this._explosion(c.x, c.y, '#ff60a0');
+                                // R314: chunky shake on boss death — three
+                                // staggered bursts feel like one big detonation
+                                this._explosion(c.x - 12, c.y + 5, '#ffa040');
+                                this._explosion(c.x + 12, c.y - 5, '#ffa040');
+                                this._shake(7, 26);
                                 this.phase = 'clear';
                                 this.clearT = 0;
                             }
@@ -800,16 +805,61 @@ export class FpsArena {
         }
     }
 
+    // R314: optional camera shake. Caller passes ampFrames; positive amp,
+    // decays linearly to zero. Reads in draw() to offset the whole canvas.
+    _shake(amp = 4, frames = 14) {
+        this._shakeAmp = Math.max(this._shakeAmp || 0, amp);
+        this._shakeT = Math.max(this._shakeT || 0, frames);
+    }
+
+    // R314: richer explosion FX. Same call signature as before; spawns:
+    //   - an expanding shockwave ring (marked _ring)
+    //   - a slow-rising smoke puff (marked _smoke)
+    //   - 22 colored sparks (faster + more spread than before)
+    //   - 6 dark debris chunks with gravity (marked _debris)
     _explosion(x, y, color) {
-        for (let i = 0; i < 14; i++) {
+        // Shockwave ring — drawn as an expanding circle outline in _tickParticles.
+        this.particles.push({
+            x, y, vx: 0, vy: 0,
+            life: 18, maxLife: 18,
+            color: '#ffffff',
+            _ring: true, ringR: 2, ringRMax: 22,
+        });
+        // Smoke puff — slow rising dark cloud
+        for (let i = 0; i < 5; i++) {
+            this.particles.push({
+                x: x + (Math.random() - 0.5) * 6,
+                y: y + (Math.random() - 0.5) * 4,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: -0.3 - Math.random() * 0.4,
+                life: 40 + (Math.random() * 20) | 0,
+                color: '#303030',
+                _smoke: true,
+            });
+        }
+        // Bright sparks (existing pattern, bumped count + speed)
+        for (let i = 0; i < 22; i++) {
             const a = Math.random() * Math.PI * 2;
-            const s = 1 + Math.random() * 2.5;
+            const s = 1.2 + Math.random() * 3;
             this.particles.push({
                 x, y,
                 vx: Math.cos(a) * s,
                 vy: Math.sin(a) * s,
-                life: 32,
+                life: 28 + (Math.random() * 10) | 0,
                 color,
+            });
+        }
+        // Debris chunks — heavy dark fragments with gravity
+        for (let i = 0; i < 6; i++) {
+            const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
+            const s = 1 + Math.random() * 2;
+            this.particles.push({
+                x, y,
+                vx: Math.cos(a) * s,
+                vy: Math.sin(a) * s,
+                life: 50,
+                color: '#1a1208',
+                _debris: true,
             });
         }
     }
@@ -882,11 +932,35 @@ export class FpsArena {
     }
 
     _tickParticles() {
+        // R314: shake decay
+        if (this._shakeT > 0) {
+            this._shakeT--;
+            this._shakeAmp *= 0.90;
+            if (this._shakeT <= 0) { this._shakeAmp = 0; }
+        }
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
+            if (p._ring) {
+                // Shockwave — expand outward, fade with life
+                p.ringR += (p.ringRMax - p.ringR) * 0.25;
+                p.life--;
+                if (p.life <= 0) this.particles.splice(i, 1);
+                continue;
+            }
+            if (p._smoke) {
+                // Smoke — slow drift, no extra gravity; size grows over life
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy *= 0.98;
+                p.life--;
+                if (p.life <= 0) this.particles.splice(i, 1);
+                continue;
+            }
+            // Default particle (spark / debris) — gravity, with extra for debris
             p.x += p.vx;
             p.y += p.vy;
-            p.vy += 0.08;
+            p.vy += p._debris ? 0.18 : 0.08;
+            if (p._debris) p.vx *= 0.985;     // air resistance for chunks
             p.life--;
             if (p.life <= 0) this.particles.splice(i, 1);
         }
@@ -895,6 +969,15 @@ export class FpsArena {
     // ============== draw ==============
     draw() {
         const ctx = this.ctx;
+        // R314: apply screen shake before drawing scene. HUD is drawn AFTER
+        // restoring so it remains stable while the world rattles.
+        const hasShake = (this._shakeAmp || 0) > 0.1;
+        if (hasShake) {
+            ctx.save();
+            const sx = (Math.random() - 0.5) * 2 * this._shakeAmp;
+            const sy = (Math.random() - 0.5) * 2 * this._shakeAmp;
+            ctx.translate(sx | 0, sy | 0);
+        }
         // Background — painted backdrop scaled to cover.
         if (this.bgImg) {
             ctx.imageSmoothingEnabled = false;
@@ -969,12 +1052,41 @@ export class FpsArena {
                 ctx.fillRect(b.x - 1, b.y - 1, 3, 3);
             }
         }
-        // Particles
+        // R314: particles render in three flavors —
+        //   _ring  → expanding ring outline (shockwave)
+        //   _smoke → soft 3x3 grey blob, growing transparent
+        //   _debris→ small dark 2x2 chunk with gravity-induced spin
+        //   default→ 2x2 spark with linear fade
         for (const p of this.particles) {
-            const a = Math.min(1, p.life / 32);
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = a;
-            ctx.fillRect(p.x, p.y, 2, 2);
+            if (p._ring) {
+                const a = p.life / (p.maxLife || 18);
+                ctx.save();
+                ctx.globalAlpha = a;
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.ringR, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            } else if (p._smoke) {
+                const a = Math.min(0.6, p.life / 50);
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color;
+                // Three offset cells make a fluffier puff
+                ctx.fillRect((p.x | 0) - 1, (p.y | 0) - 1, 3, 3);
+                ctx.fillRect((p.x | 0) + 1, (p.y | 0), 2, 2);
+                ctx.fillRect((p.x | 0) - 2, (p.y | 0) + 1, 2, 2);
+            } else if (p._debris) {
+                const a = Math.min(1, p.life / 50);
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x | 0, p.y | 0, 2, 2);
+            } else {
+                const a = Math.min(1, p.life / 32);
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 2, 2);
+            }
         }
         ctx.globalAlpha = 1;
         // Player (last — always on top)
@@ -1055,6 +1167,9 @@ export class FpsArena {
         }
         // R307: lightning flash before HUD so HUD stays legible.
         this._drawLightning(ctx);
+        // R314: restore shake-transformed canvas before HUD so the HUD stays
+        // pinned to the screen and doesn't rattle.
+        if (hasShake) ctx.restore();
         // HUD
         this._drawHUD();
         // Stage-clear overlay
