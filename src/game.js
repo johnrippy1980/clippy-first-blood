@@ -4088,14 +4088,28 @@ export class Game {
                 this._fadeTo(SCENE.GAME_COMPLETE);
                 return;
             } else if (this.currentStage >= 15) {
-                // R299: post-game / side stages (Training=15, BossRush
-                // Mode=16, Time Trial=17, Reality Distortion=18, Core
-                // Breach=19) all return to title on clear instead of
-                // triggering GAME_COMPLETE (which is reserved for the
-                // canonical Cloud clear).
-                audio.stopTrack();
-                this._fadeTo(SCENE.TITLE);
-                return;
+                // R357: post-game stages used to ALL route back to title
+                // (R299). Now we respect the stage's own `nextStage` field
+                // so the Mecha trilogy (20 → 21 → 22) can chain with
+                // cinematics between each. Only stages with no nextStage
+                // (true post-game side stages 15-19, and the final 22)
+                // bounce to title. Stage 22 clear also fires the
+                // game-complete cinematic before returning.
+                const data = this.level?.data || this.level;
+                const linked = data?.nextStage;
+                if (linked) {
+                    nextStage = linked;
+                } else {
+                    if (this.currentStage === 22) {
+                        // True final boss — trigger the completion cinematic
+                        // before returning to title, same as stage 13.
+                        this._fadeTo(SCENE.GAME_COMPLETE);
+                        return;
+                    }
+                    audio.stopTrack();
+                    this._fadeTo(SCENE.TITLE);
+                    return;
+                }
             } else {
                 nextStage = this.currentStage + 1;
             }
@@ -4107,6 +4121,15 @@ export class Game {
                 this._extraCards = ['card_ballmer_escapes'];
             } else if (this.currentStage === 8) {
                 this._extraCards = ['card_gates_escapes'];
+            } else if (this.currentStage === 20) {
+                // R357: Mecha Approach (beat-em-up) → Mecha Corridor
+                // (helicopter chase). Cinematic shows the helicopter
+                // coming over the horizon — sells the transition.
+                this._extraCards = ['card_chopper_horizon'];
+            } else if (this.currentStage === 21) {
+                // R357: chopper crashes → Mecha-Gates emerges from
+                // the wreckage. Reuses the existing mecha-reveal card.
+                this._extraCards = ['card_chopper_crash'];
             }
             // Route through the painted cinematic card(s) before the next stage
             this._pendingStage = nextStage;

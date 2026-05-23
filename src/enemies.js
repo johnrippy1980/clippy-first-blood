@@ -1082,16 +1082,22 @@ class Boss extends Enemy {
             const baseY = (this._anchorY ||= this.y);
             this.y = baseY + Math.sin(this._patrolPhase * 1.4) * 8;
         } else if (this._movement === 'chase') {
-            // R334: helicopter chase. Boss tracks the player horizontally
-            // with a fixed lead (~100 px ahead of where player is running)
-            // and maintains a vertical altitude band above the player.
-            // No patrol clamp — the chopper follows the camera the whole
-            // stage, NOT pinned to an anchor. Bob adds menace + makes the
-            // player's aim window dynamic.
+            // R357: helicopter is CHASING the player — it sits BEHIND
+            // by ~80 px (looming threat from over the shoulder) and
+            // periodically swoops forward to overtake + corner. Player
+            // runs right; chopper closes the gap. Vertical altitude
+            // tracks ~70 px above the player so the silhouette dominates
+            // the upper half of the screen.
             this._patrolPhase += 0.06 * speedMul;
-            const desiredX = playerCX + 100;
-            const desiredY = (player.y - 80) + Math.sin(this._patrolPhase) * 14;
-            desiredVX = (desiredX - cx) * 0.06;
+            // Chase cycle: 4 seconds menacing-behind, 1.5 second swoop-ahead,
+            // then loop. Sells "it's about to catch you" without making
+            // the player's run-right rhythm impossible.
+            this._chaseCycle = ((this._chaseCycle || 0) + 1) % 330;
+            const swooping = this._chaseCycle > 240;
+            const lead = swooping ? +60 : -80;
+            const desiredX = playerCX + lead;
+            const desiredY = (player.y - 70) + Math.sin(this._patrolPhase) * 14;
+            desiredVX = (desiredX - cx) * (swooping ? 0.10 : 0.05);
             // Vertical lerp toward desiredY — no gravity (it flies)
             this.y += (desiredY - this.y) * 0.05;
             // R334: rotor WHUP loop — emit a short thump every ~7 frames
@@ -2155,9 +2161,10 @@ const BOSS_TEMPLATES = {
             lowHp: 'ROTORS DAMAGED.',
             mockHit: ['DIRECT HIT.', 'BOMBED.', 'STRAFED.'],
         },
-        w: 56, h: 24, hp: 80, contactDmg: 2, score: 18000,
-        // R334: special movement kind 'chase' — handled inline by the
-        // Boss.update tick (see _runChase).
+        // R357: doubled chopper size to 112x48 so it looks like a real
+        // looming threat, not a tiny dot. User feedback: "the helicopter
+        // is supposed to be huge". HP scaled up to match.
+        w: 112, h: 48, hp: 140, contactDmg: 2, score: 18000,
         movement: 'chase', moveSpeed: 0.6,
         color: '#404048', detail: '#a0a8b8',
         grounded: false,

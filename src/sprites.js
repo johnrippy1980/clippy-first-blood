@@ -165,6 +165,11 @@ export const SCENE_MANIFEST = {
     // R291: Gates mini-arc cards — keynote corridor + escape + arena.
     'card_gates_escapes':   'card_gates_escapes.png',
     'card_gates_arena':     'card_gates_arena.png',
+    // R357: Mecha trilogy cinematic cards — chopper appears over the
+    // horizon between stage 20 and 21, then crashes between 21 and 22
+    // (Mecha-Gates emerges from the wreckage).
+    'card_chopper_horizon': 'card_chopper_horizon.png',
+    'card_chopper_crash':   'card_chopper_crash.png',
     // Boss intro cinematic backgrounds — painted villain stages shown
     // during the BOSS_INTRO scene. Keyed by boss code so _drawBossIntro
     // can look up the matching backdrop. Falls back to dim _drawPlay when
