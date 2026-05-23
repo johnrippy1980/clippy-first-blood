@@ -31,21 +31,23 @@ export const TILE = Object.freeze({
 // Add a new entry when a new music file is wired into audio.js's FILE_TRACKS.
 // `track` is the FILE_TRACKS key. `title` and `mood` are display strings.
 export const TRACK_MANIFEST = [
-    { track: 'title',      title: 'DREAM',                mood: 'TITLE + STORY', author: 'R_I_P' },
-    { track: 'jungle',     title: 'REVENGE',              mood: 'STAGE 1',       author: 'R_I_P' },
-    { track: 'breakroom',  title: 'WHAT WAS IT FOR?',     mood: 'STAGE 2',       author: 'R_I_P' },
-    { track: 'serverroom', title: 'NO REMORSE',           mood: 'STAGE 3',       author: 'R_I_P' },
-    { track: 'boardroom',  title: 'NO PITY',              mood: 'STAGE 4',       author: 'R_I_P' },
-    { track: 'keynote',    title: "DON'T GO",             mood: 'STAGE 5',       author: 'R_I_P' },
-    { track: 'founder',    title: 'DISBELIEF',            mood: 'STAGE 6',       author: 'R_I_P' },
-    { track: 'bossBattle', title: 'NIGHT DRIVE',          mood: 'STAGE 7',       author: 'R_I_P' },
-    { track: 'cloud',      title: 'THE PATH',             mood: 'STAGE 8',       author: 'R_I_P' },
-    { track: 'bonus',      title: "YOU'VE BEEN LOVING ME", mood: 'BONUS',        author: 'R_I_P' },
-    // { track: 'serverroom', title: '...', mood: 'SERVER ROOM', author: '...' },
-    // { track: 'boardroom',  title: '...', mood: 'BOARD ROOM',  author: '...' },
-    // { track: 'keynote',    title: '...', mood: 'KEYNOTE',     author: '...' },
-    // { track: 'founder',    title: '...', mood: 'FOUNDER',     author: '...' },
-    // { track: 'cloud',      title: '...', mood: 'THE CLOUD',   author: '...' },
+    { track: 'title',        title: 'DREAM',                  mood: 'TITLE + STORY', author: 'R_I_P' },
+    { track: 'jungle',       title: 'REVENGE',                mood: 'STAGE 1',       author: 'R_I_P' },
+    { track: 'breakroom',    title: 'WHAT WAS IT FOR?',       mood: 'STAGE 2',       author: 'R_I_P' },
+    { track: 'serverroom',   title: 'NO REMORSE',             mood: 'STAGE 3',       author: 'R_I_P' },
+    { track: 'pipeline',     title: "YOU'VE BEEN LOVING ME",  mood: 'STAGE 4',       author: 'R_I_P' },
+    { track: 'boardroom',    title: 'NO PITY',                mood: 'STAGE 5',       author: 'R_I_P' },
+    // R302: new tracks for FPS chase corridors + arena boss fights.
+    { track: 'backstage',    title: 'BACKSTAGE',              mood: 'FPS CHASE (6+9)', author: 'R_I_P' },
+    { track: 'arenaBoss',    title: 'ARENA',                  mood: 'FPS BOSS (7+10)', author: 'R_I_P' },
+    { track: 'keynote',      title: "DON'T GO",               mood: 'STAGE 8',       author: 'R_I_P' },
+    { track: 'founder',      title: 'DISBELIEF',              mood: 'STAGE 11',      author: 'R_I_P' },
+    { track: 'bossBattle',   title: 'NIGHT DRIVE',            mood: 'BOSS RUSH (12)',author: 'R_I_P' },
+    { track: 'cloud',        title: 'THE PATH',               mood: 'STAGE 13',      author: 'R_I_P' },
+    { track: 'recycleBin',   title: '1.26X',                  mood: 'SECRET S1',     author: 'R_I_P' },
+    { track: 'realityField', title: 'TIME IS A FLAT CIRCLE',  mood: 'POST-GAME P3',  author: 'R_I_P' },
+    { track: 'apocalypse',   title: 'THE LIGHT BLEEDS THROUGH', mood: 'P5 — TRUE FINAL', author: 'R_I_P' },
+    { track: 'hope',         title: 'HOPE',                   mood: 'CREDITS ROLL',  author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
@@ -143,25 +145,27 @@ export const STAGES = [
     { id: 3, name: 'SERVER ROOM',            category: 'campaign', displayId: '03', theme: THEME.SERVERROOM,  boss: 'CTRL_ALT_DEL',  music: 'serverroom', tagline: 'THE FANS SCREAM FOREVER' },
     { id: 4, name: 'THE PIPELINE',           category: 'campaign', displayId: '04', theme: THEME.SEWER,       boss: 'SPINDLER',      music: 'pipeline',   tagline: 'WHAT ARE THEY DOING DOWN HERE' },
     { id: 5, name: 'THE BOARD ROOM',         category: 'campaign', displayId: '05', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS', bossEscapes: true },
-    { id: 6, name: 'BALLMER OFFICE',         category: 'campaign', displayId: '06', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
-    { id: 7, name: 'BALLMER ARENA',          category: 'campaign', displayId: '07', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'bossBattle', tagline: 'CHAIRS WILL FLY.' },
+    // R302: FPS chase corridor uses new `backstage` track; arena uses new `arenaBoss`.
+    { id: 6, name: 'BALLMER OFFICE',         category: 'campaign', displayId: '06', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'backstage',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
+    { id: 7, name: 'BALLMER ARENA',          category: 'campaign', displayId: '07', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'arenaBoss',  tagline: 'CHAIRS WILL FLY.' },
     { id: 8, name: 'KEYNOTE HALL',           category: 'campaign', displayId: '08', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB', bossEscapes: true },
-    { id: 9, name: 'KEYNOTE CORRIDOR',       category: 'campaign', displayId: '09', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'BACKSTAGE PASS REQUIRED.' },
-    { id: 10, name: 'GATES ARENA',           category: 'campaign', displayId: '10', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'bossBattle', tagline: 'DEVELOPERS. DEVELOPERS.' },
+    // R302: Gates FPS chase + arena get the same new tracks as Ballmer's pair.
+    { id: 9, name: 'KEYNOTE CORRIDOR',       category: 'campaign', displayId: '09', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'backstage',  tagline: 'BACKSTAGE PASS REQUIRED.' },
+    { id: 10, name: 'GATES ARENA',           category: 'campaign', displayId: '10', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'arenaBoss',  tagline: 'DEVELOPERS. DEVELOPERS.' },
     { id: 11, name: "FOUNDER'S LAIR",        category: 'campaign', displayId: '11', theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
     { id: 12, name: 'BOSS RUSH',             category: 'campaign', displayId: '12', theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
     { id: 13, name: 'THE CLOUD',             category: 'campaign', displayId: '13', theme: THEME.CLOUD,       boss: 'ALGORITHM',     music: 'cloud',      tagline: 'FINAL STAGE — IT KNOWS WHAT YOU WANT' },
     // Side stages — displayId uses S/P prefix so they read as bonus content.
-    { id: 14, name: 'THE RECYCLE BIN',          category: 'secret',   displayId: 'S1', theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'serverroom', tagline: 'SECRET — EVERY DELETED FILE WAITS HERE' },
+    { id: 14, name: 'THE RECYCLE BIN',          category: 'secret',   displayId: 'S1', theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'recycleBin', tagline: 'SECRET — EVERY DELETED FILE WAITS HERE' },
     { id: 15, name: 'TRAINING GROUND',          category: 'extra',    displayId: 'T',  theme: THEME.JUNGLE,      boss: null,            music: 'jungle',     tagline: 'NOBODY DIES HERE' },
     { id: 16, name: 'BOSS RUSH MODE',           category: 'postgame', displayId: 'P1', theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'serverroom', tagline: 'POST-GAME — NO TALKING. JUST FIGHTING.' },
     { id: 17, name: 'TIME TRIAL',               category: 'postgame', displayId: 'P2', theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'jungle',     tagline: 'POST-GAME — BEAT THE CLOCK.' },
-    { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'cloud',      tagline: 'POST-GAME — ONE MORE TITAN.' },
+    { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'realityField', tagline: 'POST-GAME — ONE MORE TITAN.' },
     { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'pipeline',   tagline: 'POST-GAME — THE DEEPER LAB.' },
     // R301: super-secret Mecha-Gates stage — konami-only super-final.
     // The "what they made after he fell" — Gates piloting a battle mech
     // over the ruins of dead Clippy clones.
-    { id: 20, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'bossBattle', tagline: 'SUPER SECRET — TRUE FINAL.', introBgKey: 'bg_apocalypse' },
+    { id: 20, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.', introBgKey: 'bg_apocalypse' },
 ];
 
 // Damage flash colors per source.

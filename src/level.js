@@ -1707,7 +1707,7 @@ function makeFpsStageBallmer() {
     return {
         fpsMode: true,
         theme: THEME.BOARDROOM,
-        music: 'boardroom',
+        music: 'backstage',     // R302: FPS chase track for the office corridor
         bgKey: 'bg_office',
         bossKind: 'BALLMER',
         bgKeys: ['bg_office', 'bg_office', 'bg_office', 'bg_office'],
@@ -1743,7 +1743,7 @@ function makeFpsStageBallmerArena() {
     return {
         fpsMode: true,
         theme: THEME.BOARDROOM,
-        music: 'bossBattle',
+        music: 'arenaBoss',     // R302: dedicated FPS boss arena track
         bgKey: 'bg_office',
         bossKind: 'BALLMER',
         bgKeys: ['bg_office', 'bg_office', 'bg_office', 'bg_office'],
@@ -1795,7 +1795,7 @@ function makeFpsStageGates() {
     return {
         fpsMode: true,
         theme: THEME.KEYNOTE,
-        music: 'keynote',
+        music: 'backstage',     // R302: FPS chase track
         bgKey: 'bg_keynote_corridor',
         bossKind: 'GATES',
         bgKeys: ['bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor'],
@@ -1819,7 +1819,7 @@ function makeFpsStageGatesArena() {
     return {
         fpsMode: true,
         theme: THEME.KEYNOTE,
-        music: 'bossBattle',
+        music: 'arenaBoss',     // R302: dedicated FPS boss arena track
         bgKey: 'bg_keynote_corridor',
         bossKind: 'GATES',
         bgKeys: ['bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor'],
@@ -1850,7 +1850,7 @@ function makeFpsStageMecha() {
     return {
         fpsMode: true,
         theme: THEME.KEYNOTE,
-        music: 'bossBattle',
+        music: 'apocalypse',    // R302: dedicated post-apocalypse final track
         bgKey: 'bg_apocalypse',
         bossKind: 'MECHA_GATES',
         bgKeys: ['bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse'],

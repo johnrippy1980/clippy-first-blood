@@ -26,7 +26,10 @@ function hz(n) {
 const FILE_TRACKS = {
     title:      'assets/audio/dream.mp3',  // continues into story without a gap
     story:      'assets/audio/dream.mp3',
-    gameComplete: 'assets/audio/dream.mp3',
+    // R302: dedicated credits-roll track. Was reusing 'dream.mp3' which
+    // looped the title-screen vibe across the ending; 'hope.mp3' lands
+    // the post-game emotional resolution.
+    gameComplete: 'assets/audio/hope.mp3',
     // Gameplay + boss
     jungle:     'assets/audio/revenge.mp3',
     // R218 / R221: per-stage tracks. All Owl Hall masters, trimmed to
@@ -43,8 +46,15 @@ const FILE_TRACKS = {
     boardroom:  'assets/audio/no-pity.mp3',          // stage 5
     keynote:    'assets/audio/dont-go.mp3',          // stage 6
     founder:    'assets/audio/disbelief.mp3',        // stage 7
-    cloud:      'assets/audio/the-path.mp3',         // stage 9
-    bossBattle: 'assets/audio/night-drive.mp3',      // stage 8 boss rush
+    cloud:      'assets/audio/the-path.mp3',         // stage 13 (final)
+    bossBattle: 'assets/audio/night-drive.mp3',      // stage 12 boss rush
+    // R302: 6 new tracks per stage/theme assignments.
+    arenaBoss:    'assets/audio/arena.mp3',                    // stages 7 + 10 (Ballmer + Gates arenas)
+    backstage:    'assets/audio/backstage.mp3',                // stages 6 + 9 (FPS chase corridors)
+    apocalypse:   'assets/audio/the-light-bleeds-through.mp3', // stage 20 (Mecha-Gates super-secret)
+    hope:         'assets/audio/hope.mp3',                     // game-complete credits roll
+    realityField: 'assets/audio/time-is-a-flat-circle.mp3',    // stage 18 (Reality Distortion / Jobs)
+    recycleBin:   'assets/audio/1.26x.mp3',                    // stage 14 (Recycle Bin secret)
     // Bonus track — wired to a hidden alias so the soundtrack gallery
     // can list it without a stage routing yet. Playable via menu.
     bonus:      'assets/audio/youve-been-loving.mp3',
