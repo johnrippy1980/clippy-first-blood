@@ -63,10 +63,11 @@ const FILE_TRACKS = {
     training:    'assets/audio/resolution.mp3',                // stage 15 (Training Ground)
     bossRushMode:'assets/audio/evolution.mp3',                 // stage 16 (Boss Rush Mode post-game)
     timeTrial:   'assets/audio/never-the-same.mp3',            // stage 17 (Time Trial)
+    // R305: pure bonus slot for the soundtrack gallery (no stage routing).
+    // Was 'bonus' → youve-been-loving.mp3, but R226 wired that file as the
+    // Stage 4 PIPELINE track. Having it listed as BOTH made the soundtrack
+    // gallery misleading. Now bonus2 (different file) is the only bonus.
     bonus2:      'assets/audio/bonus-2.mp3',                   // soundtrack-only bonus
-    // Bonus track — wired to a hidden alias so the soundtrack gallery
-    // can list it without a stage routing yet. Playable via menu.
-    bonus:      'assets/audio/youve-been-loving.mp3',
 };
 
 class Audio {
