@@ -484,6 +484,13 @@ export const ENEMY_MANIFEST = {
     'cover_keynote':    'cover_keynote.png',
     'cover_founder':    'cover_founder.png',
     'cover_sewer':      'cover_sewer.png',
+    // R317: painted pickup icons (gemini-pro). pickups.js draw() prefers
+    // these when available + falls back to the R318 painted-crate render
+    // (gradient body + letter glyph) when the icon for a type is missing.
+    'pickup_life':      'pickup_life.png',
+    'pickup_grenade':   'pickup_grenade.png',
+    'pickup_1up':       'pickup_1up.png',
+    'pickup_chainsaw':  'pickup_chainsaw.png',
 };
 
 // ============================================================

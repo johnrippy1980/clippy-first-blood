@@ -299,6 +299,37 @@ class Pickup {
         ctx.fillStyle = grad;
         ctx.fillRect(cx - haloR, cy - haloR, haloR * 2, haloR * 2);
         ctx.restore();
+        // R317: painted-icon fast path. When a type has a registered
+        // sprite, draw it instead of the procedural crate/letter. Halo
+        // above + sparkle below still apply (drawn before/after).
+        const PAINTED_KEYS = {
+            'LIFE':       'pickup_life',
+            'GRENADE':    'pickup_grenade',
+            '1UP':        'pickup_1up',
+            'CHAINSAW':   'pickup_chainsaw',
+            'CLIPPY_TAG': 'pickup_1up',  // same chrome paperclip — visually unified
+        };
+        const paintedKey = PAINTED_KEYS[this.type];
+        if (paintedKey && sprites.has(paintedKey)) {
+            const img = sprites.images.get(paintedKey);
+            // Pulse-tinted halo flash for rare drops
+            if (this.type === '1UP' || this.type === 'CLIPPY_TAG') {
+                const sparkPhase = (this.bob * 0.6) % (Math.PI * 2);
+                const sparkIdx = Math.floor(sparkPhase / (Math.PI / 2)) & 3;
+                const corners = [
+                    [dx, dy],
+                    [dx + this.w - 1, dy],
+                    [dx + this.w - 1, dy + this.h - 1],
+                    [dx, dy + this.h - 1],
+                ];
+                const sp = corners[sparkIdx];
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(sp[0], sp[1], 1, 1);
+            }
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, dx, dy, this.w, this.h);
+            return;
+        }
         // R223: CLIPPY_TAG draws as a chrome paperclip silhouette
         // instead of the lettered-crate. Tags feel diegetic — Clippy
         // dropped them, the player is reclaiming pieces of himself.
