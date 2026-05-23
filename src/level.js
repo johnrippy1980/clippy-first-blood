@@ -2458,16 +2458,24 @@ export class Level {
                 const platKey = PLATFORM_BITMAP_KEY[this.data.theme];
                 const platImg = platKey ? sprites.images.get(platKey) : null;
                 if (platImg) {
-                    // The painted platform strip is taller than the 6-px
-                    // visible platform region — its top ~half is the playable
-                    // surface, its bottom ~half is the underside (dripping
-                    // algae, vines, etc.). Sample from the top band and
-                    // downscale-fit into the 6-px destination so the bolts
-                    // + edge highlights survive the squish.
+                    // R326: painted platform strips are NOT guaranteed to be
+                    // truly tileable (left edge != right edge). The old
+                    // `srcX = (c % xCells) * T` sampler walked the strip
+                    // column-by-column, exposing seams whenever the source
+                    // had non-tileable detail. New approach: hash (r, c) to
+                    // pick a non-edge sample column from the strip. Skipping
+                    // the outer ~2 tiles on each side avoids the seam zone
+                    // entirely. Same hash within a frame = no flicker.
                     ctx.imageSmoothingEnabled = false;
                     const xCells = Math.max(1, Math.floor(platImg.width / T));
-                    const srcX = (c % xCells) * T;
-                    // Use top half of the strip (the platform "surface" band)
+                    // Reserve ~12% margin on each side as "seam zone" we never
+                    // sample from. Minimum margin of 1 tile.
+                    const margin = Math.max(1, Math.floor(xCells * 0.12));
+                    const usableCols = Math.max(1, xCells - margin * 2);
+                    // Deterministic hash on (c, r). Same approach as R324
+                    // ground tiles.
+                    const h = ((c * 2654435761) ^ (r * 374761393)) >>> 0;
+                    const srcX = (margin + (h % usableCols)) * T;
                     const srcSampleH = Math.min(platImg.height, Math.max(12, Math.floor(platImg.height * 0.55)));
                     const dstH = 6;
                     ctx.drawImage(platImg, srcX, 0, T, srcSampleH, x, y, T, dstH);
