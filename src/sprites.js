@@ -456,6 +456,12 @@ export const ENEMY_MANIFEST = {
     'cabinet_hurt':     'v2_cabinet_hurt.png',
     'cabinet_death':    'v2_cabinet_death.png',
     'holepunch':        'v2_holepunch.png',
+    // R346: painted sprites for the 3 R325 grunt-behaviors. Previously
+    // these enemies reused folder/holepunch/cabinet art, so they looked
+    // identical to existing grunts despite having different attack patterns.
+    'dive_bomber':      'dive_bomber.png',
+    'summoner':         'summoner.png',
+    'shielder':         'shielder.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',

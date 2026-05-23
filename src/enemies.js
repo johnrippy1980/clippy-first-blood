@@ -67,11 +67,12 @@ const TYPES = {
         // Off-screen snipers cannot fire at the player — fair gameplay.
         activateRange: 200,
     },
-    // R325: paper airplane / data drone — fast, low-hp aerial. Glides
-    // horizontally at fixed Y; commits to a 45° dive when player passes
-    // beneath. Reuses 'folder' sprite (server-room reskins client-side).
+    // R325 + R346: paper airplane / data drone — fast, low-hp aerial.
+    // Glides horizontally at fixed Y; commits to a 45° dive when player
+    // passes beneath. R346 added a dedicated painted sprite (red-slash
+    // origami plane) so this enemy reads as distinct from a folder.
     dive_bomber: {
-        sprite: 'folder',
+        sprite: 'dive_bomber',
         w: 12, h: 10,
         hp: 1, contactDmg: 1, score: 120,
         speed: 1.6, behavior: 'dive_bomb',
@@ -79,11 +80,12 @@ const TYPES = {
         activateRange: 280,
         gibPalette: ['#e0e0e8', '#a0a0b0', '#404048'],
     },
-    // R325: clippy doppelgänger summoner. Stationary; spawns folder
-    // grunts up to 3 active. Killing it stops summons but spawned
-    // folders persist. Reuses 'holepunch' sprite (greyer tone).
+    // R325 + R346: clippy doppelgänger summoner. Stationary; spawns
+    // folder grunts up to 3 active. R346 added a dedicated painted
+    // sprite (twisted dark paperclip with red eyes + purple aura) —
+    // visually unmistakable from a holepunch sniper.
     summoner: {
-        sprite: 'holepunch',
+        sprite: 'summoner',
         w: 14, h: 18,
         hp: 5, contactDmg: 1, score: 280,
         speed: 0, behavior: 'summon',
@@ -91,11 +93,13 @@ const TYPES = {
         activateRange: 220,
         gibPalette: ['#a0a0b8', '#505068', '#202028'],
     },
-    // R325: riot-shield file cabinet. Walks toward player; front shield
-    // (12px wide) deflects bullets. Periodically drops shield ~60 frames
-    // for body-exposure window. Reuses 'cabinet' sprite.
+    // R325 + R346: riot-shield file cabinet. Walks toward player; front
+    // shield deflects bullets. R346 added a dedicated painted sprite
+    // (chunky filing cabinet with visible black-and-yellow riot shield)
+    // so the shield-up state reads visually distinct from a plain
+    // cabinet enemy.
     shielder: {
-        sprite: 'cabinet',
+        sprite: 'shielder',
         w: 18, h: 22,
         hp: 4, contactDmg: 2, score: 220,
         speed: 0.45, behavior: 'shielded_walk',
@@ -692,6 +696,13 @@ class Enemy {
                         || (this.behavior === 'hover_sniper' && this.subTimer > 0)
                         || (this.behavior === 'hop' && this.vy < -1);
         let useSprite = this.sprite;
+        // R346: shielder swap — painted 'shielder' sprite has the shield
+        // baked in. When shieldDown (the 60-frame exposed window), swap
+        // to 'cabinet' so the body is visibly without a shield. Gives
+        // the player a clear shoot-now signal.
+        if (this.behavior === 'shielded_walk' && !this.shieldUp && sprites.has('cabinet')) {
+            useSprite = 'cabinet';
+        }
         if (dyingShortly) {
             // Prefer painted _death pose for the final hp tick so the kill
             // stroke reads as a real beat. Falls back to _hurt then base.
@@ -933,9 +944,11 @@ class Enemy {
             ctx.fillRect(ax - 1, ay - dotR, 2, dotR * 2);
             ctx.globalAlpha = 1;
         }
-        // R325: shielder front-shield overlay. Drawn AFTER the body sprite
-        // so the shield reads as a visible deflection surface in front.
-        if (this.behavior === 'shielded_walk' && this.shieldUp) {
+        // R325 + R346: shielder front-shield overlay. The R346 painted
+        // 'shielder' sprite has the shield baked in; only draw the
+        // procedural overlay as a fallback when the painted asset is
+        // missing.
+        if (this.behavior === 'shielded_walk' && this.shieldUp && !sprites.has('shielder')) {
             const sW = this.tpl.shieldW || 12;
             const sH = this.tpl.shieldH || 16;
             const sX = Math.round(((this.facing > 0) ? this.x + this.w : this.x - sW) - camera.viewX);
