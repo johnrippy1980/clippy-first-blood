@@ -33,6 +33,7 @@ export const BOSS_LAIRS = {
     COPIER_3000: {
         kind: 'outdoor-element',
         gateStyle: 'vine',
+        gateSprite: 'lair_gate_vine',
         gateColor: '#284018',
         gateAccent: '#608028',
         nameTag: "COPIER'S CLEARING",
@@ -47,6 +48,7 @@ export const BOSS_LAIRS = {
     SHREDDER: {
         kind: 'indoor-gated',
         gateStyle: 'metalDoor',
+        gateSprite: 'lair_gate_server',
         gateColor: '#3a2820',
         gateAccent: '#806040',
         nameTag: 'STORAGE LOCKER',
@@ -60,6 +62,7 @@ export const BOSS_LAIRS = {
     CTRL_ALT_DEL: {
         kind: 'indoor-gated',
         gateStyle: 'serverDoor',
+        gateSprite: 'lair_gate_server',
         gateColor: '#1a1a28',
         gateAccent: '#4080c0',
         nameTag: 'MAINFRAME CORE',
@@ -97,6 +100,7 @@ export const BOSS_LAIRS = {
     CLIPPY_2: {
         kind: 'outdoor-element',
         gateStyle: 'lavaWall',
+        gateSprite: 'lair_gate_lava',
         gateColor: '#a01018',
         gateAccent: '#ff7030',
         nameTag: 'FOUNDER FORGE',
@@ -110,6 +114,7 @@ export const BOSS_LAIRS = {
     ALGORITHM: {
         kind: 'outdoor-element',
         gateStyle: 'dataWall',
+        gateSprite: 'lair_gate_data',
         gateColor: '#102040',
         gateAccent: '#7af0ff',
         nameTag: 'DATA NEXUS',
@@ -308,6 +313,46 @@ function drawGate(ctx, x, y, w, h, spec, enterProgress, exitProgress) {
     // exitProgress: 0 (closed) → 1 (fully open / dissolved)
     const reveal = enterProgress * (1 - exitProgress);
     if (reveal < 0.02) return;
+    // R342: PAINTED gate sprite path. If the spec has gateSprite and the
+    // asset is loaded, draw the painted strip with a clip-mask that
+    // reveals only the bottom `reveal` portion (so the gate "drops" from
+    // above as enterProgress ramps 0→1). The painted strip is the
+    // primary art; procedural drawGate below stays as a fallback.
+    if (spec.gateSprite) {
+        const img = sprites.images.get(spec.gateSprite);
+        if (img) {
+            // Lava + data are outdoor "rising" gates — they grow from the
+            // BOTTOM. Doors/curtains/vines fall from the TOP. Dissolve
+            // (exit) just fades alpha.
+            const risesFromBottom = (spec.gateStyle === 'lavaWall' || spec.gateStyle === 'dataWall');
+            const revealH = Math.round(h * reveal);
+            ctx.save();
+            // For data wall, additive blend so the cyan glow reads correctly.
+            if (spec.gateStyle === 'dataWall') {
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.85 * (1 - exitProgress);
+            } else {
+                ctx.globalAlpha = (1 - exitProgress);
+            }
+            ctx.imageSmoothingEnabled = false;
+            if (risesFromBottom) {
+                // Show the BOTTOM revealH pixels of the destination,
+                // sampling the BOTTOM revealH pixels of the source.
+                const srcH = Math.round(img.height * reveal);
+                const srcY = img.height - srcH;
+                ctx.drawImage(img, 0, srcY, img.width, srcH,
+                              x, y - revealH, w, revealH);
+            } else {
+                // Drops from the TOP — show TOP revealH pixels of dest,
+                // sampling the TOP revealH pixels of source.
+                const srcH = Math.round(img.height * reveal);
+                ctx.drawImage(img, 0, 0, img.width, srcH,
+                              x, y - h, w, revealH);
+            }
+            ctx.restore();
+            return;
+        }
+    }
     ctx.save();
     if (spec.gateStyle === 'metalDoor' || spec.gateStyle === 'serverDoor' || spec.gateStyle === 'labDoor') {
         // Sliding door — drops from above
@@ -400,7 +445,10 @@ export class BossLair {
         this.nameTagT = 0;
     }
     get gateWorldX() { return this.arenaX; }
-    get gateW() { return 8; }   // 8 px wide barrier
+    // R342: painted gate strips are ~32 px wide. The leftWall clamp
+    // (player can't cross back into the gate) uses gateW. 32 gives the
+    // painted art room to read; the procedural fallback uses 8.
+    get gateW() { return this.spec && this.spec.gateSprite ? 32 : 8; }
     static ENTER_FRAMES = 60;
     static EXIT_FRAMES = 50;
 

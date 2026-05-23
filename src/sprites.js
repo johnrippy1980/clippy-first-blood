@@ -485,6 +485,12 @@ export const ENEMY_MANIFEST = {
     // Key is lowercased to match the Boss.draw lookup pattern
     // `'enemy_' + kind.toLowerCase()`.
     'enemy_helicopter': 'enemy_HELICOPTER.png',
+    // R342: painted boss-lair gate sprites. Replaces the procedural
+    // drawGate() fillRect path in boss_lair.js.
+    'lair_gate_vine':   'lair_gate_vine.png',
+    'lair_gate_lava':   'lair_gate_lava.png',
+    'lair_gate_server': 'lair_gate_server.png',
+    'lair_gate_data':   'lair_gate_data.png',
     // R226: Dr. Spindler — stage 4 lab boss. Multi-frame sheet sliced into
     // separate state PNGs so the boss draw can pick by phase.
     'boss_SPINDLER':         'boss_spindler.png',
