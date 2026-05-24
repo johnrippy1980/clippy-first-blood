@@ -167,6 +167,60 @@ export class BeatEmUp {
             });
         }
 
+        // R376: foreground debris — paper sheets, plastic shreds, leaves
+        // blowing horizontally across the entire foreground. Screen-space
+        // x with horizontal gust drift so they pass continuously
+        // regardless of player scroll position. ~14 active at once.
+        this._fgDebris = [];
+        for (let i = 0; i < 14; i++) {
+            this._fgDebris.push({
+                x: Math.random() * GAME.W,
+                y: STREET_TOP - 6 + Math.random() * (STREET_BOTTOM - STREET_TOP + 16),
+                vx: -1.2 - Math.random() * 1.2,   // always blowing left
+                vy: (Math.random() - 0.5) * 0.15, // tiny vertical drift
+                spin: 0,
+                spinRate: (Math.random() - 0.5) * 0.18,
+                w: 2 + ((Math.random() < 0.4) ? 1 : 0),
+                h: 1 + ((Math.random() < 0.3) ? 1 : 0),
+                tint: Math.random() < 0.55 ? '#d8d0b8'    // paper
+                    : Math.random() < 0.5  ? '#605068'    // plastic shred
+                    : '#3a5824',                          // dead leaf
+            });
+        }
+        // R376: slow distant cloud strip — drifts horizontally across the
+        // upper sky band at ~0.25x scroll. Adds living-sky feel without
+        // competing with the boss action.
+        this._cloudStrip = [];
+        for (let i = 0; i < 6; i++) {
+            this._cloudStrip.push({
+                x: Math.random() * stageW,
+                y: 10 + Math.random() * 30,
+                w: 28 + (Math.random() * 24) | 0,
+                h: 4 + (Math.random() * 4) | 0,
+                vx: -0.04 - Math.random() * 0.03,  // very slow drift left
+                alpha: 0.18 + Math.random() * 0.12,
+            });
+        }
+        // R376: neon-sign flicker accents — small bright color dots anchored
+        // to specific world-x positions, mapped to the painted storefront
+        // signage in bg_apocalypse_street.png. Flicker hard on/off with
+        // per-sign random timer. World-anchored so they line up with the
+        // painted signs as the player walks past.
+        this._neonSigns = [];
+        const neonColors = ['#ff5060', '#7af0ff', '#ff60c0', '#50ff70'];
+        for (let i = 0; i < Math.floor(stageW / 180); i++) {
+            this._neonSigns.push({
+                x: 80 + i * 180 + (Math.random() * 60 - 30),
+                y: 60 + (Math.random() * 40) | 0,
+                w: 2,
+                h: 2,
+                color: neonColors[i % neonColors.length],
+                state: Math.random() < 0.6 ? 'on' : 'off',
+                stateT: 30 + (Math.random() * 90) | 0,
+                dimT: 0,   // single-frame "dim flicker dip" while lit
+            });
+        }
+
         // Boot first wave
         this._spawnWave(0);
     }
@@ -224,6 +278,45 @@ export class BeatEmUp {
             e.life--;
             if (e.life <= 0) this._fireEmbers.splice(i, 1);
         }
+        // R376: foreground debris drift. Screen-anchored, wrap-around.
+        if (this._fgDebris) {
+            for (const d of this._fgDebris) {
+                d.x += d.vx;
+                d.y += d.vy;
+                d.spin += d.spinRate;
+                // Wrap when off the left edge
+                if (d.x < -6) {
+                    d.x = GAME.W + 4 + Math.random() * 60;
+                    d.y = STREET_TOP - 6 + Math.random() * (STREET_BOTTOM - STREET_TOP + 16);
+                }
+                // Clamp vertical so they don't drift off the band
+                if (d.y < STREET_TOP - 10) d.y = STREET_TOP - 10;
+                if (d.y > STREET_BOTTOM + 8) d.y = STREET_BOTTOM + 8;
+            }
+        }
+        // R376: distant cloud strip drift. World-anchored, wraps.
+        if (this._cloudStrip) {
+            const stageW = this.data.stageWidth || GAME.W * 4;
+            for (const c of this._cloudStrip) {
+                c.x += c.vx;
+                if (c.x < -c.w) c.x = stageW + c.w;
+            }
+        }
+        // R376: neon-sign flicker. Each sign has its own on/off timer with
+        // brief dim-dips while lit. World-anchored.
+        if (this._neonSigns) {
+            for (const s of this._neonSigns) {
+                s.stateT--;
+                if (s.stateT <= 0) {
+                    s.state = s.state === 'on' ? 'off' : 'on';
+                    s.stateT = s.state === 'on'
+                        ? 90 + (Math.random() * 180) | 0
+                        : 10 + (Math.random() * 30) | 0;
+                }
+                if (s.dimT > 0) s.dimT--;
+                else if (s.state === 'on' && Math.random() < 0.05) s.dimT = 2;
+            }
+        }
         this._lightningCooldown--;
         if (this._lightningCooldown <= 0) {
             this._lightningT = 18;
@@ -252,6 +345,65 @@ export class BeatEmUp {
             // Solid window core
             ctx.globalAlpha = 0.92 * dip;
             ctx.fillRect(sx, w.y | 0, w.w, w.h);
+        }
+        ctx.restore();
+    }
+
+    // R376: distant cloud strip drifting across the upper sky band.
+    // World-anchored, ~0.25x scroll for slow back-parallax depth.
+    _drawCloudStrip(ctx) {
+        if (!this._cloudStrip) return;
+        const sc = this.scroll * 0.25;
+        ctx.save();
+        for (const c of this._cloudStrip) {
+            const sx = (c.x - sc) | 0;
+            if (sx < -c.w - 8 || sx > GAME.W + 8) continue;
+            ctx.globalAlpha = c.alpha;
+            ctx.fillStyle = '#1a0a14';
+            ctx.fillRect(sx, c.y | 0, c.w, c.h);
+            // Soft fade band at the bottom
+            ctx.globalAlpha = c.alpha * 0.4;
+            ctx.fillRect(sx, (c.y | 0) + c.h, c.w, 1);
+        }
+        ctx.restore();
+    }
+
+    // R376: foreground debris drifting left across the entire viewport.
+    // Screen-anchored so they pass continuously regardless of scroll.
+    _drawDebris(ctx) {
+        if (!this._fgDebris) return;
+        ctx.save();
+        for (const d of this._fgDebris) {
+            const sx = d.x | 0;
+            const sy = d.y | 0;
+            // Spin rotation — keep small + cheap (alternating dim/bright)
+            const flat = Math.cos(d.spin) > 0;
+            ctx.globalAlpha = 0.55 + (flat ? 0.25 : 0);
+            ctx.fillStyle = d.tint;
+            ctx.fillRect(sx, sy, d.w, d.h);
+        }
+        ctx.restore();
+    }
+
+    // R376: neon-sign flicker accents — small bright color points anchored
+    // to specific world-x positions matching painted storefront signage.
+    _drawNeonSigns(ctx) {
+        if (!this._neonSigns) return;
+        const sc = this.scroll;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const s of this._neonSigns) {
+            if (s.state !== 'on') continue;
+            const sx = (s.x - sc) | 0;
+            if (sx < -6 || sx > GAME.W + 6) continue;
+            const dim = s.dimT > 0 ? 0.35 : 1;
+            // Halo first
+            ctx.globalAlpha = 0.35 * dim;
+            ctx.fillStyle = s.color;
+            ctx.fillRect(sx - 1, s.y - 1, s.w + 2, s.h + 2);
+            // Sign core
+            ctx.globalAlpha = 0.95 * dim;
+            ctx.fillRect(sx, s.y, s.w, s.h);
         }
         ctx.restore();
     }
@@ -972,6 +1124,11 @@ export class BeatEmUp {
             ctx.fillStyle = '#0a0612';
             ctx.fillRect(0, 0, GAME.W, GAME.H);
         }
+        // R376: slow distant cloud strip — drifts across the upper sky
+        // band at 0.25x scroll for back-parallax depth. Sits just above
+        // the bright-fire ambient tint so the warm sky glow shows
+        // through the clouds.
+        this._drawCloudStrip(ctx);
         // Flickering window-light ambience — randomly dim/bright tint over
         // the upper third to suggest fires + flickering building windows.
         if ((this.t % 4) === 0) this._flickerSeed = Math.random();
@@ -1049,10 +1206,17 @@ export class BeatEmUp {
             }
         }
         ctx.globalAlpha = 1;
+        // R376: neon-sign flicker accents over the painted storefronts,
+        // BEHIND foreground props + debris but ABOVE entities so the
+        // flicker reads cleanly. World-anchored to match the bg signage.
+        this._drawNeonSigns(ctx);
         // R362: removed _drawFireEmbers — see _drawScene comment above.
         // R365: foreground parallax props — burning cars, powerline poles
         // in the FRONT layer, scrolling 1.5x player speed for depth.
         this._drawForegroundProps(ctx);
+        // R376: foreground debris drifting left across the entire viewport.
+        // In FRONT of everything so it sells "wind across the camera".
+        this._drawDebris(ctx);
         // R307: lightning flash overlay (above scene, below HUD)
         this._drawLightning(ctx);
         // HUD
