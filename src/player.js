@@ -2539,10 +2539,16 @@ export class Player {
             return;
         }
 
-        // Wading in water — render Clippy with lower body cut off + splash particles at feet
+        // Wading in water — render Clippy with lower body cut off + splash
+        // particles at feet. R373: the early `return` here ATE bullet
+        // rendering, weapon arm rendering, crosshair, recoil decay — Clippy
+        // looked like he was shooting but no bullets/muzzle ever appeared
+        // because the rest of draw() was skipped. Use a flag instead: paint
+        // the wading-body now, then SKIP only the regular sprite draw below,
+        // letting everything else (bullets, arm, crosshair, decay) run.
+        let waded = false;
         if (this.inWater && this.waterFeet) {
             const surfY = Math.round(this.y + this.h - 6 - camera.viewY);
-            // Clip lower body so submerged part is hidden
             ctx.save();
             ctx.beginPath();
             ctx.rect(0, 0, GAME.W, surfY + 1);
@@ -2556,7 +2562,7 @@ export class Player {
             ctx.globalAlpha = 0.45 + Math.sin(this._waterTick = (this._waterTick || 0) + 0.2) * 0.2;
             ctx.fillRect(Math.round(cx) - 8, surfY, 16, 1);
             ctx.globalAlpha = 1;
-            return;
+            waded = true;
         }
 
         // Spin-jump rotates the whole sprite around its center
@@ -2592,7 +2598,7 @@ export class Player {
                 const sy = this.y + this.h / 2 + (Math.random() - 0.5) * 8;
                 particles.hitSpark(sx, sy, '#ffe070');
             }
-        } else {
+        } else if (!waded) {   // R373: skip body re-draw when wading already drew clipped body
             const drawX = Math.round(cx - dims.w / 2);
             // Idle breath bob — sub-pixel vertical drift when stationary on
             // ground. Frequency ~1.3 Hz so it reads as breathing, not jitter.
@@ -3755,8 +3761,13 @@ export class Player {
                     const phase = Math.floor(this.animFrame / 2) % 3;
                     return ['run_shoot_1', 'run_shoot_2', 'run_shoot_3'][phase];
                 }
-                const phase = Math.floor(this.animFrame) % 5;
-                return ['run_1', 'run_2', 'run_3', 'run_4', 'run_5'][phase];
+                // R372: 5-frame cycle had frame 4 land on the IDLE pose
+                // (v6_run_4.png is legs-together) and frame 5 was a dupe
+                // of frame 1, so the rhythm went stride-stride-stride-
+                // STAND-stride and read as "sliding on ice". Use a clean
+                // 4-frame walk-cycle: 1 → 2 → 3 → 2 (mirror) → repeat.
+                const phase = Math.floor(this.animFrame) % 4;
+                return ['run_1', 'run_2', 'run_3', 'run_2'][phase];
             }
             // 3-pose jump arc keyed off vy: rising (vy < -1.5), peak (-1.5..1.5),
             // falling (vy > 1.5). Falls back to plain 'jump' for any missing
