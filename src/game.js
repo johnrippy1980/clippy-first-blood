@@ -709,7 +709,9 @@ export class Game {
         // Wrap-safe: anchor sx in the negative-subW window so we always have
         // at least one full repeat covering GAME.W on the right. Triple the
         // string so the wrap is invisible even at large widths.
-        const sub = 'A REVENGE STORY  -  EIGHT TARGETS  -  ONE PAPERCLIP  -  ';
+        // R369: was "EIGHT TARGETS" but the game has 13+ bosses now after
+        // the post-game + Mecha trilogy. Refreshed to current scope.
+        const sub = 'A REVENGE STORY  -  TWELVE TARGETS  -  ONE PAPERCLIP  -  ';
         const subW = sub.length * 6;
         const sx = -((tb * 0.7) % subW);
         ctx.globalAlpha = 0.65;
@@ -2547,7 +2549,11 @@ export class Game {
             // R288: route render by OPTIONS_KEYS[i] instead of hardcoded
             // indices so adding/removing items doesn't break sliders.
             const key = OPTIONS_KEYS[i];
-            const barX = panelX + panelW - 64, barY = y + 3, barW = 32, barH = 4;
+            // R369: was barX = panelW-64 + barW=32 + text at panelW-26
+            // → slider right-edge collided with percent text. Moved
+            // slider further left + widened text gap so they stop
+            // overlapping at 100%.
+            const barX = panelX + panelW - 84, barY = y + 3, barW = 32, barH = 4;
             if (key === 'masterVol' || key === 'musicVol' || key === 'sfxVol') {
                 const v = options.get(key);
                 ctx.fillStyle = '#241830';
@@ -2749,10 +2755,16 @@ export class Game {
                 ctx.fillRect(glyphX + 2, glyphY + 2, 1, 2);
             }
 
-            // Track index + title
+            // Track index + title. R369: title was overflowing into the
+            // stage column on long entries like "YOU'VE BEEN LOVING ME".
+            // Truncate to fit 22 chars max so the layout stays clean.
             const idx = String(i + 1).padStart(2, '0');
-            drawText(ctx, idx,     28, y + 2, selected ? '#ffe070' : '#a08090', 1, 'left');
-            drawText(ctx, t.title, 48, y + 2, '#fff', 1, 'left');
+            drawText(ctx, idx, 28, y + 2, selected ? '#ffe070' : '#a08090', 1, 'left');
+            const titleMax = 22;
+            const titleClip = t.title.length > titleMax
+                ? t.title.slice(0, titleMax - 1) + '.'
+                : t.title;
+            drawText(ctx, titleClip, 48, y + 2, '#fff', 1, 'left');
             // Stage label (was "mood") + artist on the right
             drawText(ctx, t.mood,   GAME.W - 60, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
             drawText(ctx, t.author, GAME.W - 12, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
