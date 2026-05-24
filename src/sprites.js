@@ -214,13 +214,18 @@ export const SCENE_MANIFEST = {
 // These are wide bitmap plates from gpt-image-2 — the parallax renderer scrolls
 // them horizontally as the camera moves and tiles them seamlessly.
 export const BG_MANIFEST = {
-    'bg_jungle':     'bg_jungle.png',
-    'bg_breakroom':  'bg_breakroom.png',
-    'bg_serverroom': 'bg_serverroom.png',
-    'bg_boardroom':  'bg_boardroom.png',
-    'bg_keynote':    'bg_keynote.png',
-    'bg_founder':    'bg_founder.png',
-    'bg_cloud':      'bg_cloud.png',
+    'bg_jungle':       'bg_jungle.png',
+    'bg_breakroom':    'bg_breakroom.png',
+    'bg_serverroom':   'bg_serverroom.png',
+    'bg_boardroom':    'bg_boardroom.png',
+    'bg_keynote':      'bg_keynote.png',
+    'bg_founder':      'bg_founder.png',
+    'bg_cloud':        'bg_cloud.png',
+    // R362: dark companions for the warm-lit themes (founder lair has
+    // braziers, breakroom has fluorescents). Parallax engine auto
+    // cross-fades when present — flickers the actual painted lights.
+    'bg_founder_dark':   'bg_founder_dark.png',
+    'bg_breakroom_dark': 'bg_breakroom_dark.png',
     // R190: Stage 13 (Reality Distortion Field) — painted keynote-auditorium
     // backdrop with floating bondi-blue cube iMacs. Falls back to the
     // procedural REALITY palette if the asset isn't loaded.
@@ -314,7 +319,8 @@ export const CLIPPY_MANIFEST = {
     'boss_ballmer_fps':  'boss_ballmer_fps.png',  // Ballmer w/ chair (core boss)
     'bg_office':         'bg_office.png',         // corridor backdrop
     // R291: Gates FPS arc — keynote auditorium theme.
-    'bg_keynote_corridor': 'bg_keynote_corridor.png',
+    'bg_keynote_corridor':      'bg_keynote_corridor.png',
+    'bg_keynote_corridor_dark': 'bg_keynote_corridor_dark.png',
     'keynote_turret':      'keynote_turret.png',
     'keynote_grunt':       'keynote_grunt.png',
     'keynote_drone':       'keynote_drone.png',
@@ -356,7 +362,8 @@ export const CLIPPY_MANIFEST = {
     'chair_3':           'chair_3.png',
     'chair_4':           'chair_4.png',
     // R272: Microsoft HQ exterior — stage-intro backdrop for stage 16.
-    'bg_microsoft_hq':   'bg_microsoft_hq.png',
+    'bg_microsoft_hq':      'bg_microsoft_hq.png',
+    'bg_microsoft_hq_dark': 'bg_microsoft_hq_dark.png',
     // R202: per-weapon painted Clippy poses (single static frame each).
     // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
     // CHAINSAW pending — its asset is the last gen still running.
