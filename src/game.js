@@ -3762,7 +3762,12 @@ export class Game {
         // off-screen and the player isn't briefly visible at the old camera
         // position before the camera follows.
         if (this.camera && this.camera.snapTo) {
-            this.camera.snapTo(this.player.x + w / 2, this.player.y + h / 2);
+            // R365: was `w / 2` / `h / 2` — undefined identifiers; respawn
+            // crashed every time. Use player dims directly.
+            this.camera.snapTo(
+                this.player.x + this.player.w / 2,
+                this.player.y + this.player.h / 2,
+            );
         }
         // Materialize beat — outward shock ring + dust + ready chime so the
         // respawn isn't a silent teleport. The i-frame window is the same;
