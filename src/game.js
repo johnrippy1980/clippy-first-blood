@@ -3627,11 +3627,29 @@ export class Game {
             // edge of the level (or 1.5x screen, whichever is smaller for
             // tight arenas). Floor anchors at level.height-1 so the bottom
             // edge is flush with the ground.
-            const arenaX = this.player.x - 16;   // 16px left of player
-            const arenaW = Math.min(this.level.width - arenaX, GAME.W * 1.5);
+            // R383: arena was 1.5× screen wide and clamped to the
+            // remaining level width — at end-of-stage triggers this gave
+            // a 128px-wide strip with boss + player on top of each other.
+            // Now: aim for 2.5× screen and shift arenaX BACK if needed so
+            // the arena fits within the level, even if that means the gate
+            // appears well behind the player's current x.
+            const targetW = GAME.W * 2.5;
+            // Default: arena starts a little behind the player (lead-in).
+            // If level doesn't have room ahead, shift the anchor back.
+            const anchorBack = Math.min(this.player.x - 32, this.level.width - targetW);
+            const arenaX = Math.max(0, anchorBack);
+            const arenaW = Math.min(this.level.width - arenaX, targetW);
             const arenaY = this.level.height - GAME.H + 8;
             const arenaH = GAME.H - 8;
             this._bossLair = new BossLair(stg.boss, arenaX, arenaY, arenaW, arenaH);
+            // R383: snap the player a little INTO the arena so the gate
+            // drops cleanly behind them. Without this, the player can
+            // straddle the gate-spawn line and the wall lands on top of
+            // them. Keeps existing camera + level state — just clamps x.
+            const playerArenaX = arenaX + 48;
+            if (this.player && this.player.x < playerArenaX) {
+                this.player.x = playerArenaX;
+            }
             // R374: lair spec can declare a painted arenaBg key — swap
             // the parallax bg so the player walks into a visibly
             // different room (e.g. wrecked-copier jungle clearing for
@@ -3672,8 +3690,16 @@ export class Game {
         // R334: HELICOPTER chase boss spawns in the AIR — 80 px above the
         // player's current y, NOT on the ground. Use the player's x as a
         // starting reference (the chase movement will catch up).
+        // R383: was spawning boss at arenaX (LEFT edge) = ~16px from the
+        // player. Two characters stacked on top of each other felt like a
+        // "wall fight" not a boss arena. Spawn boss at the FAR (right)
+        // side of the arena so the player has ~280px to traverse + room
+        // to read the boss silhouette on entry. Air units (helicopter)
+        // use the legacy offset since they sweep in from above.
         const isAir = stg.boss === 'HELICOPTER';
-        const bx = isAir ? (this.player.x + 80) : arenaX;
+        const lair = this._bossLair;
+        const lairFarX = lair ? (lair.arenaX + lair.arenaW - 64) : arenaX;
+        const bx = isAir ? (this.player.x + 80) : lairFarX;
         const by = isAir ? Math.max(40, this.player.y - 80) : (this.level.height - 32);
         if (stg.boss === 'GAUNTLET') {
             // R364: Stage 12 Boss Rush — recap of every boss the player
