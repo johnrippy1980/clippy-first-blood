@@ -113,29 +113,37 @@ window.addEventListener('unhandledrejection', (ev) => {
 // so the cinematic doesn't drain its 150f timer while throttled in the
 // background — coming back to a finished cinematic and an already-spawned
 // boss with no warning was a real glitch path.
-const AUTO_PAUSE_SCENES = new Set(['play', 'bossIntro']);
+// R377: scenes that should auto-pause on tab/window blur. Added
+// fpsPlay + beatPlay — without these the player could switch tabs
+// mid-FPS-corridor or mid-beat-em-up and the game would silently keep
+// ticking enemies/timers/boss attacks in the background. Came back to
+// a dead Clippy.
+const AUTO_PAUSE_SCENES = new Set(['play', 'fpsPlay', 'beatPlay', 'bossIntro']);
+
+function autoPauseFromCurrentScene() {
+    if (!AUTO_PAUSE_SCENES.has(game.scene)) return;
+    // Use the existing pause-entry helper so the return-scene is
+    // captured (resume routes back to whichever play scene we paused
+    // from, not blindly to 'play').
+    if (typeof game._enterPauseFrom === 'function') {
+        game._enterPauseFrom(game.scene);
+    } else {
+        game.scene = 'pause';
+        game.pauseIndex = 0;
+    }
+}
+
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        if (AUTO_PAUSE_SCENES.has(game.scene)) {
-            game.scene = 'pause';
-            game.pauseIndex = 0;
-        }
+        autoPauseFromCurrentScene();
         if (audio._fileEl) try { audio._fileEl.pause(); } catch (_) {}
         if (audio.ctx) try { audio.ctx.suspend(); } catch (_) {}
     } else {
-        // Resume audio context on return; music re-starts when the player
-        // picks RESUME from the pause menu (which calls audio.playTrack).
         if (audio.ctx) try { audio.ctx.resume(); } catch (_) {}
     }
 });
 
-// Window blur also pauses, even if visibilitychange doesn't fire (Safari).
-window.addEventListener('blur', () => {
-    if (AUTO_PAUSE_SCENES.has(game.scene)) {
-        game.scene = 'pause';
-        game.pauseIndex = 0;
-    }
-});
+window.addEventListener('blur', autoPauseFromCurrentScene);
 
 // First user gesture: init audio context + kick the title music.
 // Both keydown AND pointerdown count, in case the user clicks the canvas
