@@ -31,7 +31,11 @@ import { particles } from './particles.js';
 //   STREET_BOTTOM = near edge (the camera)
 const STREET_TOP = 100;
 const STREET_BOTTOM = GAME.H - 22;
-const PLAYER_W = 16, PLAYER_H = 24;
+// R361: beat-em-up sizes used to be 8-bit-ish (16x24 player, 16-26
+// wide enemies) which made the scene feel like an NES game next to the
+// SNES-painted platformer stages. Bumped everything ~75% so the
+// silhouettes fill the screen properly.
+const PLAYER_W = 28, PLAYER_H = 40;
 const PLAYER_SPEED_X = 1.6;
 const PLAYER_SPEED_Y = 1.1;        // y-axis movement is "moving in depth"
 const BULLET_FIRE_COOLDOWN = 6;
@@ -85,11 +89,20 @@ export class BeatEmUp {
         this.bgImg = sprites.images.get(stageData.bgKey) || null;
         this.spriteKeys = stageData.spriteKeys || {};
 
-        // R307: atmospheric layers — fire embers blowing in the wind,
-        // distant window lights flickering, and lightning flashes for the
-        // post-apocalypse mood. All decorative, no gameplay impact.
+        // R361: atmospheric ambient layer — REBUILT.
+        //   * Window lights are now WORLD-anchored (scroll past as the
+        //     player walks) and rendered as visible 2x3-pixel rectangles
+        //     with HARD on/off flicker (not soft sine fade) so the user
+        //     actually sees the lights flickering.
+        //   * Fire clusters are placed at world positions in the rubble
+        //     foreground — each cluster emits 3-5 dancing flame pixels +
+        //     rising ember particles every tick. As the player walks
+        //     past, fires move from on-screen to off-screen naturally.
+        //   * Original screen-anchored embers kept for "wind across the
+        //     foreground" effect — drifting ash above the action.
+        const stageW = stageData.stageWidth || GAME.W * 4;
         this._ambientEmbers = [];
-        for (let i = 0; i < 18; i++) {
+        for (let i = 0; i < 22; i++) {
             this._ambientEmbers.push({
                 x: Math.random() * GAME.W,
                 y: STREET_TOP + Math.random() * (STREET_BOTTOM - STREET_TOP) * 0.8,
@@ -99,18 +112,35 @@ export class BeatEmUp {
                 hue: Math.random() < 0.6 ? '#ff7030' : '#ffb050',
             });
         }
+        // Window lights — dense, world-anchored, bright enough to read
         this._windowLights = [];
-        for (let i = 0; i < 14; i++) {
+        const windowDensity = Math.floor(stageW / 24);   // ~one per 24 px
+        for (let i = 0; i < windowDensity; i++) {
             this._windowLights.push({
-                x: Math.random() * GAME.W,
-                y: 28 + Math.random() * (STREET_TOP - 36),
-                w: 1 + (Math.random() < 0.4 ? 1 : 0),
-                h: 1 + (Math.random() < 0.4 ? 1 : 0),
-                phase: Math.random() * Math.PI * 2,
-                rate: 0.04 + Math.random() * 0.08,
-                duty: 0.45 + Math.random() * 0.3,
+                x: Math.random() * stageW,
+                y: 24 + Math.random() * (STREET_TOP - 40),
+                w: 2 + ((Math.random() < 0.3) ? 1 : 0),
+                h: 3 + ((Math.random() < 0.3) ? 1 : 0),
+                // Hard flicker: per-window cooldown, randomly toggles
+                state: Math.random() < 0.7 ? 'on' : 'off',
+                stateT: 30 + (Math.random() * 90) | 0,
+                color: Math.random() < 0.15 ? '#ff6030' : '#ffd060',
             });
         }
+        // Fire clusters — world-anchored, animated dancing pixels
+        this._fireClusters = [];
+        const fireDensity = Math.floor(stageW / 64);  // one per ~64 px
+        for (let i = 0; i < fireDensity; i++) {
+            this._fireClusters.push({
+                x: 80 + Math.random() * (stageW - 160),
+                y: STREET_BOTTOM - 6 + Math.random() * 4,
+                size: 4 + Math.random() * 4,
+                phase: Math.random() * Math.PI * 2,
+                emitT: 0,
+            });
+        }
+        // Rising-ember particle list (separate from drifting screen embers)
+        this._fireEmbers = [];   // {x, y, vx, vy, life, hue}
         this._lightningT = 0;
         this._lightningCooldown = 240 + (Math.random() * 360) | 0;
 
@@ -118,7 +148,7 @@ export class BeatEmUp {
         this._spawnWave(0);
     }
 
-    // R307 — ambient layer helpers
+    // R307 / R361 — ambient layer helpers
     _tickAmbience() {
         for (const e of this._ambientEmbers) {
             const gust = 1 + Math.sin((this.t + e.phase * 40) * 0.025) * 0.7;
@@ -133,8 +163,43 @@ export class BeatEmUp {
             if (e.x < -4) e.x = GAME.W + 4;
             if (e.x > GAME.W + 4) e.x = -4;
         }
+        // R361: hard flicker — each window randomly toggles on/off
+        // based on its own countdown. Reads as a real flickering bulb,
+        // not the old smooth sine duty cycle.
         for (const w of this._windowLights) {
-            w.phase += w.rate;
+            w.stateT--;
+            if (w.stateT <= 0) {
+                w.state = w.state === 'on' ? 'off' : 'on';
+                // Lit windows stay on longer than dark ones (~70/30 duty)
+                w.stateT = w.state === 'on'
+                    ? 60 + (Math.random() * 180) | 0
+                    : 8 + (Math.random() * 28) | 0;
+            }
+        }
+        // R361: fire clusters — dance + emit a rising ember every 4-8 frames
+        for (const f of this._fireClusters) {
+            f.phase += 0.18 + Math.random() * 0.06;
+            f.emitT--;
+            if (f.emitT <= 0) {
+                f.emitT = 4 + (Math.random() * 4) | 0;
+                this._fireEmbers.push({
+                    x: f.x + (Math.random() - 0.5) * f.size,
+                    y: f.y - 2,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: -0.6 - Math.random() * 0.8,
+                    life: 28 + (Math.random() * 16) | 0,
+                    hue: Math.random() < 0.5 ? '#ff5020' : '#ffb050',
+                });
+            }
+        }
+        // Tick + retire fire embers
+        for (let i = this._fireEmbers.length - 1; i >= 0; i--) {
+            const e = this._fireEmbers[i];
+            e.x += e.vx;
+            e.y += e.vy;
+            e.vy += 0.02;   // slight upward easing
+            e.life--;
+            if (e.life <= 0) this._fireEmbers.splice(i, 1);
         }
         this._lightningCooldown--;
         if (this._lightningCooldown <= 0) {
@@ -146,13 +211,73 @@ export class BeatEmUp {
 
     _drawWindowLights(ctx) {
         ctx.save();
+        // R361: world-anchored — subtract scroll so windows pass by
+        // as the player walks. Hard on/off + small glow halo + occasional
+        // single-frame flicker dip while lit.
+        const sc = this.scroll;
         for (const w of this._windowLights) {
-            const lit = (Math.sin(w.phase) * 0.5 + 0.5) > (1 - w.duty);
-            if (!lit) continue;
-            const flick = 0.7 + 0.3 * Math.sin(w.phase * 5.7);
-            ctx.globalAlpha = 0.55 * flick;
-            ctx.fillStyle = '#ffd060';
-            ctx.fillRect(w.x | 0, w.y | 0, w.w, w.h);
+            if (w.state !== 'on') continue;
+            const sx = (w.x - sc) | 0;
+            if (sx < -8 || sx > GAME.W + 4) continue;
+            // Brief flicker dip — random 1-frame dim while lit
+            const dip = (Math.random() < 0.04) ? 0.35 : 1;
+            // Halo glow first (lighter blend) — bigger, dimmer rectangle
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.35 * dip;
+            ctx.fillStyle = w.color;
+            ctx.fillRect(sx - 1, (w.y | 0) - 1, w.w + 2, w.h + 2);
+            // Solid window core
+            ctx.globalAlpha = 0.92 * dip;
+            ctx.fillRect(sx, w.y | 0, w.w, w.h);
+        }
+        ctx.restore();
+    }
+
+    // R361: world-anchored animated fire clusters in the rubble. Each
+    // cluster paints a 3-tone dancing flame body; the rising embers it
+    // emits each frame come through via _drawFireEmbers below.
+    _drawFireClusters(ctx) {
+        const sc = this.scroll;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const f of this._fireClusters) {
+            const sx = (f.x - sc) | 0;
+            if (sx < -16 || sx > GAME.W + 16) continue;
+            const flick = 0.75 + 0.25 * Math.sin(f.phase);
+            const sizeFlick = 0.85 + 0.20 * Math.sin(f.phase * 0.7 + 1.3);
+            const w = Math.round(f.size * sizeFlick);
+            const h = Math.round(f.size * 1.7 * sizeFlick);
+            const baseY = f.y | 0;
+            // Outer red glow
+            ctx.globalAlpha = 0.45 * flick;
+            ctx.fillStyle = '#a01018';
+            ctx.fillRect(sx - w, baseY - h, w * 2, h);
+            // Orange middle body
+            ctx.globalAlpha = 0.80 * flick;
+            ctx.fillStyle = '#ff6020';
+            ctx.fillRect(sx - (w / 2 | 0), baseY - h + 2, w, h - 2);
+            // Bright yellow core tip
+            ctx.globalAlpha = 0.95 * flick;
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(sx - 1, baseY - h + 3, 2, Math.max(2, (h / 2) | 0));
+            // White-hot center pixel
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sx, baseY - h + 5, 1, 1);
+        }
+        ctx.restore();
+    }
+
+    _drawFireEmbers(ctx) {
+        const sc = this.scroll;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const e of this._fireEmbers) {
+            const sx = (e.x - sc) | 0;
+            if (sx < -2 || sx > GAME.W + 2) continue;
+            const a = Math.max(0, e.life / 32);
+            ctx.globalAlpha = 0.75 * a;
+            ctx.fillStyle = e.hue;
+            ctx.fillRect(sx, e.y | 0, 1, 1);
         }
         ctx.restore();
     }
@@ -632,6 +757,10 @@ export class BeatEmUp {
         // R307: discrete window-light points + drifting embers behind the action.
         this._drawWindowLights(ctx);
         this._drawAmbientEmbers(ctx);
+        // R361: animated fire clusters in the rubble — sit behind the
+        // entities so player + enemies read on top, but in front of the
+        // far cityscape so they feel like foreground rubble fires.
+        this._drawFireClusters(ctx);
         // Floor line — subtle separator between street and far area
         ctx.fillStyle = 'rgba(20, 8, 12, 0.55)';
         ctx.fillRect(0, STREET_TOP - 1, GAME.W, 2);
@@ -693,6 +822,9 @@ export class BeatEmUp {
             }
         }
         ctx.globalAlpha = 1;
+        // R361: rising fire embers — drawn ABOVE entities so they pass
+        // in front of the action like real flame sparks.
+        this._drawFireEmbers(ctx);
         // R307: lightning flash overlay (above scene, below HUD)
         this._drawLightning(ctx);
         // HUD
@@ -910,20 +1042,22 @@ export class BeatEmUp {
 
 // Per-enemy stats — easy to tune in one place.
 const ENEMY_STATS = {
+    // R361: ~75% bigger to match the new player size + read as SNES-scale
+    // characters instead of NES-scale icons.
     scavenger: {
-        w: 16, h: 24, hp: 3, speed: 0.6,
-        attackRange: 14, fireRange: 18, damage: 1, score: 150,
+        w: 28, h: 40, hp: 3, speed: 0.7,
+        attackRange: 22, fireRange: 28, damage: 1, score: 150,
     },
     drone: {
-        w: 18, h: 16, hp: 4, speed: 0.5,
-        attackRange: 50, fireRange: 80, damage: 1, score: 250,
+        w: 32, h: 26, hp: 4, speed: 0.6,
+        attackRange: 70, fireRange: 110, damage: 1, score: 250,
     },
     helicopter: {
-        w: 26, h: 18, hp: 6, speed: 0.8,
-        attackRange: 90, fireRange: 120, damage: 1, score: 400,
+        w: 46, h: 30, hp: 6, speed: 0.9,
+        attackRange: 110, fireRange: 150, damage: 1, score: 400,
     },
     brawler: {
-        w: 22, h: 28, hp: 10, speed: 0.45,
-        attackRange: 16, fireRange: 20, damage: 2, score: 800,
+        w: 36, h: 46, hp: 10, speed: 0.5,
+        attackRange: 24, fireRange: 30, damage: 2, score: 800,
     },
 };
