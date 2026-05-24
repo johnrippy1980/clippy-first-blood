@@ -3247,6 +3247,14 @@ export class Game {
         const mainMax = Math.min(13, Math.max(1, this.unlockedStage || 1));
         for (let i = 1; i <= mainMax; i++) ids.push(i);
         if (hasSecret || konami) ids.push(14);
+        // R359: post-game stages 15 (Training), 16 (Boss Rush Mode), 17
+        // (Time Trial) were unreachable — not in this list and not chained
+        // from any other stage. Three full stages of content nobody could
+        // access. Now they appear after the campaign clear (same gate as
+        // stage 18).
+        if (gameCleared || konami) ids.push(15);
+        if (gameCleared || konami) ids.push(16);
+        if (gameCleared || konami) ids.push(17);
         if (gameCleared || konami) ids.push(18);
         if (konami) ids.push(19);
         // R306: Mecha-Gates 3-stage super-secret arc — konami-only.
