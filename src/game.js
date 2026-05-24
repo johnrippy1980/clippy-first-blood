@@ -2766,7 +2766,10 @@ export class Game {
             // Truncate to fit 22 chars max so the layout stays clean.
             const idx = String(i + 1).padStart(2, '0');
             drawText(ctx, idx, 28, y + 2, selected ? '#ffe070' : '#a08090', 1, 'left');
-            const titleMax = 22;
+            // R377: tighter clamp — 18 still touched STAGE col, 16 leaves
+            // visible gap. Pixel-font is wider than character count
+            // suggests so we under-count conservatively.
+            const titleMax = 16;
             const titleClip = t.title.length > titleMax
                 ? t.title.slice(0, titleMax - 1) + '.'
                 : t.title;
