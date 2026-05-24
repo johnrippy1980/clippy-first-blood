@@ -148,6 +148,20 @@ export class BeatEmUp {
         this._fireEmbers = [];   // {x, y, vx, vy, life, hue}
         this._lightningT = 0;
         this._lightningCooldown = 240 + (Math.random() * 360) | 0;
+        // R365: foreground parallax props — burning cars, crumbling
+        // powerline poles, mailbox husks. Sit IN FRONT of the action
+        // and scroll FASTER than the player (parallax depth feel).
+        // World-anchored, sparse so they pass dramatically.
+        this._foregroundProps = [];
+        const fgKinds = ['burningCar', 'powerlinePole', 'mailbox', 'powerlinePole', 'burningCar'];
+        const fgDensity = Math.floor(stageW / 280);  // ~one per 280 world px
+        for (let i = 0; i < fgDensity; i++) {
+            this._foregroundProps.push({
+                x: 100 + i * 280 + (Math.random() * 80 - 40),
+                kind: fgKinds[i % fgKinds.length],
+                phase: Math.random() * Math.PI * 2,
+            });
+        }
 
         // Boot first wave
         this._spawnWave(0);
@@ -297,6 +311,140 @@ export class BeatEmUp {
             ctx.fillRect(e.x | 0, e.y | 0, 1, 1);
         }
         ctx.restore();
+    }
+
+    // R365: foreground parallax props — large silhouettes that sit in
+    // FRONT of the action and scroll FASTER than the world (1.5x player
+    // scroll). User: "create a parallax effect. like a big burning car,
+    // a crumbling powerline pole or such in the front." Procedural draws
+    // so we don't need to gen sprite assets — the silhouettes are bold
+    // simple shapes that read as foreground at any scale.
+    _drawForegroundProps(ctx) {
+        if (!this._foregroundProps) return;
+        const sc = this.scroll;
+        const PARALLAX = 1.5;   // foreground scrolls 1.5x faster than world
+        for (const p of this._foregroundProps) {
+            // World-x mapped to faster-scrolling screen-x for parallax.
+            // The "anchor" position is the actual world spot, but its
+            // apparent screen position drifts ahead at PARALLAX rate.
+            const sx = (p.x - sc * PARALLAX) | 0;
+            if (sx < -80 || sx > GAME.W + 80) continue;
+            if (p.kind === 'burningCar') this._drawFGBurningCar(ctx, sx, p);
+            else if (p.kind === 'powerlinePole') this._drawFGPole(ctx, sx, p);
+            else if (p.kind === 'mailbox') this._drawFGMailbox(ctx, sx, p);
+        }
+    }
+
+    _drawFGBurningCar(ctx, sx, p) {
+        // 64-wide wrecked car silhouette at floor level
+        const baseY = STREET_BOTTOM + 4;
+        // Car body — dark twisted metal
+        ctx.fillStyle = '#1a1218';
+        ctx.fillRect(sx - 32, baseY - 14, 64, 14);
+        ctx.fillStyle = '#0a060a';
+        ctx.fillRect(sx - 32, baseY - 14, 64, 2);
+        // Cabin
+        ctx.fillStyle = '#100a14';
+        ctx.fillRect(sx - 18, baseY - 24, 30, 10);
+        // Cracked windshield (red glow from flames inside)
+        ctx.fillStyle = '#3a1010';
+        ctx.fillRect(sx - 14, baseY - 22, 8, 6);
+        ctx.fillRect(sx + 2, baseY - 22, 8, 6);
+        // Wheels (or what's left of them)
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sx - 26, baseY - 4, 8, 4);
+        ctx.fillRect(sx + 18, baseY - 4, 8, 4);
+        // Flame jets from the hood — animated
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const flick = 0.7 + 0.3 * Math.sin((this.t + p.phase * 30) * 0.4);
+        ctx.globalAlpha = 0.85 * flick;
+        // Outer red
+        ctx.fillStyle = '#a01018';
+        ctx.fillRect(sx - 20, baseY - 30, 40, 8);
+        // Middle orange
+        ctx.fillStyle = '#ff5020';
+        ctx.fillRect(sx - 14, baseY - 36, 28, 8);
+        // Tip yellow
+        ctx.fillStyle = '#ffe060';
+        ctx.fillRect(sx - 4, baseY - 42, 8, 6);
+        ctx.fillRect(sx - 8, baseY - 38, 4, 4);
+        ctx.fillRect(sx + 4, baseY - 38, 4, 4);
+        // White-hot core
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx - 1, baseY - 40, 2, 2);
+        ctx.restore();
+    }
+
+    _drawFGPole(ctx, sx, p) {
+        // Crumbling powerline pole leaning ~15deg
+        const baseY = STREET_BOTTOM + 4;
+        const lean = Math.sin(p.phase) > 0 ? 6 : -6;   // some lean left, some right
+        ctx.save();
+        // Pole shaft
+        ctx.fillStyle = '#1a0e08';
+        for (let i = 0; i < 60; i++) {
+            const ox = (lean * i / 60) | 0;
+            ctx.fillRect(sx + ox, baseY - i, 3, 1);
+        }
+        ctx.fillStyle = '#3a2818';
+        for (let i = 0; i < 60; i++) {
+            const ox = (lean * i / 60) | 0;
+            ctx.fillRect(sx + ox, baseY - i, 1, 1);
+        }
+        // Crossbeam at top, broken
+        const topX = sx + lean;
+        const topY = baseY - 60;
+        ctx.fillStyle = '#1a0e08';
+        ctx.fillRect(topX - 14, topY, 28, 2);
+        // Snapped cables hanging down
+        ctx.strokeStyle = '#0a0610';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(topX - 12, topY + 2);
+        ctx.lineTo(topX - 18, topY + 14);
+        ctx.lineTo(topX - 14, topY + 22);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(topX + 12, topY + 2);
+        ctx.lineTo(topX + 18, topY + 12);
+        ctx.lineTo(topX + 14, topY + 24);
+        ctx.stroke();
+        // Sparking end on one cable — animated
+        if (((this.t + p.phase * 20) % 30) < 6) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = '#7af0ff';
+            ctx.fillRect((topX + 14) | 0, (topY + 24) | 0, 2, 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect((topX + 14) | 0, (topY + 24) | 0, 1, 1);
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    _drawFGMailbox(ctx, sx, p) {
+        // Beat-up USPS-style mailbox, tipped over
+        const baseY = STREET_BOTTOM + 2;
+        ctx.fillStyle = '#1a1a28';
+        ctx.fillRect(sx - 8, baseY - 14, 16, 14);
+        ctx.fillStyle = '#0a0a18';
+        ctx.fillRect(sx - 8, baseY - 14, 16, 2);
+        // Door — askew
+        ctx.fillStyle = '#3a3a48';
+        ctx.fillRect(sx - 6, baseY - 11, 12, 8);
+        // Slot
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sx - 4, baseY - 9, 8, 1);
+        // Legs
+        ctx.fillStyle = '#1a1a28';
+        ctx.fillRect(sx - 7, baseY, 2, 4);
+        ctx.fillRect(sx + 5, baseY, 2, 4);
+        // Spilled letters at base
+        ctx.fillStyle = '#d8d0b8';
+        ctx.fillRect(sx - 14, baseY + 3, 4, 2);
+        ctx.fillRect(sx + 10, baseY + 3, 5, 2);
+        ctx.fillRect(sx - 8, baseY + 5, 6, 1);
     }
 
     _drawLightning(ctx) {
@@ -872,6 +1020,9 @@ export class BeatEmUp {
         }
         ctx.globalAlpha = 1;
         // R362: removed _drawFireEmbers — see _drawScene comment above.
+        // R365: foreground parallax props — burning cars, powerline poles
+        // in the FRONT layer, scrolling 1.5x player speed for depth.
+        this._drawForegroundProps(ctx);
         // R307: lightning flash overlay (above scene, below HUD)
         this._drawLightning(ctx);
         // HUD
@@ -948,15 +1099,23 @@ export class BeatEmUp {
         let squashX = 1;
         let squashY = 1;
         if (e.type === 'scavenger' || e.type === 'brawler') {
-            // Walk-cycle: 24-frame loop, 2 stride beats per cycle
-            const stride = (e._animT * 0.18);
-            bobY = Math.sin(stride * 2) * (1.5 * scale);
-            // Brief squash on every other stride beat (foot-plant)
-            const plant = (Math.sin(stride * 2) > 0.85) ? 0.06 : 0;
+            // R365: stronger walk-cycle. User said enemies "lack
+            // animation, jump like one sprite". Bigger bob + clearer
+            // stride beats + actual side-to-side body sway.
+            const stride = (e._animT * 0.22);
+            bobY = Math.sin(stride * 2) * (3 * scale);
+            // Body sway — sine offset on x for hip motion
+            e._strideOffX = Math.sin(stride) * (1.5 * scale);
+            // Hard plant: deeper squash on each foot-fall
+            const plantPhase = Math.sin(stride * 2);
+            const plant = plantPhase > 0.7 ? (plantPhase - 0.7) / 0.3 * 0.12 : 0;
             squashX = 1 + plant;
             squashY = 1 - plant;
+            // Tilt forward slightly while moving — sells momentum
+            e._tilt = e.vx ? Math.sign(e.vx) * 0.08 : 0;
         } else if (e.type === 'drone') {
-            bobY = Math.sin(e._animT * 0.32) * (2.5 * scale);
+            bobY = Math.sin(e._animT * 0.32) * (3.5 * scale);
+            e._strideOffX = Math.sin(e._animT * 0.18) * (1.5 * scale);
         } else if (e.type === 'helicopter') {
             bobY = Math.sin(e._animT * 0.10) * (3 * scale);
         }

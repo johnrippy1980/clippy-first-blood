@@ -2148,7 +2148,12 @@ function makeBeatEmUpMechaGates() {
     //     wreckage field, fights through scavengers, THEN the mech lands.
     //   - Phase 2 (exposed pilot) scaled up + faster.
     //   - Pickups + crates rebalanced for the longer fight.
-    const STAGE_W = GAME.W * 4;
+    // R365: 6-screen stage (was 4) — user: "make mecha gates stage long.
+    // like a beat 'em up game where you keep progressing from left to
+    // right". 9 waves across the journey, with the Mecha-Gates boss not
+    // landing until wave 6 (so the player walks most of the level
+    // first). Phase-1 boss isn't the end — phase-2 ejects after.
+    const STAGE_W = GAME.W * 6;
     return {
         beatMode: true,
         theme: THEME.KEYNOTE,
@@ -2162,68 +2167,89 @@ function makeBeatEmUpMechaGates() {
             brawler:    'boss_mecha_gates',
         },
         stageWidth: STAGE_W,
-        // 6 waves — gauntlet → mech → drones → exposed pilot → finale.
+        // 9 waves — long walk through the wreckage to the final
         waves: [
-            // Wave 0 — wreckage-field warm-up (player still feels the
-            // crash from card_chopper_crash). Two scavengers.
+            // Wave 0 — wreckage-field warm-up at spawn
             { spawns: [
                 { type: 'scavenger', side: 'right', depth: 0.4 },
                 { type: 'scavenger', side: 'right', depth: 0.7 },
             ]},
-            // Wave 1 — pincer + drone harass through the rubble
+            // Wave 1 — pincer + drone
             { spawns: [
                 { type: 'scavenger', side: 'left',  depth: 0.5 },
                 { type: 'scavenger', side: 'right', depth: 0.4 },
                 { type: 'drone',     side: 'right', depth: 0.7 },
             ]},
-            // Wave 2 — heavy ground pressure, last breath before the mech
+            // Wave 2 — heavier ground
             { spawns: [
                 { type: 'scavenger', side: 'left',  depth: 0.5 },
                 { type: 'scavenger', side: 'left',  depth: 0.7 },
                 { type: 'scavenger', side: 'right', depth: 0.4 },
                 { type: 'drone',     side: 'right', depth: 0.7 },
             ]},
-            // Wave 3 — MECHA-GATES PHASE 1 LANDS. Much bigger now.
+            // Wave 3 — mid-stage MINI BRUTE breather
+            { spawns: [
+                { type: 'brawler',   side: 'right', depth: 0.5,
+                  name: 'BRUTE', hpMul: 2.5, wMul: 1.4, hMul: 1.4 },
+                { type: 'scavenger', side: 'left',  depth: 0.7 },
+            ]},
+            // Wave 4 — drone storm + chopper warning (foreshadow)
+            { spawns: [
+                { type: 'drone',     side: 'left',  depth: 0.5 },
+                { type: 'drone',     side: 'right', depth: 0.6 },
+                { type: 'helicopter',side: 'right', depth: 0.2 },
+            ]},
+            // Wave 5 — heavy ground push, scavenger wall
+            { spawns: [
+                { type: 'scavenger', side: 'left',  depth: 0.35 },
+                { type: 'scavenger', side: 'left',  depth: 0.55 },
+                { type: 'scavenger', side: 'left',  depth: 0.75 },
+                { type: 'scavenger', side: 'right', depth: 0.45 },
+                { type: 'drone',     side: 'right', depth: 0.6 },
+            ]},
+            // Wave 6 — MECHA-GATES PHASE 1 LANDS
             { spawns: [
                 { type: 'brawler',   side: 'right', depth: 0.5, isBoss: true,
                   name: 'MECHA-GATES', hpMul: 5, wMul: 2.6, hMul: 2.6,
                   isMechaPhase1: true },
             ]},
-            // Wave 4 — drones flank between phase 1 + phase 2
+            // Wave 7 — interstitial: drones harass between phases
             { spawns: [
                 { type: 'drone',     side: 'left',  depth: 0.5 },
                 { type: 'drone',     side: 'right', depth: 0.6 },
                 { type: 'scavenger', side: 'left',  depth: 0.8 },
             ]},
-            // Wave 5 — MECHA-GATES PHASE 2 (pilot exposed). Smaller +
-            // faster + still beefier than the original 1.0x.
+            // Wave 8 — MECHA-GATES PHASE 2 (pilot exposed) FINALE
             { spawns: [
                 { type: 'brawler',   side: 'right', depth: 0.5, isBoss: true,
                   name: 'MECHA-GATES / EXPOSED', hpMul: 3, wMul: 1.4, hMul: 1.4,
                   isMechaPhase2: true },
             ]},
         ],
-        // Chokepoints space the waves across the 4-screen stage. Wave 0
-        // fires on entry; the rest gated on walking + clear.
+        // 6 chokepoints spread evenly across the 6-screen stage.
+        // Wave 0 fires on entry; 1-6 gated on walking + prev clear.
+        // Waves 7-8 chain auto after wave 6 clears (boss phase change).
         waveChokepoints: [
-            { x: GAME.W * 0.8, wave: 1 },
-            { x: GAME.W * 1.6, wave: 2 },
-            { x: GAME.W * 2.4, wave: 3 },
-            // Wave 4 auto-fires after phase-1 clear (no chokepoint needed)
-            // Wave 5 fires on phase-2 trigger from beatem_up engine
+            { x: GAME.W * 1.0, wave: 1 },
+            { x: GAME.W * 2.0, wave: 2 },
+            { x: GAME.W * 3.0, wave: 3 },
+            { x: GAME.W * 4.0, wave: 4 },
+            { x: GAME.W * 4.8, wave: 5 },
+            { x: GAME.W * 5.5, wave: 6 },
         ],
-        // R360 fix to beat-em-up engine made shooting work post-scroll,
-        // so the full-length stage 22 is finally playable.
         pickupSpawns: [
-            { x: 120, y: 100, type: 'HOMING' },
-            { x: 380, y: 100, type: 'LIFE' },
-            { x: 620, y: 100, type: 'GRENADE' },
-            { x: 860, y: 100, type: 'LIFE' },
+            { x: 120,  y: 100, type: 'HOMING' },
+            { x: 380,  y: 100, type: 'LIFE' },
+            { x: 620,  y: 100, type: 'GRENADE' },
+            { x: 860,  y: 100, type: 'LIFE' },
+            { x: 1100, y: 100, type: 'HOMING' },
+            { x: 1340, y: 100, type: 'LIFE' },
         ],
         clearText: 'YOU ARE THE LAST CLIPPY',
         bossDisplayName: 'MECHA-GATES',
         introBgKey: 'bg_apocalypse',
-        // True final — no nextStage. Game-complete cinematic fires (R357).
+        // True final — no nextStage. Beat-em-up engine routes to
+        // GAME_COMPLETE on clear via R365 isFinal check.
     };
 }
 
