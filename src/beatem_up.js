@@ -153,7 +153,11 @@ export class BeatEmUp {
         // and scroll FASTER than the player (parallax depth feel).
         // World-anchored, sparse so they pass dramatically.
         this._foregroundProps = [];
-        const fgKinds = ['burningCar', 'powerlinePole', 'mailbox', 'powerlinePole', 'burningCar'];
+        // R367: dropped 'burningCar' from the foreground kinds list —
+        // the painted bg_apocalypse_street.png already has burning cars,
+        // and the procedural one read as a duplicate banner in the
+        // foreground. Stick to silhouettes the bg doesn't have.
+        const fgKinds = ['powerlinePole', 'mailbox', 'powerlinePole'];
         const fgDensity = Math.floor(stageW / 280);  // ~one per 280 world px
         for (let i = 0; i < fgDensity; i++) {
             this._foregroundProps.push({
@@ -336,41 +340,54 @@ export class BeatEmUp {
     }
 
     _drawFGBurningCar(ctx, sx, p) {
-        // 64-wide wrecked car silhouette at floor level
+        // 64-wide wrecked car silhouette at floor level. R366b: brighter
+        // body palette + light-edge highlight so the silhouette reads
+        // against the painted apocalypse bg (was invisible-on-bg before;
+        // only the flame jets showed, giving the appearance of a red
+        // banner floating in midair).
         const baseY = STREET_BOTTOM + 4;
-        // Car body — dark twisted metal
-        ctx.fillStyle = '#1a1218';
+        // Car body — twisted metal, mid-grey so it reads against bg
+        ctx.fillStyle = '#3a3038';
         ctx.fillRect(sx - 32, baseY - 14, 64, 14);
-        ctx.fillStyle = '#0a060a';
-        ctx.fillRect(sx - 32, baseY - 14, 64, 2);
+        // Top highlight catch-light
+        ctx.fillStyle = '#5a4a52';
+        ctx.fillRect(sx - 32, baseY - 14, 64, 1);
+        // Bottom shadow
+        ctx.fillStyle = '#1a0e14';
+        ctx.fillRect(sx - 32, baseY - 2, 64, 2);
         // Cabin
-        ctx.fillStyle = '#100a14';
+        ctx.fillStyle = '#2a2028';
         ctx.fillRect(sx - 18, baseY - 24, 30, 10);
+        ctx.fillStyle = '#4a3848';
+        ctx.fillRect(sx - 18, baseY - 24, 30, 1);
         // Cracked windshield (red glow from flames inside)
-        ctx.fillStyle = '#3a1010';
+        ctx.fillStyle = '#a02018';
         ctx.fillRect(sx - 14, baseY - 22, 8, 6);
         ctx.fillRect(sx + 2, baseY - 22, 8, 6);
-        // Wheels (or what's left of them)
-        ctx.fillStyle = '#000';
-        ctx.fillRect(sx - 26, baseY - 4, 8, 4);
-        ctx.fillRect(sx + 18, baseY - 4, 8, 4);
+        // Cracked-glass jag highlights
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(sx - 11, baseY - 20, 1, 3);
+        ctx.fillRect(sx + 5,  baseY - 20, 1, 3);
+        // Wheels — burnt-tire silhouettes
+        ctx.fillStyle = '#080406';
+        ctx.fillRect(sx - 28, baseY - 4, 10, 5);
+        ctx.fillRect(sx + 18, baseY - 4, 10, 5);
+        ctx.fillStyle = '#5a484a';
+        ctx.fillRect(sx - 27, baseY - 3, 1, 1);
+        ctx.fillRect(sx + 26, baseY - 3, 1, 1);
         // Flame jets from the hood — animated
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         const flick = 0.7 + 0.3 * Math.sin((this.t + p.phase * 30) * 0.4);
         ctx.globalAlpha = 0.85 * flick;
-        // Outer red
         ctx.fillStyle = '#a01018';
         ctx.fillRect(sx - 20, baseY - 30, 40, 8);
-        // Middle orange
         ctx.fillStyle = '#ff5020';
         ctx.fillRect(sx - 14, baseY - 36, 28, 8);
-        // Tip yellow
         ctx.fillStyle = '#ffe060';
         ctx.fillRect(sx - 4, baseY - 42, 8, 6);
         ctx.fillRect(sx - 8, baseY - 38, 4, 4);
         ctx.fillRect(sx + 4, baseY - 38, 4, 4);
-        // White-hot core
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(sx - 1, baseY - 40, 2, 2);
         ctx.restore();
@@ -1158,19 +1175,21 @@ export class BeatEmUp {
         // feet/skids land on the ground line. Hitbox dims (e.w / e.h)
         // continue to drive collision; only the *visual* uses native AR.
         const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
+        const hitboxH = e.h * scale;
+        // dw/dh default to hitbox dims (used by HP bar + procedural
+        // fallback). Painted-image branch overrides them to native AR.
+        let dw = e.w * scale * squashX;
+        let dh = hitboxH * squashY;
+        let dx, dy;
         if (img) {
             ctx.imageSmoothingEnabled = false;
-            const hitboxH = e.h * scale;
-            // Scale sprite to fit hitbox height; brawler/mecha sprites
-            // are taller than the hitbox so this fits the painted feet
-            // to the floor line and lets the head extend up naturally.
             const drawScale = hitboxH / img.height * squashY;
-            const dh = img.height * drawScale;
-            const dw = img.width * drawScale * (squashX / squashY);
+            dh = img.height * drawScale;
+            dw = img.width * drawScale * (squashX / squashY);
             // Anchor: bottom-center of hitbox = bottom-center of sprite
             const cx = e.x - this.scroll + (e.w * scale) / 2;
-            const dx = Math.round(cx - dw / 2);
-            const dy = Math.round(e.y + hitboxH - dh + bobY);
+            dx = Math.round(cx - dw / 2);
+            dy = Math.round(e.y + hitboxH - dh + bobY);
             if (facing < 0) {
                 ctx.save();
                 ctx.translate(dx + dw, dy);
