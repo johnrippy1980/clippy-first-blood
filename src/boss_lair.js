@@ -103,6 +103,7 @@ export const BOSS_LAIRS = {
         gateColor: '#101810',
         gateAccent: '#80c060',
         nameTag: "SPINDLER'S LAB",
+        arenaBg: 'bg_arena_spindler',
         arenaTint: '#082010',
         tintAlpha: 0.34,
         decorations: [
@@ -118,6 +119,7 @@ export const BOSS_LAIRS = {
         gateColor: '#1a0820',
         gateAccent: '#a060ff',
         nameTag: 'BALLMER ARENA',
+        arenaBg: 'bg_arena_boardroom',
         arenaTint: '#180810',
         tintAlpha: 0.32,
         decorations: [
@@ -133,6 +135,7 @@ export const BOSS_LAIRS = {
         gateColor: '#1a0820',
         gateAccent: '#a060ff',
         nameTag: 'KEYNOTE STAGE',
+        arenaBg: 'bg_arena_keynote',
         arenaTint: '#180828',
         tintAlpha: 0.32,
         decorations: [
@@ -150,6 +153,7 @@ export const BOSS_LAIRS = {
         gateColor: '#a01018',
         gateAccent: '#ff7030',
         nameTag: 'FOUNDER FORGE',
+        arenaBg: 'bg_arena_founder',
         arenaTint: '#280808',
         tintAlpha: 0.38,
         decorations: [

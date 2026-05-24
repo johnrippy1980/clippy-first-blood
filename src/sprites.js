@@ -223,9 +223,13 @@ export const BG_MANIFEST = {
     // R374: painted boss-arena backdrops — distinct rooms swapped in
     // by the parallax engine while the BossLair is active. Reads as
     // "the boss has its own place", not "same stage with a wall".
-    'bg_arena_copier':   'bg_arena_copier.png',
-    'bg_arena_shredder': 'bg_arena_shredder.png',
-    'bg_arena_cad':      'bg_arena_cad.png',
+    'bg_arena_copier':    'bg_arena_copier.png',
+    'bg_arena_shredder':  'bg_arena_shredder.png',
+    'bg_arena_cad':       'bg_arena_cad.png',
+    'bg_arena_boardroom': 'bg_arena_boardroom.png',
+    'bg_arena_keynote':   'bg_arena_keynote.png',
+    'bg_arena_founder':   'bg_arena_founder.png',
+    'bg_arena_spindler':  'bg_arena_spindler.png',
     'bg_breakroom':    'bg_breakroom.png',
     'bg_serverroom':   'bg_serverroom.png',
     'bg_boardroom':    'bg_boardroom.png',
