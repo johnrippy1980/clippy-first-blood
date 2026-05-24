@@ -49,14 +49,20 @@ for (const stage of STAGES) {
         }
         return { ok: true, stage: g.currentStage, hasLair: !!g._bossLair, lairBoss: g._bossLair?.bossKind };
     });
-    // Boss intro cinematic can hold for ~3-4s. Mash through it.
-    for (let i = 0; i < 12; i++) {
+    // Boss intro cinematic uses age-based phases that gate on input.
+    // Set autoAdvance so the intro completes without waiting on input,
+    // then mash X as a backup. Once we land in 'play', wait for tint
+    // fade-in (60 frames = 1s; 1.5s is safe).
+    await page.evaluate(() => {
+        const g = window.__game;
+        if (g && g._bossIntro) g._bossIntro.autoAdvance = true;
+    });
+    for (let i = 0; i < 20; i++) {
         const s = await page.evaluate(() => window.__game?.scene);
         if (s === 'play' || s === 'fpsPlay' || s === 'beatPlay') break;
         await page.keyboard.press('KeyX');
-        await page.waitForTimeout(220);
+        await page.waitForTimeout(180);
     }
-    // Tint fades in over 60 frames = 1s; wait 1.5s to be safe
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `${OUT}/lair-${stage}.png` });
     console.log(`stage ${stage}:`, JSON.stringify(result));

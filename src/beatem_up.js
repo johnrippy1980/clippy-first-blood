@@ -1296,7 +1296,9 @@ export class BeatEmUp {
         // Scavenger: 3 walk frames at 8f each → 24f loop
         // Drone: 2 hover frames at 10f each → 20f loop
         // Brawler: walk = frames 1+2 (12f each), attack = frame 3
-        // Boss mech (uses boss_mecha_gates_*): same as brawler scheme
+        // Boss mech (uses boss_mecha_gates_*): same as brawler scheme.
+        // R382: was incrementing _animT twice per frame (here + line below)
+        // which double-paced everything. Single increment now.
         e._animT = (e._animT || 0) + 1;
         let frameKey = baseKey;
         const attackTell = e.isBoss && e.attackCD > 0 && e.attackCD < 14;
@@ -1316,9 +1318,6 @@ export class BeatEmUp {
         }
         const img = sprites.images.get(frameKey);
         const scale = depthScale(e.y);
-        // R361: animated enemies — track per-frame phase + apply squash/bob
-        // so they feel alive instead of being static decals.
-        e._animT = (e._animT || 0) + 1;
         // Per-type animation:
         //   scavenger / brawler — walk-bob (squash y on stride beats)
         //   drone — fast hover wobble
@@ -1369,18 +1368,42 @@ export class BeatEmUp {
         let dx, dy;
         if (img) {
             ctx.imageSmoothingEnabled = false;
-            const drawScale = hitboxH / img.height * squashY;
+            // R382: helicopter is painted as a 240×128 Contra-3-style
+            // Hind. If we scaled it by the tiny 30px hitbox we'd shrink
+            // it back to NES-scale. Override: helicopters draw at ~3.5×
+            // the hitbox height (≈105px tall on the 224-internal canvas)
+            // so they read as proper menacing attack choppers.
+            const heightMult = (e.type === 'helicopter') ? 3.5 : 1.0;
+            const drawScale = (hitboxH / img.height) * squashY * heightMult;
             dh = img.height * drawScale;
             dw = img.width * drawScale * (squashX / squashY);
-            // Anchor: bottom-center of hitbox = bottom-center of sprite
-            const cx = e.x - this.scroll + (e.w * scale) / 2;
+            // Anchor: bottom-center of hitbox = bottom-center of sprite.
+            // R382: apply the computed _strideOffX so the hip actually
+            // sways with the walk cycle (previously written-and-ignored).
+            const strideOffX = e._strideOffX || 0;
+            const cx = e.x - this.scroll + (e.w * scale) / 2 + strideOffX;
             dx = Math.round(cx - dw / 2);
             dy = Math.round(e.y + hitboxH - dh + bobY);
-            if (facing < 0) {
+            // R382: apply _tilt as a rotation around the sprite's feet so
+            // walking brawlers lean into their stride direction.
+            const tilt = e._tilt || 0;
+            const needsTransform = facing < 0 || tilt !== 0;
+            if (needsTransform) {
                 ctx.save();
-                ctx.translate(dx + dw, dy);
-                ctx.scale(-1, 1);
-                ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, dw, dh);
+                if (tilt !== 0) {
+                    const pivotX = dx + dw / 2;
+                    const pivotY = dy + dh;
+                    ctx.translate(pivotX, pivotY);
+                    ctx.rotate(tilt);
+                    ctx.translate(-pivotX, -pivotY);
+                }
+                if (facing < 0) {
+                    ctx.translate(dx + dw, dy);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, dw, dh);
+                } else {
+                    ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
+                }
                 ctx.restore();
             } else {
                 ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
