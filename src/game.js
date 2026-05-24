@@ -57,8 +57,12 @@ function _formatTime(frames) {
 
 const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SCENE GALLERY', 'SOUNDTRACK', 'QUIT TO TITLE'];
 // R288: master + music + sfx volume sliders (all default 100%).
-const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'SHAKE INTENSITY', 'BACK'];
-const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'shakeScale',     'BACK'];
+// R364: exposed crtCurve + showReady — both already existed in
+// options.js DEFAULTS but weren't selectable from the menu. CRT curve
+// is a visual preference some players hate (motion sickness), and
+// veterans want to skip the READY screen on repeat runs.
+const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'SHOW READY', 'BACK'];
+const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'crtCurve',  'shakeScale',     'showReady',  'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 // Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
@@ -2494,6 +2498,14 @@ export class Game {
             } else if (k === 'scanlines') {
                 options.set(k, !options.get(k));
                 document.getElementById('scanlines')?.style.setProperty('display', options.get(k) ? 'block' : 'none');
+            } else if (k === 'crtCurve') {
+                // R364: CRT curvature toggle — flips the body class so
+                // index.html's CSS curve effect engages/disengages.
+                options.set(k, !options.get(k));
+                document.body.classList.toggle('crt-curve', options.get(k));
+            } else if (k === 'showReady') {
+                // R364: skip the stage-intro READY card on repeat runs
+                options.set(k, !options.get(k));
             } else if (k === 'shakeScale') {
                 options.set(k, Math.max(0, Math.min(2, options.get('shakeScale') + dir * 0.25)));
             }
@@ -2550,8 +2562,8 @@ export class Game {
                 ctx.fillStyle = sel ? '#ffe070' : '#80a0c0';
                 ctx.fillRect(barX, barY, Math.round(barW * v), barH);
                 drawText(ctx, options.get('shakeScale').toFixed(2), panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
-            } else if (key === 'scanlines') {
-                drawText(ctx, options.get('scanlines') ? 'ON' : 'OFF', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
+            } else if (key === 'scanlines' || key === 'crtCurve' || key === 'showReady') {
+                drawText(ctx, options.get(key) ? 'ON' : 'OFF', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
             }
         }
         drawText(ctx, 'LEFT/RIGHT CHANGE  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 10, '#604068', 1, 'center');
