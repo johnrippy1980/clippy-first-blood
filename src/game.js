@@ -2815,18 +2815,29 @@ export class Game {
         const stageDone = (n) => (this.unlockedStage > n) || cleared;
         const tab = this.galleryTab || 'scenes';
         if (tab === 'enemies') {
-            // R266: enemy gallery — grunts always shown, boss thumbnails
-            // gate on the stage where they appear.
+            // R266 + R375: enemy gallery. Grunts gate on first-seen-stage;
+            // R346 painted enemies (dive_bomber/summoner/shielder) on
+            // stages where they first appear; R366 beat-em-up roster
+            // (scavenger/drone/helicopter/brawler) on the post-game
+            // Mecha-trilogy unlock.
             return [
-                { key: 'stapler',   label: 'STAPLER',   unlock: true },
-                { key: 'folder',    label: 'FOLDER',    unlock: stageDone(1) },
-                { key: 'cabinet',   label: 'CABINET',   unlock: stageDone(2) },
-                { key: 'holepunch', label: 'SNIPER',    unlock: stageDone(2) },
+                { key: 'stapler',     label: 'STAPLER',     unlock: true },
+                { key: 'folder',      label: 'FOLDER',      unlock: stageDone(1) },
+                { key: 'cabinet',     label: 'CABINET',     unlock: stageDone(2) },
+                { key: 'holepunch',   label: 'SNIPER',      unlock: stageDone(2) },
+                { key: 'dive_bomber', label: 'PAPER JET',   unlock: stageDone(1) },
+                { key: 'summoner',    label: 'SUMMONER',    unlock: stageDone(4) },
+                { key: 'shielder',    label: 'SHIELDER',    unlock: stageDone(3) },
+                { key: 'scavenger',   label: 'SCAVENGER',   unlock: stageDone(7) },
+                { key: 'drone',       label: 'WAR DRONE',   unlock: stageDone(7) },
+                { key: 'helicopter',  label: 'CHOPPER',     unlock: stageDone(20) || cleared },
+                { key: 'brawler',     label: 'BRAWLER',     unlock: stageDone(7) },
             ];
         }
         if (tab === 'bosses') {
-            // R291: shifts after Gates arc inserts at 9+10 — Founder 9→11,
-            // Cloud 11→13.
+            // R291 + R375: full boss roster. Post-game bosses (helicopter
+            // + mecha-gates) gate on the konami unlock OR stage clear.
+            const konami = !!this._konamiUnlocked;
             return [
                 { key: 'boss_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
                 { key: 'boss_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
@@ -2837,6 +2848,8 @@ export class Game {
                 { key: 'boss_CLIPPY_2',     label: 'CLIPPY 2.0',   unlock: stageDone(11) },
                 { key: 'boss_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(13) },
                 { key: 'boss_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
+                { key: 'helicopter',        label: 'MECHA CHOPPER',unlock: stageDone(21) || konami },
+                { key: 'boss_mecha_gates',  label: 'MECHA-GATES',  unlock: stageDone(22) || konami },
             ];
         }
         // Default: SCENES tab
