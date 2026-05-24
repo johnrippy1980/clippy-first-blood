@@ -32,27 +32,78 @@ game.preload();
 
 let lastTime = performance.now();
 let accumulator = 0;
+let _crashed = false;
+
+// R364: Steam-ship error boundary. If anything in tick/render throws
+// uncaught, freeze the loop + paint a friendly "CRASH" overlay so the
+// player isn't staring at a stuck canvas. Without this, an exception
+// in the game loop silently kills the rAF and the screen just freezes
+// with no feedback.
+function _paintCrashOverlay(err) {
+    try {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#a82020';
+        ctx.fillRect(0, 88, canvas.width, 1);
+        ctx.fillRect(0, 124, canvas.width, 1);
+        ctx.fillStyle = '#ffe070';
+        ctx.font = '16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('CRASH', canvas.width / 2, 110);
+        ctx.fillStyle = '#c0a0d0';
+        ctx.font = '8px monospace';
+        ctx.fillText('refresh the page to continue', canvas.width / 2, 140);
+        ctx.fillStyle = '#604068';
+        const msg = (err && err.message ? err.message : String(err)).slice(0, 60);
+        ctx.fillText(msg, canvas.width / 2, 156);
+    } catch (_) { /* even crash painting can fail — give up gracefully */ }
+}
 
 function loop(now) {
+    if (_crashed) return;
     requestAnimationFrame(loop);
     const dt = Math.min(now - lastTime, 200);
     lastTime = now;
     accumulator += dt;
 
-    let ticks = 0;
-    while (accumulator >= GAME.DT && ticks < GAME.MAX_TICKS_PER_FRAME) {
-        input.update();
-        game.tick();
-        input.endFrame();
-        accumulator -= GAME.DT;
-        ticks++;
+    try {
+        let ticks = 0;
+        while (accumulator >= GAME.DT && ticks < GAME.MAX_TICKS_PER_FRAME) {
+            input.update();
+            game.tick();
+            input.endFrame();
+            accumulator -= GAME.DT;
+            ticks++;
+        }
+        if (ticks === GAME.MAX_TICKS_PER_FRAME) {
+            accumulator = 0; // drop spike, don't spiral
+        }
+        game.render();
+    } catch (err) {
+        _crashed = true;
+        console.error('Game loop crashed:', err);
+        try { audio.stopTrack?.(); } catch (_) {}
+        _paintCrashOverlay(err);
     }
-    if (ticks === GAME.MAX_TICKS_PER_FRAME) {
-        accumulator = 0; // drop spike, don't spiral
-    }
-    game.render();
 }
 requestAnimationFrame(loop);
+
+// Also catch uncaught errors that bubble outside the game loop
+// (async asset failures, listener handlers, etc.).
+window.addEventListener('error', (ev) => {
+    if (_crashed) return;
+    _crashed = true;
+    console.error('Window error:', ev.error || ev.message);
+    _paintCrashOverlay(ev.error || ev.message);
+});
+window.addEventListener('unhandledrejection', (ev) => {
+    if (_crashed) return;
+    _crashed = true;
+    console.error('Unhandled rejection:', ev.reason);
+    _paintCrashOverlay(ev.reason);
+});
 
 // Tab/window visibility — auto-pause the game and suspend music when
 // the player switches away. Browsers will throttle the rAF loop on hidden

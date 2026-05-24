@@ -1,7 +1,9 @@
-// Achievement system. 16 entries, persisted to localStorage.
+// Achievement system. Persisted to localStorage.
 // Each definition has: id (string), name, description, icon (1-char emoji or
 // glyph), gate(stats) -> bool. Stats are updated after each stage; on every
 // update we re-check unlock predicates against the stats object.
+
+import { audio } from './audio.js';
 
 const STORAGE_KEY = 'clippy_achievements';
 
@@ -184,6 +186,10 @@ class Achievements {
                 if (a.gate(this.stats)) {
                     this.unlocked.add(a.id);
                     this.banner.push({ id: a.id, age: 0 });
+                    // R364: play the unlock chime so the banner has audio
+                    // feedback — silent achievement unlocks were easy to
+                    // miss during action.
+                    try { audio.sfx?.('unlock'); } catch (_) {}
                     newly.push(a);
                 }
             } catch (e) {}
