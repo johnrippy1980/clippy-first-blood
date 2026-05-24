@@ -320,7 +320,10 @@ export const CLIPPY_MANIFEST = {
     'keynote_drone':       'keynote_drone.png',
     'boss_gates_fps':      'boss_gates_fps.png',
     // R301: super-secret Mecha-Gates stage — post-apocalypse final boss.
-    'bg_apocalypse':       'bg_apocalypse.png',
+    'bg_apocalypse':            'bg_apocalypse.png',
+    // R362: dark companion for the apocalypse rubble bg (stage 21
+    // helicopter chase). Same cross-fade model as bg_apocalypse_street.
+    'bg_apocalypse_dark':       'bg_apocalypse_dark.png',
     'boss_mecha_gates':    'boss_mecha_gates.png',
     // R306: beat-em-up Mecha Approach enemy sprites + street backdrop.
     'bg_apocalypse_street':      'bg_apocalypse_street.png',

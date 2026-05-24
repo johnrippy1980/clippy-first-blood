@@ -593,9 +593,30 @@ export class Parallax {
         const tileW = img.width * scale;
         const offset = (camera.viewX * scrollFactor) % tileW;
         ctx.imageSmoothingEnabled = true;
-        // Draw enough tiles to cover the screen
         for (let x = -offset; x < GAME.W + tileW; x += tileW) {
             ctx.drawImage(img, x | 0, 0, Math.ceil(tileW), GAME.H);
+        }
+        // R362: cross-fade DARK variant if one exists for this bg key.
+        // Same flicker model as the beat-em-up engine — slow breathe +
+        // 4-frame noise, clamped to 0.6 alpha so the painting never
+        // goes pitch-black. Works for stage 21 (bg_apocalypse) the
+        // same way it works for stages 20/22 (bg_apocalypse_street).
+        const darkKey = key + '_dark';
+        if (sprites.has(darkKey)) {
+            const dark = sprites.images.get(darkKey);
+            this._bgFlickT = (this._bgFlickT || 0) + 1;
+            if ((this._bgFlickT & 3) === 0) {
+                this._bgFlickNoise = Math.random();
+            }
+            const slow = (Math.sin(this._bgFlickT * 0.04) + 1) * 0.5;
+            const noise = this._bgFlickNoise || 0.5;
+            const alpha = Math.min(0.60, 0.18 + slow * 0.20 + noise * 0.22);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            for (let x = -offset; x < GAME.W + tileW; x += tileW) {
+                ctx.drawImage(dark, x | 0, 0, Math.ceil(tileW), GAME.H);
+            }
+            ctx.restore();
         }
         ctx.imageSmoothingEnabled = false;
         return true;

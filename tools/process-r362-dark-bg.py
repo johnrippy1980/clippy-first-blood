@@ -23,8 +23,14 @@ flicker in the actual window slots + fires pulse on the actual cars.
 import os
 from PIL import Image
 
-SRC = 'assets/sprites/bg_apocalypse_street.png'
-OUT_DARK = 'assets/sprites/bg_apocalypse_street_dark.png'
+import sys
+# Allow passing a different bg to process
+if len(sys.argv) > 1:
+    SRC = sys.argv[1]
+    OUT_DARK = SRC.replace('.png', '_dark.png')
+else:
+    SRC = 'assets/sprites/bg_apocalypse_street.png'
+    OUT_DARK = 'assets/sprites/bg_apocalypse_street_dark.png'
 
 
 def is_lit_window(r, g, b, y, h):
