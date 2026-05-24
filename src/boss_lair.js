@@ -66,6 +66,7 @@ export const BOSS_LAIRS = {
         gateColor: '#3a2820',
         gateAccent: '#806040',
         nameTag: 'STORAGE LOCKER',
+        arenaBg: 'bg_arena_shredder',
         arenaTint: '#1c1208',
         tintAlpha: 0.30,
         decorations: [
@@ -85,6 +86,7 @@ export const BOSS_LAIRS = {
         gateColor: '#1a1a28',
         gateAccent: '#4080c0',
         nameTag: 'MAINFRAME CORE',
+        arenaBg: 'bg_arena_cad',
         arenaTint: '#0a1228',
         tintAlpha: 0.34,
         decorations: [

@@ -561,8 +561,16 @@ export class BeatEmUp {
                 return;
             }
             if (isFinal && this.clearT >= 240) {
+                // R374: insert the painted victory cinematic before the
+                // canonical GAME_COMPLETE results screen. _pendingFinale
+                // tells _tickStageCard to route to gameComplete after the
+                // card is dismissed (instead of starting the next stage).
                 audio.stopTrack();
-                this.game._fadeTo('gameComplete');
+                this.game._extraCards = ['card_mecha_victory'];
+                this.game._pendingStage = null;
+                this.game._pendingFinale = 'gameComplete';
+                this.game.storyTimer = 0;
+                this.game.scene = 'stageCard';
                 return;
             }
             if (this.clearT > 60 &&
@@ -577,8 +585,13 @@ export class BeatEmUp {
                     return;
                 }
                 if (isFinal) {
+                    // Same painted-victory route on early input
                     audio.stopTrack();
-                    this.game._fadeTo('gameComplete');
+                    this.game._extraCards = ['card_mecha_victory'];
+                    this.game._pendingStage = null;
+                    this.game._pendingFinale = 'gameComplete';
+                    this.game.storyTimer = 0;
+                    this.game.scene = 'stageCard';
                     return;
                 }
                 audio.stopTrack();

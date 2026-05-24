@@ -170,6 +170,11 @@ export const SCENE_MANIFEST = {
     // (Mecha-Gates emerges from the wreckage).
     'card_chopper_horizon': 'card_chopper_horizon.png',
     'card_chopper_crash':   'card_chopper_crash.png',
+    // R374: Mecha-Gates victory cinematic — painted scene of wrecked
+    // mech with defeated Bill Gates pilot half-emerging, Clippy
+    // triumphant on the rubble pile, burning skyline behind. Fires
+    // between Mecha-Gates kill and the GAME_COMPLETE finale.
+    'card_mecha_victory':   'card_mecha_victory.png',
     // Boss intro cinematic backgrounds — painted villain stages shown
     // during the BOSS_INTRO scene. Keyed by boss code so _drawBossIntro
     // can look up the matching backdrop. Falls back to dim _drawPlay when
@@ -218,7 +223,9 @@ export const BG_MANIFEST = {
     // R374: painted boss-arena backdrops — distinct rooms swapped in
     // by the parallax engine while the BossLair is active. Reads as
     // "the boss has its own place", not "same stage with a wall".
-    'bg_arena_copier': 'bg_arena_copier.png',
+    'bg_arena_copier':   'bg_arena_copier.png',
+    'bg_arena_shredder': 'bg_arena_shredder.png',
+    'bg_arena_cad':      'bg_arena_cad.png',
     'bg_breakroom':    'bg_breakroom.png',
     'bg_serverroom':   'bg_serverroom.png',
     'bg_boardroom':    'bg_boardroom.png',

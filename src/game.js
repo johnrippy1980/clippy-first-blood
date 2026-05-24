@@ -3104,6 +3104,19 @@ export class Game {
                 this.storyTimer = 0;
                 return;
             }
+            // R374: _pendingFinale routes to a scene (gameComplete /
+            // epilogue / title) instead of starting another stage. Used
+            // by the Mecha-Gates victory cinematic to land at GAME_COMPLETE
+            // after the painted card finishes.
+            if (this._pendingFinale) {
+                const finale = this._pendingFinale;
+                this._pendingFinale = null;
+                this._pendingStage = null;
+                this._extraCards = null;
+                this._secretDiscoveryCard = false;
+                this._fadeTo(finale);
+                return;
+            }
             const next = this._pendingStage || (this.currentStage + 1);
             this._secretDiscoveryCard = false;
             this._startStage(next);
