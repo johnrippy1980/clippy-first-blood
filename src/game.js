@@ -3611,7 +3611,15 @@ export class Game {
         const bx = isAir ? (this.player.x + 80) : arenaX;
         const by = isAir ? Math.max(40, this.player.y - 80) : (this.level.height - 32);
         if (stg.boss === 'GAUNTLET') {
-            this._gauntletQueue = ['COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL'];
+            // R364: Stage 12 Boss Rush — recap of every boss the player
+            // has faced in the campaign so far (stages 1, 2, 3, 4, 5, 7,
+            // 10, 11). Pre-R364 the queue was just the first 3, which
+            // felt anticlimactic for the namesake "BOSS RUSH" stage.
+            // Skips the not-yet-fought stage-12-onward bosses.
+            this._gauntletQueue = [
+                'COPIER_3000', 'SHREDDER', 'CTRL_ALT_DEL',
+                'SPINDLER', 'BALLMER', 'GATES', 'CLIPPY_2',
+            ];
             this._spawnNextGauntlet();
         } else if (stg.boss === 'GAUNTLET_FULL') {
             // R281: Post-game Boss Rush — all 8 UNIQUE campaign bosses
