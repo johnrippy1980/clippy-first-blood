@@ -754,13 +754,16 @@ export class BeatEmUp {
         const flick = 0.05 + (this._flickerSeed || 0.5) * 0.05;
         ctx.fillStyle = `rgba(255, 90, 30, ${flick})`;
         ctx.fillRect(0, 0, GAME.W, STREET_TOP);
-        // R307: discrete window-light points + drifting embers behind the action.
-        this._drawWindowLights(ctx);
-        this._drawAmbientEmbers(ctx);
-        // R361: animated fire clusters in the rubble — sit behind the
-        // entities so player + enemies read on top, but in front of the
-        // far cityscape so they feel like foreground rubble fires.
-        this._drawFireClusters(ctx);
+        // R362: DISABLED R361's _drawWindowLights / _drawFireClusters /
+        // _drawAmbientEmbers / _drawFireEmbers — those placed random
+        // bright yellow rectangles at scene-init coords that DIDN'T
+        // match the actual windows + fires baked into the painted bg.
+        // Result: floating yellow vector boxes scattered across the
+        // foreground rubble. User: "sprites not vectors for the windows
+        // and fire. it has to match actual windows and placements of
+        // the images in the background." Correct fix is a 2-frame
+        // painted bg cross-fade keyed to the real window/fire positions
+        // — coming in a follow-up commit. Until then, no vector overlay.
         // Floor line — subtle separator between street and far area
         ctx.fillStyle = 'rgba(20, 8, 12, 0.55)';
         ctx.fillRect(0, STREET_TOP - 1, GAME.W, 2);
@@ -822,9 +825,7 @@ export class BeatEmUp {
             }
         }
         ctx.globalAlpha = 1;
-        // R361: rising fire embers — drawn ABOVE entities so they pass
-        // in front of the action like real flame sparks.
-        this._drawFireEmbers(ctx);
+        // R362: removed _drawFireEmbers — see _drawScene comment above.
         // R307: lightning flash overlay (above scene, below HUD)
         this._drawLightning(ctx);
         // HUD
