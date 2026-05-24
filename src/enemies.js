@@ -2283,12 +2283,34 @@ export class EnemyManager {
     }
 
     setStageDifficulty(stageN) {
-        // Stages 1..9 (9 = secret). Smooth ramp; secret hardest.
-        // 1: baseline, 2: +10% hp, ... 8: +70% hp + 1 contact dmg, 9: +100% hp + 1 dmg
-        const s = Math.max(1, Math.min(9, stageN));
-        this.stageScale = 1 + (s - 1) * 0.12;
-        this.stageContactBonus = s >= 7 ? 1 : 0;
-        this.stageFireRate = Math.max(0.55, 1 - (s - 1) * 0.06);
+        // R364: ramp extended past the original stage-9 cap. The game now
+        // has 22 stages — stages 10-13 are late campaign, 14-19 are
+        // post-game side stages, 20-22 are the Mecha trilogy.
+        // Pacing:
+        //   1-13: smooth 12%-per-stage HP ramp (1.0 → 2.44), 1 contact
+        //         bonus from stage 7 onward, fire rate down to 0.28
+        //   14-19: clamp HP at +160% so post-game side stages stay
+        //          accessible — they're meant to be enjoyable not crushing
+        //   20-22: Mecha trilogy goes hardest. +200% HP, +2 contact
+        //          bonus, fastest fire rate. True endgame.
+        let stageScale, contactBonus, fireRate;
+        const s = Math.max(1, stageN);
+        if (s <= 13) {
+            stageScale = 1 + (s - 1) * 0.12;
+            contactBonus = s >= 7 ? 1 : 0;
+            fireRate = Math.max(0.40, 1 - (s - 1) * 0.06);
+        } else if (s <= 19) {
+            stageScale = 2.6;
+            contactBonus = 1;
+            fireRate = 0.40;
+        } else {
+            stageScale = 3.0;
+            contactBonus = 2;
+            fireRate = 0.30;
+        }
+        this.stageScale = stageScale;
+        this.stageContactBonus = contactBonus;
+        this.stageFireRate = fireRate;
     }
     spawn(x, y, type) {
         const e = new Enemy(x, y - TYPES[type].h, type);
