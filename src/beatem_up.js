@@ -758,14 +758,47 @@ export class BeatEmUp {
         };
         const img = sprites.images.get(keyMap[e.type]);
         const scale = depthScale(e.y);
-        const dw = e.w * scale;
-        const dh = e.h * scale;
+        // R361: animated enemies — track per-frame phase + apply squash/bob
+        // so they feel alive instead of being static decals.
+        e._animT = (e._animT || 0) + 1;
+        // Per-type animation:
+        //   scavenger / brawler — walk-bob (squash y on stride beats)
+        //   drone — fast hover wobble
+        //   helicopter — hover-bob (already has rotor blur from boss path)
+        let bobY = 0;
+        let squashX = 1;
+        let squashY = 1;
+        if (e.type === 'scavenger' || e.type === 'brawler') {
+            // Walk-cycle: 24-frame loop, 2 stride beats per cycle
+            const stride = (e._animT * 0.18);
+            bobY = Math.sin(stride * 2) * (1.5 * scale);
+            // Brief squash on every other stride beat (foot-plant)
+            const plant = (Math.sin(stride * 2) > 0.85) ? 0.06 : 0;
+            squashX = 1 + plant;
+            squashY = 1 - plant;
+        } else if (e.type === 'drone') {
+            bobY = Math.sin(e._animT * 0.32) * (2.5 * scale);
+        } else if (e.type === 'helicopter') {
+            bobY = Math.sin(e._animT * 0.10) * (3 * scale);
+        }
+        // Boss-only attack-windup tell — squash + shift before they swing
+        if (e.isBoss && e.attackCD <= 8 && e.attackCD > 0) {
+            const tele = (8 - e.attackCD) / 8;
+            squashY = 1 - tele * 0.10;
+            squashX = 1 + tele * 0.10;
+            bobY -= tele * 2;   // rear back slightly
+        }
+        const dw = e.w * scale * squashX;
+        const dh = e.h * scale * squashY;
         const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
         if (img) {
             ctx.imageSmoothingEnabled = false;
             // R331: enemy.x is world coords; subtract scroll for draw.
-            const dx = Math.round(e.x - this.scroll);
-            const dy = Math.round(e.y);
+            // Center the squashed sprite on the original hitbox so the
+            // animation doesn't visually drift off the hit collision.
+            const cx = e.x - this.scroll + (e.w * scale) / 2;
+            const dx = Math.round(cx - dw / 2);
+            const dy = Math.round(e.y + (e.h * scale - dh) + bobY);
             if (facing < 0) {
                 ctx.save();
                 ctx.translate(dx + dw, dy);
@@ -774,6 +807,16 @@ export class BeatEmUp {
                 ctx.restore();
             } else {
                 ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
+            }
+            // R361: boss aggro pulse — boss flickers a red multiply tint
+            // every ~30 frames while alive. Sells the menace.
+            if (e.isBoss && (e._animT & 31) < 6) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.globalAlpha = 0.25;
+                ctx.fillStyle = '#ff3040';
+                ctx.fillRect(dx, dy, dw, dh);
+                ctx.restore();
             }
             if (e.hitFlash > 0 && e.hitFlash % 2 === 0) {
                 ctx.save();

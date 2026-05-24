@@ -2138,6 +2138,17 @@ function makeStageGatesArena() {
 // from R308 still applies: at 50% HP the mech ejects and the pilot
 // fights smaller + faster.
 function makeBeatEmUpMechaGates() {
+    // R361: stage 22 deep pass. User: "mechagates needs to be bigger and
+    // needs actual animations. same issues with the mechagates stage as
+    // we had with mecha approach."
+    //
+    //   - Stage is now 4 screens wide (was effectively 1-screen).
+    //   - Mecha-Gates phase 1 boss scaled 1.6→2.6 (much bigger silhouette).
+    //   - Added gauntlet waves before the boss so the player walks the
+    //     wreckage field, fights through scavengers, THEN the mech lands.
+    //   - Phase 2 (exposed pilot) scaled up + faster.
+    //   - Pickups + crates rebalanced for the longer fight.
+    const STAGE_W = GAME.W * 4;
     return {
         beatMode: true,
         theme: THEME.KEYNOTE,
@@ -2150,33 +2161,69 @@ function makeBeatEmUpMechaGates() {
             helicopter: 'helicopter',
             brawler:    'boss_mecha_gates',
         },
-        // 3 waves — Mecha-Gates emerges in wave 1, sustained pressure
-        // through wave 2 (phase change), wave 3 = the pilot on foot.
+        stageWidth: STAGE_W,
+        // 6 waves — gauntlet → mech → drones → exposed pilot → finale.
         waves: [
-            // Wave 1 — Mecha-Gates lands. Heavy contact damage.
+            // Wave 0 — wreckage-field warm-up (player still feels the
+            // crash from card_chopper_crash). Two scavengers.
+            { spawns: [
+                { type: 'scavenger', side: 'right', depth: 0.4 },
+                { type: 'scavenger', side: 'right', depth: 0.7 },
+            ]},
+            // Wave 1 — pincer + drone harass through the rubble
+            { spawns: [
+                { type: 'scavenger', side: 'left',  depth: 0.5 },
+                { type: 'scavenger', side: 'right', depth: 0.4 },
+                { type: 'drone',     side: 'right', depth: 0.7 },
+            ]},
+            // Wave 2 — heavy ground pressure, last breath before the mech
+            { spawns: [
+                { type: 'scavenger', side: 'left',  depth: 0.5 },
+                { type: 'scavenger', side: 'left',  depth: 0.7 },
+                { type: 'scavenger', side: 'right', depth: 0.4 },
+                { type: 'drone',     side: 'right', depth: 0.7 },
+            ]},
+            // Wave 3 — MECHA-GATES PHASE 1 LANDS. Much bigger now.
             { spawns: [
                 { type: 'brawler',   side: 'right', depth: 0.5, isBoss: true,
-                  name: 'MECHA-GATES', hpMul: 4, wMul: 1.6, hMul: 1.6,
+                  name: 'MECHA-GATES', hpMul: 5, wMul: 2.6, hMul: 2.6,
                   isMechaPhase1: true },
-                { type: 'scavenger', side: 'left',  depth: 0.7 },
             ]},
-            // Wave 2 — drones flank during phase 1
+            // Wave 4 — drones flank between phase 1 + phase 2
             { spawns: [
                 { type: 'drone',     side: 'left',  depth: 0.5 },
                 { type: 'drone',     side: 'right', depth: 0.6 },
                 { type: 'scavenger', side: 'left',  depth: 0.8 },
             ]},
-            // Wave 3 — Mecha pops out, on-foot final. Smaller + faster.
+            // Wave 5 — MECHA-GATES PHASE 2 (pilot exposed). Smaller +
+            // faster + still beefier than the original 1.0x.
             { spawns: [
                 { type: 'brawler',   side: 'right', depth: 0.5, isBoss: true,
-                  name: 'MECHA-GATES / EXPOSED', hpMul: 2, wMul: 1.0, hMul: 1.0,
+                  name: 'MECHA-GATES / EXPOSED', hpMul: 3, wMul: 1.4, hMul: 1.4,
                   isMechaPhase2: true },
             ]},
+        ],
+        // Chokepoints space the waves across the 4-screen stage. Wave 0
+        // fires on entry; the rest gated on walking + clear.
+        waveChokepoints: [
+            { x: GAME.W * 0.8, wave: 1 },
+            { x: GAME.W * 1.6, wave: 2 },
+            { x: GAME.W * 2.4, wave: 3 },
+            // Wave 4 auto-fires after phase-1 clear (no chokepoint needed)
+            // Wave 5 fires on phase-2 trigger from beatem_up engine
+        ],
+        // R360 fix to beat-em-up engine made shooting work post-scroll,
+        // so the full-length stage 22 is finally playable.
+        pickupSpawns: [
+            { x: 120, y: 100, type: 'HOMING' },
+            { x: 380, y: 100, type: 'LIFE' },
+            { x: 620, y: 100, type: 'GRENADE' },
+            { x: 860, y: 100, type: 'LIFE' },
         ],
         clearText: 'YOU ARE THE LAST CLIPPY',
         bossDisplayName: 'MECHA-GATES',
         introBgKey: 'bg_apocalypse',
-        // True final — no nextStage. R299 routes high stages back to title.
+        // True final — no nextStage. Game-complete cinematic fires (R357).
     };
 }
 

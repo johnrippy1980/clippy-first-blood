@@ -1094,9 +1094,12 @@ class Boss extends Enemy {
             // the player's run-right rhythm impossible.
             this._chaseCycle = ((this._chaseCycle || 0) + 1) % 330;
             const swooping = this._chaseCycle > 240;
-            const lead = swooping ? +60 : -80;
+            const lead = swooping ? +80 : -100;
             const desiredX = playerCX + lead;
-            const desiredY = (player.y - 70) + Math.sin(this._patrolPhase) * 14;
+            // R361: lifted altitude target from -70 to -110 so the bigger
+            // 160x72 chopper sits clear of the player + still dominates
+            // the top half of the screen.
+            const desiredY = (player.y - 110) + Math.sin(this._patrolPhase) * 16;
             desiredVX = (desiredX - cx) * (swooping ? 0.10 : 0.05);
             // Vertical lerp toward desiredY — no gravity (it flies)
             this.y += (desiredY - this.y) * 0.05;
@@ -1746,6 +1749,41 @@ class Boss extends Enemy {
             // R341: phase-2 enrage tint — pulse a faint red multiply
             // overlay over the boss sprite once it crosses 50% HP.
             sprites.draw(ctx, spriteKey, dx, dy, false);
+            // R361: chopper rotor animation. The sprite has static rotor
+            // blades — paint a fast-spinning translucent ellipse over the
+            // top to sell the rotor blur. Period ~3 frames so it reads as
+            // "fast-spinning" at 60fps.
+            if (this.kind === 'HELICOPTER') {
+                const rotorY = dy + 6;  // top edge of chopper sprite
+                const rotorCX = dx + dims.w / 2;
+                const phase = (this.timer * 0.85) % (Math.PI * 2);
+                ctx.save();
+                // Main blade — wide elliptical blur
+                ctx.globalAlpha = 0.30;
+                ctx.fillStyle = '#1a1a22';
+                ctx.beginPath();
+                const bladeW = dims.w * 0.85;
+                ctx.ellipse(rotorCX, rotorY, bladeW / 2, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Two leading edges spinning visible (catch-light)
+                ctx.globalAlpha = 0.55;
+                ctx.fillStyle = '#4a4e58';
+                const t1 = Math.cos(phase);
+                const t2 = Math.cos(phase + Math.PI);
+                ctx.fillRect(rotorCX + t1 * bladeW * 0.35 - 8, rotorY - 1, 16, 2);
+                ctx.fillRect(rotorCX + t2 * bladeW * 0.35 - 8, rotorY - 1, 16, 2);
+                ctx.restore();
+                // Tail rotor — smaller spinning circle at the back
+                const tailX = dx + 8;
+                const tailY = dy + dims.h * 0.45;
+                ctx.save();
+                ctx.globalAlpha = 0.45;
+                ctx.fillStyle = '#2a2e38';
+                ctx.beginPath();
+                ctx.ellipse(tailX, tailY, 4, 7, phase * 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
             if (this.phase === 2) {
                 const pulse = 0.10 + 0.10 * Math.sin(this.timer * 0.18);
                 ctx.save();
@@ -2161,10 +2199,11 @@ const BOSS_TEMPLATES = {
             lowHp: 'ROTORS DAMAGED.',
             mockHit: ['DIRECT HIT.', 'BOMBED.', 'STRAFED.'],
         },
-        // R357: doubled chopper size to 112x48 so it looks like a real
-        // looming threat, not a tiny dot. User feedback: "the helicopter
-        // is supposed to be huge". HP scaled up to match.
-        w: 112, h: 48, hp: 140, contactDmg: 2, score: 18000,
+        // R357/R361: scaled chopper to 160x72 (was 56x24 → 112x48 →
+        // now 160x72). User feedback: still not big enough. At 160x72
+        // the silhouette dominates the upper half of the screen and
+        // reads as a proper SNES-Contra-final-boss-class threat.
+        w: 160, h: 72, hp: 180, contactDmg: 2, score: 18000,
         movement: 'chase', moveSpeed: 0.6,
         color: '#404048', detail: '#a0a8b8',
         grounded: false,
