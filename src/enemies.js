@@ -73,7 +73,11 @@ const TYPES = {
     // origami plane) so this enemy reads as distinct from a folder.
     dive_bomber: {
         sprite: 'dive_bomber',
-        w: 12, h: 10,
+        // R370: hitbox bumped to match painted sprite (was 12x10, paint
+        // is 72x36 — way out of proportion). Now 28x18 — 2x the old
+        // width so the new painted aggressive paper-jet has a fair hit
+        // surface; HP unchanged so glass-cannon archetype preserved.
+        w: 28, h: 18,
         hp: 1, contactDmg: 1, score: 120,
         speed: 1.6, behavior: 'dive_bomb',
         diveSpeed: 3.4, diveTriggerDx: 16,
@@ -86,7 +90,9 @@ const TYPES = {
     // visually unmistakable from a holepunch sniper.
     summoner: {
         sprite: 'summoner',
-        w: 14, h: 18,
+        // R370: hitbox bumped 14x18 → 28x32 to match the new painted
+        // 90x48 corrupted-paperclip necromancer.
+        w: 28, h: 32,
         hp: 5, contactDmg: 1, score: 280,
         speed: 0, behavior: 'summon',
         summonInterval: 240, summonMax: 3, summonType: 'folder',
@@ -100,10 +106,12 @@ const TYPES = {
     // cabinet enemy.
     shielder: {
         sprite: 'shielder',
-        w: 18, h: 22,
+        // R370: hitbox bumped 18x22 → 32x36 to match the new painted
+        // 45x52 hazard-chevron-shielded cabinet on treads.
+        w: 32, h: 36,
         hp: 4, contactDmg: 2, score: 220,
         speed: 0.45, behavior: 'shielded_walk',
-        shieldW: 12, shieldH: 16,
+        shieldW: 20, shieldH: 28,
         shieldUpTime: 240, shieldDownTime: 60,
         activateRange: 220,
         gibPalette: ['#707880', '#404848', '#202028'],
