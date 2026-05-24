@@ -215,6 +215,10 @@ export const SCENE_MANIFEST = {
 // them horizontally as the camera moves and tiles them seamlessly.
 export const BG_MANIFEST = {
     'bg_jungle':       'bg_jungle.png',
+    // R374: painted boss-arena backdrops — distinct rooms swapped in
+    // by the parallax engine while the BossLair is active. Reads as
+    // "the boss has its own place", not "same stage with a wall".
+    'bg_arena_copier': 'bg_arena_copier.png',
     'bg_breakroom':    'bg_breakroom.png',
     'bg_serverroom':   'bg_serverroom.png',
     'bg_boardroom':    'bg_boardroom.png',

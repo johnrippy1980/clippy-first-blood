@@ -40,6 +40,13 @@ export const BOSS_LAIRS = {
         gateColor: '#284018',
         gateAccent: '#608028',
         nameTag: "COPIER'S CLEARING",
+        // R374: painted boss-arena backdrop. Parallax engine swaps the
+        // bg to this key while the lair is active so the player walks
+        // into a visibly different place — wrecked copier monument in a
+        // jungle clearing, not the same regular jungle stage with a
+        // tinted overlay. Falls back to the tint-only path if the
+        // sprite isn't loaded.
+        arenaBg: 'bg_arena_copier',
         arenaTint: '#0e2818',
         tintAlpha: 0.32,
         decorations: [

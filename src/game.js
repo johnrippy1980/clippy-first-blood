@@ -1522,6 +1522,12 @@ export class Game {
             }
             // Clean up when fade-out completes
             if (this._bossLair.state === 'done') {
+                // R374: restore the pre-lair parallax bg key (the arena
+                // backdrop swap was lair-scoped).
+                if (this.parallax && this._preLairBgOverride !== undefined) {
+                    this.parallax.bgKeyOverride = this._preLairBgOverride;
+                    this._preLairBgOverride = undefined;
+                }
                 this._bossLair = null;
             }
             // Clamp player x to lair's left wall while active
@@ -3597,6 +3603,15 @@ export class Game {
             const arenaY = this.level.height - GAME.H + 8;
             const arenaH = GAME.H - 8;
             this._bossLair = new BossLair(stg.boss, arenaX, arenaY, arenaW, arenaH);
+            // R374: lair spec can declare a painted arenaBg key — swap
+            // the parallax bg so the player walks into a visibly
+            // different room (e.g. wrecked-copier jungle clearing for
+            // the COPIER fight). Restored to null when the lair is
+            // cleared in the main tick.
+            if (this._bossLair.spec?.arenaBg && this.parallax) {
+                this._preLairBgOverride = this.parallax.bgKeyOverride;
+                this.parallax.bgKeyOverride = this._bossLair.spec.arenaBg;
+            }
         }
         // Route through the cinematic pre-boss slide. The actual spawn +
         // entrance flourish runs at the end of the cinematic in
@@ -3924,7 +3939,10 @@ export class Game {
         this._pipelineCineStarted = false;
         this._pipelineCineT = null;
         // R330: clear any leftover boss lair from prior stage.
+        // R374: also reset the pre-lair bg-key snapshot so the parallax
+        // override doesn't carry across stages.
         this._bossLair = null;
+        this._preLairBgOverride = undefined;
         this.stageTime = 0;
         this.storyTimer = 0;
         // Training-ground god mode: invincible player, unlimited ammo,
