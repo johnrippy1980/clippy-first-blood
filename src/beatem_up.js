@@ -1080,13 +1080,38 @@ export class BeatEmUp {
 
     _drawEnemy(e) {
         const ctx = this.ctx;
-        const keyMap = {
+        const baseKey = {
             scavenger:   this.spriteKeys.scavenger   || 'scavenger',
             drone:       this.spriteKeys.drone       || 'drone',
             helicopter:  this.spriteKeys.helicopter  || 'helicopter',
             brawler:     this.spriteKeys.brawler     || 'brawler',
-        };
-        const img = sprites.images.get(keyMap[e.type]);
+        }[e.type];
+        // R366: walk-cycle frame selection. Each painted sprite has
+        // multi-frame variants <key>_1, <key>_2, (<key>_3). We cycle
+        // based on _animT for walk and override to the attack-pose
+        // frame when the enemy is winding up to swing.
+        // Scavenger: 3 walk frames at 8f each → 24f loop
+        // Drone: 2 hover frames at 10f each → 20f loop
+        // Brawler: walk = frames 1+2 (12f each), attack = frame 3
+        // Boss mech (uses boss_mecha_gates_*): same as brawler scheme
+        e._animT = (e._animT || 0) + 1;
+        let frameKey = baseKey;
+        const attackTell = e.isBoss && e.attackCD > 0 && e.attackCD < 14;
+        if (e.type === 'scavenger') {
+            const f = Math.floor(e._animT / 8) % 3 + 1;
+            if (sprites.has(`${baseKey}_${f}`)) frameKey = `${baseKey}_${f}`;
+        } else if (e.type === 'drone') {
+            const f = Math.floor(e._animT / 10) % 2 + 1;
+            if (sprites.has(`${baseKey}_${f}`)) frameKey = `${baseKey}_${f}`;
+        } else if (e.type === 'brawler') {
+            if (attackTell && sprites.has(`${baseKey}_3`)) {
+                frameKey = `${baseKey}_3`;
+            } else {
+                const f = Math.floor(e._animT / 12) % 2 + 1;
+                if (sprites.has(`${baseKey}_${f}`)) frameKey = `${baseKey}_${f}`;
+            }
+        }
+        const img = sprites.images.get(frameKey);
         const scale = depthScale(e.y);
         // R361: animated enemies — track per-frame phase + apply squash/bob
         // so they feel alive instead of being static decals.
@@ -1126,17 +1151,26 @@ export class BeatEmUp {
             squashX = 1 + tele * 0.10;
             bobY -= tele * 2;   // rear back slightly
         }
-        const dw = e.w * scale * squashX;
-        const dh = e.h * scale * squashY;
+        // R366: paint sprite at its NATIVE aspect ratio scaled to the
+        // hitbox height. Drone is painted ~91x36 (wide), brawler ~30x56
+        // (tall) — if we stretched both into their hitbox rects the art
+        // would distort. Anchor at hitbox bottom-center so the painted
+        // feet/skids land on the ground line. Hitbox dims (e.w / e.h)
+        // continue to drive collision; only the *visual* uses native AR.
         const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
         if (img) {
             ctx.imageSmoothingEnabled = false;
-            // R331: enemy.x is world coords; subtract scroll for draw.
-            // Center the squashed sprite on the original hitbox so the
-            // animation doesn't visually drift off the hit collision.
+            const hitboxH = e.h * scale;
+            // Scale sprite to fit hitbox height; brawler/mecha sprites
+            // are taller than the hitbox so this fits the painted feet
+            // to the floor line and lets the head extend up naturally.
+            const drawScale = hitboxH / img.height * squashY;
+            const dh = img.height * drawScale;
+            const dw = img.width * drawScale * (squashX / squashY);
+            // Anchor: bottom-center of hitbox = bottom-center of sprite
             const cx = e.x - this.scroll + (e.w * scale) / 2;
             const dx = Math.round(cx - dw / 2);
-            const dy = Math.round(e.y + (e.h * scale - dh) + bobY);
+            const dy = Math.round(e.y + hitboxH - dh + bobY);
             if (facing < 0) {
                 ctx.save();
                 ctx.translate(dx + dw, dy);

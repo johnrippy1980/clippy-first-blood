@@ -331,6 +331,12 @@ export const CLIPPY_MANIFEST = {
     // helicopter chase). Same cross-fade model as bg_apocalypse_street.
     'bg_apocalypse_dark':       'bg_apocalypse_dark.png',
     'boss_mecha_gates':    'boss_mecha_gates.png',
+    // R366: painted multi-frame sprite sheets for beat-em-up enemies.
+    // Generated via Local Howl gpt-image-2 + sliced to individual
+    // frames. Renderer cycles 1→2(→3) based on enemy._animT.
+    'boss_mecha_gates_1':  'boss_mecha_gates_1.png',
+    'boss_mecha_gates_2':  'boss_mecha_gates_2.png',
+    'boss_mecha_gates_3':  'boss_mecha_gates_3.png',
     // R306: beat-em-up Mecha Approach enemy sprites + street backdrop.
     'bg_apocalypse_street':      'bg_apocalypse_street.png',
     // R362: dark-variant — same composition, lit windows dimmed + fires
@@ -339,9 +345,17 @@ export const CLIPPY_MANIFEST = {
     // pixel positions (not random vector overlays).
     'bg_apocalypse_street_dark': 'bg_apocalypse_street_dark.png',
     'scavenger':            'scavenger.png',
+    'scavenger_1':          'scavenger_1.png',
+    'scavenger_2':          'scavenger_2.png',
+    'scavenger_3':          'scavenger_3.png',
     'drone':                'drone.png',
+    'drone_1':              'drone_1.png',
+    'drone_2':              'drone_2.png',
     'helicopter':           'helicopter.png',
     'brawler':              'brawler.png',
+    'brawler_1':            'brawler_1.png',
+    'brawler_2':            'brawler_2.png',
+    'brawler_3':            'brawler_3.png',
     // R269: FPS-arena electric barrier hazard — 4-frame pulse cycle
     // (full-on → crackling → off → powering up). Tiled across the corridor
     // at mid-depth when segment 3 is active.
