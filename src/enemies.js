@@ -1589,43 +1589,62 @@ class Boss extends Enemy {
                 }
                 break;
             case 'HELICOPTER':
-                // R334: 3-pattern chase boss attacks.
-                // Pattern 0: BOMB DROP — single heavy bomb falls straight
-                //   down from the chopper position with gravity.
-                // Pattern 1: FORWARD MG — 3 fast shots aimed at the
-                //   player's position, slight downward arc since chopper
-                //   is above.
-                // Pattern 2 (phase 2 only): STRAFE RUN — 5-shot horizontal
-                //   spray sweeping across the player's last known X.
+                // R334 / R365: 4-pattern chase boss. R365 buffed all
+                // variants — the chopper is now Contra-3 alien-wars
+                // scale (240x128), it should ACT that size. User: "big
+                // and menacing". More bullets per volley + a new missile
+                // salvo pattern.
+                //   0: CARPET BOMB — 3 bombs in phase 1, 5 in phase 2
+                //   1: FORWARD MG  — 5 aimed shots in phase 1, 7 phase 2
+                //   2: MISSILE SALVO — 4 missiles fanned downward from
+                //      the wing pods, each tracks slightly toward player
+                //   3 (phase 2 only): STRAFE RUN — 7-shot wide spray
                 {
-                    const mod = (this.phase === 2) ? 3 : 2;
+                    const mod = (this.phase === 2) ? 4 : 3;
                     const variant = this.attackIndex % mod;
                     if (variant === 0) {
-                        // BOMB DROP — gravity-affected
-                        const bombs = this.phase === 2 ? 2 : 1;
+                        // CARPET BOMB — bombs evenly across the chopper width
+                        const bombs = this.phase === 2 ? 5 : 3;
                         for (let i = 0; i < bombs; i++) {
-                            const bx = this.x + this.w / 2 + (i - (bombs - 1) / 2) * 18;
+                            const bx = this.x + this.w / 2 + (i - (bombs - 1) / 2) * 24;
                             const b = new Bullet(bx, this.y + this.h, 0, 0.4, 2);
                             b.color = '#404048';
                             b._gravity = 0.18;
                             globalEnemyBullets.push(b);
                         }
                     } else if (variant === 1) {
-                        // FORWARD MG — 3 fast aimed shots with rattling SFX
-                        const { cx: bx, cy, shots } = aimed(speed * 1.6, 0, 3, 0.18);
+                        // FORWARD MG — fast aimed burst
+                        const count = this.phase === 2 ? 7 : 5;
+                        const { cx: bx, cy, shots } = aimed(speed * 1.6, 0, count, 0.32);
                         for (const s of shots) {
                             const b = new Bullet(bx, cy + 6, s.vx, s.vy, 1);
                             b.color = '#ffc060';
                             globalEnemyBullets.push(b);
                         }
                         audio.sfx?.('chopperGun');
+                    } else if (variant === 2) {
+                        // MISSILE SALVO — 4 missiles from wing pods,
+                        // angled downward + slight track toward player
+                        const cx = this.x + this.w / 2;
+                        const cy = this.y + this.h * 0.7;
+                        const tdx = (player.x + player.w / 2) - cx;
+                        const trackBias = Math.max(-0.6, Math.min(0.6, tdx * 0.005));
+                        for (let i = 0; i < 4; i++) {
+                            const offX = (i - 1.5) * 28;
+                            const b = new Bullet(cx + offX, cy, trackBias + (i - 1.5) * 0.1, 1.2, 2);
+                            b.color = '#ff3040';
+                            globalEnemyBullets.push(b);
+                        }
+                        audio.sfx?.('chopperGun');
                     } else {
-                        // STRAFE RUN (phase 2): 5-shot horizontal spray
-                        for (let i = -2; i <= 2; i++) {
+                        // STRAFE RUN (phase 2): 7-shot wide spray
+                        // R365: widened for the new 240px chopper —
+                        // 5 shots across an 80px boss looked sparse.
+                        for (let i = -3; i <= 3; i++) {
                             const b = new Bullet(
-                                this.x + this.w / 2 + i * 8,
+                                this.x + this.w / 2 + i * 16,
                                 this.y + this.h,
-                                i * 0.4,
+                                i * 0.35,
                                 1.6,
                                 1,
                             );
@@ -2200,14 +2219,14 @@ const BOSS_TEMPLATES = {
             lowHp: 'ROTORS DAMAGED.',
             mockHit: ['DIRECT HIT.', 'BOMBED.', 'STRAFED.'],
         },
-        // R357/R361/R363: scaled chopper progressively. User feedback
-        // each round: "still not big enough — must look like the
-        // Super Contra helicopter boss". Now at 200x96 (was 56x24 →
-        // 112x48 → 160x72 → 200x96). At 200x96 the silhouette fills
-        // roughly half the playfield width + nearly half the height,
-        // matching the Konami Super Contra heat-seeker scale. HP
-        // scaled to 220 to match.
-        w: 200, h: 96, hp: 220, contactDmg: 2, score: 18000,
+        // R357/R361/R363/R365: scaled chopper progressively. User
+        // feedback every round: "still not big enough — like Contra 3
+        // The Alien Wars". Now at 240x128 (5th upscale: 56x24 → 112x48
+        // → 160x72 → 200x96 → 240x128). At 240x128 the silhouette
+        // fills 94% of the 256-wide playfield and 57% of the 224 tall
+        // — matches Contra 3's alien-wars helicopter boss scale.
+        // HP scaled to 260. Contact damage 2 → 3 (it's HUGE now).
+        w: 240, h: 128, hp: 260, contactDmg: 3, score: 22000,
         movement: 'chase', moveSpeed: 0.6,
         color: '#404048', detail: '#a0a8b8',
         grounded: false,

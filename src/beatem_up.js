@@ -381,12 +381,23 @@ export class BeatEmUp {
         if (this.phase === 'clear') {
             this.clearT++;
             const autoNext = this.data.nextStage;
+            // R365: stage 22 (Mecha-Gates final beat-em-up) used to sit
+            // forever on the clear screen — no nextStage and the engine
+            // only routed to title on input. Now if it's the true final
+            // stage we auto-route to GAME_COMPLETE after a 4s celebration
+            // hold, matching the R357 platformer flow.
+            const isFinal = (this.game.currentStage === 22);
             if (autoNext && this.clearT >= 120) {
                 audio.stopTrack();
                 this.game._pendingStage = autoNext;
                 this.game._extraCards = null;
                 this.game.storyTimer = 0;
                 this.game.scene = 'stageCard';
+                return;
+            }
+            if (isFinal && this.clearT >= 240) {
+                audio.stopTrack();
+                this.game._fadeTo('gameComplete');
                 return;
             }
             if (this.clearT > 60 &&
@@ -398,6 +409,11 @@ export class BeatEmUp {
                     this.game._extraCards = null;
                     this.game.storyTimer = 0;
                     this.game.scene = 'stageCard';
+                    return;
+                }
+                if (isFinal) {
+                    audio.stopTrack();
+                    this.game._fadeTo('gameComplete');
                     return;
                 }
                 audio.stopTrack();
