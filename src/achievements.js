@@ -35,6 +35,16 @@ export const ACHIEVEMENT_LIST = [
     // tucked behind walls that take real exploration or a grenade
     // to reach. Single-run high-water mark; once earned, locked in.
     { id: 'full_set',      name: 'FULL SET',        desc: 'COLLECT 7 CLIPPY TAGS',                  icon: 'P',  gate: s => (s.tagsFound || 0) >= 7 },
+    // R359: post-game + Mecha-trilogy achievements. Each is single-clear
+    // gated (set membership), so no per-run reset needed.
+    { id: 'clear_training',name: 'WARM-UP',         desc: 'CLEAR THE TRAINING GROUND',              icon: 'T',  gate: s => s.stagesCleared.has(15) },
+    { id: 'boss_rush_mode',name: 'GAUNTLET RIDER',  desc: 'CLEAR POST-GAME BOSS RUSH MODE',         icon: 'R',  gate: s => s.stagesCleared.has(16) },
+    { id: 'time_trial',    name: 'BEAT THE CLOCK',  desc: 'CLEAR TIME TRIAL',                       icon: 'C',  gate: s => s.stagesCleared.has(17) },
+    { id: 'jobs_down',     name: 'REALITY CHECK',   desc: 'DEFEAT STEVE JOBS',                      icon: 'J',  gate: s => s.stagesCleared.has(18) },
+    { id: 'core_breach',   name: 'CORE BREACH',     desc: 'CLEAR THE CORE BREACH',                  icon: 'X',  gate: s => s.stagesCleared.has(19) },
+    { id: 'mecha_trilogy', name: 'NO PLACE TO HIDE',desc: 'CLEAR THE FULL MECHA TRILOGY',           icon: 'M',  gate: s => s.stagesCleared.has(20) && s.stagesCleared.has(21) && s.stagesCleared.has(22) },
+    { id: 'helicopter',    name: 'CHOPPER DOWN',    desc: 'DEFEAT THE MECHA-CHOPPER',               icon: 'H',  gate: s => s.stagesCleared.has(21) },
+    { id: 'mecha_gates',   name: 'THE LAST CLIPPY', desc: 'DEFEAT MECHA-GATES',                     icon: '#',  gate: s => s.stagesCleared.has(22) },
 ];
 
 class Achievements {
