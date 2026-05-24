@@ -879,8 +879,15 @@ export class BossLair {
     }
 
     drawDecorationsBack(ctx, camera) {
-        // Behind the boss / player — atmospheric stuff
+        // R385: procedural pixel-rect decorations (paperStack,
+        // bigFileCabinet, brokenPrinter, etc.) are now baked into the
+        // painted arena bg images (bg_arena_*.png). Drawing the legacy
+        // procedural ones on top stacked Atari-cheap shapes over the
+        // painted scene. Skip them entirely when a painted arenaBg is
+        // active; only fall back to procedural for lairs missing a
+        // painted bg.
         if (!this.spec) return;
+        if (this.spec.arenaBg) return;
         const floorY = this.arenaY + this.arenaH;
         for (const d of this.spec.decorations) {
             const wx = this.arenaX + (d.dx | 0);
