@@ -1458,13 +1458,11 @@ function makeTraining() {
     };
 }
 
-// Boss Rush Mode — stage 11. Unlocks after first 'clear_game' achievement.
-// Wider arena than stage 7's GAUNTLET, with the full 7-unique-boss queue
-// (campaign has 7 unique boss kinds; stage 7 is itself a 3-boss recap that
-// we skip here to avoid duplication). No grunts, no pickups between, no
-// stage cards — pure back-to-back boss fights. Three LIFE pickups + a
-// HOMING crate as the only sustain. Best clear time persisted in
-// achievements.stats.bestBossRushTime.
+// Boss Rush Mode — stage 16 (was 11 pre-R291). Unlocks after first
+// 'clear_game' achievement. Wider arena than stage 12's GAUNTLET, with
+// the full unique-boss queue back-to-back. No grunts, no pickups
+// between, no stage cards. Three LIFE pickups + a HOMING crate as the
+// only sustain. Best clear time persisted in stats.bestBossRushTime.
 function makeBossRushMode() {
     const w = 42, h = 14;
     const { g } = blankStage(w, h, THEME.SERVERROOM);
@@ -2144,39 +2142,9 @@ function makeBeatEmUpMechaGates() {
     };
 }
 
-// R301/R306: stage 22 — the FPS Mecha-Gates final boss. The mech has a
-// pilot — when destroyed, GATES jumps out for phase 2. Konami-only.
-function makeFpsStageMecha() {
-    return {
-        fpsMode: true,
-        theme: THEME.KEYNOTE,
-        music: 'apocalypse',    // R302: dedicated post-apocalypse final track
-        bgKey: 'bg_apocalypse',
-        bossKind: 'MECHA_GATES',
-        bgKeys: ['bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse'],
-        // Reuse Gates corridor enemy art for the wave segments (when boss
-        // arena uses startSegment 3 the corridor segments don't fire anyway).
-        spriteKeys: {
-            turret: 'keynote_turret',
-            grunt:  'keynote_grunt',
-            shield: 'keynote_drone',
-            core:   'boss_mecha_gates',
-        },
-        segmentLabels: ['MECHA-GATES', 'MECHA-GATES', 'MECHA-GATES', 'MECHA-GATES'],
-        bossLabels: {
-            shielded: 'MECHA-GATES / ARMORED',
-            exposed:  'MECHA-GATES / EXPOSED',
-        },
-        sfxKeys: GATES_SFX_KEYS,
-        ambientKey: 'fluorescent',
-        coreAttackStyle: 'chair',   // chair-throw style for the gatling cluster
-        gruntBulletAnimKey: 'floppy',
-        startSegment: 3,
-        bossPortraitKey: 'card_mecha_reveal',
-        bossDisplayName: 'MECHA-GATES',
-        // True final — no nextStage. R299 routes stage >= 15 to title on clear.
-    };
-}
+// R359: removed dead makeFpsStageMecha() — the original FPS variant of
+// stage 22 was replaced by makeBeatEmUpMechaGates() in R335. Function
+// was never referenced from STAGE_LOADERS.
 
 // R306: stage 21 — FPS corridor approach through the ruined city to
 // R334: stage 21 MECHA CORRIDOR — side-scrolling platformer with a
@@ -2270,34 +2238,9 @@ function makeStageMechaHelicopter() {
 
 // where Mecha-Gates is staged. Uses the apocalypse backdrop with FPS
 // rail-shooter mechanics. Chains into stage 22 (the Mecha-Gates arena).
-function makeFpsStageMechaCorridor() {
-    return {
-        fpsMode: true,
-        theme: THEME.KEYNOTE,
-        music: 'backstage',     // chase track works for this transition stretch
-        bgKey: 'bg_apocalypse',
-        bossKind: 'MECHA_GATES',
-        bgKeys: ['bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse', 'bg_apocalypse'],
-        spriteKeys: {
-            turret: 'keynote_turret',
-            grunt:  'scavenger',     // beat-em-up scavenger doubles as FPS grunt
-            shield: 'keynote_drone',
-            core:   'boss_mecha_gates',
-        },
-        segmentLabels: [
-            'SEGMENT 1 / SCAVENGERS',
-            'SEGMENT 2 / DRONES',
-            'SEGMENT 3 / GAUNTLET',
-            "SEGMENT 4 / HANGAR",
-        ],
-        sfxKeys: GATES_SFX_KEYS,
-        ambientKey: 'fluorescent',
-        gruntBulletAnimKey: 'floppy',
-        endingStyle: 'door',
-        nextStage: 22,          // chains into the Mecha-Gates arena
-        bossDisplayName: 'MECHA-GATES',
-    };
-}
+// R359: removed dead makeFpsStageMechaCorridor() — the original FPS
+// variant of stage 21 was replaced by makeStageMechaHelicopter() in
+// R334. Function was never referenced from STAGE_LOADERS.
 
 // Tile palette per theme — dark painted tones, NOT bright video-game colors.
 // `solid` is the body, `solidTop` is the highlight band where the player walks.
