@@ -385,7 +385,14 @@ export class BeatEmUp {
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
-            if (b.life <= 0 || b.x < -10 || b.x > GAME.W + 10) {
+            // R360: despawn check was in screen-space (b.x > GAME.W) but
+            // b.x is WORLD coords now (R331). After the camera scrolled
+            // past the first chokepoint, every fresh bullet had world-x
+            // > 256 and despawned the same frame it was created — so
+            // Clippy "stopped being able to shoot" after first progress.
+            // Now compare against the visible screen window.
+            const screenX = b.x - this.scroll;
+            if (b.life <= 0 || screenX < -10 || screenX > GAME.W + 10) {
                 this.bullets.splice(i, 1);
                 continue;
             }

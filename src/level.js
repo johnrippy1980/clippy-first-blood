@@ -1929,12 +1929,21 @@ function makeFpsStageGatesArena() {
 // scavengers + drones + helicopters across multiple waves, reach a dead
 // end where Mecha-Gates appears (cinematic) and the player advances.
 function makeBeatEmUpMechaApproach() {
-    // R331: Mecha Approach is now a scrolling cityscape — 4 screens wide,
-    // 4 waves spawn at chokepoints as the player advances. Scroll locks
-    // until the current wave is cleared; then the player can push right
-    // to trigger the next wave. Mirrors classic Final Fight / TMNT arcade
-    // flow.
-    const STAGE_W = GAME.W * 4;     // 1024 wide
+    // R331 / R360: scrolling post-apocalypse cityscape. Player walks the
+    // ruined street fighting scavengers + drones + brawlers across 8
+    // waves. Scroll locks until current wave is cleared. R360 expanded
+    // 4→8 waves and 1024→2048 px wide so the stage feels like a journey.
+    //
+    // Pacing arc:
+    //   0  warm-up (2 scavengers)
+    //   1  pincer pressure (3 enemies, both sides)
+    //   2  drone-air mix
+    //   3  mid-stage MINI-BOSS (single brawler, no support)
+    //   4  recovery wave (light scavengers, room to breathe)
+    //   5  heavy ground pressure (4 grunts)
+    //   6  drone storm + chopper warning
+    //   7  finale set-piece (brawler + chopper + scavengers)
+    const STAGE_W = GAME.W * 8;     // 2048 wide (was 1024)
     return {
         beatMode: true,
         theme: THEME.KEYNOTE,
@@ -1949,39 +1958,68 @@ function makeBeatEmUpMechaApproach() {
         },
         stageWidth: STAGE_W,
         // First wave starts immediately at scroll=0. Subsequent waves
-        // trigger via _spawnEnemy when scroll reaches the chokepoint x.
+        // trigger when scroll reaches the chokepoint x AND prior wave clear.
         waves: [
-            // Wave 0 — entry: 2 scavengers, both right (player just appeared)
+            // Wave 0 — warm-up, two scavengers from right
             { spawns: [
                 { type: 'scavenger', side: 'right', depth: 0.4 },
                 { type: 'scavenger', side: 'right', depth: 0.7 },
             ]},
-            // Wave 1 — first chokepoint: pincer + drone
+            // Wave 1 — pincer + drone overhead
             { spawns: [
                 { type: 'scavenger', side: 'left',  depth: 0.5 },
                 { type: 'scavenger', side: 'right', depth: 0.3 },
                 { type: 'drone',     side: 'right', depth: 0.8 },
             ]},
-            // Wave 2 — second chokepoint: drone pressure + chopper warning
+            // Wave 2 — drone-air mix; teach the player to aim up + side
+            { spawns: [
+                { type: 'drone',     side: 'left',  depth: 0.6 },
+                { type: 'drone',     side: 'right', depth: 0.4 },
+                { type: 'scavenger', side: 'right', depth: 0.7 },
+            ]},
+            // Wave 3 — mid-stage mini-boss: brawler solo (read the threat)
+            { spawns: [
+                { type: 'brawler',   side: 'right', depth: 0.5,
+                  name: 'BRUTE', hpMul: 2.5 },
+            ]},
+            // Wave 4 — recovery, light scavengers from left
+            { spawns: [
+                { type: 'scavenger', side: 'left',  depth: 0.4 },
+                { type: 'scavenger', side: 'left',  depth: 0.7 },
+            ]},
+            // Wave 5 — heavy ground pressure, four scavengers both sides
+            { spawns: [
+                { type: 'scavenger', side: 'left',  depth: 0.35 },
+                { type: 'scavenger', side: 'left',  depth: 0.65 },
+                { type: 'scavenger', side: 'right', depth: 0.4 },
+                { type: 'scavenger', side: 'right', depth: 0.75 },
+            ]},
+            // Wave 6 — drone storm + chopper warning (the helicopter
+            // is a noisy harbinger of stage 21's boss fight)
             { spawns: [
                 { type: 'drone',      side: 'left',  depth: 0.6 },
-                { type: 'drone',      side: 'right', depth: 0.4 },
+                { type: 'drone',      side: 'right', depth: 0.5 },
+                { type: 'drone',      side: 'right', depth: 0.8 },
                 { type: 'helicopter', side: 'right', depth: 0.2 },
             ]},
-            // Wave 3 — finale: brawler + chopper + scavengers
+            // Wave 7 — finale set-piece
             { spawns: [
                 { type: 'brawler',    side: 'right', depth: 0.5 },
                 { type: 'helicopter', side: 'left',  depth: 0.25 },
                 { type: 'scavenger',  side: 'right', depth: 0.8 },
+                { type: 'scavenger',  side: 'left',  depth: 0.7 },
             ]},
         ],
-        // R331: wave chokepoints — each fires when scroll >= x. Wave 0
-        // fires automatically on stage entry; subsequent waves fire
-        // when the player advances + clears the current wave.
+        // 7 chokepoints (wave 0 fires auto-on-entry). Even spacing across
+        // the 8-screen stage so the player walks ~256 px between fights.
         waveChokepoints: [
-            { x: GAME.W * 1.0,  wave: 1 },
-            { x: GAME.W * 2.0,  wave: 2 },
-            { x: GAME.W * 3.0,  wave: 3 },
+            { x: GAME.W * 1.0, wave: 1 },
+            { x: GAME.W * 2.0, wave: 2 },
+            { x: GAME.W * 3.0, wave: 3 },
+            { x: GAME.W * 4.0, wave: 4 },
+            { x: GAME.W * 5.0, wave: 5 },
+            { x: GAME.W * 6.0, wave: 6 },
+            { x: GAME.W * 7.0, wave: 7 },
         ],
         nextStage: 21,
         clearText: 'KEEP MOVING',
