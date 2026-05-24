@@ -5,6 +5,16 @@ import { input } from './input.js';
 import { Game } from './game.js';
 import { audio } from './audio.js';
 import { achievements } from './achievements.js';
+import { options } from './options.js';
+
+// R364: honor persisted display preferences on boot.
+//   scanlines — default ON; flip the overlay off if user disabled it
+//   crtCurve  — default OFF (until toggled); add body class if user enabled it
+if (typeof document !== 'undefined') {
+    const slEl = document.getElementById('scanlines');
+    if (slEl) slEl.style.display = options.get('scanlines') ? 'block' : 'none';
+    if (options.get('crtCurve')) document.body.classList.add('crt-curve');
+}
 
 const canvas = document.getElementById('screen');
 const game = new Game(canvas);
