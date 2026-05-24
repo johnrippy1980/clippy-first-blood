@@ -3256,7 +3256,14 @@ export class Game {
         const gameCleared = achievements.unlocked.has('clear_game');
         const konami = !!this._konamiUnlocked;
         const ids = [];
-        const mainMax = Math.min(13, Math.max(1, this.unlockedStage || 1));
+        // R368: gameCleared OR konami should expose ALL 13 campaign
+        // stages, not just the player's furthest reached. The old
+        // logic capped mainMax at `unlockedStage` even when the
+        // achievement said the player had beaten the game — so
+        // veterans + konami users saw only stage 1 + the post-game
+        // tiles, with the 02-13 campaign mysteriously missing.
+        let mainMax = Math.min(13, Math.max(1, this.unlockedStage || 1));
+        if (gameCleared || konami) mainMax = 13;
         for (let i = 1; i <= mainMax; i++) ids.push(i);
         if (hasSecret || konami) ids.push(14);
         // R359: post-game stages 15 (Training), 16 (Boss Rush Mode), 17
