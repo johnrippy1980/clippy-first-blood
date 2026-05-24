@@ -87,6 +87,11 @@ export class BeatEmUp {
         this.targetScroll = 0;
 
         this.bgImg = sprites.images.get(stageData.bgKey) || null;
+        // R362: cross-fade companion. If a `<bgKey>_dark` variant exists
+        // we layer it on top with per-frame alpha to make the windows
+        // flicker + fires pulse on the actual painted pixel positions
+        // (vs the discarded R361 random-vector approach).
+        this.bgImgDark = sprites.images.get(stageData.bgKey + '_dark') || null;
         this.spriteKeys = stageData.spriteKeys || {};
 
         // R361: atmospheric ambient layer — REBUILT.
@@ -737,12 +742,37 @@ export class BeatEmUp {
             const dh = this.bgImg.height * scale;
             // Parallax offset — bg moves 0.5x player scroll
             const bgOffset = -((this.scroll * 0.5) % dw);
+            const bgY = (GAME.H - dh) / 2;
             // Render two copies side-by-side to handle wrap
-            ctx.drawImage(this.bgImg, bgOffset,           (GAME.H - dh) / 2, dw, dh);
-            ctx.drawImage(this.bgImg, bgOffset + dw,      (GAME.H - dh) / 2, dw, dh);
+            ctx.drawImage(this.bgImg, bgOffset,           bgY, dw, dh);
+            ctx.drawImage(this.bgImg, bgOffset + dw,      bgY, dw, dh);
             if (bgOffset > -dw / 2) {
-                // Also fill behind on the left side when wrap is partial
-                ctx.drawImage(this.bgImg, bgOffset - dw, (GAME.H - dh) / 2, dw, dh);
+                ctx.drawImage(this.bgImg, bgOffset - dw,  bgY, dw, dh);
+            }
+            // R362: cross-fade DARK variant over the bright BG with a
+            // flicker-driven alpha. Two oscillators: a slow sine breathe
+            // (fires) at 0.04 rad/f + a fast noisy term (windows flicker)
+            // updated every ~4 frames. Combine and clamp to [0, 0.7] so
+            // the windows visibly toggle but the painting never goes
+            // pitch-black.
+            if (this.bgImgDark) {
+                if ((this.t & 3) === 0) {
+                    // Step in 4-frame chunks so the flicker doesn't strobe
+                    this._bgFlickerNoise = Math.random();
+                }
+                const slow = (Math.sin(this.t * 0.04) + 1) * 0.5; // 0..1
+                const noise = this._bgFlickerNoise || 0.5;
+                // 60% slow breathe + 40% fast flicker → reads as warm
+                // pulse with occasional dips. Scale so max ~ 0.65.
+                const alpha = Math.min(0.65, 0.20 + slow * 0.20 + noise * 0.25);
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.drawImage(this.bgImgDark, bgOffset,           bgY, dw, dh);
+                ctx.drawImage(this.bgImgDark, bgOffset + dw,      bgY, dw, dh);
+                if (bgOffset > -dw / 2) {
+                    ctx.drawImage(this.bgImgDark, bgOffset - dw,  bgY, dw, dh);
+                }
+                ctx.restore();
             }
         } else {
             ctx.fillStyle = '#0a0612';

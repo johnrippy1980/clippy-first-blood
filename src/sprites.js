@@ -323,7 +323,12 @@ export const CLIPPY_MANIFEST = {
     'bg_apocalypse':       'bg_apocalypse.png',
     'boss_mecha_gates':    'boss_mecha_gates.png',
     // R306: beat-em-up Mecha Approach enemy sprites + street backdrop.
-    'bg_apocalypse_street': 'bg_apocalypse_street.png',
+    'bg_apocalypse_street':      'bg_apocalypse_street.png',
+    // R362: dark-variant — same composition, lit windows dimmed + fires
+    // muted. Cross-faded with the bright version in the beat-em-up
+    // renderer so windows flicker + fires pulse on the ACTUAL painted
+    // pixel positions (not random vector overlays).
+    'bg_apocalypse_street_dark': 'bg_apocalypse_street_dark.png',
     'scavenger':            'scavenger.png',
     'drone':                'drone.png',
     'helicopter':           'helicopter.png',
