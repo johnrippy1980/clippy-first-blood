@@ -170,6 +170,7 @@ export const BOSS_LAIRS = {
         gateColor: '#102040',
         gateAccent: '#7af0ff',
         nameTag: 'DATA NEXUS',
+        arenaBg: 'bg_arena_algorithm',
         arenaTint: '#081830',
         tintAlpha: 0.40,
         decorations: [
@@ -184,6 +185,7 @@ export const BOSS_LAIRS = {
         gateColor: '#0a0a12',
         gateAccent: '#c080ff',
         nameTag: 'REALITY DISTORTION',
+        arenaBg: 'bg_arena_jobs',
         arenaTint: '#100020',
         tintAlpha: 0.38,
         decorations: [

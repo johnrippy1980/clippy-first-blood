@@ -230,6 +230,8 @@ export const BG_MANIFEST = {
     'bg_arena_keynote':   'bg_arena_keynote.png',
     'bg_arena_founder':   'bg_arena_founder.png',
     'bg_arena_spindler':  'bg_arena_spindler.png',
+    'bg_arena_algorithm': 'bg_arena_algorithm.png',
+    'bg_arena_jobs':      'bg_arena_jobs.png',
     'bg_breakroom':    'bg_breakroom.png',
     'bg_serverroom':   'bg_serverroom.png',
     'bg_boardroom':    'bg_boardroom.png',
