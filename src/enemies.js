@@ -1096,10 +1096,11 @@ class Boss extends Enemy {
             const swooping = this._chaseCycle > 240;
             const lead = swooping ? +80 : -100;
             const desiredX = playerCX + lead;
-            // R361: lifted altitude target from -70 to -110 so the bigger
-            // 160x72 chopper sits clear of the player + still dominates
-            // the top half of the screen.
-            const desiredY = (player.y - 110) + Math.sin(this._patrolPhase) * 16;
+            // R361/R363: altitude target tracks the chopper size. At
+            // 200x96, target Y = player.y - 130 keeps the chopper
+            // silhouette sitting just above the player's head, dominating
+            // the upper half of the playfield SNES-Contra style.
+            const desiredY = (player.y - 130) + Math.sin(this._patrolPhase) * 18;
             desiredVX = (desiredX - cx) * (swooping ? 0.10 : 0.05);
             // Vertical lerp toward desiredY — no gravity (it flies)
             this.y += (desiredY - this.y) * 0.05;
@@ -2199,11 +2200,14 @@ const BOSS_TEMPLATES = {
             lowHp: 'ROTORS DAMAGED.',
             mockHit: ['DIRECT HIT.', 'BOMBED.', 'STRAFED.'],
         },
-        // R357/R361: scaled chopper to 160x72 (was 56x24 → 112x48 →
-        // now 160x72). User feedback: still not big enough. At 160x72
-        // the silhouette dominates the upper half of the screen and
-        // reads as a proper SNES-Contra-final-boss-class threat.
-        w: 160, h: 72, hp: 180, contactDmg: 2, score: 18000,
+        // R357/R361/R363: scaled chopper progressively. User feedback
+        // each round: "still not big enough — must look like the
+        // Super Contra helicopter boss". Now at 200x96 (was 56x24 →
+        // 112x48 → 160x72 → 200x96). At 200x96 the silhouette fills
+        // roughly half the playfield width + nearly half the height,
+        // matching the Konami Super Contra heat-seeker scale. HP
+        // scaled to 220 to match.
+        w: 200, h: 96, hp: 220, contactDmg: 2, score: 18000,
         movement: 'chase', moveSpeed: 0.6,
         color: '#404048', detail: '#a0a8b8',
         grounded: false,
