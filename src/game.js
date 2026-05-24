@@ -4587,8 +4587,14 @@ export class Game {
                     // (small comeback penalty: score is halved as a soft cost).
                     // R262: this.player may be null after an FPS-arena death
                     // (no platformer player object). Guard the score access.
+                    // R380: also restore lives to 3 — without this, gameOver
+                    // happened at lives === -1, CONTINUE reused the player,
+                    // resetForStage didn't touch lives, so the very next
+                    // death dropped to -2 and went straight back to gameOver.
+                    // Player ended up with "1 life" feeling.
                     if (this.player) {
                         this.player.score = Math.floor((this.player.score || 0) * 0.5);
+                        this.player.lives = 3;
                     }
                     this._startStage(this.currentStage || 1);
                 } else {

@@ -707,7 +707,15 @@ export class BeatEmUp {
             if (autoNext && this.clearT >= 120) {
                 audio.stopTrack();
                 this.game._pendingStage = autoNext;
+                // R380: was blindly clearing _extraCards which killed the
+                // chopper-horizon cinematic between stages 20→21. The
+                // platformer flow sets these based on currentStage; mirror
+                // the same logic here for the beat-em-up exit path.
                 this.game._extraCards = null;
+                if (this.game.currentStage === 20) {
+                    // Stage 20 (Mecha Approach beat-em-up) → 21 chopper
+                    this.game._extraCards = ['card_chopper_horizon'];
+                }
                 this.game.storyTimer = 0;
                 this.game.scene = 'stageCard';
                 return;
