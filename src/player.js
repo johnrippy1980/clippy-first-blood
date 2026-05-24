@@ -3775,7 +3775,13 @@ export class Player {
             // swaps to the painted rifle-overhead jump pose.
             case STATE.JUMP:
             case STATE.FALL: {
-                if (shooting && sprites.has('jump_aim')) return 'jump_aim';
+                // R381: was `shooting` (fireCooldown-based, 4-frame window
+                // after firing). That made jumps mid-recoil show the
+                // gun-extended pose for ~4 frames — user kept seeing
+                // "jump with gun" even after R353. Tighten to only show
+                // jump_aim when the shoot button is CURRENTLY HELD
+                // (intent-based, not recoil-tail).
+                if (input.isHeld('shoot') && sprites.has('jump_aim')) return 'jump_aim';
                 if (this.vy < -1.5) return 'jump';                // rising
                 if (this.vy > 1.5) return sprites.has('fall') ? 'fall' : 'jump';
                 return 'jump';                                     // peak
