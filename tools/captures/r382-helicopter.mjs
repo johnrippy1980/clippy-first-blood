@@ -66,16 +66,17 @@ for (let i = 0; i < 25; i++) {
     await page.keyboard.press('KeyX');
     await page.waitForTimeout(120);
 }
-// Spawn brawler wave (wave 2 has a couple brawlers)
+// Spawn brawler wave (wave 5 has brawlers)
 await page.evaluate(() => {
     const g = window.__game; const beat = g?._beatEmUp; if (!beat) return;
-    beat.waveIdx = 2;
-    beat._spawnWave(2);
+    beat.waveIdx = 5;
+    beat._spawnWave(5);
+    if (g._bossIntro) g._bossIntro.autoAdvance = true;
 });
-await page.waitForTimeout(600);
-for (let i = 0; i < 8; i++) {
-    await page.screenshot({ path: `${OUT}/braw_${i}.png` });
-    await page.waitForTimeout(120);
+await page.waitForTimeout(1200);
+for (let i = 0; i < 12; i++) {
+    await page.screenshot({ path: `${OUT}/braw_${String(i).padStart(2,'0')}.png` });
+    await page.waitForTimeout(150);
 }
 const diag22 = await page.evaluate(() => {
     const g = window.__game; const beat = g?._beatEmUp; if (!beat) return null;

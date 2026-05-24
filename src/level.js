@@ -1687,6 +1687,20 @@ function makeStagePipeline() {
             // Hidden tag — way up high above the lab entry, requires aim-lock + jump
             { x: 50 * GAME.TILE, y: ( 3) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
+        // R384: pipeline/sewer atmosphere — water drips from the overhead
+        // pipes throughout the level, lab section has the occasional spark
+        // from damaged cables. Drips spaced under each upper pipe.
+        ambientProps: [
+            { kind: 'drip', x: 13 * GAME.TILE, y: 3 * GAME.TILE, fallH: 80 },
+            { kind: 'drip', x: 22 * GAME.TILE, y: 2 * GAME.TILE, fallH: 100 },
+            { kind: 'drip', x: 34 * GAME.TILE, y: 2 * GAME.TILE, fallH: 90 },
+            { kind: 'drip', x: 58 * GAME.TILE, y: 3 * GAME.TILE, fallH: 90 },
+            { kind: 'drip', x: 78 * GAME.TILE, y: 2 * GAME.TILE, fallH: 100 },
+            // Sparking cables in the lab section
+            { kind: 'sparkCable', x: 60 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'sparkCable', x: 84 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'flicker',    x: 70 * GAME.TILE, y: 2 * GAME.TILE },
+        ],
     };
 }
 
@@ -2328,8 +2342,10 @@ function makeStageMechaHelicopter() {
             { x: 70 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'HOMING' },
             { x: 92 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'CLIPPY_TAG' },
         ],
-        // R332: post-apocalypse ambient props — fires + dying Clippies
-        // on the route. Sells the burning-city atmosphere.
+        // R332+R384: post-apocalypse atmosphere — fires + dying Clippies +
+        // drifting embers across the chase + occasional distant lightning
+        // strikes (sells the chopper-chase burning sky). Embers and
+        // lightning are screen-space FX so coords are sparse.
         ambientProps: [
             { kind: 'fire', x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE },
             { kind: 'fire', x: 26 * GAME.TILE, y: (h - 3) * GAME.TILE },
@@ -2339,6 +2355,18 @@ function makeStageMechaHelicopter() {
             { kind: 'dyingClippy', x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
             { kind: 'dyingClippy', x: 58 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'stagger' },
             { kind: 'dyingClippy', x: 88 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
+            // Ember sources spaced across the level — wind blows right, so
+            // sources sit on the left of each "burning zone" and embers
+            // drift across the player's field of view as they run right.
+            { kind: 'embers', x: 16 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.6, spread: 80, period: 5 },
+            { kind: 'embers', x: 44 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.5, spread: 100, period: 4 },
+            { kind: 'embers', x: 72 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.7, spread: 80, period: 5 },
+            { kind: 'embers', x: 96 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.5, spread: 100, period: 4 },
+            // Distant lightning — screen-space; the single instance fires
+            // on its own internal cooldown (~4-10s).
+            { kind: 'lightning', x: 0, y: 0 },
+            // Slow fog bank drifting near horizon
+            { kind: 'fogBank', x: 0, y: (h - 7) * GAME.TILE, speed: 0.18, alpha: 0.16, color: '#3a2a30' },
         ],
         music: 'recycleBin',   // R323 swap kept the glitched-chase feel here
         nextStage: 22,         // chains into the Mecha-Gates beat-em-up

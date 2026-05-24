@@ -3877,6 +3877,11 @@ export class Game {
         this._bossIntro = null;
         this._lastBossPhase = null;
         const data = STAGE_LOADERS[n]();
+        // R384: init ambient prop manager early so FPS + beat-em-up modes
+        // also get atmospheric layers (embers, lightning, drips, fog).
+        // Previously only platformer mode received this — beat stages got
+        // zero ambient animation regardless of what stage data declared.
+        this._ambientProps = new AmbientPropManager(data.ambientProps || []);
         // R229: FPS arena short-circuit. If the loader returns fpsMode=true,
         // skip the whole platformer pipeline (level/camera/enemies/pickups)
         // and hand off to the FpsArena scene instead.
@@ -3911,10 +3916,6 @@ export class Game {
         this._fpsArena = null;
         this._beatEmUp = null;
         this.level = new Level(data);
-        // R332: ambient props (dying-Clippy NPCs, fires, flickers, sparks)
-        // — purely decorative, no gameplay impact. Stage data declares
-        // them via `ambientProps: [...]`.
-        this._ambientProps = new AmbientPropManager(data.ambientProps || []);
         this.parallax.setTheme(data.theme);
         // R334: stage data can override the parallax bg image independently
         // of the theme. Used by stage 21 to render apocalypse bg with

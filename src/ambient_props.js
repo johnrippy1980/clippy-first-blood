@@ -172,6 +172,172 @@ const KINDS = {
         },
     },
 
+    // R384: drifting embers — for apocalyptic / mecha-gates stages.
+    // Anchor point at p.x/p.y is the SOURCE; embers stream up and
+    // drift sideways with a wind bias. Spawns one every few frames
+    // and never owns its own draw — particles handle the rendering.
+    embers: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            const period = p.period || 6;
+            const wind = p.wind ?? 0.5;
+            if ((p.t % period) === 0) {
+                const sx = p.x + (Math.random() - 0.5) * (p.spread || 60);
+                const sy = p.y + (Math.random() - 0.5) * 8;
+                particles.spawn?.(
+                    sx, sy,
+                    wind + (Math.random() - 0.5) * 0.4,
+                    -0.3 - Math.random() * 0.6,
+                    80 + (Math.random() * 40) | 0,
+                    Math.random() < 0.5 ? '#ff5020' : '#ffaa50', 1, -0.005,
+                );
+            }
+        },
+        draw() {},
+    },
+
+    // R384: lightning — full-screen white flash on a slow random cycle.
+    // For mecha-gates / cloud / nightmare stages. p.x/p.y unused; the
+    // flash is a screen-space overlay drawn by the manager itself.
+    lightning: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            p.cd = (p.cd || (180 + Math.random() * 240)) - 1;
+            if (p.cd <= 0 && (p.flashT || 0) <= 0) {
+                // Multi-stroke: main flash + 1-2 quick afterstrokes
+                p.flashT = 8;
+                p.strokeQueue = (Math.random() < 0.5) ? [4, 6] : [3];
+                p.cd = 240 + Math.random() * 360;
+            }
+            if (p.flashT > 0) {
+                p.flashT--;
+                if (p.flashT === 0 && p.strokeQueue && p.strokeQueue.length) {
+                    p.flashT = p.strokeQueue.shift();
+                }
+            }
+        },
+        draw(ctx, p) {
+            if ((p.flashT || 0) <= 0) return;
+            const a = p.flashT / 10;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.55 * a;
+            ctx.fillStyle = '#dde6ff';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.restore();
+        },
+    },
+
+    // R384: water drip — sewer/pipeline stages. Releases a single droplet
+    // from p.x/p.y that falls until it hits a surface (p.floorY) and splashes.
+    drip: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            p.cd = (p.cd ?? (40 + Math.random() * 60)) - 1;
+            if (p.cd <= 0 && !p.dropY) {
+                p.dropY = 0;
+                p.dropV = 0;
+                p.cd = 60 + Math.random() * 80;
+            }
+            if (p.dropY !== undefined && p.dropY !== null) {
+                p.dropV += 0.20;
+                p.dropY += p.dropV;
+                const fallH = p.fallH || 40;
+                if (p.dropY >= fallH) {
+                    p.dropY = null;
+                    p.splashT = 8;
+                    // tiny splash particles
+                    for (let i = 0; i < 3; i++) {
+                        particles.spawn?.(
+                            p.x + (Math.random() - 0.5) * 4,
+                            p.y + fallH,
+                            (Math.random() - 0.5) * 0.6,
+                            -0.6 - Math.random() * 0.3,
+                            12 + (Math.random() * 6) | 0,
+                            '#88aabb', 1, 0.02,
+                        );
+                    }
+                }
+            }
+            if (p.splashT > 0) p.splashT--;
+        },
+        draw(ctx, p, camera) {
+            const dx = Math.round(p.x - camera.viewX);
+            const dy = Math.round(p.y - camera.viewY);
+            if (p.dropY !== undefined && p.dropY !== null) {
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                ctx.fillStyle = '#88aacc';
+                ctx.fillRect(dx, dy + Math.round(p.dropY), 1, 2);
+                ctx.fillStyle = '#aaccdd';
+                ctx.fillRect(dx, dy + Math.round(p.dropY), 1, 1);
+                ctx.restore();
+            }
+        },
+    },
+
+    // R384: fog drift — soft horizontal banks of grey-purple haze that
+    // roll across the BG layer. Cheap perlin-ish: 3 banks at different
+    // speeds, alpha-modulated by camera position.
+    fogBank: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            p.driftX = ((p.driftX || 0) + (p.speed || 0.15));
+            if (p.driftX > 320) p.driftX -= 640;
+        },
+        draw(ctx, p, camera) {
+            const baseY = Math.round(p.y - camera.viewY);
+            const baseX = Math.round(p.x - camera.viewX);
+            ctx.save();
+            ctx.globalAlpha = p.alpha || 0.22;
+            ctx.fillStyle = p.color || '#403850';
+            for (let i = -1; i <= 2; i++) {
+                const bx = baseX + (i * 220) - p.driftX % 220;
+                ctx.beginPath();
+                ctx.ellipse(bx, baseY, 80, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        },
+    },
+
+    // R384: neon sign flicker — for cyberpunk / mainframe / office bg.
+    // Painted-on-bg sign that briefly buzzes off. Uses a rect for the
+    // sign body and a brighter inner rect for the bulb. Real painted
+    // signs come from bg art; this just adds the live flicker overlay.
+    neonSign: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            p.cd = (p.cd || 0) - 1;
+            if (p.cd <= 0 && Math.random() < 0.025) {
+                p.failT = 6 + (Math.random() * 8) | 0;
+                p.cd = 80 + Math.random() * 140;
+            }
+            if (p.failT > 0) p.failT--;
+        },
+        draw(ctx, p, camera) {
+            const dx = Math.round(p.x - camera.viewX);
+            const dy = Math.round(p.y - camera.viewY);
+            const w = p.w || 14;
+            const h = p.h || 4;
+            const failed = (p.failT > 0) && ((p.failT & 1) === 0);
+            const color = p.color || '#ff60a0';
+            ctx.save();
+            if (!failed) {
+                ctx.fillStyle = color;
+                ctx.fillRect(dx, dy, w, h);
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.35;
+                ctx.fillRect(dx - 2, dy - 1, w + 4, h + 2);
+            } else {
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = '#403020';
+                ctx.fillRect(dx, dy, w, h);
+            }
+            ctx.restore();
+        },
+    },
+
     // Severed-cable spark — fixed point that emits an electric crack
     // every ~30 frames with a bright sparking flash. Server-room flavor.
     sparkCable: {
