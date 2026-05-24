@@ -764,17 +764,18 @@ export class BeatEmUp {
             if (this.waveIdx >= (this.data.waves?.length || 0)) {
                 this.phase = 'clear';
                 this.clearT = 0;
-            } else if (!this.data.waveChokepoints) {
-                // R337 fix: use a frame-counted breath instead of setTimeout.
-                // setTimeout doesn't honor pause/freeze frames and races with
-                // the next-frame _tickEnemies. _nextWaveAt is a frame counter
-                // ticked here; once it hits 0 we spawn the wave.
-                this._nextWaveAt = 48;   // ~0.8s at 60fps
+            } else {
+                // R379: auto-spawn next wave if EITHER (a) there are no
+                // chokepoints at all (stage 7 Ballmer arena) OR (b) the
+                // next wave isn't listed in the chokepoints (stage 22
+                // waves 7+8 chain auto after the boss wave). Without
+                // this, stage 22 hung at wave 7 forever — uncompletable.
+                const chokes = this.data.waveChokepoints;
+                const nextHasChoke = chokes && chokes.some(cp => cp.wave === this.waveIdx);
+                if (!chokes || !nextHasChoke) {
+                    this._nextWaveAt = 48;   // ~0.8s at 60fps
+                }
             }
-            // R357: when waveChokepoints exist (stage 20 Mecha Approach),
-            // do NOT auto-spawn — the player must walk to the next
-            // chokepoint to trigger the wave. Otherwise all 4 waves
-            // resolved at scroll=0 and stage ended without progression.
         }
         // R337: tick the inter-wave breath counter + spawn when ready.
         if (this._nextWaveAt && this._nextWaveAt > 0 && this.phase === 'fight') {
