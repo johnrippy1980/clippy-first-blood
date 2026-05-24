@@ -2575,7 +2575,9 @@ export class Game {
     // and hide the description so unknowns feel discoverable.
     _tickAchievements() {
         if (input.isPressed('pause') || input.isPressed('jump')) { this.scene = this._menuReturnScene || SCENE.PAUSE; audio.sfx('pause'); return; }
-        const cols = 4;
+        // R368b: must match _drawAchievements cols (was 4, now 6).
+        // Mismatch made arrow nav jump non-adjacent tiles.
+        const cols = 6;
         const n = ACHIEVEMENT_LIST.length;
         if (this.achievementsIndex == null) this.achievementsIndex = 0;
         const i = this.achievementsIndex;
@@ -2602,13 +2604,13 @@ export class Game {
         ctx.fillRect(barX, barY, Math.floor(barW * pct), barH);
         drawText(ctx, got + ' / ' + total, GAME.W / 2, 30, '#a0c0e0', 1, 'center');
 
-        // R238: grid extended to 5×5 (was 5×4) — list has grown to 21 entries
-        // and the bottom row was spilling into the detail strip. Tile slightly
-        // shorter (34 -> 30) so 5 rows fit between header (y=44) and detail
-        // strip (y=GAME.H-32 = 192).
-        const cols = 5;
-        const tileW = 40, tileH = 28;
-        const gridW = cols * tileW + (cols - 1) * 3;
+        // R368b: grid extended to 6×5 (was 5×5) — R359 added 8 new
+        // post-game achievements, total now 29. 25-slot grid hid the
+        // last 4. 6 cols × 5 rows = 30 slots, tile width down 40→34
+        // to keep the grid centered + within the 256 viewport.
+        const cols = 6;
+        const tileW = 34, tileH = 28;
+        const gridW = cols * tileW + (cols - 1) * 2;
         const gridX = Math.floor((GAME.W - gridW) / 2);
         const gridY = 38;
         const cursor = this.achievementsIndex || 0;
