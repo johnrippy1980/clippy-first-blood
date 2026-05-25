@@ -2039,6 +2039,24 @@ function makeBeatEmUpMechaApproach() {
         clearText: 'KEEP MOVING',
         bossDisplayName: 'MECHA-GATES',
         introBgKey: 'bg_apocalypse',
+        // R386: apocalyptic atmosphere across the beat-em-up street.
+        // x coords are in beat-em-up world space (matches scroll). Embers
+        // sources spaced one per "screen" so the chase always has wind-
+        // driven embers crossing the player's POV. Lightning + fog are
+        // screen-space (x/y unused except by fogBank's y).
+        ambientProps: [
+            { kind: 'embers',    x: GAME.W * 0.5, y: 80,  wind: 0.6, spread: 80, period: 5 },
+            { kind: 'embers',    x: GAME.W * 1.5, y: 80,  wind: 0.7, spread: 80, period: 4 },
+            { kind: 'embers',    x: GAME.W * 2.5, y: 80,  wind: 0.5, spread: 100, period: 5 },
+            { kind: 'embers',    x: GAME.W * 3.5, y: 80,  wind: 0.6, spread: 80, period: 4 },
+            { kind: 'embers',    x: GAME.W * 4.5, y: 80,  wind: 0.7, spread: 100, period: 5 },
+            { kind: 'embers',    x: GAME.W * 5.5, y: 80,  wind: 0.5, spread: 80, period: 4 },
+            { kind: 'embers',    x: GAME.W * 6.5, y: 80,  wind: 0.6, spread: 80, period: 5 },
+            { kind: 'embers',    x: GAME.W * 7.5, y: 80,  wind: 0.6, spread: 100, period: 4 },
+            { kind: 'lightning', x: 0, y: 0 },
+            { kind: 'fogBank',   x: 0, y: 120, speed: 0.18, alpha: 0.18, color: '#3a2a35' },
+            { kind: 'fogBank',   x: 0, y: 160, speed: 0.12, alpha: 0.14, color: '#2e1f2a' },
+        ],
     };
 }
 
@@ -2264,6 +2282,24 @@ function makeBeatEmUpMechaGates() {
         introBgKey: 'bg_apocalypse',
         // True final — no nextStage. Beat-em-up engine routes to
         // GAME_COMPLETE on clear via R365 isFinal check.
+        // R386: final-stage apocalypse atmosphere — more intense than
+        // stage 20: faster ember cadence, denser fog, more frequent
+        // lightning. Sells the FINAL BATTLE inside the helicopter-crash
+        // ruins where Mecha-Gates landed.
+        ambientProps: [
+            { kind: 'embers',    x: GAME.W * 0.5, y: 70,  wind: 0.7, spread: 100, period: 3 },
+            { kind: 'embers',    x: GAME.W * 1.5, y: 70,  wind: 0.8, spread: 80,  period: 3 },
+            { kind: 'embers',    x: GAME.W * 2.5, y: 70,  wind: 0.6, spread: 100, period: 4 },
+            { kind: 'embers',    x: GAME.W * 3.5, y: 70,  wind: 0.7, spread: 120, period: 3 },
+            { kind: 'embers',    x: GAME.W * 4.5, y: 70,  wind: 0.8, spread: 80,  period: 3 },
+            { kind: 'embers',    x: GAME.W * 5.5, y: 70,  wind: 0.7, spread: 100, period: 4 },
+            // Lightning fires every 3-7s for max apocalyptic dread
+            { kind: 'lightning', x: 0, y: 0 },
+            // Three fog layers at staggered depths
+            { kind: 'fogBank',   x: 0, y: 110, speed: 0.22, alpha: 0.22, color: '#4a2530' },
+            { kind: 'fogBank',   x: 0, y: 145, speed: 0.16, alpha: 0.18, color: '#3a1f28' },
+            { kind: 'fogBank',   x: 0, y: 175, speed: 0.10, alpha: 0.14, color: '#2a1820' },
+        ],
     };
 }
 

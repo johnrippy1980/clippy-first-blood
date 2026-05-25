@@ -695,6 +695,11 @@ export class BeatEmUp {
         this.t++;
         // R307: ambient particles/lights tick every frame regardless of phase
         this._tickAmbience();
+        // R386: data-driven ambient props (drips, embers, lightning, fog).
+        // BeatEmUp owns its own scroll camera so it needs to tick the
+        // game's AmbientPropManager itself — the top-level _tickPlay
+        // path doesn't run while we're in BEAT_PLAY scene.
+        if (this.game._ambientProps) this.game._ambientProps.update();
         if (this.phase === 'clear') {
             this.clearT++;
             const autoNext = this.data.nextStage;
@@ -1228,6 +1233,14 @@ export class BeatEmUp {
         this._drawDebris(ctx);
         // R307: lightning flash overlay (above scene, below HUD)
         this._drawLightning(ctx);
+        // R386: data-driven ambient props (embers, drips, lightning, fog).
+        // Beat-em-up has its own scroll-based "camera"; wrap it in the
+        // shape AmbientPropManager.draw expects (viewX/viewY) so world-
+        // anchored ambient sprites scroll with the level.
+        if (this.game._ambientProps) {
+            const fakeCam = { viewX: this.scroll, viewY: 0 };
+            this.game._ambientProps.draw(ctx, fakeCam);
+        }
         // HUD
         this._drawHUD();
         // Stage-clear overlay

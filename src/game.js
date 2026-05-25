@@ -1007,19 +1007,22 @@ export class Game {
         if (this.storyTimer > 90 || input.isPressed('shoot') || input.isPressed('jump')) {
             audio.sfx('select');
             audio.playTrack(STAGES[this.currentStage].music);
-            // R272: FPS arenas go straight to FPS_PLAY (no READY card,
-            // since the controls are different and READY's keymap is
-            // platformer-specific).
-            if (this._fpsPendingPlay) {
-                this._fpsPendingPlay = false;
-                this._fadeTo(SCENE.FPS_PLAY);
-                return;
-            }
-            // R306: beat-em-up stages route same way — straight to BEAT_PLAY
-            // after the stage-intro card.
-            if (this._beatPendingPlay) {
+            // R386: route by ENGINE MODE, not the one-shot pending flags.
+            // The flags flip false on first consumption but _tickStageIntro
+            // keeps firing every frame until the fade completes (~30
+            // frames). If the storyTimer>90 gate trips a second time
+            // before the fade lands, the OLD code fell through to
+            // SCENE.READY → SCENE.PLAY → black canvas (beat/FPS stages
+            // have no Level). Use the persistent _beatMode/_fpsMode
+            // booleans instead so re-entry routes to the correct play scene.
+            if (this._beatMode) {
                 this._beatPendingPlay = false;
                 this._fadeTo(SCENE.BEAT_PLAY);
+                return;
+            }
+            if (this._fpsMode) {
+                this._fpsPendingPlay = false;
+                this._fadeTo(SCENE.FPS_PLAY);
                 return;
             }
             // R209 — Milos #2: gate PLAY behind READY card unless the

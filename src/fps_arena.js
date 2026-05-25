@@ -343,6 +343,9 @@ export class FpsArena {
         // every frame regardless of phase.
         this._tickAmbientEmbers();
         this._tickLightning();
+        // R386: data-driven ambient props — same as beatem; the top-level
+        // play loop doesn't run while FPS_PLAY is active.
+        if (this.game._ambientProps) this.game._ambientProps.update();
         // R273: ambient SFX looper (office fluorescent hum, etc.) — fires
         // the configured ambient key every ~1.2s so the buzz feels continuous.
         if (this.ambientKey) {
@@ -1211,6 +1214,12 @@ export class FpsArena {
         }
         // R307: lightning flash before HUD so HUD stays legible.
         this._drawLightning(ctx);
+        // R386: data-driven ambient props (FPS arena uses fixed camera
+        // so viewX/viewY both 0).
+        if (this.game._ambientProps) {
+            const fakeCam = { viewX: 0, viewY: 0 };
+            this.game._ambientProps.draw(ctx, fakeCam);
+        }
         // R314: restore shake-transformed canvas before HUD so the HUD stays
         // pinned to the screen and doesn't rattle.
         if (hasShake) ctx.restore();
