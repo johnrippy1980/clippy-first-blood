@@ -1625,12 +1625,15 @@ class Boss extends Enemy {
                     const mod = (this.phase === 2) ? 4 : 3;
                     const variant = this.attackIndex % mod;
                     if (variant === 0) {
-                        // CARPET BOMB — bombs evenly across the chopper width
+                        // CARPET BOMB — bombs evenly across the chopper width.
+                        // R412: bumped color from dark grey #404048 to hot
+                        // red-orange so the bombs read against the apocalyptic
+                        // bg. Dark bombs were invisible on dark-red sky.
                         const bombs = this.phase === 2 ? 5 : 3;
                         for (let i = 0; i < bombs; i++) {
                             const bx = this.x + this.w / 2 + (i - (bombs - 1) / 2) * 24;
                             const b = new Bullet(bx, this.y + this.h, 0, 0.4, 2);
-                            b.color = '#404048';
+                            b.color = '#ff5020';   // hot fuse red-orange
                             b._gravity = 0.18;
                             globalEnemyBullets.push(b);
                         }
