@@ -85,14 +85,31 @@ class Crate {
 //
 // Solidity is queried by Level.isSolid via a registered list of
 // active walls (see level.js). Walls deregister on break.
+// R406: per-theme wall palettes. Body / highlight / shadow / mortar.
+const WALL_PALETTES = {
+    JUNGLE:     { body: '#3a4a28', body2: '#4a5a30', hi: '#6a7838', shadow: '#1a2010', mortar: '#2a3018' },  // mossy green stone
+    BREAKROOM:  { body: '#5a4438', body2: '#7a5848', hi: '#9a7858', shadow: '#2a1a14', mortar: '#3a2820' },  // beige tile
+    SERVERROOM: { body: '#283038', body2: '#384048', hi: '#5a6878', shadow: '#080a10', mortar: '#181c24' },  // metal panel
+    SEWER:      { body: '#2a3018', body2: '#3a4020', hi: '#5a6028', shadow: '#0a1008', mortar: '#1a1a10' },  // sludge brick
+    BOARDROOM:  { body: '#3a2018', body2: '#4a2818', hi: '#6a3820', shadow: '#1a0a08', mortar: '#2a1408' },  // dark wood
+    KEYNOTE:    { body: '#1a1828', body2: '#2a2438', hi: '#403858', shadow: '#080610', mortar: '#141020' },  // black acoustic
+    FOUNDER:    { body: '#4a1a18', body2: '#5a2218', hi: '#7a3820', shadow: '#1a0808', mortar: '#2a0a08' },  // volcanic rock
+    CLOUD:      { body: '#283848', body2: '#384858', hi: '#5a6878', shadow: '#080a18', mortar: '#181820' },  // data block
+    REALITY:    { body: '#2a1838', body2: '#3a2050', hi: '#5a3878', shadow: '#0a0518', mortar: '#1a0a28' },  // purple void
+};
+const DEFAULT_WALL = WALL_PALETTES.JUNGLE;
+
 class BreakableWall {
-    constructor(x, y, w, h, drop) {
+    constructor(x, y, w, h, drop, theme) {
         this.x = x; this.y = y;
         this.w = w || 16; this.h = h || 16;
         this.hp = 6;          // tougher than crates so it reads "wall"
         this.alive = true;
         this.drop = drop;     // pickup type to spawn at center on break
         this.hitFlash = 0;
+        // R406: stash the per-theme palette so draw() can pull it
+        // without re-looking-up every frame.
+        this.palette = WALL_PALETTES[theme] || DEFAULT_WALL;
         // Crack stages drive the visible "damage" pattern. 0..3.
         this.cracks = 0;
         // R233: shimmer phase so the idle pulse is desynchronized between
@@ -141,20 +158,21 @@ class BreakableWall {
         // look like static set-dress on painted bgs.
         const shimmer = 0.5 + 0.5 * Math.sin(this._tick * 0.06 + this._shimmerPhase);
         const hidesDrop = !!this.drop;
-        // Base brick — slightly different palette from the regular
-        // crate so the player learns "wall, not crate" at a glance.
-        ctx.fillStyle = '#4a3220'; ctx.fillRect(dx, dy, this.w, this.h);
-        ctx.fillStyle = '#6a4830'; ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
+        // R406: per-theme palette so walls don't read as brown brick on
+        // a jungle/server/keynote bg.
+        const pal = this.palette;
+        ctx.fillStyle = pal.body;  ctx.fillRect(dx, dy, this.w, this.h);
+        ctx.fillStyle = pal.body2; ctx.fillRect(dx + 1, dy + 1, this.w - 2, this.h - 2);
         // Top-left highlight + bottom-right shade — sells the 3D chunk look
         // and contrasts against flat painted bgs.
-        ctx.fillStyle = '#8a6840';
+        ctx.fillStyle = pal.hi;
         ctx.fillRect(dx + 1, dy + 1, this.w - 2, 1);
         ctx.fillRect(dx + 1, dy + 1, 1, this.h - 2);
-        ctx.fillStyle = '#2a1810';
+        ctx.fillStyle = pal.shadow;
         ctx.fillRect(dx + 1, dy + this.h - 2, this.w - 2, 1);
         ctx.fillRect(dx + this.w - 2, dy + 1, 1, this.h - 2);
         // Mortar lines — the "brick" texture readers expect
-        ctx.fillStyle = '#3a2218';
+        ctx.fillStyle = pal.mortar;
         ctx.fillRect(dx, dy + this.h / 2 | 0, this.w, 1);
         ctx.fillRect(dx + this.w / 2 | 0, dy, 1, this.h);
         // Crack overlay scales with damage tier
@@ -514,7 +532,7 @@ export class PickupManager {
     clear() { this.pickups.length = 0; this.crates.length = 0; this.walls.length = 0; }
     spawn(x, y, type) { this.pickups.push(new Pickup(x, y, type)); }
     spawnCrate(x, y, drop) { this.crates.push(new Crate(x, y, drop)); }
-    spawnWall(x, y, w, h, drop) { this.walls.push(new BreakableWall(x, y, w, h, drop)); }
+    spawnWall(x, y, w, h, drop, theme) { this.walls.push(new BreakableWall(x, y, w, h, drop, theme)); }
     // R219: returns true if (px, py) sits inside any live breakable
     // wall. Level.isSolid delegates to this so a wall blocks player
     // movement until it's destroyed.
@@ -546,7 +564,7 @@ export class PickupManager {
         // R219: breakable wall segments — solid until shot, drop a
         // (usually hidden) pickup on break.
         if (data?.wallSpawns) for (const w of data.wallSpawns) {
-            this.spawnWall(w.x, w.y, w.w, w.h, w.drop);
+            this.spawnWall(w.x, w.y, w.w, w.h, w.drop, data.theme);
         }
     }
     update(level, player) {
