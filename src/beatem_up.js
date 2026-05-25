@@ -418,34 +418,43 @@ export class BeatEmUp {
     // cluster paints a 3-tone dancing flame body; the rising embers it
     // emits each frame come through via _drawFireEmbers below.
     _drawFireClusters(ctx) {
+        // R411: replaced vector flame with painted ambient_fire sprites.
+        // Each cluster picks a frame from its own phase so the field of
+        // fires animates out of sync (more organic). Glow underlay
+        // remains rgba for the additive light cast on the painted bg.
         const sc = this.scroll;
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
+        const fireFrames = ['ambient_fire_1', 'ambient_fire_2', 'ambient_fire_3', 'ambient_fire_4'];
         for (const f of this._fireClusters) {
             const sx = (f.x - sc) | 0;
             if (sx < -16 || sx > GAME.W + 16) continue;
             const flick = 0.75 + 0.25 * Math.sin(f.phase);
-            const sizeFlick = 0.85 + 0.20 * Math.sin(f.phase * 0.7 + 1.3);
-            const w = Math.round(f.size * sizeFlick);
-            const h = Math.round(f.size * 1.7 * sizeFlick);
             const baseY = f.y | 0;
-            // Outer red glow
-            ctx.globalAlpha = 0.45 * flick;
-            ctx.fillStyle = '#a01018';
-            ctx.fillRect(sx - w, baseY - h, w * 2, h);
-            // Orange middle body
-            ctx.globalAlpha = 0.80 * flick;
-            ctx.fillStyle = '#ff6020';
-            ctx.fillRect(sx - (w / 2 | 0), baseY - h + 2, w, h - 2);
-            // Bright yellow core tip
-            ctx.globalAlpha = 0.95 * flick;
-            ctx.fillStyle = '#ffe070';
-            ctx.fillRect(sx - 1, baseY - h + 3, 2, Math.max(2, (h / 2) | 0));
-            // White-hot center pixel
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(sx, baseY - h + 5, 1, 1);
+            // Additive glow halo on the painted bg
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.30 * flick;
+            ctx.fillStyle = '#ff5020';
+            const haloR = 14 + (f.size || 6);
+            ctx.beginPath();
+            ctx.ellipse(sx, baseY - 10, haloR, haloR * 0.6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            // Painted flame, scaled per cluster size. f.size~6 → 1×;
+            // bigger clusters get scaled up slightly.
+            const phaseOff = (f.phase * 12) | 0;
+            const frameIdx = Math.floor((this.t + phaseOff) / 8) % 4;
+            const img = sprites.images.get(fireFrames[frameIdx]);
+            if (img) {
+                const scale = Math.max(0.8, (f.size || 6) / 6);
+                const dw = img.width * scale;
+                const dh = img.height * scale;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(img,
+                    Math.round(sx - dw / 2),
+                    Math.round(baseY - dh),
+                    dw, dh);
+            }
         }
-        ctx.restore();
     }
 
     _drawFireEmbers(ctx) {
@@ -533,22 +542,34 @@ export class BeatEmUp {
         ctx.fillStyle = '#5a484a';
         ctx.fillRect(sx - 27, baseY - 3, 1, 1);
         ctx.fillRect(sx + 26, baseY - 3, 1, 1);
-        // Flame jets from the hood — animated
+        // R411: replaced rgba flame-jets with the R410 painted flame
+        // sprites. 3 flames sit across the hood, each cycling through
+        // the 4-frame animation at slightly different phases so they
+        // don't strobe in lockstep. Soft additive glow underlay so
+        // the fire casts light on the car body + painted bg behind.
+        const fireFrames = ['ambient_fire_1', 'ambient_fire_2', 'ambient_fire_3', 'ambient_fire_4'];
+        const flick = 0.7 + 0.3 * Math.sin((this.t + p.phase * 30) * 0.4);
+        // Additive glow halo over the car hood
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        const flick = 0.7 + 0.3 * Math.sin((this.t + p.phase * 30) * 0.4);
-        ctx.globalAlpha = 0.85 * flick;
-        ctx.fillStyle = '#a01018';
-        ctx.fillRect(sx - 20, baseY - 30, 40, 8);
+        ctx.globalAlpha = 0.30 * flick;
         ctx.fillStyle = '#ff5020';
-        ctx.fillRect(sx - 14, baseY - 36, 28, 8);
-        ctx.fillStyle = '#ffe060';
-        ctx.fillRect(sx - 4, baseY - 42, 8, 6);
-        ctx.fillRect(sx - 8, baseY - 38, 4, 4);
-        ctx.fillRect(sx + 4, baseY - 38, 4, 4);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(sx - 1, baseY - 40, 2, 2);
+        ctx.beginPath();
+        ctx.ellipse(sx, baseY - 30, 28, 16, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
+        // Three painted flames across the hood
+        const offsets = [-12, 0, 12];
+        for (let i = 0; i < offsets.length; i++) {
+            const dx = sx + offsets[i];
+            const phaseOff = i * 3 + (p.phase * 4) | 0;
+            const frameIdx = Math.floor((this.t + phaseOff) / 8) % 4;
+            const img = sprites.images.get(fireFrames[frameIdx]);
+            if (img) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(img, dx - Math.round(img.width / 2), baseY - 14 - img.height);
+            }
+        }
     }
 
     _drawFGPole(ctx, sx, p) {
