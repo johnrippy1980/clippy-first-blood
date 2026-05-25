@@ -308,6 +308,17 @@ function makeStage1() {
             // the player has had practice with the mid-stage wall.
             { x: 70 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
+        // R387: jungle atmosphere — drifting fog at horizon + thin
+        // background fires (abandoned campfires) spaced through the level.
+        // Sells the "overgrown ruined office park" painted bg.
+        ambientProps: [
+            { kind: 'fire', x: 18 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 56 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fire', x: 82 * GAME.TILE, y: (h - 3) * GAME.TILE },
+            { kind: 'fogBank', x: 0, y: 60, speed: 0.10, alpha: 0.12, color: '#2a3828' },
+            { kind: 'embers', x: 24 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.25, spread: 60, period: 12 },
+            { kind: 'embers', x: 60 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.30, spread: 70, period: 10 },
+        ],
     };
 }
 
@@ -782,6 +793,14 @@ function makeStage4() {
             { x: 68 * GAME.TILE, y: ( 7) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
             { x: 82 * GAME.TILE, y: ( 4) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
+        // R387: boardroom atmosphere — chandelier light flickers + thin
+        // smoke from snuffed candles drifting near ceiling.
+        ambientProps: [
+            { kind: 'flicker', x: 22 * GAME.TILE, y: 2 * GAME.TILE },
+            { kind: 'flicker', x: 50 * GAME.TILE, y: 2 * GAME.TILE },
+            { kind: 'flicker', x: 78 * GAME.TILE, y: 2 * GAME.TILE },
+            { kind: 'fogBank', x: 0, y: 40, speed: 0.08, alpha: 0.12, color: '#1a1418' },
+        ],
     };
 }
 
@@ -918,6 +937,16 @@ function makeStage5() {
             { x: 30 * GAME.TILE, y: (12) * GAME.TILE, w: 16, h: 16, drop: 'LIFE' },
             { x: 60 * GAME.TILE, y: (10) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
             { x: 78 * GAME.TILE, y: ( 3) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
+        ],
+        // R387: keynote hall — stage-light flickers in the rafters +
+        // smoke-machine haze rolling across the audience floor.
+        ambientProps: [
+            { kind: 'flicker', x: 24 * GAME.TILE, y: 2 * GAME.TILE },
+            { kind: 'flicker', x: 50 * GAME.TILE, y: 2 * GAME.TILE },
+            { kind: 'flicker', x: 76 * GAME.TILE, y: 2 * GAME.TILE },
+            { kind: 'fogBank', x: 0, y: 80, speed: 0.18, alpha: 0.18, color: '#2a1838' },
+            { kind: 'fogBank', x: 0, y: 130, speed: 0.12, alpha: 0.14, color: '#1c1024' },
+            { kind: 'sparkCable', x: 56 * GAME.TILE, y: 3 * GAME.TILE },
         ],
     };
 }
@@ -1278,6 +1307,16 @@ function makeStage8() {
             { x: 70 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
             { x: 90 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
+        // R387: keynote-hall atmosphere — spotlight scan + stage haze.
+        // Sparking cables in the data-storm section sell the storm.
+        ambientProps: [
+            { kind: 'fogBank', x: 0, y: 40, speed: 0.20, alpha: 0.18, color: '#2c1a3a' },
+            { kind: 'fogBank', x: 0, y: 80, speed: 0.14, alpha: 0.14, color: '#1e1228' },
+            { kind: 'sparkCable', x: 56 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'sparkCable', x: 76 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'flicker', x: 40 * GAME.TILE, y: 1 * GAME.TILE },
+            { kind: 'flicker', x: 80 * GAME.TILE, y: 1 * GAME.TILE },
+        ],
     };
 }
 
@@ -1326,6 +1365,16 @@ function makeStage9() {
         crateSpawns: [
             { x: 24 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'HOMING' },
             { x: 44 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'THUNDER' },
+        ],
+        // R387: server-room secret stage — sparking severed cables +
+        // flickering tubes throughout, sells "deep down in the trash heap".
+        ambientProps: [
+            { kind: 'sparkCable', x: 12 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'sparkCable', x: 26 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'sparkCable', x: 42 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'flicker', x: 18 * GAME.TILE, y: 1 * GAME.TILE },
+            { kind: 'flicker', x: 34 * GAME.TILE, y: 1 * GAME.TILE },
+            { kind: 'flicker', x: 50 * GAME.TILE, y: 1 * GAME.TILE },
         ]
     };
 }
@@ -1573,6 +1622,18 @@ function makeStage13() {
             { x:  9 * GAME.TILE, y: (h - 3) * GAME.TILE - 14, drop: 'HOMING' },
             { x: 28 * GAME.TILE, y: ( 9) * GAME.TILE - 14, drop: 'THUNDER' },
             { x: 40 * GAME.TILE, y: ( 5) * GAME.TILE - 14, drop: 'LIFE' },
+        ],
+        // R387: reality distortion — strobe lightning + neon flickers +
+        // stage haze. Sells "Steve Jobs keynote nightmare" energy.
+        ambientProps: [
+            { kind: 'lightning', x: 0, y: 0 },
+            { kind: 'fogBank', x: 0, y: 50, speed: 0.22, alpha: 0.18, color: '#2c1a45' },
+            { kind: 'fogBank', x: 0, y: 90, speed: 0.16, alpha: 0.14, color: '#1a1230' },
+            { kind: 'flicker', x: 16 * GAME.TILE, y: 1 * GAME.TILE },
+            { kind: 'flicker', x: 28 * GAME.TILE, y: 1 * GAME.TILE },
+            { kind: 'flicker', x: 40 * GAME.TILE, y: 1 * GAME.TILE },
+            { kind: 'sparkCable', x: 20 * GAME.TILE, y: 3 * GAME.TILE },
+            { kind: 'sparkCable', x: 36 * GAME.TILE, y: 3 * GAME.TILE },
         ]
     };
 }
