@@ -421,6 +421,182 @@ const KINDS = {
         },
     },
 
+    // R415: distant smoke column — rises from a fixed world point,
+    // drifts horizontally in wind, fades as it rises. Sells DEPTH in
+    // the bg by visibly anchoring distant fires to the horizon.
+    smokeColumn: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            // Spawn a smoke puff every 4 frames
+            if ((p.t % 4) === 0) {
+                if (!p._puffs) p._puffs = [];
+                p._puffs.push({
+                    dy: 0,
+                    dx: (Math.random() - 0.5) * 2,
+                    vy: -0.3 - Math.random() * 0.2,
+                    vx: (p.wind || 0.15) + (Math.random() - 0.5) * 0.1,
+                    life: 120,
+                    size: 2 + (Math.random() * 3) | 0,
+                });
+            }
+            if (p._puffs) {
+                for (let i = p._puffs.length - 1; i >= 0; i--) {
+                    const pf = p._puffs[i];
+                    pf.dy += pf.vy;
+                    pf.dx += pf.vx;
+                    pf.life--;
+                    pf.size += 0.04;   // smoke expands as it cools
+                    if (pf.life <= 0) p._puffs.splice(i, 1);
+                }
+            }
+        },
+        draw(ctx, p, camera) {
+            if (!p._puffs) return;
+            const baseX = Math.round(p.x - camera.viewX);
+            const baseY = Math.round(p.y - camera.viewY);
+            ctx.save();
+            for (const pf of p._puffs) {
+                const a = (pf.life / 120) * 0.55;
+                ctx.globalAlpha = a;
+                ctx.fillStyle = p.color || '#181820';
+                const s = Math.round(pf.size);
+                ctx.fillRect(baseX + (pf.dx | 0) - s, baseY + (pf.dy | 0) - s, s * 2, s * 2);
+            }
+            ctx.restore();
+        },
+    },
+
+    // R415: distant bird/drone silhouette — flies across the screen
+    // on a slow cycle. Wings flap procedurally (sine alternation).
+    // Decorative; never hits the player.
+    distantBird: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            // Initial spawn
+            if (p._screenX === undefined) {
+                p._screenX = -20;
+                p._direction = (p.dir === 'left') ? -1 : 1;
+                p._screenY = (p.y || 40) + (Math.random() - 0.5) * 12;
+                p._speed = p.speed || 0.6;
+            }
+            p._screenX += p._speed * p._direction;
+            // Loop around when off-screen far side
+            if (p._direction > 0 && p._screenX > 280) {
+                p._screenX = -20;
+                p._screenY = (p.y || 40) + (Math.random() - 0.5) * 12;
+            } else if (p._direction < 0 && p._screenX < -20) {
+                p._screenX = 280;
+                p._screenY = (p.y || 40) + (Math.random() - 0.5) * 12;
+            }
+        },
+        draw(ctx, p) {
+            // Screen-space — independent of camera
+            if (p._screenX === undefined) return;
+            const dx = Math.round(p._screenX);
+            const dy = Math.round(p._screenY);
+            const wingPhase = Math.sin(p.t * 0.25);
+            const dir = p._direction;
+            ctx.fillStyle = p.color || '#181820';
+            // Body
+            ctx.fillRect(dx, dy, 2, 1);
+            // Wings — alternate up/down
+            if (wingPhase > 0) {
+                ctx.fillRect(dx - 2, dy - 1, 2, 1);
+                ctx.fillRect(dx + 2, dy - 1, 2, 1);
+            } else {
+                ctx.fillRect(dx - 2, dy + 1, 2, 1);
+                ctx.fillRect(dx + 2, dy + 1, 2, 1);
+            }
+            // Direction (head)
+            ctx.fillRect(dx + (dir > 0 ? 2 : -1), dy, 1, 1);
+        },
+    },
+
+    // R415: rain streaks for cloud/storm stages. Diagonal lines that
+    // wrap around the screen — pure screen-space (no parallax).
+    rain: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            if (!p._drops) {
+                p._drops = [];
+                const count = p.count || 40;
+                for (let i = 0; i < count; i++) {
+                    p._drops.push({
+                        x: Math.random() * 280,
+                        y: Math.random() * 240,
+                        vy: 4 + Math.random() * 2,
+                        vx: p.wind || -0.8,
+                        len: 4 + (Math.random() * 4) | 0,
+                    });
+                }
+            }
+            for (const d of p._drops) {
+                d.x += d.vx;
+                d.y += d.vy;
+                if (d.y > 240) { d.y = -d.len; d.x = Math.random() * 280; }
+                if (d.x < -4) d.x += 290;
+                if (d.x > 286) d.x -= 290;
+            }
+        },
+        draw(ctx, p) {
+            if (!p._drops) return;
+            ctx.save();
+            ctx.globalAlpha = p.alpha || 0.45;
+            ctx.strokeStyle = p.color || '#a0c8ff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (const d of p._drops) {
+                ctx.moveTo(d.x, d.y);
+                ctx.lineTo(d.x + d.vx * 1.5, d.y + d.len);
+            }
+            ctx.stroke();
+            ctx.restore();
+        },
+    },
+
+    // R415: falling embers from above (companion to the existing
+    // upward-drifting embers). For burning ceilings / falling debris.
+    fallingEmbers: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+            const period = p.period || 8;
+            if ((p.t % period) === 0) {
+                const sx = p.x + (Math.random() - 0.5) * (p.spread || 80);
+                particles.spawn?.(
+                    sx, p.y,
+                    (Math.random() - 0.5) * 0.4,
+                    0.6 + Math.random() * 0.4,   // FALLS instead of rises
+                    100 + (Math.random() * 40) | 0,
+                    Math.random() < 0.5 ? '#ff5020' : '#ffaa50', 1, 0.01,
+                );
+            }
+        },
+        draw() {},
+    },
+
+    // R415: heat shimmer — wavy displacement band over a hot zone.
+    // Renders horizontal wavy lines that suggest distorted air.
+    heatShimmer: {
+        tick(p) {
+            p.t = (p.t || 0) + 1;
+        },
+        draw(ctx, p, camera) {
+            const dx = Math.round(p.x - camera.viewX);
+            const dy = Math.round(p.y - camera.viewY);
+            const w = p.w || 32;
+            const h = p.h || 12;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.18;
+            ctx.fillStyle = '#ffd0a0';
+            for (let y = 0; y < h; y++) {
+                const wave = Math.sin(p.t * 0.12 + y * 0.5) * 2;
+                ctx.fillRect(dx + wave, dy + y, w, 1);
+            }
+            ctx.restore();
+        },
+    },
+
     // Severed-cable spark — fixed point that emits an electric crack
     // every ~30 frames with a bright sparking flash. Server-room flavor.
     sparkCable: {

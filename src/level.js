@@ -313,15 +313,22 @@ function makeStage1() {
             // the player has had practice with the mid-stage wall.
             { x: 70 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
-        // R387: jungle atmosphere — drifting fog at horizon + thin
-        // background fires (abandoned campfires) spaced through the level.
-        // Sells the "overgrown ruined office park" painted bg.
+        // R387+R415: jungle atmosphere — drifting fog at horizon, fires,
+        // distant bird silhouettes flying overhead, faint smoke columns
+        // from far campfires deep in the ruins.
         ambientProps: [
             { kind: 'fire', x: 18 * GAME.TILE, y: (h - 3) * GAME.TILE },
             { kind: 'fire', x: 56 * GAME.TILE, y: (h - 3) * GAME.TILE },
             { kind: 'fire', x: 82 * GAME.TILE, y: (h - 3) * GAME.TILE },
             { kind: 'fogBank', x: 0, y: 60, speed: 0.10, alpha: 0.12, color: '#2a3828' },
             { kind: 'embers', x: 24 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.25, spread: 60, period: 12 },
+            // R415: distant birds — vultures circling over the ruins
+            { kind: 'distantBird', x: 0, y: 30, speed: 0.4, dir: 'right', color: '#080808' },
+            { kind: 'distantBird', x: 0, y: 45, speed: 0.5, dir: 'left',  color: '#080808' },
+            // R415: distant smoke columns from far campfires deep in
+            // the ruins. Anchored to specific world points.
+            { kind: 'smokeColumn', x: 36 * GAME.TILE, y: (h - 6) * GAME.TILE, wind: 0.15, color: '#1a2018' },
+            { kind: 'smokeColumn', x: 68 * GAME.TILE, y: (h - 6) * GAME.TILE, wind: 0.20, color: '#1a2018' },
             { kind: 'embers', x: 60 * GAME.TILE, y: (h - 5) * GAME.TILE, wind: 0.30, spread: 70, period: 10 },
         ],
     };
@@ -1312,8 +1319,9 @@ function makeStage8() {
             { x: 70 * GAME.TILE, y: ( 9) * GAME.TILE, w: 16, h: 16, drop: 'GRENADE' },
             { x: 90 * GAME.TILE, y: ( 5) * GAME.TILE, w: 16, h: 16, drop: 'CLIPPY_TAG' },
         ],
-        // R387: keynote-hall atmosphere — spotlight scan + stage haze.
-        // Sparking cables in the data-storm section sell the storm.
+        // R387+R415: cloud-storm atmosphere — fog + sparks + flickers +
+        // DATA RAIN streaks falling across the whole screen + distant
+        // bird silhouettes flying through the void.
         ambientProps: [
             { kind: 'fogBank', x: 0, y: 40, speed: 0.20, alpha: 0.18, color: '#2c1a3a' },
             { kind: 'fogBank', x: 0, y: 80, speed: 0.14, alpha: 0.14, color: '#1e1228' },
@@ -1321,6 +1329,11 @@ function makeStage8() {
             { kind: 'sparkCable', x: 76 * GAME.TILE, y: 3 * GAME.TILE },
             { kind: 'flicker', x: 40 * GAME.TILE, y: 1 * GAME.TILE },
             { kind: 'flicker', x: 80 * GAME.TILE, y: 1 * GAME.TILE },
+            // R415: green data-rain streaks falling diagonally (Matrix vibe)
+            { kind: 'rain', x: 0, y: 0, count: 50, wind: -0.6, color: '#60ff80', alpha: 0.35 },
+            // R415: distant data-drone birds gliding across the void
+            { kind: 'distantBird', x: 0, y: 50, speed: 0.5, dir: 'right', color: '#181c30' },
+            { kind: 'distantBird', x: 0, y: 70, speed: 0.7, dir: 'left',  color: '#181c30' },
         ],
     };
 }
@@ -2403,6 +2416,17 @@ function makeBeatEmUpMechaGates() {
             { kind: 'fogBank',   x: 0, y: 110, speed: 0.22, alpha: 0.22, color: '#4a2530' },
             { kind: 'fogBank',   x: 0, y: 145, speed: 0.16, alpha: 0.18, color: '#3a1f28' },
             { kind: 'fogBank',   x: 0, y: 175, speed: 0.10, alpha: 0.14, color: '#2a1820' },
+            // R415: distant smoke columns rising from the burning city
+            // anchored to fixed world spots. Drift right with the wind.
+            { kind: 'smokeColumn', x: GAME.W * 1.2, y: 110, wind: 0.20, color: '#1a1018' },
+            { kind: 'smokeColumn', x: GAME.W * 3.4, y: 90,  wind: 0.25, color: '#1a1018' },
+            { kind: 'smokeColumn', x: GAME.W * 5.0, y: 100, wind: 0.18, color: '#1a1018' },
+            // R415: falling embers from above (collapsing tower)
+            { kind: 'fallingEmbers', x: GAME.W * 2.0, y: 20, spread: 100, period: 5 },
+            { kind: 'fallingEmbers', x: GAME.W * 4.0, y: 20, spread: 120, period: 4 },
+            // R415: heat shimmer over the crater
+            { kind: 'heatShimmer', x: GAME.W * 2.5, y: 160, w: 80, h: 14 },
+            { kind: 'heatShimmer', x: GAME.W * 4.5, y: 160, w: 60, h: 12 },
         ],
     };
 }
@@ -2507,6 +2531,19 @@ function makeStageMechaHelicopter() {
             { kind: 'lightning', x: 0, y: 0 },
             // Slow fog bank drifting near horizon
             { kind: 'fogBank', x: 0, y: (h - 7) * GAME.TILE, speed: 0.18, alpha: 0.16, color: '#3a2a30' },
+            // R415: heat shimmer over each fire source
+            { kind: 'heatShimmer', x: 12 * GAME.TILE, y: (h - 5) * GAME.TILE, w: 24, h: 10 },
+            { kind: 'heatShimmer', x: 52 * GAME.TILE, y: (h - 5) * GAME.TILE, w: 24, h: 10 },
+            { kind: 'heatShimmer', x: 100 * GAME.TILE, y: (h - 5) * GAME.TILE, w: 24, h: 10 },
+            // R415: smoke columns rising from distant burning ruins
+            { kind: 'smokeColumn', x: 30 * GAME.TILE, y: (h - 8) * GAME.TILE, wind: 0.25, color: '#1a0810' },
+            { kind: 'smokeColumn', x: 64 * GAME.TILE, y: (h - 8) * GAME.TILE, wind: 0.22, color: '#1a0810' },
+            { kind: 'smokeColumn', x: 92 * GAME.TILE, y: (h - 8) * GAME.TILE, wind: 0.28, color: '#1a0810' },
+            // R415: falling embers from the collapsing skyline
+            { kind: 'fallingEmbers', x: 50 * GAME.TILE, y: 20, spread: 200, period: 6 },
+            // R415: distant vulture silhouettes — circling carrion
+            { kind: 'distantBird', x: 0, y: 30, speed: 0.5, dir: 'right', color: '#080408' },
+            { kind: 'distantBird', x: 0, y: 50, speed: 0.6, dir: 'left',  color: '#080408' },
         ],
         music: 'recycleBin',   // R323 swap kept the glitched-chase feel here
         nextStage: 22,         // chains into the Mecha-Gates beat-em-up
