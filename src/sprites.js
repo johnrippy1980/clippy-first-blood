@@ -265,6 +265,11 @@ export const BG_MANIFEST = {
     'bg_boardroom_dark':  'bg_boardroom_dark.png',
     'bg_keynote_dark':    'bg_keynote_dark.png',
     'bg_cloud_dark':      'bg_cloud_dark.png',
+    // R407: differentiated stage 22 bg — helicopter-crash crater scene
+    // with crashed Hind wreckage, ruined Microsoft tower with a crashed
+    // jet liner sticking out, lightning sky. Distinct from the cleaner
+    // stage 20 bg_apocalypse_street.
+    'bg_apocalypse_crater': 'bg_apocalypse_crater.png',
     // R190: Stage 13 (Reality Distortion Field) — painted keynote-auditorium
     // backdrop with floating bondi-blue cube iMacs. Falls back to the
     // procedural REALITY palette if the asset isn't loaded.
@@ -552,6 +557,13 @@ export const ENEMY_MANIFEST = {
     // silhouette + corpse on the ground.
     'clippy_dying_stagger': 'clippy_dying_stagger.png',
     'clippy_dying_dead':    'clippy_dying_dead.png',
+    // R410: painted flame frames for the ambient_props `fire` kind.
+    // Replaces the rgba fillRect flame with a real animated SNES flame.
+    // 4 frames cycle at 8f each → 32f loop.
+    'ambient_fire_1':       'ambient_fire_1.png',
+    'ambient_fire_2':       'ambient_fire_2.png',
+    'ambient_fire_3':       'ambient_fire_3.png',
+    'ambient_fire_4':       'ambient_fire_4.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',

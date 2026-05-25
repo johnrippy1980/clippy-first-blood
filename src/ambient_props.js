@@ -95,6 +95,9 @@ const KINDS = {
 
     // Burning-fire prop — pulses orange/yellow with rising sparks.
     // Decorative; never hits the player.
+    // R410: painted sprite frames replace the legacy rgba fillRect.
+    // 4 frames cycle at 8f each → 32f loop. Soft additive glow
+    // underlay stays so the flame casts light on the painted bg.
     fire: {
         tick(p) {
             p.t = (p.t || 0) + 1;
@@ -113,21 +116,44 @@ const KINDS = {
         draw(ctx, p, camera) {
             const dx = Math.round(p.x - camera.viewX);
             const dy = Math.round(p.y - camera.viewY);
+            // Painted-sprite path with 4-frame cycle. Each frame plays
+            // for 8 ticks so the loop is 32 ticks (~0.5s at 60fps).
+            const frameIdx = Math.floor((p.t || 0) / 8) % 4 + 1;
+            const key = `ambient_fire_${frameIdx}`;
+            const img = sprites.images.get(key);
+            if (img) {
+                // Soft additive glow underlay so the flame casts warm
+                // light onto whatever painted bg pixels sit behind.
+                const flicker = 0.7 + 0.3 * Math.sin((p.t || 0) * 0.4);
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.30 * flicker;
+                ctx.fillStyle = '#ff5020';
+                ctx.beginPath();
+                ctx.ellipse(dx, dy - img.height / 2, img.width + 4, img.height * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                // Painted flame, anchored bottom-center on the prop's
+                // emit point (which sits on the ground).
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(img,
+                    dx - Math.round(img.width / 2),
+                    dy - img.height);
+                return;
+            }
+            // Fallback to legacy rgba — only fires if the sprite didn't load
             const flicker = 0.7 + 0.3 * Math.sin(p.t * 0.4);
             const sizeFlick = 0.85 + 0.15 * Math.sin(p.t * 0.55 + 1.3);
             const w = Math.round(6 * sizeFlick);
             const h = Math.round(10 * sizeFlick);
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
-            // Outer red glow
             ctx.globalAlpha = 0.4 * flicker;
             ctx.fillStyle = '#a01020';
             ctx.fillRect(dx - w, dy - h, w * 2, h);
-            // Orange core
             ctx.globalAlpha = 0.7 * flicker;
             ctx.fillStyle = '#ff7030';
             ctx.fillRect(dx - w / 2, dy - h + 2, w, h - 2);
-            // Bright tip
             ctx.globalAlpha = 0.85 * flicker;
             ctx.fillStyle = '#ffe070';
             ctx.fillRect(dx - 1, dy - h + 2, 2, h / 2 | 0);

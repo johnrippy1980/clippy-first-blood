@@ -2280,12 +2280,16 @@ function makeBeatEmUpMechaGates() {
     // right". 9 waves across the journey, with the Mecha-Gates boss not
     // landing until wave 6 (so the player walks most of the level
     // first). Phase-1 boss isn't the end — phase-2 ejects after.
+    // R407: stage 22 was using bg_apocalypse_street (same as stage 20)
+    // which made the two stages feel identical. Now uses the dedicated
+    // crater bg — helicopter wreckage, smoldering crater, ruined tower
+    // with crashed jet liner. Visually distinct as the FINAL battle.
     const STAGE_W = GAME.W * 6;
     return {
         beatMode: true,
         theme: THEME.KEYNOTE,
         music: 'apocalypse',
-        bgKey: 'bg_apocalypse_street',
+        bgKey: 'bg_apocalypse_crater',
         bossKind: 'MECHA_GATES',
         spriteKeys: {
             scavenger:  'scavenger',
@@ -3007,8 +3011,9 @@ export class Level {
                 ctx.fillRect(baseX, y + 6, 4, len);
                 ctx.fillStyle = '#502068';
                 ctx.fillRect(baseX, y + 6, 1, len);
-                // Notch tip (V-cut bottom)
-                ctx.fillStyle = pal.solid || '#080010';
+                // Notch tip (V-cut bottom). Use this.palette since
+                // _drawPlatformDecor doesn't have `pal` in scope.
+                ctx.fillStyle = (this.palette && this.palette.solid) || '#080010';
                 ctx.fillRect(baseX + 1, y + 6 + len - 1, 2, 1);
                 // Gold trim accent
                 ctx.fillStyle = '#c0a040';
