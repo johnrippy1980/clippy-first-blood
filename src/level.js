@@ -1780,11 +1780,59 @@ function makeStagePipeline() {
             { kind: 'sparkCable', x: 84 * GAME.TILE, y: 3 * GAME.TILE },
             { kind: 'flicker',    x: 70 * GAME.TILE, y: 2 * GAME.TILE },
         ],
+        // R423c: route stage 4 → stage 23 (Doom Pipeline Block 11) instead of
+        // the default 4→5. Pipeline Block 11 then chains to stage 5 Boardroom.
+        nextStage: 23,
     };
 }
 
 // R423: Doom-style stage maker. Returns minimal data — doomMode flag flips
 // the engine, doomMap is the 2D tile grid, doomStart sets spawn position.
+
+// R423c: stage 23 PIPELINE: BLOCK 11 — sewer-themed Doom maze between
+// stages 4 and 5. Evil Clippy clones grown in Spindler's lab + mini-boss
+// SPINDLER_UZIS at the exit. Chains back to stage 5 BOARDROOM.
+function makeDoomPipelineBlock11() {
+    return {
+        doomMode: true,
+        name: 'BLOCK 11',
+        theme: 'sewer',
+        music: 'pipeline',
+        bgKey: 'bg_sewer',
+        // 16×16 sewer-pipe maze. Mostly cubicle dividers (tile 1) used as
+        // pipe-bracket walls; a few glass observation panels (3) into the
+        // clone-grow tanks; vending (5) hot-codes Dr Spindler's lab entry.
+        doomMap: [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,1,0,3,3,3,0,1,1,1,0,0,1],
+            [1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,1,0,0,0,3,0,3,0,0,0,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,1],
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
+            [1,0,3,0,1,0,0,5,0,0,1,0,3,0,0,1],
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
+            [1,0,0,0,1,1,1,0,1,1,1,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,1,0,3,3,3,0,1,1,1,0,0,1],
+            [1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        ],
+        doomStart: { x: 2.5, y: 14.5 },
+        // R423c: routes to stage 5 BOARDROOM after clear
+        nextStage: 5,
+        ambientProps: [],
+        // Placeholder enemy/boss data — populated in R423c phase
+        doomEnemies: [],
+        doomBoss: 'SPINDLER_UZIS',
+    };
+}
+
+// R423d: stage 16 FLOOR 11 — post-game Doom-style Microsoft HQ crawl.
+// Surprise SPINDLER_WHEELCHAIR boss with mounted miniguns. Currently
+// replaces the BOSS RUSH MODE tile (which moves to a title-screen mode).
 function makeDoomFloor11() {
     return {
         doomMode: true,
@@ -1815,6 +1863,8 @@ function makeDoomFloor11() {
         ],
         doomStart: { x: 2.5, y: 14.5 },
         ambientProps: [],
+        doomEnemies: [],
+        doomBoss: 'SPINDLER_WHEELCHAIR',
     };
 }
 
@@ -1835,14 +1885,14 @@ export const STAGE_LOADERS = [
     () => makeStage8(),                // R291: stage 13 THE CLOUD (was 11)
     () => makeStage9(),                // R291: stage 14 secret RECYCLE BIN (was 12)
     () => makeTraining(),              // R291: stage 15 TRAINING GROUND (was 13)
-    () => makeBossRushMode(),          // R291: stage 16 BOSS RUSH MODE (was 14)
+    () => makeDoomFloor11(),           // R423d: stage 16 was BOSS RUSH MODE — now FLOOR 11 Doom-mode (boss rush graduates to title-menu unlocked mode)
     () => makeTimeTrial(),             // R291: stage 17 TIME TRIAL (was 15)
     () => makeStage13(),               // R291: stage 18 REALITY DISTORTION FIELD (was 16)
     () => makeFpsStage(),                    // R291: stage 19 CORE BREACH (was 17)
     () => makeBeatEmUpMechaApproach(),       // R306: stage 20 MECHA APPROACH (beat-em-up)
     () => makeStageMechaHelicopter(),        // R334: stage 21 MECHA CORRIDOR — side-scrolling helicopter chase (was FPS)
     () => makeBeatEmUpMechaGates(),          // R335: stage 22 MECHA-GATES — beat-em-up final (was FPS)
-    () => makeDoomFloor11(),                 // R423: stage 23 FLOOR 11 — first-person Doom-style hallway crawl
+    () => makeDoomPipelineBlock11(),         // R423c: stage 23 PIPELINE: BLOCK 11 — Doom-style sewer crawl between stages 4 and 5
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so

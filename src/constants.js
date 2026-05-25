@@ -164,7 +164,9 @@ export const STAGES = [
     // Side stages — displayId uses S/P prefix so they read as bonus content.
     { id: 14, name: 'THE RECYCLE BIN',          category: 'secret',   displayId: 'S1', theme: THEME.SERVERROOM,  boss: 'SHREDDER',      music: 'recycleBin', tagline: 'SECRET — EVERY DELETED FILE WAITS HERE' },
     { id: 15, name: 'TRAINING GROUND',          category: 'extra',    displayId: 'T',  theme: THEME.JUNGLE,      boss: null,            music: 'training',   tagline: 'NOBODY DIES HERE' },
-    { id: 16, name: 'BOSS RUSH MODE',           category: 'postgame', displayId: 'P1', theme: THEME.SERVERROOM,  boss: 'GAUNTLET_FULL', music: 'bossRushMode', tagline: 'POST-GAME — NO TALKING. JUST FIGHTING.' },
+    // R423d: BOSS RUSH MODE moves to title-screen unlocked mode (not a stage tile).
+    // Slot 16 now holds FLOOR 11 — Doom-style super-secret post-game crawl.
+    { id: 16, name: 'FLOOR 11',                  category: 'postgame', displayId: 'P1', theme: THEME.SERVERROOM,  boss: 'SPINDLER_WHEELCHAIR', music: 'bossBattle', tagline: 'POST-GAME — SPINDLER RETURNS. WORSE.' },
     { id: 17, name: 'TIME TRIAL',               category: 'postgame', displayId: 'P2', theme: THEME.JUNGLE,      boss: 'COPIER_3000',   music: 'timeTrial',    tagline: 'POST-GAME — BEAT THE CLOCK.' },
     { id: 18, name: 'REALITY DISTORTION FIELD', category: 'postgame', displayId: 'P3', theme: THEME.REALITY,    boss: 'JOBS',          music: 'realityField', tagline: 'POST-GAME — ONE MORE TITAN.' },
     { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'dreamsFade', tagline: 'POST-GAME — THE DEEPER LAB.' },
@@ -173,8 +175,9 @@ export const STAGES = [
     { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
     { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'HELICOPTER',    music: 'recycleBin', tagline: 'SUPER SECRET — CHOPPER CHASE',   introBgKey: 'bg_apocalypse' },
     { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
-    // R423: stage 23 — Doom-style first-person crawl through Microsoft Floor 11.
-    { id: 23, name: 'FLOOR 11',                 category: 'postgame', displayId: 'P8', theme: THEME.SERVERROOM, boss: 'GATES',         music: 'bossBattle', tagline: 'SUPER SECRET — KICK IN THE DOOR.' },
+    // R423c: stage 23 — Doom-style sewer crawl between stages 4 and 5.
+    // Stage 4 chains here via nextStage: 23; stage 23 chains to 5 BOARDROOM.
+    { id: 23, name: 'BLOCK 11',                 category: 'campaign', displayId: '4B', theme: THEME.SEWER,      boss: 'SPINDLER_UZIS', music: 'pipeline',  tagline: 'WHATEVER HE\'S BUILDING DOWN HERE — KILL IT' },
 ];
 
 // Damage flash colors per source.
