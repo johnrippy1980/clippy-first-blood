@@ -243,6 +243,14 @@ export class Game {
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
+        // R421/R422: screen-flash overlay — short colored wash painted just
+        // before scanlines so big moments (weapon pickup, grenade pop, boss
+        // kill) get a tactile screen-level beat. flashFrames counts down,
+        // flashColor + flashAlphaPeak define the wash.
+        this._flashFrames = 0;
+        this._flashTotal = 0;
+        this._flashColor = '#ffffff';
+        this._flashAlphaPeak = 0.5;
         // Mode flags — explicit init so HUD reads + title-screen lookups
         // never see `undefined` before the first _startStage runs.
         this.trainingMode = false;
@@ -1288,6 +1296,20 @@ export class Game {
         ctx.globalAlpha = 1;
     }
 
+    // R421/R422: kick a colored full-screen wash for `frames` frames at peak
+    // alpha `alpha`. Linearly fades from peak → 0 over the lifetime. Use for
+    // weapon pickups (weapon color), grenade pop (white), boss kill (warm
+    // orange), etc. Multiple calls within the same frame OR before previous
+    // expired: longer-lived + higher-alpha wins.
+    triggerScreenFlash(frames = 8, color = '#ffffff', alpha = 0.5) {
+        if (frames > this._flashFrames || alpha > this._flashAlphaPeak) {
+            this._flashFrames = Math.max(this._flashFrames, frames);
+            this._flashTotal = Math.max(this._flashTotal, frames);
+            this._flashColor = color;
+            this._flashAlphaPeak = Math.max(this._flashAlphaPeak, alpha);
+        }
+    }
+
     // ============== play ==============
     triggerSlowMo(frames = 30) {
         this.slowMoFrames = Math.max(this.slowMoFrames || 0, frames);
@@ -1786,6 +1808,18 @@ export class Game {
         // Grass tips paint OVER player + enemies so the hidden read is sold.
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);
+        // R421/R422: screen-flash overlay — colored full-screen wash that
+        // fades from peak alpha → 0 across its lifetime.
+        if (this._flashFrames > 0) {
+            const t = this._flashFrames / Math.max(1, this._flashTotal);
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, Math.min(1, this._flashAlphaPeak * t));
+            ctx.fillStyle = this._flashColor;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            ctx.restore();
+            this._flashFrames--;
+            if (this._flashFrames === 0) { this._flashTotal = 0; this._flashAlphaPeak = 0; }
+        }
         // Soft corner vignette — subtly darkens the screen edges so the eye
         // gravitates to the gameplay center. r102: peak edge alpha dropped
         // from 0.22 (0.55 × 0.4) to ~0.15 (0.42 × 0.35) after the r100/r101

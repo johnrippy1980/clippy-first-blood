@@ -1959,8 +1959,12 @@ export class Player {
         particles.explosion(cx, cy, '#ff5050', 14);
         particles.shockRing(cx, cy, R, 18, '#ffe070');
         particles.shockRing(cx, cy, R + 8, 24, '#ff8030');
+        // R422: massive expanding outer ring + white screen flash so the
+        // grenade reads as ORDNANCE, not a firecracker.
+        particles.shockRing(cx, cy, R + 20, 30, '#fff');
         audio.sfx('explode');
-        this.requestShake = Math.max(this.requestShake || 0, 5);
+        this.requestShake = Math.max(this.requestShake || 0, 7);
+        game?.triggerScreenFlash?.(6, '#ffffff', 0.55);
     }
 
     // Called by EnemyManager when a bullet hits an enemy.
@@ -2207,6 +2211,10 @@ export class Player {
                 particles.floatingText(cx, this.y - 4, label, w.color, 80, -0.5, 2);
                 // HUD glyph flash flag — read by hud.js
                 this.weaponPickupFlash = 30;
+                // R421: full-screen wash in the weapon's color so the swap
+                // reads as a tactile beat, not just a particle puff.
+                const game = (typeof window !== 'undefined') ? window.__game : null;
+                game?.triggerScreenFlash?.(8, w.color, 0.35);
                 // Append to inventory if not present (keep MG in slot 0).
                 // Cap total slots at 4 so the cycle stays readable; oldest
                 // non-MG slot drops off on overflow.
