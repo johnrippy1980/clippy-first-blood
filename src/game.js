@@ -711,33 +711,43 @@ export class Game {
         // string so the wrap is invisible even at large widths.
         // R369: was "EIGHT TARGETS" but the game has 13+ bosses now after
         // the post-game + Mecha trilogy. Refreshed to current scope.
-        const sub = 'A REVENGE STORY  -  TWELVE TARGETS  -  ONE PAPERCLIP  -  ';
-        const subW = sub.length * 6;
-        const sx = -((tb * 0.7) % subW);
-        ctx.globalAlpha = 0.65;
-        drawText(ctx, sub + sub + sub, sx, 90, '#c0a0d0', 1, 'left');
-        ctx.globalAlpha = 1;
+        // R394: marquee is at y=90 but the MAIN_MENU panel (when layered
+        // on top) starts at y=95. Bottom half of the marquee was leaking
+        // around the panel — visible as "TORY · TRACKS · PAPERCLI"
+        // fragments behind the START GAME entry. Suppress when the menu
+        // is up so the panel sits cleanly on the painted title bg.
+        if (this.scene !== SCENE.MAIN_MENU) {
+            const sub = 'A REVENGE STORY  -  TWELVE TARGETS  -  ONE PAPERCLIP  -  ';
+            const subW = sub.length * 6;
+            const sx = -((tb * 0.7) % subW);
+            ctx.globalAlpha = 0.65;
+            drawText(ctx, sub + sub + sub, sx, 90, '#c0a0d0', 1, 'left');
+            ctx.globalAlpha = 1;
+        }
         // Edge fade — paint short black gradients at the left + right ends
         // of the marquee band so half-letters disappear into the dark
         // instead of being clipped mid-glyph by the canvas edge.
-        const fadeW = 22;
-        const fadeY = 88, fadeH = 11;
-        // Cache the two gradient fills — pure black, never animate, no need
-        // to rebuild every frame. Was allocating 2 gradients per title tick
-        // (~120 GC pressure/sec on the title screen).
-        if (!this._titleMarqueeFades) {
-            const fL = ctx.createLinearGradient(0, 0, fadeW, 0);
-            fL.addColorStop(0, 'rgba(0,0,0,1)');
-            fL.addColorStop(1, 'rgba(0,0,0,0)');
-            const fR = ctx.createLinearGradient(GAME.W - fadeW, 0, GAME.W, 0);
-            fR.addColorStop(0, 'rgba(0,0,0,0)');
-            fR.addColorStop(1, 'rgba(0,0,0,1)');
-            this._titleMarqueeFades = { L: fL, R: fR };
+        // R394: skip when main menu is up (no marquee to fade).
+        if (this.scene !== SCENE.MAIN_MENU) {
+            const fadeW = 22;
+            const fadeY = 88, fadeH = 11;
+            // Cache the two gradient fills — pure black, never animate, no need
+            // to rebuild every frame. Was allocating 2 gradients per title tick
+            // (~120 GC pressure/sec on the title screen).
+            if (!this._titleMarqueeFades) {
+                const fL = ctx.createLinearGradient(0, 0, fadeW, 0);
+                fL.addColorStop(0, 'rgba(0,0,0,1)');
+                fL.addColorStop(1, 'rgba(0,0,0,0)');
+                const fR = ctx.createLinearGradient(GAME.W - fadeW, 0, GAME.W, 0);
+                fR.addColorStop(0, 'rgba(0,0,0,0)');
+                fR.addColorStop(1, 'rgba(0,0,0,1)');
+                this._titleMarqueeFades = { L: fL, R: fR };
+            }
+            ctx.fillStyle = this._titleMarqueeFades.L;
+            ctx.fillRect(0, fadeY, fadeW, fadeH);
+            ctx.fillStyle = this._titleMarqueeFades.R;
+            ctx.fillRect(GAME.W - fadeW, fadeY, fadeW, fadeH);
         }
-        ctx.fillStyle = this._titleMarqueeFades.L;
-        ctx.fillRect(0, fadeY, fadeW, fadeH);
-        ctx.fillStyle = this._titleMarqueeFades.R;
-        ctx.fillRect(GAME.W - fadeW, fadeY, fadeW, fadeH);
 
         // Press to start (pulsing glow + blink)
         // R236: suppress when MAIN_MENU is layered on top — the menu owns
