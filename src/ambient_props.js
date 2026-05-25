@@ -234,6 +234,32 @@ const KINDS = {
                 p.flashT = 8;
                 p.strokeQueue = (Math.random() < 0.5) ? [4, 6] : [3];
                 p.cd = 240 + Math.random() * 360;
+                // R411b: pre-compute the BOLT path for this strike so it
+                // doesn't jitter across the flash frames. Random zigzag
+                // from a top point down to the horizon.
+                p.bolt = [];
+                const startX = 32 + Math.random() * (256 - 64);  // GAME.W = 256 assumed
+                let bx = startX;
+                let by = 0;
+                p.bolt.push({ x: bx, y: by });
+                while (by < 140) {
+                    by += 8 + Math.random() * 12;
+                    bx += (Math.random() - 0.5) * 28;
+                    p.bolt.push({ x: bx, y: by });
+                    // Occasional fork
+                    if (Math.random() < 0.18) {
+                        p.bolt.push({ fork: true, x: bx, y: by });
+                        let fbx = bx + (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 10);
+                        let fby = by;
+                        const forkLen = 2 + (Math.random() * 3) | 0;
+                        for (let f = 0; f < forkLen; f++) {
+                            fby += 4 + Math.random() * 8;
+                            fbx += (Math.random() - 0.5) * 12;
+                            p.bolt.push({ x: fbx, y: fby });
+                        }
+                        p.bolt.push({ resume: true, x: bx, y: by });
+                    }
+                }
             }
             if (p.flashT > 0) {
                 p.flashT--;
@@ -247,9 +273,40 @@ const KINDS = {
             const a = p.flashT / 10;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
+            // Full-screen white wash
             ctx.globalAlpha = 0.55 * a;
             ctx.fillStyle = '#dde6ff';
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            // R411b: draw the actual BOLT — bright white core + cyan glow.
+            if (p.bolt && p.bolt.length > 1) {
+                // Glow outline
+                ctx.globalAlpha = 0.65 * a;
+                ctx.strokeStyle = '#a0c8ff';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                let resumeAt = null;
+                for (let i = 0; i < p.bolt.length; i++) {
+                    const pt = p.bolt[i];
+                    if (pt.fork) { resumeAt = { x: pt.x, y: pt.y }; ctx.moveTo(pt.x, pt.y); continue; }
+                    if (pt.resume) { ctx.moveTo(pt.x, pt.y); continue; }
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                ctx.stroke();
+                // Bright white core
+                ctx.globalAlpha = 0.95 * a;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < p.bolt.length; i++) {
+                    const pt = p.bolt[i];
+                    if (pt.fork || pt.resume) { ctx.moveTo(pt.x, pt.y); continue; }
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                ctx.stroke();
+            }
             ctx.restore();
         },
     },
