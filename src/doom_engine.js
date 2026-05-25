@@ -89,10 +89,41 @@ export class DoomEngine {
             rageFrames: 0,
             rageMaxFrames: 300,
             rageUsedThisStage: false,
+            // R423b: weapon inventory. mg/shotgun/chainsaw/bfg. Only mg owned
+            // at spawn; pickups grant the others. weaponIdx is the active slot.
+            weapons: {
+                mg:       { owned: true,  cooldown: 0, rate: 4,  ammo: Infinity, name: 'MG' },
+                shotgun:  { owned: false, cooldown: 0, rate: 28, ammo: 0,        name: 'SHOTGUN' },
+                chainsaw: { owned: false, cooldown: 0, rate: 6,  ammo: Infinity, name: 'CHAINSAW' },
+                bfg:      { owned: false, cooldown: 0, rate: 90, ammo: 0,        name: 'BFG' },
+            },
+            weaponIdx: 0,   // 0=mg, 1=shotgun, 2=chainsaw, 3=bfg
+            muzzleFlash: 0, // counts down; > 0 = draw flash overlay
         };
 
         // Z-buffer per column for sprite occlusion in later phases.
         this.zbuffer = new Float32Array(NUM_COLS);
+
+        // R423b: click-to-lock-mouse. Listener installed once; the engine
+        // owns the canvas listener so other scenes aren't affected (the
+        // pointer is auto-released on scene change).
+        this._installPointerLockOnce();
+    }
+
+    _installPointerLockOnce() {
+        if (typeof document === 'undefined') return;
+        if (DoomEngine._lockListenerInstalled) return;
+        const canvas = document.getElementById('screen');
+        if (!canvas) return;
+        canvas.addEventListener('click', () => {
+            // Only request when a Doom scene is the active engine; cheap
+            // guard so we don't capture pointer in other scenes.
+            const g = (typeof window !== 'undefined') ? window.__game : null;
+            if (g && g._doomEngine && g.scene === 'doomPlay') {
+                input.requestPointerLock?.();
+            }
+        });
+        DoomEngine._lockListenerInstalled = true;
     }
 
     update() {
@@ -104,23 +135,78 @@ export class DoomEngine {
         const ax = input.axis();
         const p = this.player;
         const rageMul = p.rageFrames > 0 ? 1.5 : 1;
-        // Turn with left/right
-        if (ax.x < -0.1) p.angle -= TURN_SPEED * rageMul;
-        else if (ax.x > 0.1) p.angle += TURN_SPEED * rageMul;
-        // Forward/back with up/down — collision-aware
+        // R423b: modern Doom controls.
+        //  W/S = forward/back (axis.y, negative = up = forward)
+        //  A/D = STRAFE left/right (axis.x)
+        //  Mouse X = turn (yaw)
+        // Mouse-look — consume delta. Scaled so a slow drag turns naturally.
+        const md = input.getMouseDelta?.() || { dx: 0, dy: 0 };
+        if (md.dx) p.angle += md.dx * 0.0035 * rageMul;
+        // Forward/back (along view vector)
         if (Math.abs(ax.y) > 0.1) {
             const sp = MOVE_SPEED * rageMul * (ax.y < 0 ? 1 : -0.7);
-            const dx = Math.cos(p.angle) * sp;
-            const dy = Math.sin(p.angle) * sp;
-            this._moveBy(dx, dy);
+            this._moveBy(Math.cos(p.angle) * sp, Math.sin(p.angle) * sp);
         }
-        // Strafe with Q/E (mapped via custom keymap later); for now hold
-        // shift for strafe-instead-of-turn so it's playable with axis-only.
-        if (input.isHeld?.('shoot')) {
-            // Placeholder for future fire
+        // Strafe (perpendicular to view vector)
+        if (Math.abs(ax.x) > 0.1) {
+            const sp = STRAFE_SPEED * rageMul * (ax.x > 0 ? 1 : -1);
+            // Right perpendicular = (cos(a+90°), sin(a+90°)) = (-sin a, cos a)
+            this._moveBy(-Math.sin(p.angle) * sp, Math.cos(p.angle) * sp);
         }
+        // Weapon switching: 1/2/3/4 keys mapped via raw event listener
+        // (input.js doesn't have these in KEYMAP). Check window event flags.
+        this._pollWeaponSwitch();
+        // Fire on shoot held (cooldown gated)
+        const w = this._activeWeapon();
+        if (w.cooldown > 0) w.cooldown--;
+        if (input.isHeld?.('shoot') && w.cooldown <= 0 && w.owned && (w.ammo > 0 || w.ammo === Infinity)) {
+            this._fire();
+        }
+        if (p.muzzleFlash > 0) p.muzzleFlash--;
         if (p.rageFrames > 0) p.rageFrames--;
         if (p.iframes > 0) p.iframes--;
+    }
+
+    _activeWeapon() {
+        const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
+        return this.player.weapons[keys[this.player.weaponIdx]];
+    }
+
+    _pollWeaponSwitch() {
+        // Install one-time number-key listener that flags a pending switch.
+        if (!this._numListener) {
+            this._numListener = true;
+            this._pendingSwitch = null;
+            window.addEventListener('keydown', (e) => {
+                if (e.key === '1') this._pendingSwitch = 0;
+                else if (e.key === '2') this._pendingSwitch = 1;
+                else if (e.key === '3') this._pendingSwitch = 2;
+                else if (e.key === '4') this._pendingSwitch = 3;
+            });
+        }
+        if (this._pendingSwitch != null) {
+            const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
+            const w = this.player.weapons[keys[this._pendingSwitch]];
+            if (w && w.owned) {
+                this.player.weaponIdx = this._pendingSwitch;
+                audio.sfx?.('select');
+            }
+            this._pendingSwitch = null;
+        }
+    }
+
+    _fire() {
+        const p = this.player;
+        const w = this._activeWeapon();
+        w.cooldown = w.rate;
+        if (w.ammo !== Infinity) w.ammo--;
+        p.muzzleFlash = 5;
+        // Per-weapon SFX cue. Painted gun art will replace these flat
+        // beats later; for now the audio carries the differentiation.
+        if (w === p.weapons.mg)       audio.sfx?.('mg');
+        else if (w === p.weapons.shotgun)  audio.sfx?.('explode');
+        else if (w === p.weapons.chainsaw) audio.sfx?.('hit');
+        else if (w === p.weapons.bfg)      audio.sfx?.('powerup');
     }
 
     _moveBy(dx, dy) {
@@ -153,8 +239,76 @@ export class DoomEngine {
         ctx.fillRect(0, VIEW_H / 2, W, VIEW_H / 2);
 
         this._raycast();
+        this._drawWeapon();
         this._drawHud();
         this._drawMinimap();
+    }
+
+    // R423b: first-person weapon view + muzzle flash overlay. For now a
+    // vector approximation (grey gun barrel, white flash). Painted gun
+    // frames swap in later via this same draw position.
+    _drawWeapon() {
+        const ctx = this.ctx;
+        const p = this.player;
+        const w = this._activeWeapon();
+        // Gun sits bottom-center. Different silhouette per weapon so the
+        // active gun reads even before painted art lands.
+        const baseY = VIEW_H - 4;
+        ctx.save();
+        ctx.fillStyle = '#181820';
+        if (w === p.weapons.mg) {
+            // MG: thin horizontal barrel + receiver block
+            ctx.fillRect(W / 2 - 22, baseY - 18, 44, 18);
+            ctx.fillStyle = '#404048';
+            ctx.fillRect(W / 2 - 4, baseY - 30, 8, 16);
+        } else if (w === p.weapons.shotgun) {
+            // Shotgun: short fat double-barrel
+            ctx.fillRect(W / 2 - 26, baseY - 22, 52, 22);
+            ctx.fillStyle = '#5e2818';
+            ctx.fillRect(W / 2 - 26, baseY - 8, 52, 8);   // wood stock
+            ctx.fillStyle = '#202028';
+            ctx.fillRect(W / 2 - 6, baseY - 34, 12, 14);  // dual barrels
+        } else if (w === p.weapons.chainsaw) {
+            // Chainsaw: vertical blade with teeth
+            ctx.fillRect(W / 2 - 16, baseY - 28, 32, 28);
+            ctx.fillStyle = '#a0a0a8';
+            ctx.fillRect(W / 2 - 4, baseY - 56, 8, 28);
+            ctx.fillStyle = '#ffe070';
+            for (let i = 0; i < 7; i++) {
+                ctx.fillRect(W / 2 - 5, baseY - 54 + i * 4, 2, 2);
+                ctx.fillRect(W / 2 + 3, baseY - 54 + i * 4, 2, 2);
+            }
+        } else if (w === p.weapons.bfg) {
+            // BFG: huge green-glowing barrel block
+            ctx.fillRect(W / 2 - 32, baseY - 30, 64, 30);
+            ctx.fillStyle = '#206030';
+            ctx.fillRect(W / 2 - 12, baseY - 44, 24, 18);
+            ctx.fillStyle = '#80ff80';
+            ctx.fillRect(W / 2 - 6, baseY - 38, 12, 8);
+        }
+        ctx.restore();
+        // Muzzle flash — radial white-yellow burst at barrel tip
+        if (p.muzzleFlash > 0) {
+            const fT = p.muzzleFlash / 5;
+            const fx = W / 2;
+            const fy = (w === p.weapons.bfg) ? baseY - 36 :
+                       (w === p.weapons.shotgun) ? baseY - 30 :
+                       (w === p.weapons.chainsaw) ? baseY - 50 :
+                       baseY - 24;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.85 * fT;
+            const r = 18 * fT + 4;
+            const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+            grad.addColorStop(0, w === p.weapons.bfg ? '#a0ff80' : '#ffffff');
+            grad.addColorStop(0.4, w === p.weapons.bfg ? '#50d040' : '#ffd060');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(fx, fy, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
     _raycast() {
@@ -227,9 +381,19 @@ export class DoomEngine {
             ctx.fillStyle = i < p.hp ? '#ff4040' : '#400808';
             ctx.fillRect(6 + i * 7, y + 6, 5, 8);
         }
-        drawText(ctx, 'CLIPPY: FLOOR 11', 6, y + 18, '#a0a0b0', 1, 'left');
-        // Right side — placeholder ammo
-        drawText(ctx, 'MG ∞', W - 6, y + 8, '#ffe070', 1, 'right');
+        drawText(ctx, this.data.name || 'FLOOR 11', 6, y + 18, '#a0a0b0', 1, 'left');
+        // Right side — active weapon + ammo
+        const w = this._activeWeapon();
+        const ammoStr = w.ammo === Infinity ? '∞' : String(w.ammo);
+        drawText(ctx, `${w.name} ${ammoStr}`, W - 6, y + 8, '#ffe070', 1, 'right');
+        // Weapon slots 1-4: dim = unowned, bright = owned, yellow = active
+        const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
+        for (let i = 0; i < 4; i++) {
+            const w2 = this.player.weapons[keys[i]];
+            const isActive = (this.player.weaponIdx === i);
+            const col = isActive ? '#ffe070' : (w2.owned ? '#a0a0b8' : '#404048');
+            drawText(ctx, String(i + 1), W - 96 + i * 22, y + 18, col, 1, 'left');
+        }
     }
 
     _drawMinimap() {

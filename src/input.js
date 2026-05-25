@@ -35,6 +35,10 @@ class Input {
         this.aimAngle = 0;
         this.aimActive = false;       // true when mouse moved or stick non-zero
         this.mouseX = 0; this.mouseY = 0;
+        // R423b: relative mouse motion for Doom-mode look. Accumulated each
+        // mousemove, consumed (zeroed) by getMouseDelta() once per frame.
+        this.mouseDx = 0; this.mouseDy = 0;
+        this.pointerLocked = false;
 
         window.addEventListener('keydown', e => this._down(KEYMAP[e.key]));
         window.addEventListener('keyup', e => this._up(KEYMAP[e.key]));
@@ -75,6 +79,20 @@ class Input {
             this.mouseX = sx;
             this.mouseY = sy;
             this.aimActive = true;
+            // R423b: accumulate relative motion for Doom-mode look. When
+            // pointer is locked, movementX/Y is the true raw delta; when
+            // not locked, fall back to position delta (still usable but
+            // jumpier).
+            if (this.pointerLocked) {
+                this.mouseDx += e.movementX || 0;
+                this.mouseDy += e.movementY || 0;
+            }
+        });
+        // R423b: pointer-lock tracking. Doom engine calls requestLock() on
+        // first canvas click; this state lets gameplay code differentiate
+        // "mouse aim available raw" vs "mouse aim from position only."
+        document.addEventListener('pointerlockchange', () => {
+            this.pointerLocked = (document.pointerLockElement === canvas);
         });
         canvas.addEventListener('mousedown', e => {
             if (e.button === 0) this._down('shoot');
@@ -96,6 +114,24 @@ class Input {
         canvas.addEventListener('mouseup',   e => { if (e.button === 1) this._up('aimlock'); });
         // Hide cursor over canvas — we draw our own reticule
         canvas.style.cursor = 'none';
+    }
+
+    // R423b: consume and clear accumulated mouse delta since last frame.
+    // Used by Doom engine for view-angle turning. Returns { dx, dy }.
+    getMouseDelta() {
+        const dx = this.mouseDx;
+        const dy = this.mouseDy;
+        this.mouseDx = 0;
+        this.mouseDy = 0;
+        return { dx, dy };
+    }
+
+    // R423b: request pointer-lock on the canvas. Browsers require this be
+    // called from a user gesture; the Doom engine calls it from a click
+    // handler. Safe to call when already locked — browser no-ops.
+    requestPointerLock() {
+        const canvas = (typeof document !== 'undefined') ? document.getElementById('screen') : null;
+        if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
     }
 
     // Compute aim relative to a player position. Returns { x, y, angle }.
