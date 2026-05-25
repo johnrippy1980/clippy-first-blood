@@ -3187,18 +3187,43 @@ export class Level {
                     }[theme];
                 }
                 if (coverKey && sprites.has(coverKey)) {
-                    // R353: dropped the rim-glow fillRect — it drew a
-                    // visible translucent rectangle around the sprite
-                    // that read as a square "box" halo against the
-                    // painted parallax bg, especially on jungle trees.
-                    // Painted covers are already silhouetted; no rim.
                     const img = sprites.images.get(coverKey);
                     const drawW = img.width;
                     const drawH = img.height;
                     const dx = x + (T - drawW) / 2;
                     const dy = y + T - drawH;
                     ctx.imageSmoothingEnabled = false;
+                    // R391: painted covers were drawing flat against busy
+                    // painted bgs and reading as featureless black blobs.
+                    // User screenshot of stage 1 showed cover_jungle as a
+                    // "black vector stand." Add a soft amber rim-light
+                    // baked into the sprite via lighter-comp pass + a
+                    // gentle bottom-shadow base. Reads as an interactable
+                    // object instead of background noise.
+                    // Bottom shadow ellipse for grounding
+                    ctx.save();
+                    ctx.globalAlpha = 0.35;
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        Math.round(dx + drawW / 2),
+                        Math.round(dy + drawH),
+                        drawW / 2 + 2, 3, 0, 0, Math.PI * 2,
+                    );
+                    ctx.fill();
+                    ctx.restore();
+                    // Base sprite
                     ctx.drawImage(img, Math.round(dx), Math.round(dy));
+                    // Subtle rim light — paint the silhouette in warm
+                    // amber with low alpha and source-atop so only the
+                    // sprite's pixels lift, not the surrounding rect.
+                    ctx.save();
+                    ctx.globalAlpha = 0.18;
+                    ctx.globalCompositeOperation = 'lighter';
+                    sprites.drawSilhouette(ctx, coverKey, '#a08050', Math.round(dx) - 1, Math.round(dy), false);
+                    sprites.drawSilhouette(ctx, coverKey, '#a08050', Math.round(dx) + 1, Math.round(dy), false);
+                    sprites.drawSilhouette(ctx, coverKey, '#a08050', Math.round(dx), Math.round(dy) - 1, false);
+                    ctx.restore();
                     break;
                 }
                 // R353: removed the rim-glow fillRect — see painted-path
