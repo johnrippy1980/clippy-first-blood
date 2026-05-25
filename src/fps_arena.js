@@ -345,7 +345,12 @@ export class FpsArena {
         this._tickLightning();
         // R386: data-driven ambient props — same as beatem; the top-level
         // play loop doesn't run while FPS_PLAY is active.
-        if (this.game._ambientProps) this.game._ambientProps.update();
+        if (this.game._ambientProps) {
+            this.game._ambientProps.update();
+            for (const p of this.game._ambientProps.props) {
+                if (p._struck) { p._struck = false; this.game.camera.shake?.(3); }
+            }
+        }
         // R273: ambient SFX looper (office fluorescent hum, etc.) — fires
         // the configured ambient key every ~1.2s so the buzz feels continuous.
         if (this.ambientKey) {

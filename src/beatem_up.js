@@ -744,7 +744,12 @@ export class BeatEmUp {
         // BeatEmUp owns its own scroll camera so it needs to tick the
         // game's AmbientPropManager itself — the top-level _tickPlay
         // path doesn't run while we're in BEAT_PLAY scene.
-        if (this.game._ambientProps) this.game._ambientProps.update();
+        if (this.game._ambientProps) {
+            this.game._ambientProps.update();
+            for (const p of this.game._ambientProps.props) {
+                if (p._struck) { p._struck = false; this.game.camera.shake?.(3); }
+            }
+        }
         if (this.phase === 'clear') {
             this.clearT++;
             const autoNext = this.data.nextStage;

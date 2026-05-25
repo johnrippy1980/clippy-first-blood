@@ -234,6 +234,8 @@ const KINDS = {
                 p.flashT = 8;
                 p.strokeQueue = (Math.random() < 0.5) ? [4, 6] : [3];
                 p.cd = 240 + Math.random() * 360;
+                // R416: signal a screen-shake to whoever owns this prop
+                p._struck = true;
                 // R411b: pre-compute the BOLT path for this strike so it
                 // doesn't jitter across the flash frames. Random zigzag
                 // from a top point down to the horizon.

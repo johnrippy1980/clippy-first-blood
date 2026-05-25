@@ -1519,7 +1519,13 @@ export class Game {
         this.stageTime++;
         this.totalTime++;
         this.level.update();
-        if (this._ambientProps) this._ambientProps.update();
+        if (this._ambientProps) {
+            this._ambientProps.update();
+            // R416: lightning strikes flag _struck — kick a small shake
+            for (const p of this._ambientProps.props) {
+                if (p._struck) { p._struck = false; this.camera.shake?.(3); }
+            }
+        }
         // R330: boss lair update + post-fight cleanup
         if (this._bossLair) {
             this._bossLair.update();
