@@ -903,9 +903,35 @@ export class BossLair {
         if (!this.spec || this.state === 'done') return;
         const enter = Math.min(1, this.enterT / BossLair.ENTER_FRAMES);
         const exit = Math.min(1, this.exitT / BossLair.EXIT_FRAMES);
-        const x = Math.round(this.arenaX - camera.viewX);
+        // R389: gate used to sit at arenaX (player's entry point in
+        // world coords). With R383's 2.5x arena + player snapped 48px
+        // in, this put the gate ~80px LEFT of the player ─ which the
+        // camera follows ─ so the painted gate column landed near the
+        // CENTER of the viewport. Looked like a vertical hazard
+        // splitting the boss room in half. User screenshot showed the
+        // COPIER fight with a green vine column down the middle.
+        //
+        // Fix: clamp the gate's screen-x so it never enters the
+        // visible playfield once the boss fight is engaged. It still
+        // draws during the entrance animation (so the player sees it
+        // drop behind them), but once they're past the entrance the
+        // gate hangs off-screen to the LEFT. Players still can't
+        // backtrack (the leftWall collision still applies in world
+        // coords), they just don't see a column splitting the arena.
+        const worldX = this.arenaX;
+        const screenX = worldX - camera.viewX;
+        // If the gate would land in the visible playfield + the
+        // entrance animation is already done, push it offscreen left.
+        const entranceDone = enter >= 1;
+        const fullyVisible = screenX > -this.gateW && screenX < GAME.W;
+        let drawX;
+        if (entranceDone && fullyVisible) {
+            drawX = -this.gateW - 2;
+        } else {
+            drawX = Math.round(screenX);
+        }
         const y = Math.round(this.arenaY + this.arenaH - camera.viewY);
-        drawGate(ctx, x, y, this.gateW, this.arenaH, this.spec, enter, exit);
+        drawGate(ctx, drawX, y, this.gateW, this.arenaH, this.spec, enter, exit);
     }
 
     drawNameTag(ctx) {
