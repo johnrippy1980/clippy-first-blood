@@ -26,9 +26,14 @@ function _buildGrassSprites() {
     // a parabolic bend amount, and a height. Deterministic via fixed seeds so
     // every grass tile looks the same across frames (the SWAY is what differs).
     const blades = [];
-    const BLADE_COLORS_BG = ['#1e3812', '#2a4a1c', '#1a3010', '#244018'];
-    const BLADE_COLORS_FG = ['#4a8024', '#3a6024', '#5a9028', '#3a5818'];
-    const TIP_COLORS = ['#a8c844', '#8eb838', '#c0d860'];
+    // R396: muted tuft palette so the grass blends with the painted
+    // mossy jungle bgs instead of popping as bright neon green bars
+    // (user screenshot showed them as stiff lime stripes against the
+    // dark painted scene). Dropped saturation across BG/FG/TIP by
+    // ~30% — still readable as grass but no longer screams "vector".
+    const BLADE_COLORS_BG = ['#1a2a10', '#243818', '#16280e', '#1e3014'];
+    const BLADE_COLORS_FG = ['#365820', '#2e4820', '#406820', '#2e4416'];
+    const TIP_COLORS = ['#7a983c', '#688830', '#90a850'];
     for (let i = 0; i < 6; i++) {
         // Stable pseudo-random per blade index — no Math.random in render hot path.
         const h = (i * 2654435761) >>> 0;
