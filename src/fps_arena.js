@@ -344,6 +344,17 @@ export class FpsArena {
 
     // ============== tick ==============
     update() {
+        // R420: hitstop on big impacts (boss kill etc) — freeze frame
+        if (this._hitStopFrames > 0) {
+            this._hitStopFrames--;
+            return;
+        }
+        // R420: slow-mo — skip every other tick
+        if (this._slowMoFrames > 0) {
+            this._slowMoFrames--;
+            this._slowMoSkip = !this._slowMoSkip;
+            if (this._slowMoSkip) return;
+        }
         this.t++;
         // R307: ambient embers + lightning. Always tick — visual depth on
         // every frame regardless of phase.
@@ -620,6 +631,9 @@ export class FpsArena {
                                 this._explosion(c.x - 12, c.y + 5, '#ffa040');
                                 this._explosion(c.x + 12, c.y - 5, '#ffa040');
                                 this._shake(7, 26);
+                                // R420: hitstop + slow-mo on FPS boss kill
+                                this._hitStopFrames = Math.max(this._hitStopFrames || 0, 14);
+                                this._slowMoFrames = Math.max(this._slowMoFrames || 0, 60);
                                 this.phase = 'clear';
                                 this.clearT = 0;
                             }

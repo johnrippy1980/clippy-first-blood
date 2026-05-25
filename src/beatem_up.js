@@ -742,6 +742,17 @@ export class BeatEmUp {
 
     // ==== update ====
     update() {
+        // R420: hitstop — freeze ALL ticks for a few frames after big impacts
+        if (this._hitStopFrames > 0) {
+            this._hitStopFrames--;
+            return;
+        }
+        // R420: slow-mo — skip every other tick to halve game speed
+        if (this._slowMoFrames > 0) {
+            this._slowMoFrames--;
+            this._slowMoSkip = !this._slowMoSkip;
+            if (this._slowMoSkip) return;
+        }
         this.t++;
         // R307: ambient particles/lights tick every frame regardless of phase
         this._tickAmbience();
@@ -993,6 +1004,19 @@ export class BeatEmUp {
                         audio.sfx('enemyDie');
                         this._explosion(e.x + e.w / 2, e.y + e.h / 2,
                                          e.type === 'helicopter' ? '#ff8040' : '#a08060');
+                        // R420: boss kill → frame-skip hitstop + slow-mo
+                        if (e.isBoss) {
+                            this._hitStopFrames = Math.max(this._hitStopFrames || 0, 12);
+                            this._slowMoFrames = Math.max(this._slowMoFrames || 0, 60);
+                            this.game?.camera?.shake?.(8);
+                            // Big payoff burst
+                            for (let k = 0; k < 3; k++) {
+                                this._explosion(
+                                    e.x + e.w / 2 + (Math.random() - 0.5) * 24,
+                                    e.y + e.h / 2 + (Math.random() - 0.5) * 16,
+                                    '#ff8040');
+                            }
+                        }
                     } else {
                         audio.sfx('hit');
                     }
