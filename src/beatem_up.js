@@ -1180,15 +1180,35 @@ export class BeatEmUp {
             if (e._isPlayer) this._drawPlayer();
             else this._drawEnemy(e);
         }
-        // Player bullets
+        // R390: bullets used to be 4x2 yellow rects on the busy
+        // painted bgs and got lost. Add a glow underlay + bright core
+        // so they read at a glance.
         for (const b of this.bullets) {
+            const dx = b.x - this.scroll;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#ffa030';
+            ctx.fillRect(dx - 2, b.y - 1, 8, 4);
+            ctx.restore();
             ctx.fillStyle = '#ffe070';
-            ctx.fillRect(b.x - this.scroll, b.y, 4, 2);
+            ctx.fillRect(dx, b.y, 5, 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(dx + 1, b.y, 3, 1);
         }
-        // Enemy bullets
+        // Enemy bullets — red core + halo for menace
         for (const b of this.enemyBullets) {
+            const dx = b.x - this.scroll;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle = '#ff4020';
+            ctx.fillRect(dx - 3, b.y - 2, 8, 5);
+            ctx.restore();
             ctx.fillStyle = '#ff8040';
-            ctx.fillRect(b.x - this.scroll - 1, b.y - 1, 3, 3);
+            ctx.fillRect(dx - 1, b.y - 1, 4, 3);
+            ctx.fillStyle = '#ffe0a0';
+            ctx.fillRect(dx, b.y, 2, 1);
         }
         // R314+R331: typed particles. p.x is world-coords; subtract
         // scroll for the draw call.
@@ -1329,10 +1349,20 @@ export class BeatEmUp {
         // which double-paced everything. Single increment now.
         e._animT = (e._animT || 0) + 1;
         let frameKey = baseKey;
-        const attackTell = e.isBoss && e.attackCD > 0 && e.attackCD < 14;
+        // R390: attack-tell frame now applies to ALL enemies that have
+        // a _3 sprite, not just bosses. User has flagged repeatedly
+        // that enemies "just bounce" — they DO swap frames mid-attack
+        // but only if isBoss=true. Regular brawlers/scavengers/drones
+        // never showed their attack pose. Now they do during the
+        // attack-windup window (last 14f before the swing/shot fires).
+        const attackTell = e.attackCD > 0 && e.attackCD < 14;
         if (e.type === 'scavenger') {
-            const f = Math.floor(e._animT / 8) % 3 + 1;
-            if (sprites.has(`${baseKey}_${f}`)) frameKey = `${baseKey}_${f}`;
+            if (attackTell && sprites.has(`${baseKey}_3`)) {
+                frameKey = `${baseKey}_3`;
+            } else {
+                const f = Math.floor(e._animT / 8) % 3 + 1;
+                if (sprites.has(`${baseKey}_${f}`)) frameKey = `${baseKey}_${f}`;
+            }
         } else if (e.type === 'drone') {
             const f = Math.floor(e._animT / 10) % 2 + 1;
             if (sprites.has(`${baseKey}_${f}`)) frameKey = `${baseKey}_${f}`;
@@ -1374,12 +1404,15 @@ export class BeatEmUp {
         } else if (e.type === 'helicopter') {
             bobY = Math.sin(e._animT * 0.10) * (3 * scale);
         }
-        // Boss-only attack-windup tell — squash + shift before they swing
-        if (e.isBoss && e.attackCD <= 8 && e.attackCD > 0) {
+        // R390: attack-windup tell — squash + shift before they swing.
+        // Was boss-only; non-boss enemies now also rear back so the
+        // player can read the incoming attack and react.
+        if (e.attackCD <= 8 && e.attackCD > 0) {
             const tele = (8 - e.attackCD) / 8;
-            squashY = 1 - tele * 0.10;
-            squashX = 1 + tele * 0.10;
-            bobY -= tele * 2;   // rear back slightly
+            const intensity = e.isBoss ? 0.10 : 0.06;
+            squashY = 1 - tele * intensity;
+            squashX = 1 + tele * intensity;
+            bobY -= tele * (e.isBoss ? 2 : 1);
         }
         // R366: paint sprite at its NATIVE aspect ratio scaled to the
         // hitbox height. Drone is painted ~91x36 (wide), brawler ~30x56
