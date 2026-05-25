@@ -1353,9 +1353,23 @@ class Boss extends Enemy {
                     const mod = (this.phase === 2) ? 4 : 3;
                     const variant = this.attackIndex % mod;
                     if (variant === 0) {
-                        for (let i = 0; i < fan; i++) {
-                            const a = ((i - (fan - 1) / 2) / fan) * 1.4 + (aim < 0 ? Math.PI : 0);
-                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, Math.cos(a) * speed, Math.sin(a) * speed * 0.6, 1);
+                        // R392: was a HUGE 1.4-radian (80°) spray centered
+                        // on the LEFT/RIGHT axis, not aimed at the player.
+                        // Bullets fly upward + downward off-screen — user
+                        // called this "off-camera, confusing." Now: aim
+                        // the cone center AT the player, and tighten the
+                        // spread from 1.4 to 0.6 radians (~35°) so all
+                        // bullets stay in the player's read window.
+                        const cx = this.x + this.w / 2;
+                        const cy = this.y + this.h / 2;
+                        const dx2 = (player.x + player.w / 2) - cx;
+                        const dy2 = (player.y + player.h / 2) - cy;
+                        const aimAng = Math.atan2(dy2, dx2);
+                        const spread = this.isMini ? 0.4 : 0.6;
+                        const minishots = this.isMini ? 3 : fan;
+                        for (let i = 0; i < minishots; i++) {
+                            const a = aimAng + ((i - (minishots - 1) / 2) / minishots) * spread;
+                            const b = new Bullet(cx, cy, Math.cos(a) * speed, Math.sin(a) * speed, 1);
                             b.color = '#d8b890';
                             globalEnemyBullets.push(b);
                         }
