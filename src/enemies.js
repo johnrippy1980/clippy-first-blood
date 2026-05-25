@@ -1739,8 +1739,21 @@ class Boss extends Enemy {
         // boss-intro card, not on the gameplay floor). Falls back to
         // boss_<kind> for the other 7 bosses that don't have a separate
         // enemy sprite.
+        // R386: helicopter has TWO painted assets — the legacy
+        // enemy_HELICOPTER (56x20 NES-icon) and the R357+ helicopter.png
+        // (240x128 Contra-3 Hind). User complained for months that the
+        // chopper still looked small; the platformer boss path was
+        // picking the legacy small asset. Prefer the big one when it's
+        // the HELICOPTER kind.
         const enemyKey = 'enemy_' + this.kind.toLowerCase();
-        const spriteKey = sprites.has(enemyKey) ? enemyKey : 'boss_' + this.kind;
+        let spriteKey;
+        if (this.kind === 'HELICOPTER' && sprites.has('helicopter')) {
+            spriteKey = 'helicopter';
+        } else if (sprites.has(enemyKey)) {
+            spriteKey = enemyKey;
+        } else {
+            spriteKey = 'boss_' + this.kind;
+        }
         if (sprites.has(spriteKey)) {
             // Use PNG, anchored to bottom-center of hitbox
             const dims = getSpriteDims(spriteKey);

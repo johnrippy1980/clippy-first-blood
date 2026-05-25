@@ -639,7 +639,7 @@ export class BeatEmUp {
         this.waveSpawned = true;
     }
 
-    _spawnEnemy({ type, side = 'right', depth = null, x = null, isBoss = false, name = null, hpMul = 1, wMul = 1, hMul = 1 }) {
+    _spawnEnemy({ type, side = 'right', depth = null, x = null, isBoss = false, name = null, hpMul = 1, wMul = 1, hMul = 1, isMechaPhase1 = false, isMechaPhase2 = false }) {
         // Position: side = 'left'/'right' spawns off-screen at that edge.
         // depth = 0..1 maps to STREET_TOP..STREET_BOTTOM.
         // R331: positions are WORLD coords now. Off-screen-left =
@@ -676,6 +676,11 @@ export class BeatEmUp {
             // R337: boss flags
             isBoss,
             name,
+            // R386: phase flags so the draw path can swap to phase-
+            // appropriate art (mech body for phase 1, exposed Bill Gates
+            // sprite for phase 2). Plumbed from level wave specs.
+            isMechaPhase1,
+            isMechaPhase2,
         };
         this.enemies.push(e);
         if (isBoss) this._boss = e;
@@ -1296,12 +1301,22 @@ export class BeatEmUp {
 
     _drawEnemy(e) {
         const ctx = this.ctx;
-        const baseKey = {
+        let baseKey = {
             scavenger:   this.spriteKeys.scavenger   || 'scavenger',
             drone:       this.spriteKeys.drone       || 'drone',
             helicopter:  this.spriteKeys.helicopter  || 'helicopter',
             brawler:     this.spriteKeys.brawler     || 'brawler',
         }[e.type];
+        // R386: phase-specific sprite override for the MECHA-GATES boss.
+        // Phase 1 = boss_mecha_gates (sci-fi mech), phase 2 = boss_GATES
+        // (Bill Gates with chair) so the "mech ejects and the pilot
+        // fights on foot" beat actually READS visually — was just a
+        // smaller scaled brawler before, which didn't sell the story.
+        if (e.isMechaPhase1 && sprites.has('boss_mecha_gates')) {
+            baseKey = 'boss_mecha_gates';
+        } else if (e.isMechaPhase2 && sprites.has('boss_GATES')) {
+            baseKey = 'boss_GATES';
+        }
         // R366: walk-cycle frame selection. Each painted sprite has
         // multi-frame variants <key>_1, <key>_2, (<key>_3). We cycle
         // based on _animT for walk and override to the attack-pose
