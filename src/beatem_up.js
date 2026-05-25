@@ -47,6 +47,19 @@ function depthScale(y) {
     return Math.max(0.6, Math.min(1.05, 0.7 + t * 0.4));
 }
 
+// R414: MECHA-GATES villain barks. Phase 1 = the mech speaks,
+// phase 2 = Bill Gates exposed and panicking.
+const PHASE1_BARKS = [
+    'DELETE THIS', 'BUG REPORT', 'PROCESSING...', 'CRITICAL ERROR',
+    'WINDOWS XP', 'EMBRACE EXTEND', 'YOU HAVE A LICENSE?',
+    'CLIPPY DETECTED', 'COMPILING DOOM',
+];
+const PHASE2_BARKS = [
+    'DEVELOPERS!', 'WHO MOVED MY CHEESE?', 'NOT THE CHAIR',
+    'I OWN MICROSOFT', 'YOU CANT FIRE ME', 'I AM THE MARKET',
+    'HACKERS', 'IM RICH', 'CALL THE LAWYERS',
+];
+
 export class BeatEmUp {
     constructor(stageData, ctx, game) {
         this.ctx = ctx;
@@ -1019,6 +1032,8 @@ export class BeatEmUp {
                         });
                     }
                     audio.sfx('enemyShoot');
+                    // R414: villain bark — random phase-1 taunt
+                    this._barkBoss(e, PHASE1_BARKS);
                 }
                 // R413: MECHA-GATES phase 2 (exposed pilot) — throws
                 // chairs in an arc every ~70 frames. Slower volley but
@@ -1043,6 +1058,8 @@ export class BeatEmUp {
                         });
                     }
                     audio.sfx('enemyShoot');
+                    // R414: villain bark — random phase-2 taunt
+                    this._barkBoss(e, PHASE2_BARKS);
                 }
                 else if (dist < e.fireRange) {
                     e.attackCD = e.fireRange < 30 ? 30 : 60;
@@ -1112,6 +1129,17 @@ export class BeatEmUp {
         p.iframes = 60;
         audio.sfx('playerHit');
         if (p.hp <= 0) this._onPlayerDeath();
+    }
+
+    // R414: villain bark for boss attacks. 33% chance per attack so it
+    // doesn't spam every single volley. Uses floatingText so it drifts
+    // up and fades, like the platformer boss barks.
+    _barkBoss(e, pool) {
+        if (Math.random() > 0.33) return;
+        const text = pool[(Math.random() * pool.length) | 0];
+        const drawX = e.x - this.scroll + e.w / 2;
+        const drawY = e.y - 6;
+        particles.floatingText?.(drawX, drawY, text, '#ff8060', 60, -0.5, 1);
     }
 
     _onPlayerDeath() {
@@ -1396,6 +1424,14 @@ export class BeatEmUp {
         if (this.game._ambientProps) {
             const fakeCam = { viewX: this.scroll, viewY: 0 };
             this.game._ambientProps.draw(ctx, fakeCam);
+        }
+        // R414: villain barks. Use a zero-cam since _barkBoss already
+        // subtracts this.scroll when computing drawX. particles.update
+        // already runs in the top-level game tick so float lifetimes
+        // decay regardless of scene.
+        if (particles.drawFloats) {
+            const zeroCam = { viewX: 0, viewY: 0 };
+            particles.drawFloats(ctx, zeroCam, drawText, drawTextOutlined);
         }
         // HUD
         this._drawHUD();
