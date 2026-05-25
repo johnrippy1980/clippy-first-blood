@@ -2573,27 +2573,29 @@ export class Player {
             drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
             ctx.restore();
         } else if (this.state === STATE.DIE) {
-            // Death pinwheel — Clippy spins helplessly through the air. Spin
-            // speed eases out so the sprite settles before isDead() returns
-            // true and the run ends.
-            ctx.save();
-            ctx.translate(Math.round(cx), Math.round(cy));
-            const spinDir = this._deathSpin || -1;
-            const spinSpeed = Math.max(0.05, 0.4 * (1 - this.deathTimer / 90));
-            ctx.rotate(spinDir * this.deathTimer * spinSpeed);
-            // Red glow halo while falling — sells the "fatal hit" read
-            const glowAlpha = Math.max(0, 0.5 - this.deathTimer / 180);
-            if (glowAlpha > 0.02) {
-                ctx.globalAlpha = glowAlpha;
-                ctx.fillStyle = '#ff2030';
-                ctx.fillRect(-dims.w / 2 - 3, -dims.h / 2 - 3, dims.w + 6, dims.h + 6);
-                ctx.globalAlpha = 1;
+            // R388: was a full-rotation spin + red glow rectangle — user
+            // called this "flying spinning red box." Now: a short
+            // hit-pop tumble (first 18f) that settles into the painted
+            // v2_death sprawled-on-back pose. The painted sprite tells
+            // the death story without needing the procedural halo.
+            const settleAt = 18;
+            const drawX = Math.round(cx - dims.w / 2);
+            const drawY = Math.round(cy - dims.h / 2);
+            if (this.deathTimer < settleAt) {
+                // Brief tumble during the initial pop
+                ctx.save();
+                ctx.translate(Math.round(cx), Math.round(cy));
+                const spinDir = this._deathSpin || -1;
+                const tumbleFrac = this.deathTimer / settleAt;
+                ctx.rotate(spinDir * tumbleFrac * Math.PI * 0.6);
+                drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
+                ctx.restore();
+            } else {
+                // Settled — paint the death sprite face-up, no rotation
+                drawClippyFrame(ctx, frame, drawX, drawY, this.facing < 0);
             }
-            drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
-            ctx.restore();
-            // Periodic spark bursts every 10 frames during the fall, so the
-            // explosion reads as ongoing rather than one big pop at t=0.
-            if (this.deathTimer > 0 && this.deathTimer % 10 === 0 && this.deathTimer < 60) {
+            // A couple of opening spark bursts to sell the hit, then quiet
+            if (this.deathTimer < 20 && this.deathTimer % 6 === 0) {
                 const sx = this.x + this.w / 2 + (Math.random() - 0.5) * 8;
                 const sy = this.y + this.h / 2 + (Math.random() - 0.5) * 8;
                 particles.hitSpark(sx, sy, '#ffe070');
