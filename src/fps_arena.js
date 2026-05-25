@@ -24,6 +24,7 @@ import { input } from './input.js';
 import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { particles } from './particles.js';
+import { RAGE_BARKS } from './player.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 
 // ============== Layout ==============
@@ -679,6 +680,9 @@ export class FpsArena {
         audio.sfx?.('powerup');
         audio.sfx?.('explosion');
         particles.floatingText?.(p.x + p.w / 2, p.y - 10, 'RAGE!!', '#ff3030', 70, -0.9, 1.4);
+        // R418b: bark so the player reads WHY they're invuln
+        const bark = RAGE_BARKS[(Math.random() * RAGE_BARKS.length) | 0];
+        particles.floatingText?.(p.x + p.w / 2, p.y - 26, bark, '#ffe070', 150, -0.35, 1);
         for (let i = 0; i < 16; i++) {
             const a = (i / 16) * Math.PI * 2;
             particles.spawn?.(p.x + p.w / 2, p.y + p.h / 2,

@@ -25,6 +25,7 @@ import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { particles } from './particles.js';
+import { RAGE_BARKS } from './player.js';
 
 // Playable street region — Clippy moves WITHIN this band, no jumping.
 //   STREET_TOP    = far edge of the street (smaller y = "further away")
@@ -1160,6 +1161,10 @@ export class BeatEmUp {
         audio.sfx?.('powerup');
         audio.sfx?.('explosion');
         particles.floatingText?.(p.x, p.y - 10, 'RAGE!!', '#ff3030', 70, -0.9, 1.4);
+        // R418b: bark so the player reads WHY they're invuln
+        const bark = RAGE_BARKS[(Math.random() * RAGE_BARKS.length) | 0];
+        // World-space bark; the beatem floats overlay rides scroll via fakeCam
+        particles.floatingText?.(p.x + (p.w || 0) / 2 + this.scroll, p.y - 26, bark, '#ffe070', 150, -0.35, 1);
         for (let i = 0; i < 16; i++) {
             const a = (i / 16) * Math.PI * 2;
             particles.spawn?.(p.x, p.y + p.h / 2,

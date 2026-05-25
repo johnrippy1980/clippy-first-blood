@@ -110,6 +110,21 @@ const IDLE_BARKS = [
     'NICE WEATHER.',
 ];
 
+// R418b: rage-mode barks. Fires when the comeback mechanic activates so
+// players read what just happened ("RAGE!!" alone reads as flavor — these
+// confirm the rules: invincible, faster, angrier). Kept short so the
+// speech-bubble doesn't overflow the 256px screen.
+export const RAGE_BARKS = [
+    'NOT TODAY.',
+    'BIG MISTAKE.',
+    'CLIPPY UNCAGED!',
+    'NOW I AM AWAKE.',
+    'MY TURN.',
+    'PAPERCLIP OFF.',
+    'NO SUGGESTIONS.',
+    'YOU MAD ME ANGRY.',
+];
+
 export class Player {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -383,6 +398,9 @@ export class Player {
             audio.sfx?.('powerup');
             audio.sfx?.('explosion');
             particles.floatingText(this.x + this.w / 2, this.y - 10, 'RAGE!!', '#ff3030', 70, -0.9, 1.4);
+            // R418b: speech-bubble bark so the player reads WHY they're invuln
+            this._idleBarkText = RAGE_BARKS[(Math.random() * RAGE_BARKS.length) | 0];
+            this._idleBarkTimer = IDLE_BARK_DURATION;
             // Burst of sparks to sell the activation
             for (let i = 0; i < 16; i++) {
                 const a = (i / 16) * Math.PI * 2;
