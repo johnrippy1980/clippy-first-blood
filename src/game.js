@@ -3172,18 +3172,18 @@ export class Game {
             7: 'card_ballmer_arena',
             8: 'card_keynote',
             9: 'card_keynote',          // R291: reuse keynote backdrop for corridor card
-            10: 'card_gates_arena',
-            11: 'card_founder',
-            12: 'card_bossrush',
-            13: 'card_cloud',
-            14: 'card_recyclebin',
+            10: 'card_gates_arena_2026',    // R400: dedicated stage-10 card
+            11: 'card_founder_2026',        // R400: gothic founder's lair (was reusing stage-6 card)
+            12: 'card_bossrush_2026',       // R400: painted door-gallery boss rush
+            13: 'card_cloud_2026',          // R400: data-storm sky platform
+            14: 'card_recyclebin_2026',     // R400: corrupted-files underworld
             // R358: post-game / side stages — repurpose existing thematic
             // cards so every transition has a painted backdrop instead of
             // the fallback gradient. No new assets needed.
             15: 'card_breakroom',       // Training Ground — neutral / warm-up tone
-            16: 'card_bossrush',        // Boss Rush Mode — reuse the original
-            17: 'card_recyclebin',      // Time Trial — same locked-in vibe
-            18: 'card_spindler_lab',    // Reality Distortion Field — Jobs / lab
+            16: 'card_bossrush_2026',   // Boss Rush Mode — same new painted card
+            17: 'card_recyclebin_2026', // Time Trial — same locked-in vibe
+            18: 'card_reality_2026',    // R400: dedicated reality-distortion card (was reusing spindler-lab)
             19: 'card_pipeline',        // Core Breach — sewer-lab deeper
             // R306: Mecha-Gates arc stage cards.
             20: 'card_mecha_approach',

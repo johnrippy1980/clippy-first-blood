@@ -156,6 +156,20 @@ export const SCENE_MANIFEST = {
     'card_bossrush':   'card_stage7_bossrush.png',
     'card_cloud':      'card_stage8_cloud.png',
     'card_recyclebin': 'card_stage9_recyclebin.png',
+    // R400: dedicated painted cards for stages 11, 12, 13, 14 + a brand-new
+    // stage 18 reality-distortion card. Previously stage 10 reused
+    // card_gates_arena (Keynote setting — fine), 11 reused card_founder
+    // (founder lair scene from stage 6 — wrong stage), 12 reused
+    // card_bossrush (existing), 13 reused card_cloud (the keynote-bg
+    // cloud variant — wrong art), 14 reused card_recyclebin (existing
+    // stage 9 art). These v2 variants are NEW painted scenes that
+    // match each stage's actual setting.
+    'card_gates_arena_2026':  'card_stage10_gates_arena.png',
+    'card_founder_2026':      'card_stage11_founder.png',
+    'card_bossrush_2026':     'card_stage12_bossrush.png',
+    'card_cloud_2026':        'card_stage13_cloud.png',
+    'card_recyclebin_2026':   'card_stage14_recyclebin.png',
+    'card_reality_2026':      'card_stage18_reality.png',
     // R281: Ballmer mini-arc cards — office approach, escape cinematic,
     // and arena boss-reveal. Used by STAGE_CARDS (game.js) for stages 6-7
     // and the boss-escapes cinematic between stage 5 and 6.
@@ -243,6 +257,15 @@ export const BG_MANIFEST = {
     // cross-fades when present — flickers the actual painted lights.
     'bg_founder_dark':   'bg_founder_dark.png',
     'bg_breakroom_dark': 'bg_breakroom_dark.png',
+    // R402: dark companions for the remaining 5 themes. Derived
+    // algorithmically from each painted bg (process-r362-dark-bg.py
+    // detects warm window/fire pixels + dims them). Parallax engine
+    // auto-picks <key>_dark variants when present.
+    'bg_jungle_dark':     'bg_jungle_dark.png',
+    'bg_serverroom_dark': 'bg_serverroom_dark.png',
+    'bg_boardroom_dark':  'bg_boardroom_dark.png',
+    'bg_keynote_dark':    'bg_keynote_dark.png',
+    'bg_cloud_dark':      'bg_cloud_dark.png',
     // R190: Stage 13 (Reality Distortion Field) — painted keynote-auditorium
     // backdrop with floating bondi-blue cube iMacs. Falls back to the
     // procedural REALITY palette if the asset isn't loaded.
