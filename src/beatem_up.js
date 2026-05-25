@@ -997,23 +997,71 @@ export class BeatEmUp {
             }
             // Attack
             if (e.attackCD > 0) e.attackCD--;
-            if (e.attackCD <= 0 && dist < e.fireRange) {
-                e.attackCD = e.fireRange < 30 ? 30 : 60;
-                if (e.fireRange < 30) {
-                    // Melee — direct contact damage
-                    this._tryHitPlayer(e.damage);
-                } else {
-                    // Ranged — spawn enemy bullet toward player
-                    const speed = 2.0;
-                    this.enemyBullets.push({
-                        x: e.x + e.w / 2,
-                        y: e.y + e.h / 2,
-                        vx: (dx / dist) * speed,
-                        vy: (dy / dist) * speed,
-                        life: 180,
-                        damage: e.damage,
-                    });
+            if (e.attackCD <= 0) {
+                // R413: MECHA-GATES phase 1 boss — gatling spray attack
+                // every ~80 frames regardless of distance. Fires a 5-shot
+                // fan at the player's last position. Final-boss-tier.
+                if (e.isBoss && e.isMechaPhase1 && (e._patternCD = (e._patternCD || 0) - 1) <= 0) {
+                    e._patternCD = 100;
+                    e.attackCD = 30;
+                    // 5-shot fan aimed at player with 0.5 rad spread
+                    const aimAng = Math.atan2(dy, dx);
+                    const speed = 2.4;
+                    for (let i = 0; i < 5; i++) {
+                        const a = aimAng + ((i - 2) / 4) * 0.5;
+                        this.enemyBullets.push({
+                            x: e.x + e.w / 2,
+                            y: e.y + e.h / 2,
+                            vx: Math.cos(a) * speed,
+                            vy: Math.sin(a) * speed,
+                            life: 180,
+                            damage: e.damage,
+                        });
+                    }
                     audio.sfx('enemyShoot');
+                }
+                // R413: MECHA-GATES phase 2 (exposed pilot) — throws
+                // chairs in an arc every ~70 frames. Slower volley but
+                // each chair is a heavier projectile.
+                else if (e.isBoss && e.isMechaPhase2 && (e._patternCD = (e._patternCD || 0) - 1) <= 0) {
+                    e._patternCD = 90;
+                    e.attackCD = 24;
+                    const speed = 1.8;
+                    const baseAng = Math.atan2(dy, dx);
+                    for (let i = 0; i < 3; i++) {
+                        const a = baseAng + (i - 1) * 0.35;
+                        this.enemyBullets.push({
+                            x: e.x + e.w / 2,
+                            y: e.y + e.h / 2 - 4,
+                            vx: Math.cos(a) * speed,
+                            vy: Math.sin(a) * speed - 0.6,    // slight upward arc
+                            gravity: 0.06,                     // arcs down
+                            life: 200,
+                            damage: e.damage,
+                            color: '#604030',                  // chair brown
+                            big: true,
+                        });
+                    }
+                    audio.sfx('enemyShoot');
+                }
+                else if (dist < e.fireRange) {
+                    e.attackCD = e.fireRange < 30 ? 30 : 60;
+                    if (e.fireRange < 30) {
+                        // Melee — direct contact damage
+                        this._tryHitPlayer(e.damage);
+                    } else {
+                        // Ranged — spawn enemy bullet toward player
+                        const speed = 2.0;
+                        this.enemyBullets.push({
+                            x: e.x + e.w / 2,
+                            y: e.y + e.h / 2,
+                            vx: (dx / dist) * speed,
+                            vy: (dy / dist) * speed,
+                            life: 180,
+                            damage: e.damage,
+                        });
+                        audio.sfx('enemyShoot');
+                    }
                 }
             }
         }
@@ -1025,6 +1073,8 @@ export class BeatEmUp {
         const p = this.player;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
+            // R413: optional per-bullet gravity (chairs arc)
+            if (b.gravity) b.vy += b.gravity;
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
@@ -1257,6 +1307,29 @@ export class BeatEmUp {
         // Enemy bullets — red core + halo for menace
         for (const b of this.enemyBullets) {
             const dx = b.x - this.scroll;
+            // R413: BIG bullets (chairs) draw as 8x8 tumbling block with
+            // wood-grain texture instead of the default 4x3 red bolt.
+            if (b.big) {
+                ctx.save();
+                ctx.globalAlpha = 0.4;
+                ctx.fillStyle = '#000';
+                ctx.fillRect(dx - 5, b.y - 4, 12, 9);
+                ctx.restore();
+                ctx.fillStyle = b.color || '#604030';
+                ctx.fillRect(dx - 4, b.y - 4, 8, 8);
+                // Wood-plank stripes — tumble look via b.life parity
+                ctx.fillStyle = '#3a1f10';
+                if ((b.life & 8) < 4) {
+                    ctx.fillRect(dx - 4, b.y - 2, 8, 1);
+                    ctx.fillRect(dx - 4, b.y + 1, 8, 1);
+                } else {
+                    ctx.fillRect(dx - 2, b.y - 4, 1, 8);
+                    ctx.fillRect(dx + 1, b.y - 4, 1, 8);
+                }
+                ctx.fillStyle = '#806040';
+                ctx.fillRect(dx - 4, b.y - 4, 8, 1);   // highlight
+                continue;
+            }
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.globalAlpha = 0.55;
