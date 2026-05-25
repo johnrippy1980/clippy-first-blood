@@ -138,6 +138,14 @@ export class Player {
         this.knockX = 0;
         this.deathTimer = 0;
 
+        // R418: RAGE MODE — one-shot comeback per stage. Auto-fires the
+        // first frame HP drops to 1, makes Clippy invincible + 50% faster
+        // + 2× fire rate for ~5 seconds. Flashes red/white while active.
+        // rageUsedThisStage gates the trigger; resetForStage() clears it.
+        this.rageFrames = 0;
+        this.rageMaxFrames = 300;   // 5s at 60fps
+        this.rageUsedThisStage = false;
+
         // R180: shield system. Hold B (or LB on gamepad) to raise a bubble
         // shield that absorbs incoming hits. shieldCharge is the remaining
         // hit capacity (0..SHIELD_MAX). Each hit consumed decrements by the
@@ -303,6 +311,9 @@ export class Player {
         this.shieldBreakTimer = 0;
         this.shieldUsedThisStage = false;
         this._shieldNoHitFrames = 0;
+        // R418: rage resets per stage
+        this.rageFrames = 0;
+        this.rageUsedThisStage = false;
         // Full state-machine reset. Without this, a boss-kill that fires
         // while the player is mid-pounce/grapple/roll/slide/cover/dash will
         // carry that state into the next stage, where input is gated by
@@ -359,6 +370,26 @@ export class Player {
         if (this.iFrames > 0) this.iFrames--;
         if (this.weaponPickupFlash > 0) this.weaponPickupFlash--;
         if (this.grenadePickupFlash > 0) this.grenadePickupFlash--;
+        // R418: rage tick + auto-trigger. Fires once per stage the moment
+        // HP drops to the last bar. Plays a sting + spawns a floating text.
+        if (this.rageFrames > 0) {
+            this.rageFrames--;
+            if (this.rageFrames === 0) {
+                particles.floatingText(this.x + this.w / 2, this.y - 6, 'CALM', '#a0c0ff', 50);
+            }
+        } else if (!this.rageUsedThisStage && this.hp > 0 && this.hp <= 1 && this.state !== STATE.DIE) {
+            this.rageFrames = this.rageMaxFrames;
+            this.rageUsedThisStage = true;
+            audio.sfx?.('powerup');
+            audio.sfx?.('explosion');
+            particles.floatingText(this.x + this.w / 2, this.y - 10, 'RAGE!!', '#ff3030', 70, -0.9, 1.4);
+            // Burst of sparks to sell the activation
+            for (let i = 0; i < 16; i++) {
+                const a = (i / 16) * Math.PI * 2;
+                particles.spawn(this.x + this.w / 2, this.y + this.h / 2,
+                    Math.cos(a) * 2.4, Math.sin(a) * 2.4, 24, '#ff5050', 2, 0.05);
+            }
+        }
         // Tick the damage-indicator countdown on the update path, not the draw path
         if (this.lastHurtSrc && this.lastHurtSrc.frames > 0) this.lastHurtSrc.frames--;
         if (this.hurtTimer > 0) this.hurtTimer--;
@@ -895,8 +926,10 @@ export class Player {
         const canMove = !this.aimLocked && this.state !== STATE.PRONE;
         if (canMove && lookX !== 0) {
             this.facing = lookX;
-            const accel = (this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL;
-            const cap = (this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED;
+            // R418: rage boosts ground speed +50% — Clippy SPRINTS through enemies
+            const rageMul = this.rageFrames > 0 ? 1.5 : 1;
+            const accel = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL) * rageMul;
+            const cap = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED) * rageMul;
             // Turn-snap: when input reverses against current momentum, kill a
             // chunk of the opposing velocity so the player doesn't ice-skate
             // through their own turnaround. Only applies on ground — keeps
@@ -1315,7 +1348,9 @@ export class Player {
             return;
         }
         const w = WEAPON[this.weapon];
-        const rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
+        let rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
+        // R418: rage halves fire rate (minimum 2)
+        if (this.rageFrames > 0) rate = Math.max(2, Math.floor(rate / 2));
         this.fireCooldown = rate;
         if (this.weapon === 'MG') {
             this.mgHeat = Math.min(100, this.mgHeat + 8);
@@ -2171,6 +2206,13 @@ export class Player {
 
     hurt(dmg, knockDir = 0, srcX = null, srcY = null) {
         if (this.iFrames > 0 || this.state === STATE.DIE) return;
+        // R418: rage mode — fully invincible, brief deflect spark
+        if (this.rageFrames > 0) {
+            this.iFrames = Math.max(this.iFrames, 8);
+            particles.spawn(this.x + this.w / 2, this.y + this.h / 2,
+                (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3, 12, '#ff8060', 2, 0);
+            return;
+        }
         // Training-ground god mode — show a brief deflect particle so the
         // player sees that an enemy *would* have hit them, but the run
         // continues uninterrupted. Critical for the tutorial flow.
@@ -2700,6 +2742,30 @@ export class Player {
                 ctx.save();
                 ctx.globalAlpha = 0.18 + beat * 0.32;
                 sprites.drawSilhouette(ctx, frame, '#ff3030', drawX, drawY, this.facing < 0);
+                ctx.restore();
+            }
+
+            // R418: RAGE overlay — alternating red/white silhouette flash at
+            // 6Hz + an outward glow halo so Clippy reads as "ON FIRE." Late
+            // in the rage window the glow fades to telegraph "almost over."
+            if (this.rageFrames > 0) {
+                const t = this.rageFrames / this.rageMaxFrames;        // 1 → 0
+                const tail = Math.min(1, this.rageFrames / 45);         // last 45f fades
+                const phase = (performance.now() * 0.025) | 0;
+                const flashCol = (phase % 2 === 0) ? '#ff2020' : '#ffffff';
+                ctx.save();
+                ctx.globalAlpha = 0.55 * tail;
+                sprites.drawSilhouette(ctx, frame, flashCol, drawX, drawY, this.facing < 0);
+                ctx.restore();
+                // Soft radial glow halo — additive
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = (0.3 + 0.2 * Math.sin(performance.now() * 0.02)) * tail;
+                ctx.fillStyle = '#ff4020';
+                ctx.beginPath();
+                ctx.arc(this.x + this.w / 2 - this._cameraX, this.y + this.h / 2 - this._cameraY,
+                        this.h * 0.95, 0, Math.PI * 2);
+                ctx.fill();
                 ctx.restore();
             }
 

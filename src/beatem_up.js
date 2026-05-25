@@ -87,6 +87,10 @@ export class BeatEmUp {
             // (helicopters) without leaving the depth plane.
             airY: 0,
             airVy: 0,
+            // R418: rage mode — see player.js for the parallel implementation
+            rageFrames: 0,
+            rageMaxFrames: 300,
+            rageUsedThisStage: false,
         };
 
         this.bullets = [];        // player shots
@@ -852,10 +856,13 @@ export class BeatEmUp {
     _tickPlayer() {
         const ax = input.axis();
         const p = this.player;
-        p.vx = ax.x * PLAYER_SPEED_X;
+        // R418: rage tick + 1.5× movement boost
+        if (p.rageFrames > 0) p.rageFrames--;
+        const rageMul = p.rageFrames > 0 ? 1.5 : 1;
+        p.vx = ax.x * PLAYER_SPEED_X * rageMul;
         // R409: depth-axis (y) movement only when grounded — once you
         // jump you commit to your current depth row until landing.
-        p.vy = (p.airY <= 0) ? ax.y * PLAYER_SPEED_Y : 0;
+        p.vy = (p.airY <= 0) ? ax.y * PLAYER_SPEED_Y * rageMul : 0;
         p.x += p.vx;
         p.y += p.vy;
         // R409: jump physics. Z = jump (matches global keymap).
@@ -918,7 +925,8 @@ export class BeatEmUp {
         if (p.shootCD > 0) p.shootCD--;
         if (input.isHeld('shoot') && p.shootCD <= 0) {
             this._fire();
-            p.shootCD = BULLET_FIRE_COOLDOWN;
+            // R418: rage halves fire cooldown
+            p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
         }
     }
 
@@ -1130,10 +1138,33 @@ export class BeatEmUp {
 
     _hitPlayer(dmg) {
         const p = this.player;
+        // R418: rage mode blocks the damage entirely
+        if (p.rageFrames > 0) {
+            p.iframes = Math.max(p.iframes, 12);
+            particles.spawn?.(p.x, p.y, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3, 12, '#ff8060', 2, 0);
+            return;
+        }
         p.hp -= dmg;
         p.iframes = 60;
         audio.sfx('playerHit');
         if (p.hp <= 0) this._onPlayerDeath();
+        // R418: auto-trigger rage on the frame HP drops to last bar
+        else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
+    }
+
+    // R418: rage trigger — shared between platformer/beatem/fps for feel parity
+    _triggerRage() {
+        const p = this.player;
+        p.rageFrames = p.rageMaxFrames;
+        p.rageUsedThisStage = true;
+        audio.sfx?.('powerup');
+        audio.sfx?.('explosion');
+        particles.floatingText?.(p.x, p.y - 10, 'RAGE!!', '#ff3030', 70, -0.9, 1.4);
+        for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2;
+            particles.spawn?.(p.x, p.y + p.h / 2,
+                Math.cos(a) * 2.4, Math.sin(a) * 2.4, 24, '#ff5050', 2, 0.05);
+        }
     }
 
     // R414: villain bark for boss attacks. 33% chance per attack so it
@@ -1511,6 +1542,25 @@ export class BeatEmUp {
                     2 + airY / 30,
                     0, 0, Math.PI * 2,
                 );
+                ctx.fill();
+                ctx.restore();
+            }
+            // R418: rage overlay — flashing red halo + additive glow
+            if (p.rageFrames > 0) {
+                const tail = Math.min(1, p.rageFrames / 45);
+                const phase = (performance.now() * 0.025) | 0;
+                const flashCol = (phase % 2 === 0) ? '#ff2020' : '#ffffff';
+                ctx.save();
+                ctx.globalAlpha = 0.45 * tail;
+                ctx.fillStyle = flashCol;
+                ctx.fillRect(drawX, drawY, dw, dh);
+                ctx.restore();
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = (0.3 + 0.2 * Math.sin(performance.now() * 0.02)) * tail;
+                ctx.fillStyle = '#ff4020';
+                ctx.beginPath();
+                ctx.arc(drawX + dw / 2, drawY + dh / 2, dh * 0.95, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
             }

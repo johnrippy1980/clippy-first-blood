@@ -171,14 +171,19 @@ await page.waitForTimeout(1500);
 // AND counts as the title-screen tap-to-start.
 await page.click('#screen');
 await page.waitForTimeout(600);
-// Spam X to traverse title → mainMenu → story (5 pages) → stageIntro.
-// R210 added a MAIN_MENU between title and story (the first X opens it,
-// the second X confirms START GAME), so this needs 9 presses instead of 8.
+// Spam X to traverse title → mainMenu → (selectDifficulty?) → story (N pages,
+// each page needs 2 presses: snap typewriter + advance) → stageIntro. The
+// scene flow has grown over time (R210 menu, R398 difficulty), so instead of
+// a fixed press count, press up to 30 times and stop as soon as we reach
+// stageIntro/ready/play — that way future scene additions won't flake this.
 const sceneTimeline = [];
-for (let i = 0; i < 10; i++) {
+const DONE = new Set(['stageIntro', 'ready', 'play']);
+for (let i = 0; i < 30; i++) {
     await page.keyboard.press('x');
     await page.waitForTimeout(280);
-    sceneTimeline.push(await page.evaluate(() => window.__game.scene));
+    const s = await page.evaluate(() => window.__game.scene);
+    sceneTimeline.push(s);
+    if (DONE.has(s)) break;
 }
 // Give stageIntro time to finish its hold + fade-out to ready/play
 await page.waitForTimeout(2000);

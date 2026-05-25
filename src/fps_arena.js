@@ -23,6 +23,7 @@ import { GAME } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { sprites } from './sprites.js';
+import { particles } from './particles.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 
 // ============== Layout ==============
@@ -94,6 +95,10 @@ export class FpsArena {
             facing: 0,
             runFrame: 0,
             score: 0,
+            // R418: rage mode parity with platformer + beatem
+            rageFrames: 0,
+            rageMaxFrames: 300,
+            rageUsedThisStage: false,
         };
 
         // Entity pools — populated per segment
@@ -447,7 +452,10 @@ export class FpsArena {
     _tickPlayer() {
         const ax = input.axis();
         const p = this.player;
-        p.x += ax.x * PLAYER_SPEED;
+        // R418: rage tick + 1.5× movement
+        if (p.rageFrames > 0) p.rageFrames--;
+        const rageMul = p.rageFrames > 0 ? 1.5 : 1;
+        p.x += ax.x * PLAYER_SPEED * rageMul;
         if (p.x < PLAYER_X_MIN) p.x = PLAYER_X_MIN;
         if (p.x > PLAYER_X_MAX) p.x = PLAYER_X_MAX;
         if (Math.abs(ax.x) > 0.1) p.runFrame = (p.runFrame + 0.25) % 4;
@@ -482,7 +490,8 @@ export class FpsArena {
         if (p.shootCD > 0) p.shootCD--;
         if (input.isHeld('shoot') && p.shootCD <= 0) {
             this._fire();
-            p.shootCD = BULLET_FIRE_COOLDOWN;
+            // R418: rage halves fire cooldown
+            p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
         }
     }
 
@@ -642,13 +651,38 @@ export class FpsArena {
             if (p.iframes <= 0 &&
                 b.x >= p.x - hitW/2 && b.x <= p.x + p.w + hitW/2 &&
                 b.y >= p.y - hitH/2 && b.y <= p.y + p.h + hitH/2) {
-                // Chairs do 2 damage (heavier projectile)
-                p.hp -= b.isChair ? 2 : 1;
-                p.iframes = 60;
+                this._damagePlayer(b.isChair ? 2 : 1);
                 this.enemyBullets.splice(i, 1);
-                audio.sfx('playerHit');
-                if (p.hp <= 0) this._onPlayerDeath();
             }
+        }
+    }
+
+    // R418: shared damage path for FPS — gated by rage mode, auto-triggers
+    // rage on the frame HP drops to 1.
+    _damagePlayer(dmg) {
+        const p = this.player;
+        if (p.rageFrames > 0) {
+            p.iframes = Math.max(p.iframes, 12);
+            return;
+        }
+        p.hp -= dmg;
+        p.iframes = 60;
+        audio.sfx('playerHit');
+        if (p.hp <= 0) this._onPlayerDeath();
+        else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
+    }
+
+    _triggerRage() {
+        const p = this.player;
+        p.rageFrames = p.rageMaxFrames;
+        p.rageUsedThisStage = true;
+        audio.sfx?.('powerup');
+        audio.sfx?.('explosion');
+        particles.floatingText?.(p.x + p.w / 2, p.y - 10, 'RAGE!!', '#ff3030', 70, -0.9, 1.4);
+        for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2;
+            particles.spawn?.(p.x + p.w / 2, p.y + p.h / 2,
+                Math.cos(a) * 2.4, Math.sin(a) * 2.4, 24, '#ff5050', 2, 0.05);
         }
     }
 
@@ -715,10 +749,7 @@ export class FpsArena {
                 // Splash damage if grunt is close to player
                 const dx = cx - (this.player.x + this.player.w / 2);
                 if (Math.abs(dx) < 24 && this.player.iframes <= 0) {
-                    this.player.hp--;
-                    this.player.iframes = 60;
-                    audio.sfx('playerHit');
-                    if (this.player.hp <= 0) this._onPlayerDeath();
+                    this._damagePlayer(1);
                 }
                 continue;
             }
@@ -762,12 +793,14 @@ export class FpsArena {
             const dangerTop = RAIL_Y - 18;
             const dangerBot = RAIL_Y + 18;
             if (p.iframes <= 0 && playerFeetY > dangerTop && playerFeetY < dangerBot) {
-                p.hp = Math.max(0, p.hp - 1);
-                p.iframes = 60;
-                audio.sfx?.('hurt');
-                audio.sfx?.('thunder');
-                this._explosion?.(p.x + p.w / 2, p.y + p.h - 4, '#a0e0ff');
-                if (this._shake) this._shake(4, 12);
+                // R418: route through shared path so rage gates lightning too
+                const before = p.hp;
+                this._damagePlayer(1);
+                if (p.hp !== before) {
+                    audio.sfx?.('thunder');
+                    this._explosion?.(p.x + p.w / 2, p.y + p.h - 4, '#a0e0ff');
+                    if (this._shake) this._shake(4, 12);
+                }
             }
         }
     }
@@ -1620,6 +1653,25 @@ export class FpsArena {
         } else {
             ctx.fillStyle = '#80889a';
             ctx.fillRect(p.x, p.y, p.w, p.h);
+        }
+        // R418: rage overlay — flash + glow halo
+        if (p.rageFrames > 0) {
+            const tail = Math.min(1, p.rageFrames / 45);
+            const phase = (performance.now() * 0.025) | 0;
+            const flashCol = (phase % 2 === 0) ? '#ff2020' : '#ffffff';
+            ctx.save();
+            ctx.globalAlpha = 0.45 * tail;
+            ctx.fillStyle = flashCol;
+            ctx.fillRect(dx, dy, p.w, p.h);
+            ctx.restore();
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = (0.3 + 0.2 * Math.sin(performance.now() * 0.02)) * tail;
+            ctx.fillStyle = '#ff4020';
+            ctx.beginPath();
+            ctx.arc(p.x + p.w / 2, p.y + p.h / 2, p.h * 0.95, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
         // Aim indicator — small chevron above the head matching facing.
         const cx = p.x + p.w / 2 + p.facing * 4;
