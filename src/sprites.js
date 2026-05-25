@@ -564,6 +564,12 @@ export const ENEMY_MANIFEST = {
     'ambient_fire_2':       'ambient_fire_2.png',
     'ambient_fire_3':       'ambient_fire_3.png',
     'ambient_fire_4':       'ambient_fire_4.png',
+    // R416: painted 4-frame explosion sheet — used by particles.explosion()
+    // for boss kills + carpet bombs + payoff bursts.
+    'ambient_explosion_1':  'ambient_explosion_1.png',
+    'ambient_explosion_2':  'ambient_explosion_2.png',
+    'ambient_explosion_3':  'ambient_explosion_3.png',
+    'ambient_explosion_4':  'ambient_explosion_4.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',

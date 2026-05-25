@@ -1,4 +1,5 @@
 // Particle system. Ring buffer; particles age out automatically.
+import { sprites } from './sprites.js';
 
 class Particle {
     constructor() { this.alive = false; }
@@ -114,6 +115,39 @@ class ShockRing {
     }
 }
 
+// R416: painted explosion burst — cycles through ambient_explosion_1..4
+// over its lifetime, anchored to a world point. Used by particles.explosion().
+class SpriteBurst {
+    constructor() { this.alive = false; }
+    init(x, y, scale = 1, framesEach = 4) {
+        this.x = x; this.y = y;
+        this.scale = scale;
+        // 4 frames × framesEach ticks each = total life
+        this.framesEach = framesEach;
+        this.life = framesEach * 4;
+        this.maxLife = this.life;
+        this.alive = true;
+    }
+    update() {
+        this.life--;
+        if (this.life <= 0) this.alive = false;
+    }
+    draw(ctx, camera) {
+        const elapsed = this.maxLife - this.life;
+        const frameIdx = Math.min(4, Math.floor(elapsed / this.framesEach) + 1);
+        const img = sprites.images.get(`ambient_explosion_${frameIdx}`);
+        if (!img) return;
+        const dx = Math.round(this.x - camera.viewX);
+        const dy = Math.round(this.y - camera.viewY);
+        const w = Math.round(img.width * this.scale);
+        const h = Math.round(img.height * this.scale);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, dx - w / 2 | 0, dy - h / 2 | 0, w, h);
+        ctx.restore();
+    }
+}
+
 class ParticleSystem {
     constructor() {
         this.pool = Array.from({ length: 512 }, () => new Particle());
@@ -122,6 +156,20 @@ class ParticleSystem {
         this.nextFloat = 0;
         this.rings = Array.from({ length: 16 }, () => new ShockRing());
         this.nextRing = 0;
+        this.bursts = Array.from({ length: 12 }, () => new SpriteBurst());
+        this.nextBurst = 0;
+    }
+    _takeBurst() {
+        for (let i = 0; i < this.bursts.length; i++) {
+            const b = this.bursts[this.nextBurst];
+            this.nextBurst = (this.nextBurst + 1) % this.bursts.length;
+            if (!b.alive) return b;
+        }
+        return this.bursts[0];
+    }
+    // R416: painted sprite burst alongside particles for that arcade impact.
+    spriteBurst(x, y, scale = 1, framesEach = 4) {
+        this._takeBurst().init(x, y, scale, framesEach);
     }
 
     _takeRing() {
@@ -173,6 +221,10 @@ class ParticleSystem {
     }
 
     explosion(x, y, color = '#ff8050', count = 24) {
+        // R416: painted 4-frame fireball anchors the burst; the particles
+        // ride on top as debris/sparks so the rim feels alive.
+        const scale = count >= 22 ? 1.0 : 0.7;
+        this.spriteBurst(x, y, scale, 5);
         for (let i = 0; i < count; i++) {
             const a = (Math.PI * 2 * i) / count + Math.random() * 0.3;
             const sp = 0.8 + Math.random() * 2;
@@ -386,9 +438,12 @@ class ParticleSystem {
         for (const p of this.pool) if (p.alive) p.update();
         for (const f of this.floats) if (f.alive) f.update();
         for (const r of this.rings) if (r.alive) r.update();
+        for (const b of this.bursts) if (b.alive) b.update();
     }
 
     draw(ctx, camera) {
+        // Bursts under particles so debris/sparks read on top of the fireball.
+        for (const b of this.bursts) if (b.alive) b.draw(ctx, camera);
         for (const p of this.pool) if (p.alive) p.draw(ctx, camera);
         for (const r of this.rings) if (r.alive) r.draw(ctx, camera);
     }
