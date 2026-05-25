@@ -3060,6 +3060,81 @@ export class Level {
         }
     }
 
+    // R405: paint a small endcap at the TOP or BOTTOM of a ladder run
+    // — rope hitches for sewer, vine wraps for jungle, cable clamps for
+    // serverroom, etc. Anchors the ladder visually so it doesn't look
+    // like 3 stacked identical tiles ending in mid-air.
+    _drawLadderEndcap(ctx, x, y, c, r, side) {
+        const T = GAME.TILE;
+        const cx = x + T / 2;
+        const isTop = side === 'top';
+        const py = isTop ? y - 2 : y + T - 1;
+        const ph = isTop ? 3 : 4;
+        switch (this.data.theme) {
+            case THEME.JUNGLE: {
+                // Vine curl wrapping the rung
+                ctx.fillStyle = '#1a3a18';
+                ctx.fillRect(x + 1, py, T - 2, 1);
+                ctx.fillStyle = '#2a5028';
+                ctx.fillRect(x + 1, py, 1, ph);
+                ctx.fillRect(x + T - 2, py, 1, ph);
+                // Hanging leaf on bottom only
+                if (!isTop) {
+                    ctx.fillStyle = '#3a6028';
+                    ctx.fillRect(cx - 1, py + 2, 3, 1);
+                    ctx.fillRect(cx, py + 3, 1, 1);
+                }
+                break;
+            }
+            case THEME.SEWER: case THEME.SERVERROOM: {
+                // Metal clamp + bolts
+                ctx.fillStyle = '#2a3038';
+                ctx.fillRect(x, py, T, 2);
+                ctx.fillStyle = '#a0a8b0';
+                ctx.fillRect(x + 1, py, 1, 1);
+                ctx.fillRect(x + T - 2, py, 1, 1);
+                ctx.fillStyle = '#404848';
+                ctx.fillRect(x, py + 2, T, 1);
+                break;
+            }
+            case THEME.FOUNDER: case THEME.BOARDROOM: {
+                // Chain or rope hitch
+                ctx.fillStyle = '#1a1218';
+                ctx.fillRect(x + 1, py, T - 2, 2);
+                ctx.fillStyle = '#a06028';
+                ctx.fillRect(x + 2, py, 2, 1);
+                ctx.fillRect(x + T - 4, py, 2, 1);
+                break;
+            }
+            case THEME.KEYNOTE: case THEME.REALITY: {
+                // Stage rigging clamp
+                ctx.fillStyle = '#1a0820';
+                ctx.fillRect(x + 1, py, T - 2, 2);
+                ctx.fillStyle = '#c0a040';
+                ctx.fillRect(x + 2, py + 1, 1, 1);
+                ctx.fillRect(x + T - 3, py + 1, 1, 1);
+                break;
+            }
+            case THEME.CLOUD: {
+                // Glowing data-strand connector
+                ctx.fillStyle = '#0a2a0a';
+                ctx.fillRect(x + 1, py, T - 2, 2);
+                const lit = ((this.tileAnimTick + c * 7) & 31) < 18;
+                ctx.fillStyle = lit ? '#60ff80' : '#205020';
+                ctx.fillRect(cx - 1, py + 1, 2, 1);
+                break;
+            }
+            case THEME.BREAKROOM: {
+                // Plastic cable tie
+                ctx.fillStyle = '#1a1408';
+                ctx.fillRect(x + 1, py, T - 2, 2);
+                ctx.fillStyle = '#806020';
+                ctx.fillRect(x + 2, py, T - 4, 1);
+                break;
+            }
+        }
+    }
+
     _drawTile(ctx, t, x, y, r, c) {
         const T = GAME.TILE;
         const pal = this.palette;
@@ -3200,6 +3275,18 @@ export class Level {
                     ctx.fillRect(x + 1, y, 2, T);
                     ctx.fillRect(x + T - 3, y, 2, T);
                     ctx.fillRect(x + 1, y + 4 + (this.tileAnimTick % 8), T - 2, 1);
+                }
+                // R405: theme-appropriate decor at the TOP and BOTTOM of
+                // each ladder run — frayed rope wraps, vine curls, cable
+                // hitches — so the ladder doesn't look like 3 stacked
+                // identical tiles ending in mid-air. Only fires on the
+                // FIRST tile (r-1 != ladder) and LAST tile (r+1 != ladder)
+                // of a vertical ladder column.
+                {
+                    const topOfRun = (r === 0) || (this.tiles[r - 1] && this.tiles[r - 1][c] !== TILE.LADDER);
+                    const botOfRun = (r === this.tiles.length - 1) || (this.tiles[r + 1] && this.tiles[r + 1][c] !== TILE.LADDER);
+                    if (topOfRun) this._drawLadderEndcap(ctx, x, y, c, r, 'top');
+                    if (botOfRun) this._drawLadderEndcap(ctx, x, y, c, r, 'bot');
                 }
                 break;
             case TILE.SPIKE:
