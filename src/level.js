@@ -2353,16 +2353,21 @@ function makeBeatEmUpMechaGates() {
                   isMechaPhase2: true },
             ]},
         ],
-        // 6 chokepoints spread evenly across the 6-screen stage.
-        // Wave 0 fires on entry; 1-6 gated on walking + prev clear.
-        // Waves 7-8 chain auto after wave 6 clears (boss phase change).
+        // 6 chokepoints. R408 fix: chokepoint 6 used to be at GAME.W * 5.5
+        // (= 1408px) but max scroll on a 6-screen stage is STAGE_W - GAME.W
+        // = 1280. Chokepoint was UNREACHABLE — player walked to the right
+        // edge after wave 5, scroll capped at 1280, wave 6 boss never
+        // triggered. User: "i cannot get past wave 7 in mecha gates"
+        // (off-by-one — was actually wave 6 that never fired). Compressed
+        // all chokepoints into the 0-5 screen range with wave 6 at 4.6×
+        // (~1178, well inside max scroll).
         waveChokepoints: [
-            { x: GAME.W * 1.0, wave: 1 },
-            { x: GAME.W * 2.0, wave: 2 },
-            { x: GAME.W * 3.0, wave: 3 },
-            { x: GAME.W * 4.0, wave: 4 },
-            { x: GAME.W * 4.8, wave: 5 },
-            { x: GAME.W * 5.5, wave: 6 },
+            { x: GAME.W * 0.8, wave: 1 },
+            { x: GAME.W * 1.6, wave: 2 },
+            { x: GAME.W * 2.4, wave: 3 },
+            { x: GAME.W * 3.2, wave: 4 },
+            { x: GAME.W * 4.0, wave: 5 },
+            { x: GAME.W * 4.6, wave: 6 },
         ],
         pickupSpawns: [
             { x: 120,  y: 100, type: 'HOMING' },

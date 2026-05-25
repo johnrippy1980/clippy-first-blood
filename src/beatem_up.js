@@ -68,6 +68,12 @@ export class BeatEmUp {
             facing: 1,            // +1 right, -1 left
             runFrame: 0,
             score: 0,
+            // R409: jump-to-aim — airY is HEIGHT above the street plane
+            // (0 = grounded, positive = airborne). airVy is vertical
+            // velocity. Lets the player shoot at flying enemies
+            // (helicopters) without leaving the depth plane.
+            airY: 0,
+            airVy: 0,
         };
 
         this.bullets = [];        // player shots
@@ -808,9 +814,25 @@ export class BeatEmUp {
         const ax = input.axis();
         const p = this.player;
         p.vx = ax.x * PLAYER_SPEED_X;
-        p.vy = ax.y * PLAYER_SPEED_Y;
+        // R409: depth-axis (y) movement only when grounded — once you
+        // jump you commit to your current depth row until landing.
+        p.vy = (p.airY <= 0) ? ax.y * PLAYER_SPEED_Y : 0;
         p.x += p.vx;
         p.y += p.vy;
+        // R409: jump physics. Z = jump (matches global keymap).
+        // Initial impulse -4.4 gives ~26px peak rise at gravity 0.32.
+        if (p.airY <= 0 && input.isPressed('jump')) {
+            p.airVy = -4.4;
+            p.airY = 0.01;   // unstick from ground so airborne checks pass
+        }
+        if (p.airY > 0) {
+            p.airVy += 0.32;
+            p.airY -= p.airVy;   // higher airY = higher above ground
+            if (p.airY <= 0) {
+                p.airY = 0;
+                p.airVy = 0;
+            }
+        }
         // R331: clamp p.x in WORLD coords. p.x is now world-x, not
         // screen-x. Left bound = current scroll (can't walk off-screen
         // backwards). Right bound = scroll-locked: if a wave isn't
@@ -863,13 +885,28 @@ export class BeatEmUp {
 
     _fire() {
         const p = this.player;
-        // Shoot horizontally in facing direction
+        // R409: aim upward when jumping + UP held, downward when DOWN held.
+        // Otherwise horizontal in facing direction.
+        const ax = input.axis();
+        let vx = p.facing * 4.5, vy = 0;
+        const airborne = (p.airY || 0) > 0;
+        if (airborne && ax.y < -0.4) {
+            // Hold up while airborne — diagonal-up shot
+            vx = p.facing * 3.2;
+            vy = -3.2;
+        } else if (airborne && Math.abs(ax.x) < 0.2) {
+            // Airborne with no horizontal input — straight up
+            vx = 0;
+            vy = -4.5;
+        }
+        // Origin uses the visual y (subtracts airY so bullets exit the
+        // jumping sprite's chest, not the ground silhouette).
+        const visY = (p.y - (p.airY || 0));
         this.bullets.push({
             x: p.x + p.w / 2 + p.facing * 8,
-            y: p.y + p.h / 2 - 2,
-            vx: p.facing * 4.5,
-            vy: 0,
-            life: 50,
+            y: visY + p.h / 2 - 2,
+            vx, vy,
+            life: 60,
         });
         audio.sfx('mg');
     }
@@ -1292,11 +1329,22 @@ export class BeatEmUp {
         // R331: player position is WORLD coords now; subtract scroll
         // when drawing.
         const drawX = p.x - this.scroll;
+        // R409: lift visual Y by airY when jumping. Ground p.y unchanged
+        // (depth-plane logic still works) — only the render moves.
+        const airY = p.airY || 0;
+        const drawY = p.y - airY;
         const isMoving = (Math.abs(p.vx) + Math.abs(p.vy)) > 0.1;
         const runFrames = ['run_1', 'run_2', 'run_3', 'run_4'];
-        const key = isMoving
-            ? runFrames[Math.floor(p.runFrame) % runFrames.length]
-            : 'idle';
+        // R409: jump frame override — use jump_neutral while airborne so
+        // Clippy reads as JUMPING, not running in place.
+        let key;
+        if (airY > 0) {
+            key = sprites.has('jump_neutral') ? 'jump_neutral' : 'jump';
+        } else {
+            key = isMoving
+                ? runFrames[Math.floor(p.runFrame) % runFrames.length]
+                : 'idle';
+        }
         const img = sprites.images.get(key) || sprites.images.get('run_1');
         if (img) {
             const scale = depthScale(p.y);
@@ -1305,17 +1353,35 @@ export class BeatEmUp {
             ctx.imageSmoothingEnabled = false;
             if (p.facing < 0) {
                 ctx.save();
-                ctx.translate(Math.round(drawX + dw), Math.round(p.y));
+                ctx.translate(Math.round(drawX + dw), Math.round(drawY));
                 ctx.scale(-1, 1);
                 ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, dw, dh);
                 ctx.restore();
             } else {
                 ctx.drawImage(img, 0, 0, img.width, img.height,
-                              Math.round(drawX), Math.round(p.y), dw, dh);
+                              Math.round(drawX), Math.round(drawY), dw, dh);
+            }
+            // R409: ground shadow ellipse while airborne so the depth
+            // reads — the higher you jump, the more dim/spread the shadow.
+            if (airY > 0) {
+                const shadowAlpha = Math.max(0.15, 0.45 - airY / 60);
+                ctx.save();
+                ctx.globalAlpha = shadowAlpha;
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.ellipse(
+                    Math.round(drawX + dw / 2),
+                    Math.round(p.y + dh - 2),
+                    Math.max(4, dw / 2 - airY / 8),
+                    2 + airY / 30,
+                    0, 0, Math.PI * 2,
+                );
+                ctx.fill();
+                ctx.restore();
             }
         } else {
             ctx.fillStyle = '#80889a';
-            ctx.fillRect(drawX, p.y, p.w, p.h);
+            ctx.fillRect(drawX, drawY, p.w, p.h);
         }
     }
 
