@@ -1832,6 +1832,18 @@ function makeFpsStage() {
         bossDisplayName: 'DR. SPINDLER',
         // R299: post-game side stage — return to title on clear.
         // (handled by _tickStageClear's stage >= 15 branch from R299)
+        // R395: ambient sparks + flickers for the sewer-lab FPS rail.
+        // World coords in FPS mode are screen-space (fakeCam: viewX=0).
+        // Place flickers near top of screen + sparking cables on the
+        // edges so they don't fight the central wireframe lane.
+        ambientProps: [
+            { kind: 'flicker', x: 32,  y: 24 },
+            { kind: 'flicker', x: 224, y: 24 },
+            { kind: 'sparkCable', x: 16, y: 50 },
+            { kind: 'sparkCable', x: 240, y: 50 },
+            { kind: 'drip', x: 80,  y: 16, fallH: 60 },
+            { kind: 'drip', x: 176, y: 16, fallH: 70 },
+        ],
     };
 }
 
@@ -1887,6 +1899,15 @@ function makeFpsStageBallmer() {
         // R297: door label uses bossDisplayName so the corridor's
         // glowing door reads the correct name for this arc.
         bossDisplayName: 'BALLMER',
+        // R395: office corridor atmosphere — flickering fluorescents
+        // overhead + occasional power-cable spark on the wall edges.
+        ambientProps: [
+            { kind: 'flicker', x: 64,  y: 24 },
+            { kind: 'flicker', x: 192, y: 24 },
+            { kind: 'flicker', x: 128, y: 16 },
+            { kind: 'sparkCable', x: 8,   y: 100 },
+            { kind: 'sparkCable', x: 248, y: 100 },
+        ],
     };
 }
 
@@ -1966,6 +1987,14 @@ function makeFpsStageGates() {
         endingStyle: 'door',
         nextStage: 10,            // R291: chains into the Gates arena (stage 10)
         bossDisplayName: 'BILL GATES',
+        // R395: keynote-corridor stage-light flickers + sparking cables
+        // sell "backstage" energy as the player advances.
+        ambientProps: [
+            { kind: 'flicker', x: 48,  y: 22 },
+            { kind: 'flicker', x: 208, y: 22 },
+            { kind: 'sparkCable', x: 16,  y: 90 },
+            { kind: 'sparkCable', x: 240, y: 90 },
+        ],
     };
 }
 
