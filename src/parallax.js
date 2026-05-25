@@ -992,6 +992,12 @@ export class Parallax {
 
     drawFront(ctx, camera) {
         this._drawDepthMotes(ctx, camera);
+        // R403: per-theme front layer keeps its animated atmospherics
+        // (fireflies, cloud wisps, banner sway, pipe-drip droplets) since
+        // those add motion the painted bg can't. The pure silhouette
+        // rects (vines/cables/curtains) get suppressed below via the
+        // separate `_drawForegroundSilhouettes` skip — that one DID
+        // double-frame the painted scenes.
         switch (this.theme) {
             case THEME.JUNGLE:     this._jungleFront(ctx, camera); break;
             case THEME.BREAKROOM:  this._breakroomFront(ctx, camera); break;
@@ -1007,7 +1013,17 @@ export class Parallax {
         // R307: foreground silhouettes (vines / banners / cables / curtains)
         // and lightning flashes go LAST — over the painted bg + ambient
         // layer so they read as the closest thing to the camera.
-        this._drawForegroundSilhouettes(ctx, camera);
+        // R403: suppress when a painted bg is loaded. The painted scenes
+        // already include framing elements (cave entrances, curtain edges,
+        // pipe drips) baked into the art. Drawing the legacy procedural
+        // rgba(8,16,4,0.85) rects on TOP stacked Atari-style edge bars
+        // over the painted environment. Only fall back to procedural if
+        // the painted bg failed to load.
+        const paintedKey = this.bgKeyOverride || BG_KEY_FOR_THEME[this.theme];
+        const hasPainted = paintedKey && sprites.has(paintedKey);
+        if (!hasPainted) {
+            this._drawForegroundSilhouettes(ctx, camera);
+        }
         this._drawLightning(ctx);
     }
 
@@ -1191,25 +1207,10 @@ export class Parallax {
     }
 
     _jungleFront(ctx, camera) {
-        // FOREGROUND VINES — hang from top, parallax 1.1x so they push depth
-        // by moving faster than the player. Slightly translucent.
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = '#04140a';
-        const oxv = (camera.viewX * 1.1) | 0;
-        for (let i = 0; i < 6; i++) {
-            const x = ((i * 64 - oxv) % (GAME.W + 80) + GAME.W + 80) % (GAME.W + 80) - 40;
-            const sway = Math.sin(this.t / 30 + i * 1.3) * 2;
-            const len = 18 + ((i * 13) % 22);
-            // Vine
-            for (let y = 0; y < len; y++) {
-                const dx = (y / len) * sway;
-                ctx.fillRect((x + dx) | 0, y, 2, 1);
-            }
-            // Leaves at end
-            ctx.fillRect((x + sway - 2) | 0, len, 6, 2);
-            ctx.fillRect((x + sway - 1) | 0, len + 2, 4, 1);
-        }
-        ctx.globalAlpha = 1;
+        // R403: dropped the procedural foreground-vine drawing — the
+        // painted bg_jungle + bg_arena_copier scenes already have
+        // hanging vines baked in, and the procedural rects on top
+        // looked like vector overlay. Keep the fireflies though.
         // Fireflies — flickering ambient particles
         for (let i = 0; i < 5; i++) {
             const fx = ((i * 53 + this.t * 0.4) % (GAME.W + 40)) - 20;
