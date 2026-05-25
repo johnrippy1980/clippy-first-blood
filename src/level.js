@@ -1783,6 +1783,41 @@ function makeStagePipeline() {
     };
 }
 
+// R423: Doom-style stage maker. Returns minimal data — doomMode flag flips
+// the engine, doomMap is the 2D tile grid, doomStart sets spawn position.
+function makeDoomFloor11() {
+    return {
+        doomMode: true,
+        name: 'FLOOR 11',
+        theme: 'serverroom',
+        music: 'bossBattle',
+        bgKey: 'bg_serverroom',
+        // 16×16 corporate maze — outer walls + cubicle dividers + an exec
+        // wing in the bottom-right corner. Tile ids match WALL_LIGHT in
+        // doom_engine.js: 1=cubicle, 2=exec wood, 3=glass, 4=bathroom, 5=vending.
+        doomMap: [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,0,0,3,3,0,2,2,0,1],
+            [1,0,1,0,0,0,1,0,0,0,0,0,2,0,0,1],
+            [1,0,1,0,0,0,1,0,0,0,0,0,2,0,0,1],
+            [1,0,1,1,0,1,1,0,0,0,0,0,2,2,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,4,4,4,0,5,0,0,0,1,1,0,0,1],
+            [1,0,0,4,0,4,0,0,0,0,0,1,0,0,0,1],
+            [1,0,0,4,0,0,0,0,0,0,0,1,1,0,0,1],
+            [1,0,0,4,4,4,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,3,3,3,0,0,0,0,0,1],
+            [1,0,1,1,0,0,0,0,0,0,0,1,1,0,0,1],
+            [1,0,1,1,0,0,0,0,0,0,0,1,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        ],
+        doomStart: { x: 2.5, y: 14.5 },
+        ambientProps: [],
+    };
+}
+
 export const STAGE_LOADERS = [
     null,
     () => makeStage1(),
@@ -1807,6 +1842,7 @@ export const STAGE_LOADERS = [
     () => makeBeatEmUpMechaApproach(),       // R306: stage 20 MECHA APPROACH (beat-em-up)
     () => makeStageMechaHelicopter(),        // R334: stage 21 MECHA CORRIDOR — side-scrolling helicopter chase (was FPS)
     () => makeBeatEmUpMechaGates(),          // R335: stage 22 MECHA-GATES — beat-em-up final (was FPS)
+    () => makeDoomFloor11(),                 // R423: stage 23 FLOOR 11 — first-person Doom-style hallway crawl
 ];
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so

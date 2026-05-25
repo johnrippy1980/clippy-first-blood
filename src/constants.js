@@ -173,6 +173,8 @@ export const STAGES = [
     { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
     { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'HELICOPTER',    music: 'recycleBin', tagline: 'SUPER SECRET — CHOPPER CHASE',   introBgKey: 'bg_apocalypse' },
     { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
+    // R423: stage 23 — Doom-style first-person crawl through Microsoft Floor 11.
+    { id: 23, name: 'FLOOR 11',                 category: 'postgame', displayId: 'P8', theme: THEME.SERVERROOM, boss: 'GATES',         music: 'bossBattle', tagline: 'SUPER SECRET — KICK IN THE DOOR.' },
 ];
 
 // Damage flash colors per source.

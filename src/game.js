@@ -10,6 +10,7 @@ import { AmbientPropManager } from './ambient_props.js';
 import { BossLair, BOSS_LAIRS } from './boss_lair.js';
 import { FpsArena } from './fps_arena.js';
 import { BeatEmUp } from './beatem_up.js';
+import { DoomEngine } from './doom_engine.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { PickupManager } from './pickups.js';
@@ -46,6 +47,7 @@ const SCENE = {
     // share physics or collision with PLAY.
     FPS_PLAY: 'fpsPlay',
     BEAT_PLAY: 'beatPlay',   // R306: beat-em-up street brawler scene
+    DOOM_PLAY: 'doomPlay',   // R423: free-roam first-person raycaster scene
 };
 
 // MM:SS format for frame-based timers. Used by mode-best-time displays.
@@ -329,6 +331,10 @@ export class Game {
                 if (input.isPressed('pause')) { this._enterPauseFrom(SCENE.BEAT_PLAY); break; }
                 if (this._beatEmUp) this._beatEmUp.update();
                 break;
+            case SCENE.DOOM_PLAY:
+                if (input.isPressed('pause')) { this._enterPauseFrom(SCENE.DOOM_PLAY); break; }
+                if (this._doomEngine) this._doomEngine.update();
+                break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
@@ -432,6 +438,7 @@ export class Game {
             case SCENE.PLAY:         this._drawPlay(); break;
             case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.draw(); break;
             case SCENE.BEAT_PLAY:    if (this._beatEmUp) this._beatEmUp.draw(); break;
+            case SCENE.DOOM_PLAY:    if (this._doomEngine) this._doomEngine.draw(); break;
             case SCENE.PAUSE: {
                 // R351: pause overlay must paint over whichever play scene we
                 // came from (platformer / FPS / beat-em-up). Falls back to
@@ -439,6 +446,7 @@ export class Game {
                 const from = this._pauseReturnScene || SCENE.PLAY;
                 if (from === SCENE.FPS_PLAY && this._fpsArena) this._fpsArena.draw();
                 else if (from === SCENE.BEAT_PLAY && this._beatEmUp) this._beatEmUp.draw();
+                else if (from === SCENE.DOOM_PLAY && this._doomEngine) this._doomEngine.draw();
                 else this._drawPlay();
                 this._drawPauseOverlay();
                 break;
@@ -1041,6 +1049,11 @@ export class Game {
             if (this._fpsMode) {
                 this._fpsPendingPlay = false;
                 this._fadeTo(SCENE.FPS_PLAY);
+                return;
+            }
+            if (this._doomMode) {
+                this._doomPendingPlay = false;
+                this._fadeTo(SCENE.DOOM_PLAY);
                 return;
             }
             // R209 — Milos #2: gate PLAY behind READY card unless the
@@ -3988,12 +4001,27 @@ export class Game {
             this._fadeTo(SCENE.STAGE_INTRO);
             return;
         }
+        // R423: Doom-style free-roam first-person mode. Same routing
+        // pattern — STAGE_INTRO first, then hand off to DOOM_PLAY.
+        if (data.doomMode) {
+            this._doomEngine = new DoomEngine(data, this.ctx, this);
+            this._doomMode = true;
+            this._doomPendingPlay = true;
+            this.parallax.setTheme(data.theme);
+            audio.playTrack(data.music || 'bossBattle');
+            this.storyTimer = 0;
+            this._fadeTo(SCENE.STAGE_INTRO);
+            return;
+        }
         this._fpsPendingPlay = false;
         this._beatPendingPlay = false;
+        this._doomPendingPlay = false;
         this._fpsMode = false;
         this._beatMode = false;
+        this._doomMode = false;
         this._fpsArena = null;
         this._beatEmUp = null;
+        this._doomEngine = null;
         this.level = new Level(data);
         this.parallax.setTheme(data.theme);
         // R334: stage data can override the parallax bg image independently
