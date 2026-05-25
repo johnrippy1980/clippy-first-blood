@@ -2906,6 +2906,160 @@ export class Level {
         }
     }
 
+    // R404: hanging decor that extends BELOW the 6px playable platform
+    // strip into the empty space the player jumps THROUGH. Theme-
+    // appropriate (vines, drip-stains, cables, banner tails). Drawn
+    // sparsely via hash so not every tile shows decor — gives the
+    // platforms an organic broken silhouette. `hashSeed` comes from
+    // the same hash already computed for source-column sampling.
+    _drawPlatformDecor(ctx, x, y, c, r, hashSeed) {
+        const T = GAME.TILE;
+        const sway = Math.sin((this.tileAnimTick || 0) * 0.04 + c * 0.7) * 1.0;
+        // Skip ~50% of tiles based on hash so decor isn't on every column
+        const showDecor = (hashSeed % 4) < 2;
+        if (!showDecor) return;
+        switch (this.data.theme) {
+            case THEME.JUNGLE: {
+                // Hanging vine — 8-14px of thin dark green strand with
+                // a leaf cluster at the bottom + curl sway.
+                const len = 8 + (hashSeed % 7);
+                const baseX = x + 4 + (hashSeed % 8);
+                ctx.fillStyle = '#1a3a18';
+                for (let i = 0; i < len; i++) {
+                    const dx = (i / len) * sway;
+                    ctx.fillRect(Math.round(baseX + dx), y + 6 + i, 1, 1);
+                }
+                // Bright highlight stripe along the side
+                ctx.fillStyle = '#2a5028';
+                ctx.fillRect(Math.round(baseX + sway * 0.6), y + 8, 1, Math.max(2, len - 4));
+                // Leaf cluster at the end
+                const tipX = Math.round(baseX + sway);
+                const tipY = y + 6 + len;
+                ctx.fillStyle = '#3a6028';
+                ctx.fillRect(tipX - 1, tipY, 3, 1);
+                ctx.fillRect(tipX, tipY + 1, 1, 1);
+                ctx.fillStyle = '#4a7830';
+                ctx.fillRect(tipX, tipY, 1, 1);
+                break;
+            }
+            case THEME.SEWER: {
+                // Drip stain underneath + occasional active droplet
+                const baseX = x + 2 + (hashSeed % 12);
+                ctx.fillStyle = 'rgba(40, 60, 30, 0.85)';
+                ctx.fillRect(baseX, y + 6, 2, 3 + (hashSeed % 3));
+                ctx.fillStyle = 'rgba(100, 160, 70, 0.45)';
+                ctx.fillRect(baseX, y + 6, 1, 6 + (hashSeed % 4));
+                // Slow drip droplet sometimes hangs farther down
+                const dropPhase = (this.tileAnimTick + c * 17) % 90;
+                if (dropPhase < 12 && (hashSeed & 3) === 0) {
+                    ctx.fillStyle = '#7ad07a';
+                    ctx.fillRect(baseX, y + 10 + dropPhase, 1, 1);
+                }
+                break;
+            }
+            case THEME.FOUNDER: {
+                // Hanging chain — dark grey segmented links
+                const len = 6 + (hashSeed % 6);
+                const baseX = x + 4 + (hashSeed % 8);
+                ctx.fillStyle = '#1a1a20';
+                for (let i = 0; i < len; i++) {
+                    ctx.fillRect(baseX, y + 6 + i, 1, 1);
+                    if ((i & 1) === 0) ctx.fillRect(baseX - 1, y + 6 + i, 3, 1);
+                }
+                // Brass highlight on alternating links
+                ctx.fillStyle = '#a06028';
+                for (let i = 0; i < len; i += 2) {
+                    ctx.fillRect(baseX + 1, y + 6 + i, 1, 1);
+                }
+                break;
+            }
+            case THEME.SERVERROOM: {
+                // Hanging power cable with a connector at the tip
+                const len = 5 + (hashSeed % 6);
+                const baseX = x + 3 + (hashSeed % 10);
+                ctx.fillStyle = '#0a0a14';
+                for (let i = 0; i < len; i++) {
+                    const dx = Math.round((i / len) * sway * 0.6);
+                    ctx.fillRect(baseX + dx, y + 6 + i, 1, 1);
+                }
+                // Connector block at the tip
+                const tipX = baseX + Math.round(sway * 0.6);
+                ctx.fillStyle = '#3a3a48';
+                ctx.fillRect(tipX - 1, y + 6 + len, 3, 2);
+                // Pulse LED — animates slowly
+                const lit = ((this.tileAnimTick + c * 7) & 31) < 8;
+                if (lit) {
+                    ctx.fillStyle = '#60c0ff';
+                    ctx.fillRect(tipX, y + 6 + len, 1, 1);
+                }
+                break;
+            }
+            case THEME.KEYNOTE: {
+                // Banner tail — folded purple ribbon hanging from platform
+                const len = 6 + (hashSeed % 8);
+                const baseX = x + 4 + (hashSeed % 6);
+                ctx.fillStyle = '#3a1850';
+                ctx.fillRect(baseX, y + 6, 4, len);
+                ctx.fillStyle = '#502068';
+                ctx.fillRect(baseX, y + 6, 1, len);
+                // Notch tip (V-cut bottom)
+                ctx.fillStyle = pal.solid || '#080010';
+                ctx.fillRect(baseX + 1, y + 6 + len - 1, 2, 1);
+                // Gold trim accent
+                ctx.fillStyle = '#c0a040';
+                ctx.fillRect(baseX, y + 6, 4, 1);
+                break;
+            }
+            case THEME.BOARDROOM: {
+                // Hanging tassel — gold cord with fringe
+                const len = 4 + (hashSeed % 5);
+                const baseX = x + 6 + (hashSeed % 6);
+                ctx.fillStyle = '#a07020';
+                ctx.fillRect(baseX, y + 6, 1, len);
+                // Tassel bulb at end
+                ctx.fillStyle = '#806010';
+                ctx.fillRect(baseX - 1, y + 6 + len, 3, 2);
+                ctx.fillStyle = '#a87830';
+                ctx.fillRect(baseX, y + 6 + len, 1, 2);
+                break;
+            }
+            case THEME.CLOUD: {
+                // Wispy data trail — green pixels drifting down
+                const baseX = x + 4 + (hashSeed % 8);
+                for (let i = 0; i < 8; i++) {
+                    const a = (8 - i) / 8;
+                    ctx.fillStyle = `rgba(60, 220, 120, ${a * 0.7})`;
+                    if (((this.tileAnimTick + c * 5 + i) & 3) === 0) {
+                        ctx.fillRect(baseX, y + 6 + i, 1, 1);
+                    }
+                }
+                break;
+            }
+            case THEME.BREAKROOM: {
+                // Dangling broken ceiling tile + wire
+                const baseX = x + 5 + (hashSeed % 6);
+                ctx.fillStyle = '#2a2418';
+                ctx.fillRect(baseX, y + 6, 1, 3);
+                ctx.fillStyle = '#4a4030';
+                ctx.fillRect(baseX - 2, y + 9, 5, 2);
+                ctx.fillStyle = '#1a1408';
+                ctx.fillRect(baseX - 2, y + 11, 5, 1);
+                break;
+            }
+            case THEME.REALITY: {
+                // Lavender mirror-shard hanging by a thread
+                const baseX = x + 6 + (hashSeed % 4);
+                ctx.fillStyle = '#503060';
+                ctx.fillRect(baseX, y + 6, 1, 3);
+                ctx.fillStyle = '#a070c0';
+                ctx.fillRect(baseX - 1, y + 9, 3, 3);
+                ctx.fillStyle = '#e0a0f0';
+                ctx.fillRect(baseX, y + 10, 1, 1);
+                break;
+            }
+        }
+    }
+
     _drawTile(ctx, t, x, y, r, c) {
         const T = GAME.TILE;
         const pal = this.palette;
@@ -3014,6 +3168,13 @@ export class Level {
                     const srcSampleH = Math.min(platImg.height, Math.max(12, Math.floor(platImg.height * 0.55)));
                     const dstH = 6;
                     ctx.drawImage(platImg, srcX, 0, T, srcSampleH, x, y, T, dstH);
+                    // R404: hanging platform decor — theme-appropriate art
+                    // drops BELOW the 6px playable top to visually extend
+                    // the platform into the empty space. Sells depth +
+                    // breaks the "floating brown rectangle" silhouette.
+                    // Drawn at sub-tile width with deterministic hash so
+                    // not every tile shows decor (sparse look).
+                    this._drawPlatformDecor(ctx, x, y, c, r, h);
                 } else {
                     // R310: per-theme painted platform — procedural fallback.
                     ctx.fillStyle = pal.platform;
