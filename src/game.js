@@ -3557,6 +3557,9 @@ export class Game {
         if (gameCleared || konami) mainMax = 13;
         for (let i = 1; i <= mainMax; i++) {
             ids.push(i);
+            // R535: HOLD THE LINE (stage 25) chains from Server Room (3)
+            // as the 3B turret-defense breather. Surface it right after 3.
+            if (i === 3 && (this.unlockedStage > 3 || gameCleared || konami)) ids.push(25);
             // R423c+R426: stage 23 BLOCK 11 (Doom) chains from stage 4 via
             // nextStage. Surface it on the grid right after stage 4 so it
             // reads as the "4B" branch the displayId implies.
@@ -3571,9 +3574,6 @@ export class Game {
         if (gameCleared || konami) ids.push(16);   // FLOOR 11 (Doom)
         if (gameCleared || konami) ids.push(18);   // REALITY DISTORTION (Jobs)
         if (konami) ids.push(19);
-        // R523: HOLD THE LINE turret stage — post-game tile alongside
-        // FLOOR 11 + RDF, available after the campaign clear or via konami.
-        if (gameCleared || konami) ids.push(25);
         // R306: Mecha-Gates 3-stage super-secret arc — konami-only.
         // 20 = beat-em-up approach, 21 = FPS corridor, 22 = FPS arena.
         if (konami) {

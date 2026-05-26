@@ -182,9 +182,10 @@ export const STAGES = [
     // screen unlocked mode only; no stage-select tile. category 'mode' so the
     // stage-select grid filter ignores it.
     { id: 24, name: 'BOSS RUSH MODE',           category: 'mode',     displayId: '—',  theme: THEME.SERVERROOM, boss: 'GAUNTLET_FULL', music: 'bossRushMode', tagline: 'EVERY BOSS. NO BREAKS.' },
-    // R523: mounted-turret stage — Clippy mans an MG against CRT-monster
-    // waves. Post-game category so it appears on stage-select after clear.
-    { id: 25, name: 'HOLD THE LINE',            category: 'postgame', displayId: 'P8', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'arenaBoss',     tagline: 'POST-GAME — CRT NIGHTMARES.', },
+    // R523/R535: mounted-turret stage — Clippy mans an emplaced MG against
+    // CRT-monster waves crawling out of the broken server racks. Mid-
+    // campaign breather between Server Room (3) and Pipeline (4).
+    { id: 25, name: 'HOLD THE LINE',            category: 'campaign', displayId: '3B', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'arenaBoss',     tagline: 'THE RACKS ARE BLEEDING.', },
 ];
 
 // Damage flash colors per source.

@@ -665,6 +665,14 @@ function makeStage3() {
             { kind: 'flicker',    x: 76 * GAME.TILE, y: ( 2) * GAME.TILE },
             { kind: 'dyingClippy', x: 64 * GAME.TILE, y: (h - 3) * GAME.TILE, state: 'dead' },
         ],
+        // R535: chain into HOLD THE LINE turret defense (stage 25) before
+        // descending to the Pipeline. Server room cleared → Clippy mans an
+        // emplaced MG against waves of obsolete CRT-monitor husks that
+        // crawled out of the broken racks. Narratively the dead servers
+        // birthing CRT creatures completes the 'data center is failing'
+        // arc, and the turret defense is a natural breather between the
+        // platformer levels and the descent into the sewers.
+        nextStage: 25,
     };
 }
 
@@ -2088,6 +2096,7 @@ export const STAGE_LOADERS = [
 
 // R523: turret-arena stage data. Returns turretMode:true so _startStage
 // routes to TurretArena instead of the platformer pipeline.
+// R535: now positioned mid-campaign between Server Room (3) and Pipeline (4).
 function makeTurretStage() {
     return {
         turretMode: true,
@@ -2095,6 +2104,8 @@ function makeTurretStage() {
         music: 'arenaBoss',
         // No bgKey — engine draws a procedural warehouse interior.
         // (When a painted bg lands later, set bgKey: 'bg_turret_arena')
+        // R535: chain forward to The Pipeline (stage 4) after CRTRON falls.
+        nextStage: 4,
     };
 }
 
