@@ -489,6 +489,8 @@ export class TurretArena {
         }
         // Hit flash
         if (v.hitFlash > 0) v.hitFlash--;
+        // R527: tick down throwing-arm telegraph
+        if (v._throwingArmT > 0) v._throwingArmT--;
         // Stride for stomping
         v.stride += 0.06;
         // Phase transition at 50% HP
@@ -545,17 +547,16 @@ export class TurretArena {
 
     _voltronThrowMouse() {
         const v = this.voltron;
-        // Mouse comes out of an arm — pick alternating arms
+        // R527: throw out from raised arm, slower trajectory so player can dodge
         const armX = v.x + ((v.attackIdx % 2 === 0) ? -28 : 28) * v.scale;
         const armY = v.y - 38 * v.scale;
-        // Arc toward turret area
         const targetX = GAME.W / 2 + (Math.random() - 0.5) * 40;
         const targetY = TURRET_BASE_Y;
         const dist = Math.hypot(targetX - armX, targetY - armY);
-        const speed = 2.2;
+        const speed = 1.4;                  // slower (was 2.2)
         const t = dist / speed;
         const vx = (targetX - armX) / t;
-        const vy = (targetY - armY) / t - 1.4;   // arc up
+        const vy = (targetY - armY) / t - 1.6;
         this.bossProjectiles.push({
             x: armX,
             y: armY,
@@ -563,35 +564,39 @@ export class TurretArena {
             kind: 'mouse',
             rot: 0,
             rotSpeed: 0.18,
-            life: 120,
-            gravity: 0.08,
+            life: 180,                      // longer (was 120)
+            gravity: 0.06,                  // gentler arc (was 0.08)
             damage: 1,
         });
+        // R527: arm "throw" telegraph — flash the throwing arm yellow briefly
+        v._throwingArm = (v.attackIdx % 2 === 0) ? -1 : 1;
+        v._throwingArmT = 14;
         audio.sfx?.('grenadeThrow');
     }
 
     _voltronThrowFloppy() {
         const v = this.voltron;
-        // Floppies thrown straighter + faster, spinning
         const armX = v.x + ((v.attackIdx % 2 === 0) ? 28 : -28) * v.scale;
         const armY = v.y - 38 * v.scale;
         const targetX = GAME.W / 2 + (Math.random() - 0.5) * 60;
         const targetY = TURRET_BASE_Y - 4;
         const dist = Math.hypot(targetX - armX, targetY - armY);
-        const speed = 2.8;
+        const speed = 1.8;                  // slower (was 2.8)
         const t = dist / speed;
         this.bossProjectiles.push({
             x: armX,
             y: armY,
             vx: (targetX - armX) / t,
-            vy: (targetY - armY) / t - 0.6,
+            vy: (targetY - armY) / t - 0.8,
             kind: 'floppy',
             rot: 0,
             rotSpeed: 0.4,
-            life: 120,
-            gravity: 0.05,
+            life: 180,
+            gravity: 0.04,
             damage: 1,
         });
+        v._throwingArm = (v.attackIdx % 2 === 0) ? 1 : -1;
+        v._throwingArmT = 14;
         audio.sfx?.('grenadeThrow');
     }
 
@@ -605,6 +610,12 @@ export class TurretArena {
     _tickBossProjectiles() {
         for (let i = this.bossProjectiles.length - 1; i >= 0; i--) {
             const b = this.bossProjectiles[i];
+            // R527: record trail point every other frame (up to 6 points)
+            if ((b.life & 1) === 0) {
+                if (!b._trail) b._trail = [];
+                b._trail.push({ x: b.x, y: b.y });
+                if (b._trail.length > 6) b._trail.shift();
+            }
             if (b.gravity) b.vy += b.gravity;
             b.x += b.vx;
             b.y += b.vy;
@@ -1529,12 +1540,39 @@ export class TurretArena {
         const armWS = 14 * s;
         const armHS = 14 * s;
         const armBob = Math.sin(v.stride * 0.5) * 2 * s;
+        // R527: throw telegraph — raise the throwing arm (lift up by 8px
+        // during the 14f window after a throw)
+        const throwT = v._throwingArmT || 0;
+        const throwLift = throwT > 0 ? Math.sin((14 - throwT) / 14 * Math.PI) * 8 * s : 0;
+        const leftThrowing = v._throwingArm === -1 && throwT > 0;
+        const rightThrowing = v._throwingArm === 1 && throwT > 0;
         // Left arm — shoulder + dangling forearm
-        this._drawVoltronCrt(ctx, -torsoW / 2 - armWS + 2, torsoY + 2 + armBob, armWS, armHS, 'static', v);
-        this._drawVoltronCrt(ctx, -torsoW / 2 - armWS + 2, torsoY + 2 + armHS + armBob, armWS - 2, armHS - 2, 'boot', v);
+        const lArmY = torsoY + 2 + armBob - (leftThrowing ? throwLift : 0);
+        this._drawVoltronCrt(ctx, -torsoW / 2 - armWS + 2, lArmY, armWS, armHS, 'static', v);
+        this._drawVoltronCrt(ctx, -torsoW / 2 - armWS + 2, lArmY + armHS, armWS - 2, armHS - 2, 'boot', v);
         // Right arm
-        this._drawVoltronCrt(ctx, torsoW / 2 - 2, torsoY + 2 - armBob, armWS, armHS, 'static', v);
-        this._drawVoltronCrt(ctx, torsoW / 2 - 2, torsoY + 2 + armHS - armBob, armWS - 2, armHS - 2, 'word', v);
+        const rArmY = torsoY + 2 - armBob - (rightThrowing ? throwLift : 0);
+        this._drawVoltronCrt(ctx, torsoW / 2 - 2, rArmY, armWS, armHS, 'static', v);
+        this._drawVoltronCrt(ctx, torsoW / 2 - 2, rArmY + armHS, armWS - 2, armHS - 2, 'word', v);
+        // Throw glow on the active arm
+        if (throwT > 0) {
+            const glowSide = v._throwingArm;
+            const glowX = (glowSide === -1) ? -torsoW / 2 - armWS / 2 : torsoW / 2 + armWS / 2 - 2;
+            const glowY = (glowSide === -1 ? lArmY : rArmY) + armHS;
+            const glowR = (8 + (14 - throwT) * 1.5) * s;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = (throwT / 14) * 0.7;
+            const grad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
+            grad.addColorStop(0, '#ffe070');
+            grad.addColorStop(0.5, '#ffa030');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(glowX, glowY, glowR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
 
         // ===== HEAD (big CRT with face) =====
         const headW = 28 * s;
@@ -1781,38 +1819,67 @@ export class TurretArena {
     _drawBossProjectiles() {
         const ctx = this.ctx;
         for (const b of this.bossProjectiles) {
+            // R527: motion trail — short ghost line behind the projectile
+            // so it reads at a glance even during fast arcs. Drawn first
+            // so the projectile sits on top.
+            if (b._trail && b._trail.length > 1) {
+                ctx.save();
+                ctx.strokeStyle = b.kind === 'mouse' ? '#a08868' : '#c0c0c0';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.moveTo(b._trail[0].x, b._trail[0].y);
+                for (let i = 1; i < b._trail.length; i++) {
+                    ctx.lineTo(b._trail[i].x, b._trail[i].y);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
             ctx.save();
             ctx.translate(b.x, b.y);
             ctx.rotate(b.rot);
             if (b.kind === 'mouse') {
-                // Beige single-button mouse — small rounded rect with cord
+                // R527: bigger beige single-button mouse (was 8x6, now 10x8)
                 ctx.fillStyle = '#d8c8b0';
-                ctx.fillRect(-4, -3, 8, 6);
+                ctx.fillRect(-5, -4, 10, 8);
                 ctx.fillStyle = '#a08868';
-                ctx.fillRect(-4, -3, 8, 1);
+                ctx.fillRect(-5, -4, 10, 1);
                 // Button divider
                 ctx.fillStyle = '#604838';
-                ctx.fillRect(-4, 0, 8, 1);
-                // Cord trailing back
+                ctx.fillRect(-5, 0, 10, 1);
+                // Single button outline
+                ctx.fillStyle = '#806848';
+                ctx.fillRect(-4, -3, 8, 1);
+                // Cord trailing
                 ctx.strokeStyle = '#404048';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.moveTo(0, -3);
-                ctx.lineTo(-6, -5);
+                ctx.moveTo(0, -4);
+                ctx.lineTo(-7, -7);
                 ctx.stroke();
+                // Highlight outline (so it reads against the dark room)
+                ctx.fillStyle = '#fff2c0';
+                ctx.fillRect(-5, -4, 1, 1);
+                ctx.fillRect(4, -4, 1, 1);
             } else if (b.kind === 'floppy') {
-                // 3.5" floppy disk — black square + silver shutter + label
+                // R527: bigger 3.5" floppy (was 10x10, now 12x12)
                 ctx.fillStyle = '#1a1a22';
-                ctx.fillRect(-5, -5, 10, 10);
+                ctx.fillRect(-6, -6, 12, 12);
+                // Metal shutter
                 ctx.fillStyle = '#c0c0c0';
-                ctx.fillRect(-3, -5, 4, 3);
+                ctx.fillRect(-4, -6, 5, 4);
+                ctx.fillStyle = '#808088';
+                ctx.fillRect(-4, -6, 5, 1);
                 // Label
                 ctx.fillStyle = '#f0e0a0';
-                ctx.fillRect(-4, 0, 8, 4);
-                // Tiny label text
+                ctx.fillRect(-5, 0, 10, 5);
+                // Tiny "label text"
                 ctx.fillStyle = '#404040';
-                ctx.fillRect(-3, 1, 2, 1);
-                ctx.fillRect(-3, 2, 4, 1);
+                ctx.fillRect(-4, 1, 6, 1);
+                ctx.fillRect(-4, 3, 4, 1);
+                // Write-protect tab
+                ctx.fillStyle = '#404048';
+                ctx.fillRect(4, -2, 2, 2);
             }
             ctx.restore();
         }
