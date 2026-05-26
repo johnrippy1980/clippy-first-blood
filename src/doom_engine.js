@@ -925,7 +925,9 @@ export class DoomEngine {
         const w = this._activeWeapon();
         w.cooldown = w.rate;
         if (w.ammo !== Infinity) w.ammo--;
-        p.muzzleFlash = 5;
+        // R463: extended to 12f so 3-frame cycle (fire/recover/rest) reads.
+        // muzzleFlash > 6 → fire pose (6f), 1-6 → recover pose (6f), 0 → rest
+        p.muzzleFlash = 12;
         // Per-weapon SFX cue. Painted gun art will replace these flat
         // beats later; for now the audio carries the differentiation.
         // R427: dedicated SFX per weapon
@@ -1489,10 +1491,47 @@ export class DoomEngine {
 
     _getSpriteFor(e) {
         if (!sprites || !sprites.images) return null;
-        if (e.kind === 'clone') return sprites.images.get('doom_clone');
+        if (e.kind === 'clone') {
+            // R464: 4-frame walk cycle + attack + hurt poses
+            // hurt frame for the brief hitFlash window
+            if (e.hitFlash > 2) {
+                const hurt = sprites.images.get('doom_clone_hurt');
+                if (hurt?.complete) return hurt;
+            }
+            // attack frame during _charging (if boss-style) — clones use it
+            // briefly when their fireCD just hit 0
+            if (e.fireCD != null && e.fireCD < 8) {
+                const atk = sprites.images.get('doom_clone_attack');
+                if (atk?.complete) return atk;
+            }
+            // Walking cycle — only when alerted (idle clones stay on frame 1)
+            if (e._alerted) {
+                // Phase-shift per clone so they don't sync
+                const phase = ((this.t + (e.x * 13 + e.y * 7) | 0) / 8) | 0;
+                const frame = (phase % 4) + 1;
+                const img = sprites.images.get(`doom_clone_walk_${frame}`);
+                if (img?.complete) return img;
+            }
+            return sprites.images.get('doom_clone_walk_1') || sprites.images.get('doom_clone');
+        }
         if (e.kind === 'boss') {
-            if (this.bossKind === 'SPINDLER_UZIS') return sprites.images.get('doom_boss_spindler_uzis');
-            if (this.bossKind === 'SPINDLER_WHEELCHAIR') return sprites.images.get('doom_boss_spindler_wheelchair');
+            // R464: bosses swap to fire-pose while charging (the new fire
+            // sprite has bigger muzzle flash + ammo belts cascading)
+            const firing = !!e._charging;
+            if (this.bossKind === 'SPINDLER_UZIS') {
+                if (firing) {
+                    const f = sprites.images.get('doom_boss_spindler_uzis_fire');
+                    if (f?.complete) return f;
+                }
+                return sprites.images.get('doom_boss_spindler_uzis');
+            }
+            if (this.bossKind === 'SPINDLER_WHEELCHAIR') {
+                if (firing) {
+                    const f = sprites.images.get('doom_boss_spindler_wheelchair_fire');
+                    if (f?.complete) return f;
+                }
+                return sprites.images.get('doom_boss_spindler_wheelchair');
+            }
         }
         if (e.kind === 'key') return sprites.images.get(`doom_key_${e.color}`);
         if (e.kind === 'health') return sprites.images.get('doom_health');
@@ -1536,19 +1575,21 @@ export class DoomEngine {
         const ctx = this.ctx;
         const p = this.player;
         const w = this._activeWeapon();
-        const keyMap = { mg: 'doom_weapon_mg', shotgun: 'doom_weapon_shotgun',
-                         chainsaw: 'doom_weapon_chainsaw', bfg: 'doom_weapon_bfg' };
         const wKeys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
-        const sprKey = keyMap[wKeys[p.weaponIdx]];
+        const activeKey = wKeys[p.weaponIdx];
+        // R463: 3-frame cycle based on muzzle flash phase (12f total)
+        let sprKey;
+        if (p.muzzleFlash > 6) sprKey = `doom_weapon_${activeKey}_fire`;
+        else if (p.muzzleFlash > 0) sprKey = `doom_weapon_${activeKey}_recover`;
+        else sprKey = `doom_weapon_${activeKey}`;
         const img = sprKey && sprites.images?.get(sprKey);
         const baseY = VIEW_H - 4;
-        // R459: BEEFIER RECOIL — bigger dip + horizontal shake on fire.
-        // Was muzzleFlash*1.5 (~7px max), now ~24px peak with bob-out curve.
+        // R459/R463: BEEFIER RECOIL — bigger dip + horizontal shake on fire.
+        // muzzleFlash now 12f (R463), so scale to 24px peak.
         const mf = p.muzzleFlash || 0;
-        // Exponential out: 1 at peak, 0 at end. mf goes 5 -> 0.
-        const fT = mf / 5;
+        const fT = mf / 12;
         const recoil = (fT * 24) | 0;
-        const xShake = mf > 0 ? ((Math.random() - 0.5) * mf * 1.5) | 0 : 0;
+        const xShake = mf > 0 ? ((Math.random() - 0.5) * mf * 0.6) | 0 : 0;
         // R459: walking bob — gentle sine sway when player moves (matches
         // axis input). Adds subtle motion when not firing.
         const ax = input.axis();

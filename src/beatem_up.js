@@ -1000,7 +1000,30 @@ export class BeatEmUp {
                     this.bullets.splice(i, 1);
                     if (e.hp <= 0) {
                         e.alive = false;
-                        this.player.score += ENEMY_STATS[e.type]?.score || 100;
+                        // R456: kill combo + score multiplier (mirrors Doom).
+                        // Chained kills within 4s bump combo counter.
+                        const now = this.t;
+                        if (this._lastKillT == null || (now - this._lastKillT) > 240) {
+                            this._comboCount = 1;
+                        } else {
+                            this._comboCount = (this._comboCount || 0) + 1;
+                        }
+                        this._lastKillT = now;
+                        const multiplier = (this._comboCount >= 5) ? 4 :
+                                           (this._comboCount >= 4) ? 3 :
+                                           (this._comboCount >= 3) ? 2 : 1;
+                        const base = ENEMY_STATS[e.type]?.score || 100;
+                        this.player.score += base * multiplier;
+                        // Show combo toast when ≥×2
+                        if (multiplier > 1) {
+                            particles.floatingText?.(
+                                e.x + e.w / 2 - this.scroll,
+                                e.y - 6,
+                                `COMBO ×${multiplier}!`,
+                                multiplier >= 4 ? '#ff80ff' : multiplier >= 3 ? '#ff8050' : '#ffe070',
+                                60, -0.6, 1);
+                            audio.sfx?.('combo' + Math.min(4, multiplier - 1));
+                        }
                         audio.sfx('enemyDie');
                         this._explosion(e.x + e.w / 2, e.y + e.h / 2,
                                          e.type === 'helicopter' ? '#ff8040' : '#a08060');
@@ -1141,6 +1164,8 @@ export class BeatEmUp {
             if (p.iframes <= 0 &&
                 b.x >= p.x && b.x <= p.x + p.w &&
                 b.y >= p.y && b.y <= p.y + p.h) {
+                // R456: record bullet velocity for damage indicator
+                this._lastHitAngle = Math.atan2(b.vy || 0, b.vx || 0) + Math.PI;
                 this.enemyBullets.splice(i, 1);
                 this._hitPlayer(b.damage || 1);
             }
@@ -1172,6 +1197,8 @@ export class BeatEmUp {
         p.hp -= dmg;
         p.iframes = 60;
         audio.sfx('playerHit');
+        // R456: arm directional damage indicator
+        this._damageIndicatorT = 30;
         if (p.hp <= 0) this._onPlayerDeath();
         // R418: auto-trigger rage on the frame HP drops to last bar
         else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
@@ -1500,6 +1527,42 @@ export class BeatEmUp {
         }
         // HUD
         this._drawHUD();
+        // R456: directional damage indicator
+        if (this._damageIndicatorT > 0) {
+            this._damageIndicatorT--;
+            const t = this._damageIndicatorT / 30;
+            const ang = this._lastHitAngle || 0;
+            const cx = GAME.W / 2, cy = GAME.H / 2;
+            const radius = Math.min(GAME.W, GAME.H) * 0.42;
+            const ax = cx + Math.cos(ang) * radius;
+            const ay = cy + Math.sin(ang) * radius;
+            ctx.save();
+            ctx.globalAlpha = t * 0.85;
+            const grad = ctx.createRadialGradient(ax, ay, 0, ax, ay, 50);
+            grad.addColorStop(0, '#ff3030');
+            grad.addColorStop(0.5, '#c01010');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(ax, ay, 50, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+        // R456: combo HUD (mirrors Doom — top-right of view)
+        if (this._lastKillT != null) {
+            const since = this.t - this._lastKillT;
+            if (since < 240 && this._comboCount >= 2) {
+                const fade = 1 - (since / 240);
+                ctx.save();
+                ctx.globalAlpha = fade;
+                const txt = `×${this._comboCount}`;
+                const col = this._comboCount >= 5 ? '#ff80ff' :
+                            this._comboCount >= 4 ? '#ff8050' :
+                            this._comboCount >= 3 ? '#ffe070' : '#80ff80';
+                drawTextOutlined(ctx, txt, GAME.W - 6, 30, col, '#000000', 2, 'right');
+                ctx.restore();
+            }
+        }
         // Stage-clear overlay
         if (this.phase === 'clear') {
             const t = this.clearT;
