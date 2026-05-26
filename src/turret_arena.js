@@ -530,6 +530,8 @@ export class TurretArena {
         if (v.hitFlash > 0) v.hitFlash--;
         // R527: tick down throwing-arm telegraph
         if (v._throwingArmT > 0) v._throwingArmT--;
+        // R529: tick down BSOD charge pulse
+        if (v._bsodCharge > 0) v._bsodCharge--;
         // Stride for stomping
         v.stride += 0.06;
         // Phase transition at 50% HP
@@ -640,10 +642,19 @@ export class TurretArena {
     }
 
     _voltronBsodWave() {
-        // Telegraphed full-screen blue flash that hits if not in iframes.
-        // Three short flashes building up, then a damage tick on the player.
+        // R529: BSOD wave telegraph — boss face goes to SCREAM, the head
+        // pulses red, then the wave fires.
         this._bsodWaveT = 60;
-        audio.sfx?.('thunder');
+        const v = this.voltron;
+        if (v) {
+            v.face = FACE_SCREAM;
+            v.faceLockT = 60;
+            v._bsodCharge = 30;     // pre-wave red pulse on head
+        }
+        this.bossBark = { text: 'INITIALIZING BLUE SCREEN', age: 0, maxAge: 90 };
+        audio.sfx?.('bossChargeTell');
+        // Thunder fires on the actual wave-impact frame (handled in tick)
+        this._bsodThunderPending = 30;
     }
 
     _tickBossProjectiles() {
@@ -686,6 +697,11 @@ export class TurretArena {
                     if (this.game) this.game._fadeTo?.('gameOver');
                 }
             }
+        }
+        // R529: deferred thunder sfx fires on the wave-impact frame
+        if (this._bsodThunderPending > 0) {
+            this._bsodThunderPending--;
+            if (this._bsodThunderPending === 0) audio.sfx?.('thunder');
         }
     }
 
@@ -1630,6 +1646,23 @@ export class TurretArena {
         const headW = 28 * s;
         const headH = 22 * s;
         const headY = torsoY - headH;
+        // R529: BSOD charge pulse — red radial glow behind head during windup
+        if (v._bsodCharge > 0) {
+            const cT = (30 - v._bsodCharge) / 30;
+            const cR = (headW * 0.7) + cT * 16;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.5 + cT * 0.3;
+            const grad = ctx.createRadialGradient(0, headY + headH / 2, 0, 0, headY + headH / 2, cR);
+            grad.addColorStop(0, '#4080ff');
+            grad.addColorStop(0.5, '#0040a0');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, headY + headH / 2, cR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
         this._drawVoltronHead(ctx, -headW / 2, headY, headW, headH, v);
 
         // Hit flash overlay
