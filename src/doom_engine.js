@@ -183,6 +183,17 @@ export class DoomEngine {
             if (this._slowMoSkip) return;
         }
         this.t++;
+        // R530: tick deferred floaters (replaces setTimeout from R437)
+        if (this._deferredFloats && this._deferredFloats.length) {
+            for (let i = this._deferredFloats.length - 1; i >= 0; i--) {
+                const d = this._deferredFloats[i];
+                d.t--;
+                if (d.t <= 0) {
+                    this._floatText(d.text, d.x, d.y);
+                    this._deferredFloats.splice(i, 1);
+                }
+            }
+        }
         // R442: level intro fly-through — spin camera + lock input
         if (this._introT > 0) {
             this._introT--;
@@ -950,10 +961,16 @@ export class DoomEngine {
         }
         this._floatText('BOSS DOWN', boss.x, boss.y);
         // R437: another floater pointing at exit pad
+        // R530: was setTimeout (fired regardless of pause/scene); now a
+        // frame-counted deferred floater that respects the game loop.
         if (this._exitTilePos) {
-            setTimeout(() => {
-                this._floatText('FIND EXIT', boss.x, boss.y - 0.6);
-            }, 800);
+            this._deferredFloats = this._deferredFloats || [];
+            this._deferredFloats.push({
+                t: 48,                              // ~800ms at 60fps
+                text: 'FIND EXIT',
+                x: boss.x,
+                y: boss.y - 0.6,
+            });
         }
         // R437: end-of-stage music change — calmer track for the victory walk
         audio.playTrack?.('hope');
