@@ -362,7 +362,8 @@ export class DoomEngine {
                 dmg: (e.kind === 'boss') ? 2 : 1,
             });
             e.fireCD = (e.kind === 'boss') ? 30 : (80 + Math.random() * 40) | 0;
-            audio.sfx?.('shoot');
+            // R427: enemy fire SFX — bosses get heavier punch
+            audio.sfx?.(e.kind === 'boss' ? 'mg' : 'spread');
         }
     }
 
@@ -408,7 +409,7 @@ export class DoomEngine {
                         this.bullets.splice(i, 1);
                         if (e.hp <= 0) {
                             e.alive = false;
-                            audio.sfx?.('enemyDie');
+                            audio.sfx?.('explode');
                             this.player.score += (e.kind === 'boss') ? 5000 : 100;
                             if (e.kind === 'boss') this._onBossKill(e);
                         }
@@ -428,7 +429,7 @@ export class DoomEngine {
         }
         p.hp -= dmg;
         p.iframes = 60;
-        audio.sfx?.('playerHit');
+        audio.sfx?.('hurt');
         if (p.hp <= 0) this._onPlayerDeath();
         else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
     }
@@ -438,7 +439,7 @@ export class DoomEngine {
         p.rageFrames = p.rageMaxFrames;
         p.rageUsedThisStage = true;
         audio.sfx?.('powerup');
-        audio.sfx?.('explosion');
+        audio.sfx?.('explode');
         this._floatText('RAGE!!', p.x, p.y);
     }
 
@@ -508,10 +509,11 @@ export class DoomEngine {
         p.muzzleFlash = 5;
         // Per-weapon SFX cue. Painted gun art will replace these flat
         // beats later; for now the audio carries the differentiation.
+        // R427: dedicated SFX per weapon
         if (w === p.weapons.mg)       audio.sfx?.('mg');
-        else if (w === p.weapons.shotgun)  audio.sfx?.('explode');
-        else if (w === p.weapons.chainsaw) audio.sfx?.('hit');
-        else if (w === p.weapons.bfg)      audio.sfx?.('powerup');
+        else if (w === p.weapons.shotgun)  audio.sfx?.('shotgun');
+        else if (w === p.weapons.chainsaw) audio.sfx?.('chainsaw');
+        else if (w === p.weapons.bfg)      { audio.sfx?.('powerup'); audio.sfx?.('explode'); }
         // R423e: spawn projectile(s) per weapon
         // MG: 1 bullet, fast, 1 dmg
         // Shotgun: 5 pellets in a spread, 1 dmg each (5 max if all connect)
@@ -538,7 +540,7 @@ export class DoomEngine {
                     e.hitFlash = 6;
                     if (e.hp <= 0) {
                         e.alive = false;
-                        audio.sfx?.('enemyDie');
+                        audio.sfx?.('explode');
                         p.score += (e.kind === 'boss') ? 5000 : 100;
                         if (e.kind === 'boss') this._onBossKill(e);
                     }
@@ -597,7 +599,8 @@ export class DoomEngine {
                 audio.sfx?.('powerup');
                 this._floatText(`${info.key.toUpperCase()} DOOR UNLOCKED`, p.x, p.y);
             } else {
-                audio.sfx?.('hit');
+                // R427: denial click for locked doors
+                audio.sfx?.('pause');
                 this._floatText(`NEED ${info.key.toUpperCase()} KEYCARD`, p.x, p.y);
             }
         } else if (info.kind === 'switch') {

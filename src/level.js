@@ -1852,7 +1852,7 @@ function makeDoomPipelineBlock11() {
         doomMode: true,
         name: 'BLOCK 11',
         theme: 'sewer',
-        music: 'pipeline',
+        music: 'bossRushMode',     // R427: faster electronic track for Doom pace
         bgKey: 'bg_sewer',
         doomMap: M,
         doomStart: { x: 1.5, y: 24.5 },     // R428: spawn far south-west
@@ -1971,7 +1971,7 @@ function makeDoomFloor11() {
         doomMode: true,
         name: 'FLOOR 11',
         theme: 'serverroom',
-        music: 'bossBattle',
+        music: 'apocalypse',          // R427: heavy cinematic track for finale
         bgKey: 'bg_serverroom',
         doomMap: M,
         doomStart: { x: 20.5, y: 30.5 },        // R429: spawn center-south LOBBY
