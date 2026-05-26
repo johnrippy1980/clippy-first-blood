@@ -407,6 +407,9 @@ export class DoomEngine {
             // R448: key pickup flash in the key color
             const col = e.color === 'red' ? '#ff5050' : e.color === 'yellow' ? '#ffff60' : '#5090ff';
             game?.triggerScreenFlash?.(8, col, 0.3);
+            // R499: trigger HUD key pulse so the new slot draws attention
+            this._keyPulseT = 45;
+            this._keyPulseColor = e.color;
         } else if (e.kind === 'health') {
             p.hp = Math.min(p.maxHp, p.hp + (e.amount || 2));
             audio.sfx?.('pickup');
@@ -1177,7 +1180,9 @@ export class DoomEngine {
                 ctx.save();
                 const fade = Math.max(0, 1 - (this.t - 240) / 240);
                 ctx.globalAlpha = fade;
-                drawTextOutlined(ctx, 'TAB FOR MAP', W - 6, 8, '#a0c0ff', '#000000', 1, 'right');
+                // R498: position TAB hint BELOW the radar (which now lives
+                // top-right at y=4..54) so they don't overlap.
+                drawTextOutlined(ctx, 'TAB FOR MAP', W - 6, 60, '#a0c0ff', '#000000', 1, 'right');
                 ctx.restore();
             }
         }
@@ -2081,16 +2086,23 @@ export class DoomEngine {
         // --- RIGHT PANEL: keycards (top row) + weapon slots (bottom row) ---
         drawText(ctx, 'KEYS', rightX + 4, y + 4, '#a0a0b0', 1, 'left');
         const colors = ['red', 'yellow', 'blue'];
+        // R499: decrement key-pulse timer
+        if (this._keyPulseT > 0) this._keyPulseT--;
         for (let i = 0; i < colors.length; i++) {
             const c = colors[i];
             const has = this.keys.has(c);
             const kx = rightX + 4 + i * 12;
             const ky = y + 13;
+            // R499: pulse the just-picked-up key
+            const pulsing = this._keyPulseT > 0 && this._keyPulseColor === c;
+            const pulse = pulsing ? (Math.sin(this._keyPulseT * 0.5) + 1) * 0.5 : 0;
             // Outline frame
-            ctx.fillStyle = '#202028';
-            ctx.fillRect(kx, ky, 10, 10);
+            ctx.fillStyle = pulsing ? '#ffffff' : '#202028';
+            ctx.fillRect(kx - (pulsing ? 1 : 0), ky - (pulsing ? 1 : 0),
+                         10 + (pulsing ? 2 : 0), 10 + (pulsing ? 2 : 0));
             if (has) {
-                ctx.fillStyle = c === 'red' ? '#ff4040' : c === 'yellow' ? '#ffff40' : '#4080ff';
+                const baseCol = c === 'red' ? '#ff4040' : c === 'yellow' ? '#ffff40' : '#4080ff';
+                ctx.fillStyle = pulsing && pulse > 0.5 ? '#ffffff' : baseCol;
                 ctx.fillRect(kx + 1, ky + 1, 8, 8);
                 // White highlight
                 ctx.fillStyle = '#ffffff';

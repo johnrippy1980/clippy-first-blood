@@ -2100,6 +2100,7 @@ export class Game {
         const ctx = this.ctx;
         const t = this._bossIntro.age;
         const stg = STAGES[this.currentStage];
+        if (!stg) return;
         const bossKey = stg.boss;
         const bark = BOSS_BARK[stg.boss] || ['', ''];
         // Phase ratios
