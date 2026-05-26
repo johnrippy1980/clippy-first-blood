@@ -2581,7 +2581,11 @@ export class Game {
     _tickPause() {
         if (input.isPressed('pause')) {
             audio.sfx('pause');
-            this.scene = SCENE.PLAY;
+            // R489: respect the origin scene so unpausing on FPS/BEAT/DOOM
+            // returns to the correct engine instead of dropping into the
+            // platformer's PLAY scene (which has no level for those stages
+            // and renders as a black void).
+            this.scene = this._pauseReturnScene || SCENE.PLAY;
             return;
         }
         if (input.isPressed('up'))   { this.pauseIndex = (this.pauseIndex + PAUSE_OPTIONS.length - 1) % PAUSE_OPTIONS.length; audio.sfx('select'); }

@@ -82,6 +82,7 @@ export class BeatEmUp {
             facing: 1,            // +1 right, -1 left
             runFrame: 0,
             score: 0,
+            kills: 0,    // R489: kill counter for achievements
             // R409: jump-to-aim — airY is HEIGHT above the street plane
             // (0 = grounded, positive = airborne). airVy is vertical
             // velocity. Lets the player shoot at flying enemies
@@ -1024,6 +1025,8 @@ export class BeatEmUp {
                                            (this._comboCount >= 3) ? 2 : 1;
                         const base = ENEMY_STATS[e.type]?.score || 100;
                         this.player.score += base * multiplier;
+                        // R489: kill counter for achievements
+                        this.player.kills = (this.player.kills || 0) + 1;
                         // Show combo toast when ≥×2
                         if (multiplier > 1) {
                             particles.floatingText?.(

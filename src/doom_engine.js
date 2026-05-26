@@ -105,6 +105,7 @@ export class DoomEngine {
             lives: 3,
             iframes: 0,
             score: 0,
+            kills: 0,         // R489: kill counter rolls into achievements
             // R418: rage parity with the other engines
             rageFrames: 0,
             rageMaxFrames: 300,
@@ -845,6 +846,9 @@ export class DoomEngine {
         const base = isBoss ? 5000 : 100;
         const gain = base * multiplier;
         this.player.score += gain;
+        // R489: kill counter for achievements (totalKills stat). Resolved
+        // via ap.kills in _onStageClear.
+        this.player.kills = (this.player.kills || 0) + 1;
         // Show combo toast when ×2 or higher
         if (multiplier > 1 && !isBoss) {
             this._floatText(`COMBO ×${multiplier}!`, e.x, e.y - 0.4);

@@ -96,6 +96,7 @@ export class FpsArena {
             facing: 0,
             runFrame: 0,
             score: 0,
+            kills: 0,    // R489: kill counter for achievements
             // R418: rage mode parity with platformer + beatem
             rageFrames: 0,
             rageMaxFrames: 300,
@@ -746,6 +747,8 @@ export class FpsArena {
                      (this._comboCount >= 3) ? 2 : 1;
         const gain = base * mult;
         this.player.score += gain;
+        // R489: kill counter for achievements
+        this.player.kills = (this.player.kills || 0) + 1;
         if (mult > 1 && x != null && y != null) {
             particles.floatingText?.(x, y - 6, `COMBO ×${mult}!`,
                 mult >= 4 ? '#ff80ff' : mult >= 3 ? '#ff8050' : '#ffe070',
