@@ -4563,11 +4563,21 @@ export class Game {
                 const cameViaStageSelect = !!this._konamiUnlocked
                     || achievements.unlocked.has('clear_game');
                 if (cameViaStageSelect) {
-                    audio.stopTrack();
-                    this._fadeTo(SCENE.TITLE);
-                    return;
+                    // R534: was a hard-cut to title (no cinematic, no
+                    // celebration). Now: the STAGE_CLEAR panel was already
+                    // showing when we entered _tickStageClear; X press
+                    // takes us through the recycle-bin "purged" card
+                    // before fading to title. Player gets stats + clear
+                    // banner + painted card + return to splash.
+                    this._pendingFinale = SCENE.TITLE;
+                    this._extraCards = ['card_recyclebin_2026'];
+                    audio.sfx('secretFound');
+                    // Set nextStage to a valid id so _tickStageCard's
+                    // fallback doesn't try to start stage 15 (Training).
+                    nextStage = this.currentStage;
+                } else {
+                    nextStage = 2;
                 }
-                nextStage = 2;
             } else if (this.currentStage === 13) {
                 // R291: Cloud (final main stage) → game-complete credits roll.
                 this._fadeTo(SCENE.GAME_COMPLETE);
