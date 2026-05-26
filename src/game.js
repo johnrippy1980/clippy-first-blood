@@ -850,13 +850,18 @@ export class Game {
         const cleared = achievements.unlocked.has('clear_game');
         const stageSelectAvail = this.unlockedStage > 1;
         // Master list. Filtered below based on per-row gates.
+        // R487: removed 'ONE MORE THING' — that's stage 18 (Jobs), which is
+        // a real STAGE not a mode. It belongs in stage-select, not main menu
+        // (gated by gameCleared on the stage-select grid already). Training,
+        // Boss Rush, Time Trial are MODES (no campaign chain) so they live
+        // here. Jobs has a campaign chain (post-game story arc) so it lives
+        // in stage-select like every other stage.
         const all = [
             { label: 'START GAME',     action: 'start' },
             { label: 'STAGE SELECT',   action: 'stageSelect',  gate: () => stageSelectAvail },
             { label: 'TRAINING',       action: 'training' },
             { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
             { label: 'TIME TRIAL',     action: 'timeTrial',    gate: () => cleared },
-            { label: 'ONE MORE THING', action: 'secret',       gate: () => cleared },
             { label: 'OPTIONS',        action: 'options' },
             { label: 'ACHIEVEMENTS',   action: 'achievements' },
             { label: 'SCENE GALLERY',  action: 'gallery' },
@@ -893,6 +898,10 @@ export class Game {
                 // no stage-select tile (campaign-only mode).
                 case 'bossRush':     this._startStage(24); break;
                 case 'timeTrial':    this._startStage(17); break;
+                // R487: 'secret' (ONE MORE THING / Jobs) removed from main
+                // menu — players reach stage 18 via stage-select after
+                // clear_game unlock. Case retained for save-state safety
+                // in case the action ever fires from an old session.
                 case 'secret':       this._startStage(18); break;
                 case 'options':
                     this.optionsIndex = 0;
@@ -3423,15 +3432,13 @@ export class Game {
             if (i === 4 && (this.unlockedStage > 4 || gameCleared || konami)) ids.push(23);
         }
         if (hasSecret || konami) ids.push(14);
-        // R359: post-game stages 15 (Training), 16 (Boss Rush Mode), 17
-        // (Time Trial) were unreachable — not in this list and not chained
-        // from any other stage. Three full stages of content nobody could
-        // access. Now they appear after the campaign clear (same gate as
-        // stage 18).
-        if (gameCleared || konami) ids.push(15);
-        if (gameCleared || konami) ids.push(16);
-        if (gameCleared || konami) ids.push(17);
-        if (gameCleared || konami) ids.push(18);
+        // R487: Training (15), Boss Rush Mode (formerly 16, now 24), and
+        // Time Trial (17) are MODES — owned by the main-menu list, not
+        // stage-select. Don't surface them here as tiles (was confusing —
+        // they showed up in both places). Stage 16 IS still on the grid
+        // because it's now FLOOR 11 (a real Doom stage, not boss rush).
+        if (gameCleared || konami) ids.push(16);   // FLOOR 11 (Doom)
+        if (gameCleared || konami) ids.push(18);   // REALITY DISTORTION (Jobs)
         if (konami) ids.push(19);
         // R306: Mecha-Gates 3-stage super-secret arc — konami-only.
         // 20 = beat-em-up approach, 21 = FPS corridor, 22 = FPS arena.
