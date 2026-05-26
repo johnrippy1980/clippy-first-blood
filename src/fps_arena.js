@@ -1736,6 +1736,12 @@ export class FpsArena {
         // down (core exposed = takes damage = aura visible).
         const coreImg = sprites.images.get(this.spriteKeys.core);
         const allShieldsDead = this.shields.every(s => !s.alive);
+        // R516: subtle hover-bob + pre-fire lean so the static painted boss
+        // reads as a living menace, not a propped-up cardboard cutout.
+        const bobY = Math.sin(this.t * 0.04) * 2.5;
+        const framesToFire = c.fireT != null ? c.fireT : 9999;
+        const fireT = framesToFire < 20 ? (20 - framesToFire) / 20 : 0;
+        const leanX = fireT * Math.sin(this.t * 0.5) * 2; // tremble before fire
         if (coreImg) {
             ctx.imageSmoothingEnabled = false;
             // R471: aspect-correct width from sprite source. Was c.w+4, which
@@ -1744,8 +1750,8 @@ export class FpsArena {
             const drawH = c.h + 4;
             const aspect = coreImg.naturalWidth / coreImg.naturalHeight;
             const drawW = drawH * aspect;
-            const dx = Math.round(c.x - drawW / 2);
-            const dy = Math.round(c.y - drawH / 2);
+            const dx = Math.round(c.x - drawW / 2 + leanX);
+            const dy = Math.round(c.y - drawH / 2 + bobY);
             // Pulse-glow under the core when exposed
             if (allShieldsDead) {
                 const pulse = 0.4 + 0.4 * Math.sin(this.t * 0.18);

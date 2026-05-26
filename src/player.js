@@ -3920,6 +3920,13 @@ export class Player {
                     return shooting ? 'crouch_shoot' : 'crouch';
                 }
                 if (shooting) return 'shoot';
+                // R516: breathing idle — swap between 'idle' and 'idle_alt'
+                // on a ~40-frame cycle so Clippy doesn't look frozen when
+                // standing still. The two frames differ subtly (small head/
+                // chest delta) — at 1.5Hz alternation it reads as breathing.
+                if (sprites.has('idle_alt') && Math.floor(this._idleTimer / 30) % 2 === 1) {
+                    return 'idle_alt';
+                }
                 return 'idle';
             }
         }
