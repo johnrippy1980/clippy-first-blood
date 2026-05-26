@@ -2531,44 +2531,44 @@ export class Game {
                 drawText(ctx, 'TARGET: ' + stage.boss.replace(/_/g, ' '),
                          GAME.W / 2, panelY + 46, '#ff8060', 1, 'center');
             }
-            // R505: Doom mode shows live inventory row in pause overlay
+            // R505: Doom mode shows one compact inventory row in the pause
+            // overlay — KEYS [r][y][b] · GUNS MG SHOT SAW BFG on one line.
             if (this._doomMode && this._doomEngine?.player) {
                 const dp = this._doomEngine.player;
-                // Keys row
-                let kx = GAME.W / 2 - 30;
-                drawText(ctx, 'KEYS', kx, panelY + 56, '#808090', 1, 'left');
-                kx += 22;
-                for (const color of ['red', 'yellow', 'blue']) {
-                    if (this._doomEngine.keys.has(color)) {
-                        ctx.fillStyle = color === 'red' ? '#ff4040' : color === 'yellow' ? '#ffff40' : '#4080ff';
-                        ctx.fillRect(kx, panelY + 56, 6, 6);
-                    } else {
-                        ctx.fillStyle = '#202028';
-                        ctx.fillRect(kx, panelY + 56, 6, 6);
-                    }
-                    kx += 10;
-                }
-                // Weapons row
+                const invY = panelY + (stage.boss ? 64 : 56);
                 const wKeys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
                 const wNames = ['MG', 'SHOT', 'SAW', 'BFG'];
-                let wx = GAME.W / 2 - 50;
-                drawText(ctx, 'GUNS', wx, panelY + 66, '#808090', 1, 'left');
-                wx += 22;
+                const gunsWidth = wNames.reduce((s, n) => s + n.length * 6 + 4, 0);
+                const totalWidth = 20 + 32 + 12 + gunsWidth;
+                let ix = (GAME.W - totalWidth) / 2;
+                drawText(ctx, 'KEY', ix, invY, '#808090', 1, 'left');
+                ix += 20;
+                for (const color of ['red', 'yellow', 'blue']) {
+                    ctx.fillStyle = this._doomEngine.keys.has(color)
+                        ? (color === 'red' ? '#ff4040' : color === 'yellow' ? '#ffff40' : '#4080ff')
+                        : '#202028';
+                    ctx.fillRect(ix, invY + 1, 6, 6);
+                    ix += 10;
+                }
+                ix += 6;
                 for (let i = 0; i < 4; i++) {
                     const w = dp.weapons[wKeys[i]];
                     const isActive = (dp.weaponIdx === i);
                     const col = isActive ? '#ffe070' : (w.owned ? '#ffffff' : '#404048');
-                    drawText(ctx, wNames[i], wx, panelY + 66, col, 1, 'left');
-                    wx += wNames[i].length * 6 + 4;
+                    drawText(ctx, wNames[i], ix, invY, col, 1, 'left');
+                    ix += wNames[i].length * 6 + 4;
                 }
             }
         }
 
-        // R505: bump startY when Doom inventory row is shown so menu
-        // options don't overlap the keys/guns rows
-        const startY = panelY + (this._doomMode ? 76 : 58);
+        // R505: bump startY by one row (~10px) when Doom inventory row is
+        // shown so menu options don't sit on top of the keys/guns line
+        const startY = panelY + (this._doomMode ? 78 : 58);
+        // R505: compress row spacing in Doom mode so all 6 options + the
+        // controls strip + footer still fit inside the existing panelH
+        const pauseRowH = this._doomMode ? 13 : 16;
         for (let i = 0; i < PAUSE_OPTIONS.length; i++) {
-            const y = startY + i * 16;
+            const y = startY + i * pauseRowH;
             const isSel = i === this.pauseIndex;
             if (isSel) {
                 const phase = Math.sin((this._pausePulse = (this._pausePulse || 0) + 1) * 0.18) * 0.5 + 0.5;
@@ -2587,7 +2587,7 @@ export class Game {
         // the footer (panelY+panelH-8 = 198). The READY card before each
         // stage already shows the full keymap — this strip is just a
         // mid-run reminder, not the discovery surface.
-        const ctrlY = panelY + 50 + PAUSE_OPTIONS.length * 16 + 6;
+        const ctrlY = startY + PAUSE_OPTIONS.length * pauseRowH + 6;
         drawText(ctx, 'CONTROLS', GAME.W / 2, ctrlY, '#a0c0e0', 1, 'center');
         const colL = panelX + 16, colR = panelX + panelW - 16;
         const rowH = 8;
