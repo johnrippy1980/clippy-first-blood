@@ -4012,6 +4012,11 @@ export class Game {
         // R272: route through STAGE_INTRO first so painted-backdrop intro
         // cinematics fire before the arena loads.
         if (data.fpsMode) {
+            // R457: clear other engines so stale instances from a prior
+            // stage don't leak into the new scene (caught by playtest scan
+            // which saw stage 22 → 23 leaving _beatEmUp set).
+            this._beatEmUp = null;  this._beatMode = false;
+            this._doomEngine = null; this._doomMode = false;
             this._fpsArena = new FpsArena(data, this.ctx, this);
             this._fpsMode = true;
             this._fpsPendingPlay = true;   // signal _tickStageIntro to FPS_PLAY
@@ -4024,6 +4029,9 @@ export class Game {
         // R306: beat-em-up street-brawler short-circuit. Same pattern as
         // FPS — route through STAGE_INTRO first, then hand off to BEAT_PLAY.
         if (data.beatMode) {
+            // R457: clear other engines (see above)
+            this._fpsArena = null;  this._fpsMode = false;
+            this._doomEngine = null; this._doomMode = false;
             this._beatEmUp = new BeatEmUp(data, this.ctx, this);
             this._beatMode = true;
             this._beatPendingPlay = true;
@@ -4036,6 +4044,9 @@ export class Game {
         // R423: Doom-style free-roam first-person mode. Same routing
         // pattern — STAGE_INTRO first, then hand off to DOOM_PLAY.
         if (data.doomMode) {
+            // R457: clear other engines (see above)
+            this._fpsArena = null;  this._fpsMode = false;
+            this._beatEmUp = null;  this._beatMode = false;
             this._doomEngine = new DoomEngine(data, this.ctx, this);
             this._doomMode = true;
             this._doomPendingPlay = true;
@@ -4379,6 +4390,15 @@ export class Game {
                 // R357: chopper crashes → Mecha-Gates emerges from
                 // the wreckage. Reuses the existing mecha-reveal card.
                 this._extraCards = ['card_chopper_crash'];
+            } else if (this.currentStage === 4) {
+                // R462: Pipeline → BLOCK 11 intro — Clippy descends into
+                // Spindler's clone lab with a "RESTRICTED" sign + bloody
+                // handprint + green glow at the end of the corridor.
+                this._extraCards = ['card_doom_arc_intro'];
+            } else if (this.currentStage === 16) {
+                // R462: FLOOR 11 cleared — Clippy at the shattered HQ
+                // window, sunset over Seattle, wrecked wheelchair.
+                this._extraCards = ['card_doom_arc_outro'];
             }
             // Route through the painted cinematic card(s) before the next stage
             this._pendingStage = nextStage;

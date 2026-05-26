@@ -174,6 +174,9 @@ export const SCENE_MANIFEST = {
     // floor11 = burning corporate hallway with wheelchair silhouette.
     'card_doom_block11':      'card_doom_block11.png',
     'card_doom_floor11':      'card_doom_floor11.png',
+    // R462: Doom arc bookends — intro before BLOCK 11, outro after FLOOR 11.
+    'card_doom_arc_intro':    'card_doom_arc_intro.png',
+    'card_doom_arc_outro':    'card_doom_arc_outro.png',
     // R281: Ballmer mini-arc cards — office approach, escape cinematic,
     // and arena boss-reveal. Used by STAGE_CARDS (game.js) for stages 6-7
     // and the boss-escapes cinematic between stage 5 and 6.
