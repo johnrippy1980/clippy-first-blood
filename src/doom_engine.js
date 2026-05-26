@@ -1669,60 +1669,122 @@ export class DoomEngine {
     // pixel. Sample the appropriate texture there. Cheap to compute at
     // 256×112 pixel cost.
     _drawFloorCeiling(floorTex, ceilTex) {
+        // R454: optimized to ~half the prior cost via:
+        //  1. Reusable ImageData buffer (no re-alloc per frame)
+        //  2. Bitwise AND for power-of-2 texture wrap (fw=64=0x40, so & 63)
+        //  3. Half-resolution sampling (every other column, fill 2px wide)
+        //  4. Hoisted scaled-color lookups, inlined indexing math
         const ctx = this.ctx;
         const p = this.player;
         const halfH = (VIEW_H / 2) | 0;
-        // ImageData buffer once per frame
-        const imgData = ctx.getImageData(0, 0, W, VIEW_H);
+        // Reuse the ImageData buffer across frames — saves a ~57KB alloc.
+        // Only re-fetch if size changed (canvas resize) or first call.
+        if (!this._fcBuf || this._fcBuf.width !== W || this._fcBuf.height !== VIEW_H) {
+            this._fcBuf = ctx.getImageData(0, 0, W, VIEW_H);
+        }
+        const imgData = this._fcBuf;
         const data = imgData.data;
-        // Pre-cache texture data
         const fdata = this._getTexData(floorTex);
         const cdata = this._getTexData(ceilTex);
         const fw = floorTex.naturalWidth, fh = floorTex.naturalHeight;
         const cw = ceilTex.naturalWidth, ch = ceilTex.naturalHeight;
-        // Ray for column 0 (leftmost) + column W-1 (rightmost) at the FOV
+        // Bitwise mask path is hot, so require power-of-2 textures.
+        // (64x64 — already power-of-2.) Fall through to generic if not.
+        const fwMask = (fw & (fw - 1)) === 0 ? fw - 1 : 0;
+        const fhMask = (fh & (fh - 1)) === 0 ? fh - 1 : 0;
+        const cwMask = (cw & (cw - 1)) === 0 ? cw - 1 : 0;
+        const chMask = (ch & (ch - 1)) === 0 ? ch - 1 : 0;
+        const fastMask = fwMask && fhMask && cwMask && chMask;
         const halfFov = FOV / 2;
         const dirX = Math.cos(p.angle), dirY = Math.sin(p.angle);
-        // Camera plane (perpendicular right) — length tan(halfFov)
         const planeX = -dirY * Math.tan(halfFov);
         const planeY = dirX * Math.tan(halfFov);
         const rayDir0X = dirX - planeX;
         const rayDir0Y = dirY - planeY;
         const rayDir1X = dirX + planeX;
         const rayDir1Y = dirY + planeY;
-        // posZ = camera height in projection units. Player eye at 0.5 tile.
         const posZ = 0.5 * VIEW_H;
+        // Step every OTHER column then duplicate — halves the inner loop
+        // work at the cost of slight visual blockiness on the floor pattern.
+        const STEP = 2;
         for (let y = halfH + 1; y < VIEW_H; y++) {
             const py2 = y - halfH;
-            const rowDist = posZ / py2;          // perpendicular world distance
-            const floorStepX = rowDist * (rayDir1X - rayDir0X) / W;
-            const floorStepY = rowDist * (rayDir1Y - rayDir0Y) / W;
+            const rowDist = posZ / py2;
+            const stepX = rowDist * (rayDir1X - rayDir0X) / W * STEP;
+            const stepY = rowDist * (rayDir1Y - rayDir0Y) / W * STEP;
             let fx = p.x + rowDist * rayDir0X;
             let fy = p.y + rowDist * rayDir0Y;
-            // Fog factor — far floor dimmer
             const fade = Math.max(0.3, 1 - rowDist / 8);
-            const ceilY = VIEW_H - y - 1;  // mirrored row for ceiling
-            for (let x = 0; x < W; x++) {
-                // Floor pixel
-                const fu = (Math.floor(fx * fw) % fw + fw) % fw;
-                const fv = (Math.floor(fy * fh) % fh + fh) % fh;
-                const fi = (fv * fw + fu) * 4;
-                const di = (y * W + x) * 4;
-                data[di]   = (fdata[fi]     * fade) | 0;
-                data[di+1] = (fdata[fi + 1] * fade) | 0;
-                data[di+2] = (fdata[fi + 2] * fade) | 0;
-                data[di+3] = 255;
-                // Ceiling pixel (mirror y)
-                const cu = (Math.floor(fx * cw) % cw + cw) % cw;
-                const cv = (Math.floor(fy * ch) % ch + ch) % ch;
-                const ci = (cv * cw + cu) * 4;
-                const di2 = (ceilY * W + x) * 4;
-                data[di2]   = (cdata[ci]     * fade) | 0;
-                data[di2+1] = (cdata[ci + 1] * fade) | 0;
-                data[di2+2] = (cdata[ci + 2] * fade) | 0;
-                data[di2+3] = 255;
-                fx += floorStepX;
-                fy += floorStepY;
+            // Pre-scale fade as fixed-point (0..256) for *fade>>8 instead of float*
+            const f8 = (fade * 256) | 0;
+            const ceilY = VIEW_H - y - 1;
+            const rowBase = y * W * 4;
+            const cRowBase = ceilY * W * 4;
+            if (fastMask) {
+                for (let x = 0; x < W; x += STEP) {
+                    // Use (fx * fw | 0) & mask — matches original sampling
+                    // formula at high speed since power-of-2 masks bypass %.
+                    // Add fw*4 before mask to handle small negative fx without
+                    // garbage (we have walls at 0 so this rarely matters).
+                    const fu = (((fx * fw) | 0) + (fw << 2)) & fwMask;
+                    const fv = (((fy * fh) | 0) + (fh << 2)) & fhMask;
+                    const fi = (fv * fw + fu) << 2;
+                    const di = rowBase + (x << 2);
+                    const fr = (fdata[fi]     * f8) >> 8;
+                    const fg = (fdata[fi + 1] * f8) >> 8;
+                    const fb = (fdata[fi + 2] * f8) >> 8;
+                    data[di]     = fr;
+                    data[di + 1] = fg;
+                    data[di + 2] = fb;
+                    data[di + 3] = 255;
+                    // duplicate to next column
+                    data[di + 4] = fr;
+                    data[di + 5] = fg;
+                    data[di + 6] = fb;
+                    data[di + 7] = 255;
+                    // Ceiling
+                    const cu = (((fx * cw) | 0) + (cw << 2)) & cwMask;
+                    const cv = (((fy * ch) | 0) + (ch << 2)) & chMask;
+                    const ci = (cv * cw + cu) << 2;
+                    const di2 = cRowBase + (x << 2);
+                    const cr = (cdata[ci]     * f8) >> 8;
+                    const cg = (cdata[ci + 1] * f8) >> 8;
+                    const cb = (cdata[ci + 2] * f8) >> 8;
+                    data[di2]     = cr;
+                    data[di2 + 1] = cg;
+                    data[di2 + 2] = cb;
+                    data[di2 + 3] = 255;
+                    data[di2 + 4] = cr;
+                    data[di2 + 5] = cg;
+                    data[di2 + 6] = cb;
+                    data[di2 + 7] = 255;
+                    fx += stepX;
+                    fy += stepY;
+                }
+            } else {
+                // Generic path (non-power-of-2 textures)
+                for (let x = 0; x < W; x += STEP) {
+                    const fu = (((fx * fw) | 0) % fw + fw) % fw;
+                    const fv = (((fy * fh) | 0) % fh + fh) % fh;
+                    const fi = (fv * fw + fu) << 2;
+                    const di = rowBase + (x << 2);
+                    const fr = (fdata[fi]     * f8) >> 8;
+                    const fg = (fdata[fi + 1] * f8) >> 8;
+                    const fb = (fdata[fi + 2] * f8) >> 8;
+                    data[di] = fr; data[di + 1] = fg; data[di + 2] = fb; data[di + 3] = 255;
+                    data[di + 4] = fr; data[di + 5] = fg; data[di + 6] = fb; data[di + 7] = 255;
+                    const cu = (((fx * cw) | 0) % cw + cw) % cw;
+                    const cv = (((fy * ch) | 0) % ch + ch) % ch;
+                    const ci = (cv * cw + cu) << 2;
+                    const di2 = cRowBase + (x << 2);
+                    const cr = (cdata[ci]     * f8) >> 8;
+                    const cg = (cdata[ci + 1] * f8) >> 8;
+                    const cb = (cdata[ci + 2] * f8) >> 8;
+                    data[di2] = cr; data[di2 + 1] = cg; data[di2 + 2] = cb; data[di2 + 3] = 255;
+                    data[di2 + 4] = cr; data[di2 + 5] = cg; data[di2 + 6] = cb; data[di2 + 7] = 255;
+                    fx += stepX;
+                    fy += stepY;
+                }
             }
         }
         ctx.putImageData(imgData, 0, 0);
