@@ -658,6 +658,7 @@ export class FpsArena {
 
     _tickEnemyBullets() {
         const p = this.player;
+        if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
             // R271: physics-projectiles (chairs) — apply gravity each tick
@@ -669,6 +670,18 @@ export class FpsArena {
             if (b.life <= 0 || b.y > GAME.H + 10) {
                 this.enemyBullets.splice(i, 1);
                 continue;
+            }
+            // R486: near-miss whizz SFX
+            if (!b._whizzPlayed && (this._whizzCooldown || 0) <= 0) {
+                const pdx = b.x - (p.x + p.w / 2);
+                const pdy = b.y - (p.y + p.h / 2);
+                const d2 = pdx * pdx + pdy * pdy;
+                if (b._prevD2 != null && d2 > b._prevD2 && b._prevD2 < 16 * 16) {
+                    audio.sfx?.('whizz');
+                    this._whizzCooldown = 18;
+                    b._whizzPlayed = true;
+                }
+                b._prevD2 = d2;
             }
             // Chair hitbox is larger than a bullet — uses ~16×16 instead of 3×3
             const hitW = b.isChair ? 18 : 3;

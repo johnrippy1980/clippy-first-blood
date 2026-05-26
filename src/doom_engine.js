@@ -617,11 +617,25 @@ export class DoomEngine {
 
     _tickBullets() {
         const p = this.player;
+        if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
+            // R486: near-miss whizz SFX for ENEMY bullets only (player's own
+            // shots zipping past would be confusing). Tile coords: 1 tile
+            // threshold = "very close" in raycaster world units.
+            if (b.fromEnemy && !b._whizzPlayed && (this._whizzCooldown || 0) <= 0) {
+                const pdx = b.x - p.x, pdy = b.y - p.y;
+                const d2 = pdx * pdx + pdy * pdy;
+                if (b._prevD2 != null && d2 > b._prevD2 && b._prevD2 < 1.0) {
+                    audio.sfx?.('whizz');
+                    this._whizzCooldown = 18;
+                    b._whizzPlayed = true;
+                }
+                b._prevD2 = d2;
+            }
             if (b.life <= 0 || this._solidAt(b.x, b.y)) {
                 // R433: spark burst on wall hit — small short-lived particle
                 // entities at impact point. Only for player bullets (enemy

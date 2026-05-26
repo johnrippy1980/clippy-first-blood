@@ -1173,6 +1173,8 @@ export class BeatEmUp {
 
     _tickEnemyBullets() {
         const p = this.player;
+        // R486: whizz cooldown across all bullets in the frame
+        if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
             // R413: optional per-bullet gravity (chairs arc)
@@ -1184,6 +1186,18 @@ export class BeatEmUp {
                 b.y < STREET_TOP - 20 || b.y > GAME.H + 10) {
                 this.enemyBullets.splice(i, 1);
                 continue;
+            }
+            // R486: near-miss whizz SFX — same logic as platformer
+            if (!b._whizzPlayed && (this._whizzCooldown || 0) <= 0) {
+                const pdx = b.x - (p.x + p.w / 2);
+                const pdy = b.y - (p.y + p.h / 2);
+                const d2 = pdx * pdx + pdy * pdy;
+                if (b._prevD2 != null && d2 > b._prevD2 && b._prevD2 < 16 * 16) {
+                    audio.sfx?.('whizz');
+                    this._whizzCooldown = 18;
+                    b._whizzPlayed = true;
+                }
+                b._prevD2 = d2;
             }
             if (p.iframes <= 0 &&
                 b.x >= p.x && b.x <= p.x + p.w &&
