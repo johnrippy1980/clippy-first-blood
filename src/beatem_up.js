@@ -1227,7 +1227,13 @@ export class BeatEmUp {
     _tickEnemies() {
         const p = this.player;
         for (const e of this.enemies) {
-            if (!e.alive) continue;
+            // R522: dead enemies tick their death animation timer up to 40.
+            // Past that they're removed from the draw list (still kept in
+            // the array so wave-cleared check uses .alive).
+            if (!e.alive) {
+                if (e.deathT != null) e.deathT++;
+                continue;
+            }
             if (e.hitFlash > 0) e.hitFlash--;
             // Helicopter hovers above its baseY + bobs
             if (e.isFlying) {
@@ -1599,7 +1605,9 @@ export class BeatEmUp {
         ctx.fillStyle = 'rgba(20, 8, 12, 0.55)';
         ctx.fillRect(0, STREET_TOP - 1, GAME.W, 2);
         // Depth-sort entities so far ones draw first
-        const drawList = [...this.enemies.filter(e => e.alive)].sort((a, b) => a.y - b.y);
+        // R522: include dying enemies (alive=false but within 40-frame death
+        // animation window) so the fall-fade-tilt renders.
+        const drawList = [...this.enemies.filter(e => e.alive || (e.deathT != null && e.deathT < 40))].sort((a, b) => a.y - b.y);
         drawList.push({ _isPlayer: true });
         // Insertion-sort player so closer-y comes later
         drawList.sort((a, b) => {
@@ -2102,6 +2110,26 @@ export class BeatEmUp {
 
     _drawEnemy(e) {
         const ctx = this.ctx;
+        // R522: dying-enemy death animation — runs for 40 frames after
+        // the kill. Tilts the sprite over to its facing direction, drops
+        // it ~16px on a quadratic fall, fades alpha to 0.
+        // Wraps the whole _drawEnemy body via ctx.save/restore.
+        const dying = (!e.alive && e.deathT != null);
+        if (dying) {
+            const dT = Math.min(40, e.deathT) / 40;
+            const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
+            const fallY = dT * dT * 16;       // quadratic ease-in fall
+            const tilt = facing * dT * 1.2;   // ~70° tilt over animation
+            const alpha = 1 - dT * 0.85;       // 1.0 → 0.15
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            // Rotate around hitbox bottom-center so they pivot like falling
+            const pivotX = e.x - this.scroll + (e.w * 0.5);
+            const pivotY = e.y + (e.h * 0.95);
+            ctx.translate(pivotX, pivotY + fallY);
+            ctx.rotate(tilt);
+            ctx.translate(-pivotX, -pivotY);
+        }
         let baseKey = {
             scavenger:   this.spriteKeys.scavenger   || 'scavenger',
             drone:       this.spriteKeys.drone       || 'drone',
@@ -2299,8 +2327,8 @@ export class BeatEmUp {
             ctx.fillStyle = e.type === 'helicopter' ? '#5a6a4a' : '#604030';
             ctx.fillRect(e.x - this.scroll, e.y, dw, dh);
         }
-        // Mini HP bar above enemy if damaged
-        if (e.hp < e.maxHp) {
+        // Mini HP bar above enemy if damaged (skip for dying enemies)
+        if (!dying && e.hp < e.maxHp) {
             const bw = Math.round(dw);
             const fillW = Math.round((e.hp / e.maxHp) * bw);
             const hbX = e.x - this.scroll;
@@ -2309,6 +2337,8 @@ export class BeatEmUp {
             ctx.fillStyle = '#ff5040';
             ctx.fillRect(hbX, e.y - 4, fillW, 2);
         }
+        // R522: close the death-animation transform context
+        if (dying) ctx.restore();
     }
 
     _drawHUD() {
