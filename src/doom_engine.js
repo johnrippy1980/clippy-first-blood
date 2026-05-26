@@ -2243,13 +2243,16 @@ export class DoomEngine {
             const isActive = (p.weaponIdx === i);
             const wx = rightX + 50 + i * 9;
             const wy = y + 27;
-            // Frame
-            ctx.fillStyle = isActive ? '#ffe070' : (w2.owned ? '#a0a0b8' : '#404048');
-            const label = String(i + 1);
-            drawText(ctx, label, wx, wy, isActive ? '#000' : (w2.owned ? '#ffffff' : '#202028'), 1, 'left');
-            // Active highlight underline
+            // R508: active slot draws as bright yellow numeral on dark bg
+            // (was black-on-implicit-yellow but the bg fill was never drawn,
+            // so active slot was effectively invisible against #181820 HUD)
             if (isActive) {
-                ctx.fillRect(wx - 1, wy + 6, 6, 1);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(wx - 1, wy - 1, 6, 8);
+                drawText(ctx, String(i + 1), wx, wy, '#181820', 1, 'left');
+            } else {
+                const col = w2.owned ? '#ffffff' : '#404048';
+                drawText(ctx, String(i + 1), wx, wy, col, 1, 'left');
             }
         }
 
