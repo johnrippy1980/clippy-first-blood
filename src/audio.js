@@ -270,6 +270,18 @@ class Audio {
             // R334: helicopter chase SFX.
             case 'chopper':     return this._chopperWhup(t);
             case 'chopperGun':  return this._chopperGun(t);
+            // R515: aliases for sfx names that were referenced throughout
+            // the codebase but never wired in the switch. They were
+            // silently falling through. Now they route to the closest
+            // existing synth so the events actually have audio feedback.
+            case 'hit':         return this._bossHit(t);     // player took a hit — sharp thud
+            case 'playerHit':   return this._hurtGrunt(t);   // explicit damage grunt
+            case 'enemyDie':    return this._deathStinger(t);// enemy dies — short stinger
+            case 'enemyShoot':  return this._gunshot(t, { thump: 50, body: 700, bodyDur: 0.07, crack: 3200, layers: 1 });
+            case 'bossDie':     return this._bossExplode(t); // big boss death
+            case 'explosion':   return this._explode(t);     // alias for explode
+            case 'crateBreak':  return this._crateHit(t);    // alias for crateHit
+            case 'shoot':       return this._gunshot(t, { thump: 60, body: 1100, bodyDur: 0.08, crack: 4200, layers: 1 });
         }
     }
 
