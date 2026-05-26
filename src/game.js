@@ -139,6 +139,9 @@ const BOSS_BARK = {
     // R424: Doom-mode bosses. Spindler returns angrier each time.
     SPINDLER_UZIS:        ['NEW PROTOTYPE.',         'YOU\'RE THE TEST SUBJECT.'],
     SPINDLER_WHEELCHAIR:  ['YOU SHOULDN\'T HAVE',     'COME BACK FOR ME.'],
+    // R523: CRTRON — Voltron CRT-monitor boss of the HOLD THE LINE
+    // turret stage. Embodies the OS itself, demanding reinstall.
+    SERVER_TOWER:         ['REINSTALL WINDOWS.',     'YOUR PAPERCLIP IS OBSOLETE.'],
 };
 
 // R157: Clippy's counter-bark — fires in the counter-slide phase that
@@ -194,6 +197,9 @@ const STAGE_CARD_KEYS = {
     22: 'card_mecha_reveal',
     23: 'card_doom_block11',
     24: 'card_bossrush_2026',
+    // R523: HOLD THE LINE turret stage — reuse server-room card until a
+    // bespoke 'card_holdtheline' painted thumbnail lands.
+    25: 'card_serverroom',
 };
 
 const STORY_PAGES = [
