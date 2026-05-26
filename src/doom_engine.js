@@ -958,14 +958,26 @@ export class DoomEngine {
                 else if (e.key === '4') this._pendingSwitch = 3;
             });
         }
+        // R500: weapon swap animation — 12 frames total. Frames 0-6 slide
+        // the current weapon down off-screen; mid-swap we flip weaponIdx;
+        // frames 6-12 slide the new weapon up into view.
+        if (this._weaponSwapT > 0) this._weaponSwapT--;
         if (this._pendingSwitch != null) {
             const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
             const w = this.player.weapons[keys[this._pendingSwitch]];
-            if (w && w.owned) {
-                this.player.weaponIdx = this._pendingSwitch;
+            // Block re-switch during an active swap animation
+            if (w && w.owned && this._weaponSwapT === 0 &&
+                this._pendingSwitch !== this.player.weaponIdx) {
+                this._weaponSwapTarget = this._pendingSwitch;
+                this._weaponSwapT = 12;
                 audio.sfx?.('select');
             }
             this._pendingSwitch = null;
+        }
+        // Mid-swap: at frame 6, commit the new weaponIdx
+        if (this._weaponSwapT === 6 && this._weaponSwapTarget != null) {
+            this.player.weaponIdx = this._weaponSwapTarget;
+            this._weaponSwapTarget = null;
         }
     }
 
@@ -1649,6 +1661,22 @@ export class DoomEngine {
         const moving = Math.abs(ax.x) > 0.1 || Math.abs(ax.y) > 0.1;
         const bobY = moving ? (Math.sin(this.t * 0.25) * 3) | 0 : 0;
         const bobX = moving ? (Math.sin(this.t * 0.125) * 2) | 0 : 0;
+        // R500: weapon swap slide offset. _weaponSwapT counts 12→0.
+        // 12..7 = sliding OLD weapon DOWN (offset 0 → +VIEW_H/2)
+        // 6     = swap point (weaponIdx flips elsewhere)
+        // 6..0  = sliding NEW weapon UP (offset +VIEW_H/2 → 0)
+        let swapOffset = 0;
+        if (this._weaponSwapT > 0) {
+            if (this._weaponSwapT > 6) {
+                // exit phase: 12..6 → 0..1 progress
+                const t = (12 - this._weaponSwapT) / 6;
+                swapOffset = (t * (VIEW_H * 0.6)) | 0;
+            } else {
+                // entry phase: 6..0 → 1..0
+                const t = this._weaponSwapT / 6;
+                swapOffset = (t * (VIEW_H * 0.6)) | 0;
+            }
+        }
         if (img && img.complete && img.naturalWidth > 0) {
             const hudH = Math.min(128, VIEW_H);
             const hudW = (img.width / img.height) * hudH;
@@ -1656,7 +1684,7 @@ export class DoomEngine {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img,
                 ((W - hudW) / 2 + xShake + bobX) | 0,
-                (baseY - hudH + recoil + bobY) | 0,
+                (baseY - hudH + recoil + bobY + swapOffset) | 0,
                 hudW | 0, hudH | 0);
             ctx.restore();
         } else {
@@ -2081,7 +2109,23 @@ export class DoomEngine {
             ctx.restore();
         }
         // Score below face
-        drawText(ctx, `${p.score || 0}`, centerX + centerW / 2, y + HUD_H - 4, '#ffe070', 1, 'center');
+        // R501: smooth count-up display score that lerps toward the real
+        // score over a few frames. Sells each kill as a visible tick-up
+        // instead of a snap. Maintains a separate _hudScore tween value.
+        const realScore = p.score || 0;
+        if (this._hudScore == null) this._hudScore = realScore;
+        if (this._hudScore < realScore) {
+            // Move ~10% of the gap per frame, min 1 to ensure it converges
+            const gap = realScore - this._hudScore;
+            const step = Math.max(1, Math.floor(gap * 0.12));
+            this._hudScore = Math.min(realScore, this._hudScore + step);
+        } else if (this._hudScore > realScore) {
+            this._hudScore = realScore;   // score reset (rare)
+        }
+        // Score readout — pulses yellow→white when actively counting up
+        const counting = this._hudScore < realScore;
+        const scoreCol = counting ? '#ffffff' : '#ffe070';
+        drawText(ctx, `${this._hudScore | 0}`, centerX + centerW / 2, y + HUD_H - 4, scoreCol, 1, 'center');
 
         // --- RIGHT PANEL: keycards (top row) + weapon slots (bottom row) ---
         drawText(ctx, 'KEYS', rightX + 4, y + 4, '#a0a0b0', 1, 'left');
