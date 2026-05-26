@@ -2512,9 +2512,18 @@ export class Game {
         const stage = this.currentStage ? STAGES[this.currentStage] : null;
         if (stage) {
             drawText(ctx, 'STAGE ' + stage.id + ' / ' + stage.name, GAME.W / 2, panelY + 28, '#80a0c0', 1, 'center');
+            // R480: tagline + boss preview — sells the pause as a moment to
+            // catch your breath and re-orient, not just a menu container.
+            if (stage.tagline) {
+                drawText(ctx, stage.tagline, GAME.W / 2, panelY + 38, '#a890b0', 1, 'center');
+            }
+            if (stage.boss) {
+                drawText(ctx, 'TARGET: ' + stage.boss.replace(/_/g, ' '),
+                         GAME.W / 2, panelY + 46, '#ff8060', 1, 'center');
+            }
         }
 
-        const startY = panelY + 50;
+        const startY = panelY + 58;
         for (let i = 0; i < PAUSE_OPTIONS.length; i++) {
             const y = startY + i * 16;
             const isSel = i === this.pauseIndex;
@@ -4679,7 +4688,42 @@ export class Game {
             // screen so the letter and KILLS row never share vertical space.
             const rx = GAME.W - 18;
             const ry = 28;
+            // R479: rank-specific glow halo. S = white-yellow pulse halo,
+            // A = warm gold, B+ = subtle. Drawn behind the letter so it
+            // doesn't muddle the text.
+            if (introT >= 1 && (rk.letter === 'S' || rk.letter === 'A')) {
+                const pulseT = (Math.sin(rankT * 0.18) + 1) * 0.5;
+                const haloR = 20 + pulseT * 6;
+                const haloCol = rk.letter === 'S' ? '#fff8c8' : '#ffd060';
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.35 + pulseT * 0.25;
+                const grad = ctx.createRadialGradient(rx, ry, 0, rx, ry, haloR);
+                grad.addColorStop(0, haloCol);
+                grad.addColorStop(0.6, haloCol);
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(rx, ry, haloR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
             drawTextOutlined(ctx, rk.letter, rx, ry, RANK_COLOR[rk.letter] || '#fff', '#1a0820', scale, 'center');
+            // R479: S-rank gets sparkle pixels orbiting the letter — same
+            // sparkle pattern as the secret-found notification, but slower
+            // and concentrated around the rank letter.
+            if (introT >= 1 && rk.letter === 'S') {
+                const t = rankT * 0.05;
+                for (let s = 0; s < 5; s++) {
+                    const a = t + s * (Math.PI * 2 / 5);
+                    const r = 16 + Math.sin(t * 2 + s) * 3;
+                    const sx = rx + Math.cos(a) * r;
+                    const sy = ry + Math.sin(a) * r;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(sx - 1, sy, 2, 1);
+                    ctx.fillRect(sx, sy - 1, 1, 2);
+                }
+            }
             // Small "RANK" label above the letter
             if (introT >= 1) {
                 drawText(ctx, 'RANK', rx, ry - 12, '#a0a0c0', 1, 'center');

@@ -2598,10 +2598,27 @@ export class EnemyManager {
         }
 
         // Enemy bullets
+        if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
             b.update(level);
             if (b.life <= 0) { this.bullets.splice(i, 1); continue; }
+            // R481: "whizz" SFX when bullet passes within ~16px of player
+            // without hitting. Track min distance per bullet so we only fire
+            // once at closest approach. Cooldown caps the SFX to one per 18f
+            // so a dense barrage doesn't spam.
+            if (!b._whizzPlayed && this._whizzCooldown <= 0) {
+                const pdx = (b.x) - (player.x + player.w / 2);
+                const pdy = (b.y) - (player.y + player.h / 2);
+                const d2 = pdx * pdx + pdy * pdy;
+                if (b._prevD2 != null && d2 > b._prevD2 && b._prevD2 < 16 * 16) {
+                    // d2 is now INCREASING after a near-miss → fire whizz
+                    audio.sfx?.('whizz');
+                    this._whizzCooldown = 18;
+                    b._whizzPlayed = true;
+                }
+                b._prevD2 = d2;
+            }
             // Parried bullets check enemy hitboxes — a parried shot now
             // damages the side that fired it (or any enemy in its path).
             if (b._parried && !b.stuck) {
