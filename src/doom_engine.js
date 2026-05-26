@@ -174,6 +174,17 @@ export class DoomEngine {
         }
         this.t++;
         this._tickPlayer();
+        // R434: ambient atmosphere SFX — fluorescent buzz every 4s, drip every
+        // ~3s on sewer levels, occasional distant clone snarl. Cheap atmospherics.
+        if (this.t % 240 === 0) audio.sfx?.('fluorescent');
+        const isSewer = this.data.theme === 'sewer';
+        if (isSewer && this.t % 180 === 0) audio.sfx?.('splash');
+        // Distant clone snarl: pick a random alive clone every ~6s and play
+        // a low-volume hurt SFX as "ambient distant scream"
+        if (this.t % 360 === 100) {
+            const alive = this.entities.filter(e => e.alive && e.kind === 'clone');
+            if (alive.length > 0) audio.sfx?.('hurt');
+        }
     }
 
     _tickPlayer() {
@@ -217,6 +228,11 @@ export class DoomEngine {
         } else if (!input.isHeld?.('jump')) {
             this._useEdge = false;
         }
+        // R436: automap toggle on Tab/Q
+        if (input.isPressed?.('cycle')) {
+            this._automapOpen = !this._automapOpen;
+            audio.sfx?.('select');
+        }
         // R423e: tick entities (pickups, enemies, bullets, floaters)
         this._tickEntities();
         this._tickBullets();
@@ -235,6 +251,10 @@ export class DoomEngine {
                         // STAGES[currentStage].boss for the painted plate.
                         game.scene = 'bossIntro';
                         game._bossIntro = { age: 0, done: false };
+                        // R437: swap to heavier track when boss intro fires.
+                        // Both Doom stages get 'arenaBoss' (heavier than the
+                        // corridor track). audio.playTrack handles crossfade.
+                        audio.playTrack?.('arenaBoss');
                     }
                 }
             }
@@ -272,6 +292,21 @@ export class DoomEngine {
         for (const e of this.entities) {
             if (!e.alive) continue;
             if (e.kind === 'floater') {
+                e.life--;
+                if (e.life <= 0) e.alive = false;
+                continue;
+            }
+            // R432: corpse puddle expires after its life ticks. Doesn't block
+            // player movement (kind isn't 'clone' so not solid).
+            if (e.kind === 'puddle') {
+                e.life--;
+                if (e.life <= 0) e.alive = false;
+                continue;
+            }
+            // R433: bullet-impact spark — drifts for a few frames then dies
+            if (e.kind === 'spark') {
+                e.x += e.vx || 0;
+                e.y += e.vy || 0;
                 e.life--;
                 if (e.life <= 0) e.alive = false;
                 continue;
@@ -328,6 +363,12 @@ export class DoomEngine {
                 // Big screen flash for weapon pickup
                 const game = (typeof window !== 'undefined') ? window.__game : null;
                 game?.triggerScreenFlash?.(10, '#ffe070', 0.45);
+                // R437: BFG is the secret weapon — extra fanfare
+                if (target === 'bfg') {
+                    audio.sfx?.('secretFound');
+                    game?.triggerScreenFlash?.(20, '#50ff80', 0.6);
+                    this._floatText('SECRET FOUND!', p.x, p.y);
+                }
             }
         }
     }
@@ -387,6 +428,21 @@ export class DoomEngine {
             b.y += b.vy;
             b.life--;
             if (b.life <= 0 || this._solidAt(b.x, b.y)) {
+                // R433: spark burst on wall hit — small short-lived particle
+                // entities at impact point. Only for player bullets (enemy
+                // shots passing into walls don't need feedback).
+                if (this._solidAt(b.x, b.y) && !b.fromEnemy) {
+                    for (let k = 0; k < 4; k++) {
+                        this.entities.push({
+                            alive: true, kind: 'spark',
+                            x: b.x, y: b.y,
+                            vx: (Math.random() - 0.5) * 0.04,
+                            vy: (Math.random() - 0.5) * 0.04,
+                            life: 12, maxLife: 12,
+                            color: b.isBFG ? '#50ff80' : '#ffe070',
+                        });
+                    }
+                }
                 this.bullets.splice(i, 1);
                 continue;
             }
@@ -408,10 +464,11 @@ export class DoomEngine {
                         e.hitFlash = 6;
                         this.bullets.splice(i, 1);
                         if (e.hp <= 0) {
-                            e.alive = false;
-                            audio.sfx?.('explode');
-                            this.player.score += (e.kind === 'boss') ? 5000 : 100;
-                            if (e.kind === 'boss') this._onBossKill(e);
+                            this._killEnemy(e);
+                        } else {
+                            // R432: enemy hurt SFX + brief stagger
+                            audio.sfx?.('hurt');
+                            e.fireCD = Math.max(e.fireCD || 0, 24);
                         }
                         break;
                     }
@@ -458,6 +515,35 @@ export class DoomEngine {
         p.iframes = 120;
     }
 
+    // R432: enemy death — gore burst + score + death-puddle entity. The
+    // entity becomes a slime-puddle "corpse" that lingers for 240f then
+    // expires (mostly visual flavor; doesn't block movement).
+    _killEnemy(e) {
+        e.alive = false;
+        const isBoss = (e.kind === 'boss');
+        audio.sfx?.('explode');
+        audio.sfx?.('hurt');     // double SFX for screamy death
+        this.player.score += isBoss ? 5000 : 100;
+        // Slime-puddle corpse entity (kind='puddle') — drawn as flat green
+        // billboard via _drawSprite vector fallback. Sits where the enemy fell.
+        this.entities.push({
+            alive: true,
+            kind: 'puddle',
+            x: e.x, y: e.y,
+            life: isBoss ? 600 : 240,
+            maxLife: isBoss ? 600 : 240,
+            scale: isBoss ? 1.5 : 1.0,
+        });
+        // Spawn 12 gore particles via game.particles (the existing platformer
+        // particle system); they ride screen space so won't track world but
+        // give a nice 1-second burst on kill.
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        if (game?._particles?.explosion) {
+            game._particles.explosion(e.x * 16, e.y * 16, '#50ff60', 12);
+        }
+        if (isBoss) this._onBossKill(e);
+    }
+
     _onBossKill(boss) {
         // R420 parity — hitstop + slow-mo + screen flash on boss kill
         this._hitStopFrames = 12;
@@ -469,8 +555,18 @@ export class DoomEngine {
         if (this.data.exitAt) {
             const { x, y } = this.data.exitAt;
             if (this.map[y] && this.map[y][x] != null) this.map[y][x] = 30;
+            // R437: remember exit location for HUD arrow
+            this._exitTilePos = { x: x + 0.5, y: y + 0.5 };
         }
         this._floatText('BOSS DOWN', boss.x, boss.y);
+        // R437: another floater pointing at exit pad
+        if (this._exitTilePos) {
+            setTimeout(() => {
+                this._floatText('FIND EXIT', boss.x, boss.y - 0.6);
+            }, 800);
+        }
+        // R437: end-of-stage music change — calmer track for the victory walk
+        audio.playTrack?.('hope');
     }
 
     _activeWeapon() {
@@ -539,10 +635,9 @@ export class DoomEngine {
                     e.hp = (e.hp || 4) - 2;
                     e.hitFlash = 6;
                     if (e.hp <= 0) {
-                        e.alive = false;
-                        audio.sfx?.('explode');
-                        p.score += (e.kind === 'boss') ? 5000 : 100;
-                        if (e.kind === 'boss') this._onBossKill(e);
+                        this._killEnemy(e);
+                    } else {
+                        audio.sfx?.('hurt');
                     }
                     break;
                 }
@@ -639,12 +734,24 @@ export class DoomEngine {
 
     draw() {
         const ctx = this.ctx;
-        // Sky/ceiling band — dim grey-blue to suggest fluorescent panels
-        ctx.fillStyle = '#283040';
-        ctx.fillRect(0, 0, W, VIEW_H / 2);
-        // Floor band — commercial carpet brown
-        ctx.fillStyle = '#3a2c20';
-        ctx.fillRect(0, VIEW_H / 2, W, VIEW_H / 2);
+        // R431: textured floor + ceiling. Use per-pixel projection à la Wolf3D
+        // when painted textures available; fall back to flat color otherwise.
+        // Theme picks tileset: serverroom = office, sewer = sewer.
+        const theme = this.data.theme;
+        const floorKey = (theme === 'sewer') ? 'doom_floor_concrete' : 'doom_floor_carpet';
+        const ceilKey  = (theme === 'sewer') ? 'doom_ceiling_sewer'  : 'doom_ceiling_office';
+        const floorTex = sprites.images?.get(floorKey);
+        const ceilTex  = sprites.images?.get(ceilKey);
+        if (floorTex?.complete && floorTex.naturalWidth > 0 &&
+            ceilTex?.complete && ceilTex.naturalWidth > 0) {
+            this._drawFloorCeiling(floorTex, ceilTex);
+        } else {
+            // Fallback flat fills
+            ctx.fillStyle = '#283040';
+            ctx.fillRect(0, 0, W, VIEW_H / 2);
+            ctx.fillStyle = '#3a2c20';
+            ctx.fillRect(0, VIEW_H / 2, W, VIEW_H / 2);
+        }
 
         this._raycast();
         this._drawSprites();
@@ -653,6 +760,37 @@ export class DoomEngine {
         this._drawMinimap();
         // R423e: pickup/key floating text overlays — drawn world-space
         this._drawFloaters();
+        // R436: full-screen automap overlay if Tab toggled on. Draws over
+        // everything else.
+        if (this._automapOpen) this._drawAutomap();
+        // R437: exit-pad direction chevron — when the exit pad is active
+        // and not yet on the player, show a pulsing arrow at the top of the
+        // viewport pointing toward the exit's bearing.
+        if (this._exitTilePos && !this._levelCleared) {
+            const ex = this._exitTilePos.x, ey = this._exitTilePos.y;
+            const px = this.player.x, py = this.player.y;
+            const dxw = ex - px;
+            const dyw = ey - py;
+            const bearing = Math.atan2(dyw, dxw) - this.player.angle;
+            const c = this.ctx;
+            const pulse = (Math.sin(this.t * 0.2) + 1) * 0.5;
+            c.save();
+            c.globalAlpha = 0.6 + pulse * 0.4;
+            const cx = W / 2, cy = 14;
+            c.translate(cx, cy);
+            c.rotate(bearing + Math.PI / 2);  // 0 rad = "in front" → arrow pointing up
+            c.fillStyle = '#50ff80';
+            // Arrow chevron
+            c.beginPath();
+            c.moveTo(0, -6);
+            c.lineTo(5, 4);
+            c.lineTo(0, 1);
+            c.lineTo(-5, 4);
+            c.closePath();
+            c.fill();
+            c.restore();
+            drawTextOutlined(c, 'EXIT', cx, cy + 8, '#50ff80', '#000000', 1, 'center');
+        }
         // R423e: damage flash overlay
         if (this.player.iframes > 50) {
             const ctx = this.ctx;
@@ -742,6 +880,38 @@ export class DoomEngine {
         } else if (e.kind === 'weapon') {
             baseColor = '#a0a0a8';
             accentColor = '#ffe070';
+        } else if (e.kind === 'spark') {
+            // R433: tiny 2x2 spark pixel in the spark color, fades fast
+            const ageT = e.life / e.maxLife;
+            if (ageT <= 0) return;
+            ctx.save();
+            ctx.globalAlpha = ageT;
+            ctx.fillStyle = e.color || '#ffe070';
+            const px = (screenX | 0);
+            const py = (drawY + spriteH * 0.5) | 0;
+            if (this.zbuffer[px] >= tx) ctx.fillRect(px, py, 2, 2);
+            ctx.restore();
+            return;
+        } else if (e.kind === 'puddle') {
+            // R432: green slime puddle billboard — sinks toward the floor as
+            // it ages. Drawn as low-profile streak of green pixels.
+            const ageT = e.life / e.maxLife;
+            if (ageT <= 0) return;
+            const puddleH = Math.max(2, spriteH * 0.15) | 0;
+            const puddleW = Math.max(4, spriteW * 0.7 * (e.scale || 1)) | 0;
+            const yBase = drawY + spriteH - puddleH;
+            const xBase = screenX - puddleW / 2;
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, ageT * 1.5) * 0.85;
+            for (let sx = Math.max(0, xBase | 0); sx <= Math.min(NUM_COLS - 1, (xBase + puddleW) | 0); sx++) {
+                if (this.zbuffer[sx] < tx) continue;
+                // Darker outer, brighter center
+                const middleness = 1 - Math.abs((sx - screenX) / (puddleW / 2));
+                ctx.fillStyle = middleness > 0.5 ? '#50ff60' : '#208030';
+                ctx.fillRect(sx, yBase, 1, puddleH);
+            }
+            ctx.restore();
+            return;
         } else return;
         // Painted sprite key lookup — added in the texture-load step. For
         // now we draw vector blocks so the engine is testable before art lands.
@@ -911,6 +1081,86 @@ export class DoomEngine {
         }
     }
 
+    // R431: textured floor + ceiling using inverse projection.
+    // For each scanline y in the lower (floor) and upper (ceiling) halves,
+    // compute the world distance to that horizon row and step a "ray" from
+    // left to right scanline columns to find the world (x,y) under each
+    // pixel. Sample the appropriate texture there. Cheap to compute at
+    // 256×112 pixel cost.
+    _drawFloorCeiling(floorTex, ceilTex) {
+        const ctx = this.ctx;
+        const p = this.player;
+        const halfH = (VIEW_H / 2) | 0;
+        // ImageData buffer once per frame
+        const imgData = ctx.getImageData(0, 0, W, VIEW_H);
+        const data = imgData.data;
+        // Pre-cache texture data
+        const fdata = this._getTexData(floorTex);
+        const cdata = this._getTexData(ceilTex);
+        const fw = floorTex.naturalWidth, fh = floorTex.naturalHeight;
+        const cw = ceilTex.naturalWidth, ch = ceilTex.naturalHeight;
+        // Ray for column 0 (leftmost) + column W-1 (rightmost) at the FOV
+        const halfFov = FOV / 2;
+        const dirX = Math.cos(p.angle), dirY = Math.sin(p.angle);
+        // Camera plane (perpendicular right) — length tan(halfFov)
+        const planeX = -dirY * Math.tan(halfFov);
+        const planeY = dirX * Math.tan(halfFov);
+        const rayDir0X = dirX - planeX;
+        const rayDir0Y = dirY - planeY;
+        const rayDir1X = dirX + planeX;
+        const rayDir1Y = dirY + planeY;
+        // posZ = camera height in projection units. Player eye at 0.5 tile.
+        const posZ = 0.5 * VIEW_H;
+        for (let y = halfH + 1; y < VIEW_H; y++) {
+            const py2 = y - halfH;
+            const rowDist = posZ / py2;          // perpendicular world distance
+            const floorStepX = rowDist * (rayDir1X - rayDir0X) / W;
+            const floorStepY = rowDist * (rayDir1Y - rayDir0Y) / W;
+            let fx = p.x + rowDist * rayDir0X;
+            let fy = p.y + rowDist * rayDir0Y;
+            // Fog factor — far floor dimmer
+            const fade = Math.max(0.3, 1 - rowDist / 8);
+            const ceilY = VIEW_H - y - 1;  // mirrored row for ceiling
+            for (let x = 0; x < W; x++) {
+                // Floor pixel
+                const fu = (Math.floor(fx * fw) % fw + fw) % fw;
+                const fv = (Math.floor(fy * fh) % fh + fh) % fh;
+                const fi = (fv * fw + fu) * 4;
+                const di = (y * W + x) * 4;
+                data[di]   = (fdata[fi]     * fade) | 0;
+                data[di+1] = (fdata[fi + 1] * fade) | 0;
+                data[di+2] = (fdata[fi + 2] * fade) | 0;
+                data[di+3] = 255;
+                // Ceiling pixel (mirror y)
+                const cu = (Math.floor(fx * cw) % cw + cw) % cw;
+                const cv = (Math.floor(fy * ch) % ch + ch) % ch;
+                const ci = (cv * cw + cu) * 4;
+                const di2 = (ceilY * W + x) * 4;
+                data[di2]   = (cdata[ci]     * fade) | 0;
+                data[di2+1] = (cdata[ci + 1] * fade) | 0;
+                data[di2+2] = (cdata[ci + 2] * fade) | 0;
+                data[di2+3] = 255;
+                fx += floorStepX;
+                fy += floorStepY;
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Pull pixel data once and cache on the image element to avoid the
+    // ~1ms cost of getImageData per frame.
+    _getTexData(img) {
+        if (img._cachedTexData) return img._cachedTexData;
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const cx = c.getContext('2d');
+        cx.imageSmoothingEnabled = false;
+        cx.drawImage(img, 0, 0);
+        img._cachedTexData = cx.getImageData(0, 0, c.width, c.height).data;
+        return img._cachedTexData;
+    }
+
     _raycast() {
         const ctx = this.ctx;
         const p = this.player;
@@ -1026,6 +1276,24 @@ export class DoomEngine {
             ctx.fillRect(6 + i * 7, y + 6, 5, 8);
         }
         drawText(ctx, this.data.name || 'FLOOR 11', 6, y + 18, '#a0a0b0', 1, 'left');
+        // R435: HUD portrait — Doomguy-style face that reacts to HP/rage
+        // Picks frame by current HP state. Rage overrides.
+        let faceKey = 'doom_face_full';
+        if (p.rageFrames > 0) faceKey = 'doom_face_rage';
+        else if (p.hp <= 1) faceKey = 'doom_face_hurt3';
+        else if (p.hp <= 2) faceKey = 'doom_face_hurt2';
+        else if (p.hp <= 4) faceKey = 'doom_face_hurt1';
+        const faceImg = sprites.images?.get(faceKey);
+        if (faceImg?.complete && faceImg.naturalWidth > 0) {
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            const fx = (W - 28) / 2 | 0;
+            const fy = y + (HUD_H - 28) / 2 | 0;
+            // Damage shake — when iframes high, jitter the face position
+            const shake = (p.iframes > 50) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+            ctx.drawImage(faceImg, fx + shake, fy + shake, 28, 28);
+            ctx.restore();
+        }
         // R423e: collected key icons — squares in HP-bar row
         const keyX = 6 + p.maxHp * 7 + 6;
         let kx = keyX;
@@ -1067,6 +1335,16 @@ export class DoomEngine {
                 }
             }
         }
+        // R437: pulsing exit pad indicator on minimap (only after boss kill)
+        if (this._exitTilePos) {
+            const pulse = (Math.sin(this.t * 0.15) + 1) * 0.5;
+            ctx.fillStyle = pulse > 0.5 ? '#80ffa0' : '#208040';
+            const ex = ox + this._exitTilePos.x * SIZE | 0;
+            const ey = oy + this._exitTilePos.y * SIZE | 0;
+            ctx.fillRect(ex - 3, ey - 3, 6, 6);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(ex - 1, ey - 1, 2, 2);
+        }
         // Show enemies as red dots, pickups as colored dots
         for (const e of this.entities) {
             if (!e.alive) continue;
@@ -1096,5 +1374,119 @@ export class DoomEngine {
         ctx.moveTo(px, py);
         ctx.lineTo(tx, ty);
         ctx.stroke();
+    }
+
+    // R436: full-screen automap (Tab toggle). Doom-style wireframe view of
+    // the entire level — walls drawn as line outlines, player arrow at
+    // their current position + heading, keys/items pinned with color dots.
+    _drawAutomap() {
+        const ctx = this.ctx;
+        // Black backdrop
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+        ctx.fillRect(0, 0, W, H);
+        // Fit map to viewport (leave 16px padding all sides; HUD strip stays
+        // exposed at bottom so weapon row + HP read while map is open)
+        const padT = 18, padL = 8, padR = 8, padB = HUD_H + 4;
+        const availW = W - padL - padR;
+        const availH = H - padT - padB;
+        const SIZE = Math.max(2, Math.min((availW / this.mapW) | 0, (availH / this.mapH) | 0));
+        const mapPxW = this.mapW * SIZE;
+        const mapPxH = this.mapH * SIZE;
+        const ox = padL + (availW - mapPxW) / 2 | 0;
+        const oy = padT + (availH - mapPxH) / 2 | 0;
+        // Title
+        drawText(ctx, 'AUTOMAP', W / 2, 4, '#ffe070', 1, 'center');
+        drawText(ctx, 'TAB TO CLOSE', W / 2, H - HUD_H - 6, '#a0a0b0', 1, 'center');
+        // Walls — DOOM-style outlines instead of fill blocks so adjacent
+        // walls don't merge into a solid blob. Draw each wall tile's
+        // exposed edges (any edge adjacent to an empty tile gets a line).
+        ctx.strokeStyle = '#a08070';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let my = 0; my < this.mapH; my++) {
+            for (let mx = 0; mx < this.mapW; mx++) {
+                const cell = this.map[my][mx];
+                const open = this.doorsOpened.has(`${mx},${my}`);
+                if (!cell || open) continue;
+                const x = ox + mx * SIZE;
+                const y = oy + my * SIZE;
+                // Top edge
+                if (my === 0 || !this.map[my - 1][mx] || this.doorsOpened.has(`${mx},${my - 1}`)) {
+                    ctx.moveTo(x, y); ctx.lineTo(x + SIZE, y);
+                }
+                // Bottom
+                if (my === this.mapH - 1 || !this.map[my + 1][mx] || this.doorsOpened.has(`${mx},${my + 1}`)) {
+                    ctx.moveTo(x, y + SIZE); ctx.lineTo(x + SIZE, y + SIZE);
+                }
+                // Left
+                if (mx === 0 || !this.map[my][mx - 1] || this.doorsOpened.has(`${mx - 1},${my}`)) {
+                    ctx.moveTo(x, y); ctx.lineTo(x, y + SIZE);
+                }
+                // Right
+                if (mx === this.mapW - 1 || !this.map[my][mx + 1] || this.doorsOpened.has(`${mx + 1},${my}`)) {
+                    ctx.moveTo(x + SIZE, y); ctx.lineTo(x + SIZE, y + SIZE);
+                }
+            }
+        }
+        ctx.stroke();
+        // Color-code doors
+        for (let my = 0; my < this.mapH; my++) {
+            for (let mx = 0; mx < this.mapW; mx++) {
+                const cell = this.map[my][mx];
+                if (this.doorsOpened.has(`${mx},${my}`)) continue;
+                const info = WALL_LIGHT[cell];
+                if (!info || (info.kind !== 'door' && info.kind !== 'doorKey' && info.kind !== 'switch')) continue;
+                const col = info.kind === 'switch' ? '#80a0ff' :
+                            info.kind === 'door' ? '#806040' :
+                            info.key === 'red' ? '#ff4040' :
+                            info.key === 'yellow' ? '#ffff40' :
+                            info.key === 'blue' ? '#4080ff' : '#a0a0a0';
+                ctx.fillStyle = col;
+                ctx.fillRect(ox + mx * SIZE + 1, oy + my * SIZE + 1, SIZE - 2, SIZE - 2);
+            }
+        }
+        // Entities — bigger dots than minimap
+        for (const e of this.entities) {
+            if (!e.alive) continue;
+            let col = null;
+            let r = 3;
+            if (e.kind === 'clone') { col = '#ff4040'; r = 3; }
+            else if (e.kind === 'boss') { col = '#ff80ff'; r = 5; }
+            else if (e.kind === 'key') {
+                col = (e.color === 'red' ? '#ff4040' : e.color === 'yellow' ? '#ffff40' : '#4080ff');
+                r = 4;
+            }
+            else if (e.kind === 'health') { col = '#40c050'; r = 3; }
+            else if (e.kind === 'ammo') { col = '#c0a040'; r = 3; }
+            else if (e.kind === 'weapon') { col = '#a0a0a8'; r = 4; }
+            if (col) {
+                ctx.fillStyle = col;
+                ctx.fillRect(ox + e.x * SIZE - r / 2, oy + e.y * SIZE - r / 2, r, r);
+            }
+        }
+        // Player arrow
+        const p = this.player;
+        const ppx = ox + p.x * SIZE;
+        const ppy = oy + p.y * SIZE;
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(ppx - 2, ppy - 2, 4, 4);
+        // Heading line — longer so visible on full map
+        ctx.strokeStyle = '#ffe070';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(ppx, ppy);
+        ctx.lineTo(ppx + Math.cos(p.angle) * 10, ppy + Math.sin(p.angle) * 10);
+        ctx.stroke();
+        // Legend
+        let lx = 6, ly = H - HUD_H - 24;
+        const swatch = (label, color) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(lx, ly, 4, 4);
+            drawText(ctx, label, lx + 8, ly - 1, color, 1, 'left');
+            lx += label.length * 6 + 18;
+        };
+        swatch('YOU', '#ffe070');
+        swatch('BOSS', '#ff80ff');
+        swatch('KEY', '#4080ff');
     }
 }

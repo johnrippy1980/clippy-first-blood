@@ -603,6 +603,17 @@ export const ENEMY_MANIFEST = {
     'doom_pickup_shotgun': 'doom_pickup_shotgun.png',
     'doom_pickup_chainsaw': 'doom_pickup_chainsaw.png',
     'doom_pickup_bfg': 'doom_pickup_bfg.png',
+    // R431: floor + ceiling textures per theme.
+    'doom_floor_carpet':    'doom_floor_carpet.png',
+    'doom_floor_concrete':  'doom_floor_concrete.png',
+    'doom_ceiling_office':  'doom_ceiling_office.png',
+    'doom_ceiling_sewer':   'doom_ceiling_sewer.png',
+    // R435: HUD face portraits — HP-state and rage variants
+    'doom_face_full':       'doom_face_full.png',
+    'doom_face_hurt1':      'doom_face_hurt1.png',
+    'doom_face_hurt2':      'doom_face_hurt2.png',
+    'doom_face_hurt3':      'doom_face_hurt3.png',
+    'doom_face_rage':       'doom_face_rage.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',
