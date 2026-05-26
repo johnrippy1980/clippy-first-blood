@@ -362,14 +362,20 @@ export class DoomEngine {
 
     _applyPickup(e) {
         const p = this.player;
+        const game = (typeof window !== 'undefined') ? window.__game : null;
         if (e.kind === 'key') {
             this.keys.add(e.color);
             audio.sfx?.('powerup');
             this._floatText(`+ ${e.color.toUpperCase()} KEYCARD`, p.x, p.y);
+            // R448: key pickup flash in the key color
+            const col = e.color === 'red' ? '#ff5050' : e.color === 'yellow' ? '#ffff60' : '#5090ff';
+            game?.triggerScreenFlash?.(8, col, 0.3);
         } else if (e.kind === 'health') {
             p.hp = Math.min(p.maxHp, p.hp + (e.amount || 2));
             audio.sfx?.('pickup');
             this._floatText(`+${e.amount || 2} HP`, p.x, p.y);
+            // R448: green pulse flash on health pickup
+            game?.triggerScreenFlash?.(6, '#50ff70', 0.25);
         } else if (e.kind === 'ammo') {
             const target = e.weapon || 'shotgun';
             const w = p.weapons[target];
@@ -377,6 +383,8 @@ export class DoomEngine {
                 w.ammo = (w.ammo === Infinity ? Infinity : (w.ammo || 0) + (e.amount || 8));
                 audio.sfx?.('pickup');
                 this._floatText(`+${e.amount || 8} ${target.toUpperCase()}`, p.x, p.y);
+                // R448: yellow pulse flash on ammo pickup
+                game?.triggerScreenFlash?.(4, '#ffe070', 0.18);
             }
         } else if (e.kind === 'weapon') {
             const target = e.weapon;
@@ -417,6 +425,21 @@ export class DoomEngine {
         const dx = p.x - e.x;
         const dy = p.y - e.y;
         const dist = Math.hypot(dx, dy);
+        // R444: wake-up gate. Clones idle until they first sight the player.
+        // Bosses always alert (they're behind a keycard door, no surprise).
+        if (!isBoss && !e._alerted) {
+            // Alert range = 9 tiles + LOS. Once alerted, stay alerted forever.
+            if (dist < 9 && this._hasLOS(e.x, e.y, p.x, p.y)) {
+                e._alerted = true;
+                e._wakeT = 30;       // 30-frame stagger before they start chasing
+                this._floatText('!', e.x, e.y - 0.5);
+                audio.sfx?.('hurt');  // quick yelp as wake-up alert
+            } else {
+                // Idle — light bob in place
+                return;
+            }
+        }
+        if (e._wakeT > 0) { e._wakeT--; return; }   // stagger before chase
         // R439: phase 2 kicks in at <50% HP for bosses — faster + more shots
         const phase2 = isBoss && (e.hp / e.maxHp < 0.5);
         if (phase2 && !e._phase2Announced) {
@@ -436,13 +459,33 @@ export class DoomEngine {
             if (!this._solidAt(e.x, ny)) e.y = ny;
         }
         // R439: attack patterns by enemy type
+        // R447: bosses get a 20f charge-up before each heavy attack. Set
+        // chargeT counts DOWN from 20 → 0; during charge, sprite flashes red
+        // (via hitFlash trick), then attack fires when chargeT hits 0.
         e.fireCD--;
         if (e.fireCD <= 0 && dist < 9 && this._hasLOS(e.x, e.y, p.x, p.y)) {
-            this._enemyAttack(e, dx, dy, dist, phase2);
-            // Cooldown per kind/phase
-            if (isBoss && phase2) e.fireCD = 22;       // very aggressive
-            else if (isBoss) e.fireCD = 36;
-            else e.fireCD = 70 + (Math.random() * 30) | 0;
+            if (isBoss && !e._charging) {
+                // Begin charge-up — set _charging flag + chargeT
+                e._charging = true;
+                e._chargeT = 20;
+                audio.sfx?.('bossChargeTell');
+            } else if (!isBoss) {
+                // Clones: no charge, fire immediately
+                this._enemyAttack(e, dx, dy, dist, phase2);
+                e.fireCD = 70 + (Math.random() * 30) | 0;
+            }
+        }
+        // Tick boss charge
+        if (e._charging) {
+            e._chargeT--;
+            // Red hit-flash during charge
+            e.hitFlash = Math.max(e.hitFlash || 0, 1);
+            if (e._chargeT <= 0) {
+                e._charging = false;
+                this._enemyAttack(e, dx, dy, dist, phase2);
+                e.hitFlash = 0;
+                e.fireCD = phase2 ? 22 : 36;
+            }
         }
         return;   // skip legacy single-bullet code below
         // ↓ unreachable but kept for diff cleanliness
@@ -577,22 +620,39 @@ export class DoomEngine {
                 }
             } else {
                 // Hit enemy?
+                let didHit = false;
                 for (const e of this.entities) {
                     if (!e.alive || (e.kind !== 'clone' && e.kind !== 'boss')) continue;
                     const d = Math.hypot(b.x - e.x, b.y - e.y);
-                    const hitRadius = (e.kind === 'boss') ? 0.6 : 0.4;
+                    // R446: BFG has bigger hitbox + pierces multiple enemies
+                    const hitRadius = b.isBFG ? 1.2 : ((e.kind === 'boss') ? 0.6 : 0.4);
                     if (d < hitRadius) {
+                        // BFG-tagged bullets: don't double-damage same enemy
+                        if (b._hitIds && b._hitIds.has(e)) continue;
                         e.hp = (e.hp || 4) - (b.dmg || 1);
                         e.hitFlash = 6;
-                        this.bullets.splice(i, 1);
+                        didHit = true;
                         if (e.hp <= 0) {
                             this._killEnemy(e);
                         } else {
-                            // R432: enemy hurt SFX + brief stagger
                             audio.sfx?.('hurt');
                             e.fireCD = Math.max(e.fireCD || 0, 24);
+                            // R444: any hit alerts the enemy (if not already)
+                            e._alerted = true;
                         }
-                        break;
+                        if (b.isBFG) {
+                            // BFG pierces — register hit + reduce pierce count
+                            if (!b._hitIds) b._hitIds = new Set();
+                            b._hitIds.add(e);
+                            b._piercesLeft = (b._piercesLeft != null) ? b._piercesLeft - 1 : 2;
+                            if (b._piercesLeft <= 0) {
+                                this.bullets.splice(i, 1);
+                                break;
+                            }
+                        } else {
+                            this.bullets.splice(i, 1);
+                            break;
+                        }
                     }
                 }
             }
@@ -637,6 +697,16 @@ export class DoomEngine {
         p.y = this.data.doomStart?.y || 2.5;
         p.hp = p.maxHp;
         p.iframes = 120;
+        // R449: clear stale per-life state so respawn is fresh
+        p.rageFrames = 0;
+        p.rageUsedThisStage = false;
+        this._comboCount = 0;
+        this._lastKillT = null;
+        this._damageIndicatorT = 0;
+        // Clear bullets in flight so player doesn't insta-die on respawn
+        this.bullets.length = 0;
+        // Death sting
+        audio.sfx?.('die');
     }
 
     // R432: enemy death — gore burst + score + death-puddle entity. The
@@ -1113,7 +1183,15 @@ export class DoomEngine {
         const camPlane = Math.tan(halfFov);
         const screenX = (W / 2) * (1 + (ty / tx) / camPlane);
         const spriteH = Math.min(VIEW_H * 4, VIEW_H / tx);
-        const spriteW = spriteH * (e.kind === 'bullet' ? 0.2 : 1);
+        // R445: bullet sprites get distinct sizes by type
+        let bulletScale = 1;
+        if (e.kind === 'bullet') {
+            const b = e._bullet;
+            if (b?.isBFG) bulletScale = 1.2;          // BFG = big green ball
+            else if (b?.fromEnemy) bulletScale = 0.4;  // enemy = small red
+            else bulletScale = 0.35;                    // player = small tracer
+        }
+        const spriteW = spriteH * (e.kind === 'bullet' ? bulletScale : 1);
         const drawY = (VIEW_H - spriteH) / 2;
         const drawX = screenX - spriteW / 2;
         // Per-column z-buffer occlusion
@@ -1122,6 +1200,38 @@ export class DoomEngine {
         // Distance fade
         const fade = Math.max(0.3, 1 - tx / 10);
         let baseColor, accentColor;
+        if (e.kind === 'bullet') {
+            // R445: painted bullet — colored circle with additive glow halo.
+            // Skip the vector-stripe fallback for bullets; render directly.
+            const b = e._bullet;
+            const core = b?.isBFG ? '#a0ff80' : b?.fromEnemy ? '#ff4040' : '#ffe070';
+            const halo = b?.isBFG ? '#208030' : b?.fromEnemy ? '#a00010' : '#a06010';
+            const cx = screenX | 0;
+            const cy = (drawY + spriteH / 2) | 0;
+            const r = Math.max(1, spriteW / 2) | 0;
+            ctx.save();
+            // Halo (additive, larger)
+            if (this.zbuffer[cx] >= tx) {
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.5 * fade;
+                ctx.fillStyle = halo;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r * 2, 0, Math.PI * 2);
+                ctx.fill();
+                // Core
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = fade;
+                ctx.fillStyle = core;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+                // White center pinpoint
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(cx, cy, 1, 1);
+            }
+            ctx.restore();
+            return;
+        }
         if (e.kind === 'bullet') {
             baseColor = e._bullet?.fromEnemy ? '#ff8060' : '#ffe070';
             accentColor = '#ffffff';
@@ -1541,6 +1651,8 @@ export class DoomEngine {
             ctx.fillRect(6 + i * 7, y + 6, 5, 8);
         }
         drawText(ctx, this.data.name || 'FLOOR 11', 6, y + 18, '#a0a0b0', 1, 'left');
+        // R449: score display — bottom center of HUD
+        drawText(ctx, `${p.score || 0}`, W / 2, y + 22, '#ffe070', 1, 'center');
         // R441: combo indicator — left side near HP bar (HUD strip)
         if (this._lastKillT != null) {
             const since = this.t - this._lastKillT;
