@@ -146,6 +146,11 @@ export class DoomEngine {
         // owns the canvas listener so other scenes aren't affected (the
         // pointer is auto-released on scene change).
         this._installPointerLockOnce();
+
+        // R442: level intro fly-through — spin the camera 360° at spawn
+        // for ~4s before allowing input. Skippable with X / jump.
+        this._introT = 240;        // ~4s at 60fps
+        this._introStartAngle = this.player.angle;
     }
 
     _installPointerLockOnce() {
@@ -173,6 +178,20 @@ export class DoomEngine {
             if (this._slowMoSkip) return;
         }
         this.t++;
+        // R442: level intro fly-through — spin camera + lock input
+        if (this._introT > 0) {
+            this._introT--;
+            // 360° rotation over the intro duration
+            const total = 240;
+            const t = (total - this._introT) / total;
+            this.player.angle = this._introStartAngle + t * Math.PI * 2;
+            // Skip on input
+            if (input.isPressed?.('shoot') || input.isPressed?.('jump') || input.isPressed?.('start')) {
+                this._introT = 0;
+                this.player.angle = this._introStartAngle;
+            }
+            return;   // skip player control during intro
+        }
         this._tickPlayer();
         // R434: ambient atmosphere SFX — fluorescent buzz every 4s, drip every
         // ~3s on sewer levels, occasional distant clone snarl. Cheap atmospherics.
@@ -259,11 +278,21 @@ export class DoomEngine {
                 }
             }
         }
-        // Check exit pad
+        // R440: Exit pad detection + proximity hint
+        if (this._exitTilePos && !this._levelCleared) {
+            const d = Math.hypot(this._exitTilePos.x - p.x, this._exitTilePos.y - p.y);
+            if (d < 4 && !this._exitHintFired) {
+                this._exitHintFired = true;
+                this._floatText('STEP ON GREEN PAD', this._exitTilePos.x, this._exitTilePos.y - 0.6);
+            }
+        }
         if (this._onExitPad() && !this._levelCleared) {
             this._levelCleared = true;
             this._exitT = 0;
             audio.sfx?.('powerup');
+            audio.sfx?.('secretFound');
+            const game = (typeof window !== 'undefined') ? window.__game : null;
+            game?.triggerScreenFlash?.(20, '#80ff80', 0.6);
         }
         if (this._levelCleared) {
             this._exitT++;
@@ -375,37 +404,125 @@ export class DoomEngine {
 
     _tickEnemy(e) {
         const p = this.player;
-        if (e.hp == null) e.hp = (e.kind === 'boss') ? 30 : 4;
+        const isBoss = e.kind === 'boss';
+        // R439: boss HP scaled per kind. UZIS = 40, WHEELCHAIR = 70 (tougher).
+        if (e.hp == null) {
+            if (isBoss) e.hp = (this.bossKind === 'SPINDLER_WHEELCHAIR') ? 70 : 40;
+            else e.hp = 4;
+            e.maxHp = e.hp;
+        }
         if (e.fireCD == null) e.fireCD = 60 + (Math.random() * 60) | 0;
         if (e.hitFlash == null) e.hitFlash = 0;
         if (e.hitFlash > 0) e.hitFlash--;
         const dx = p.x - e.x;
         const dy = p.y - e.y;
         const dist = Math.hypot(dx, dy);
-        // Chase if 3-12 tiles away
+        // R439: phase 2 kicks in at <50% HP for bosses — faster + more shots
+        const phase2 = isBoss && (e.hp / e.maxHp < 0.5);
+        if (phase2 && !e._phase2Announced) {
+            e._phase2Announced = true;
+            this._floatText('!!!', e.x, e.y);
+            audio.sfx?.('bossChargeTell');
+            // Big visual shake
+            const game = (typeof window !== 'undefined') ? window.__game : null;
+            game?.triggerScreenFlash?.(8, '#ff3030', 0.4);
+        }
+        // Chase. Boss speed bumps in phase 2.
         if (dist > 0.8 && dist < 12) {
-            const sp = (e.kind === 'boss') ? 0.022 : 0.018;
+            let sp = isBoss ? (phase2 ? 0.035 : 0.022) : 0.018;
             const nx = e.x + (dx / dist) * sp;
             const ny = e.y + (dy / dist) * sp;
-            // Tile-aware: don't walk through walls
             if (!this._solidAt(nx, e.y)) e.x = nx;
             if (!this._solidAt(e.x, ny)) e.y = ny;
         }
-        // Shoot at player if in range + line of sight (raycast quick check)
+        // R439: attack patterns by enemy type
         e.fireCD--;
-        if (e.fireCD <= 0 && dist < 8 && this._hasLOS(e.x, e.y, p.x, p.y)) {
+        if (e.fireCD <= 0 && dist < 9 && this._hasLOS(e.x, e.y, p.x, p.y)) {
+            this._enemyAttack(e, dx, dy, dist, phase2);
+            // Cooldown per kind/phase
+            if (isBoss && phase2) e.fireCD = 22;       // very aggressive
+            else if (isBoss) e.fireCD = 36;
+            else e.fireCD = 70 + (Math.random() * 30) | 0;
+        }
+        return;   // skip legacy single-bullet code below
+        // ↓ unreachable but kept for diff cleanliness
+        {
             this.bullets.push({
                 x: e.x, y: e.y,
                 vx: (dx / dist) * 0.12,
                 vy: (dy / dist) * 0.12,
                 life: 80,
                 fromEnemy: true,
-                dmg: (e.kind === 'boss') ? 2 : 1,
+                dmg: isBoss ? 2 : 1,
             });
-            e.fireCD = (e.kind === 'boss') ? 30 : (80 + Math.random() * 40) | 0;
+            e.fireCD = isBoss ? 30 : (80 + Math.random() * 40) | 0;
             // R427: enemy fire SFX — bosses get heavier punch
             audio.sfx?.(e.kind === 'boss' ? 'mg' : 'spread');
         }
+    }
+
+    // R439: per-enemy attack patterns. Spawns bullets with proper spreads.
+    _enemyAttack(e, dx, dy, dist, phase2) {
+        const isBoss = e.kind === 'boss';
+        const baseAng = Math.atan2(dy, dx);
+        const speed = 0.12;
+        const spawnB = (ang, dmg) => {
+            this.bullets.push({
+                x: e.x, y: e.y,
+                vx: Math.cos(ang) * speed,
+                vy: Math.sin(ang) * speed,
+                life: 80,
+                fromEnemy: true,
+                dmg,
+            });
+        };
+        if (!isBoss) {
+            // Clones: single shot
+            spawnB(baseAng, 1);
+            audio.sfx?.('spread');
+            return;
+        }
+        // BOSS attack patterns
+        if (this.bossKind === 'SPINDLER_UZIS') {
+            // Dual Uzis = 3-bullet burst with slight spread
+            const spread = 0.10;
+            for (let i = -1; i <= 1; i++) {
+                spawnB(baseAng + i * spread, 2);
+            }
+            audio.sfx?.('mg');
+            return;
+        }
+        if (this.bossKind === 'SPINDLER_WHEELCHAIR') {
+            if (phase2) {
+                // Phase 2: 5-bullet minigun fan
+                const spread = 0.08;
+                for (let i = -2; i <= 2; i++) {
+                    spawnB(baseAng + i * spread, 2);
+                }
+                audio.sfx?.('mg');
+                // Occasional CHARGE RUSH — 1-in-3 chance to dash 2 tiles toward player
+                if (Math.random() < 0.3) {
+                    const ndx = Math.cos(baseAng) * 1.5;
+                    const ndy = Math.sin(baseAng) * 1.5;
+                    if (!this._solidAt(e.x + ndx, e.y + ndy)) {
+                        e.x += ndx;
+                        e.y += ndy;
+                        audio.sfx?.('chairWhoosh');
+                    }
+                }
+            } else {
+                // Phase 1: 3-bullet burst
+                const spread = 0.12;
+                for (let i = -1; i <= 1; i++) {
+                    spawnB(baseAng + i * spread, 2);
+                }
+                audio.sfx?.('mg');
+            }
+            return;
+        }
+        // Fallback: single shot
+        spawnB(baseAng, 2);
+        audio.sfx?.('mg');
     }
 
     _hasLOS(x1, y1, x2, y2) {
@@ -450,6 +567,11 @@ export class DoomEngine {
                 // Hit player?
                 const d = Math.hypot(b.x - p.x, b.y - p.y);
                 if (d < 0.4 && p.iframes <= 0) {
+                    // R438: record bullet velocity direction so damage indicator
+                    // knows which direction the hit came from. World angle of
+                    // the bullet (atan2 of velocity); converted to view-relative
+                    // bearing later.
+                    this._lastHitAngle = Math.atan2(b.vy, b.vx) + Math.PI;
                     this._damagePlayer(b.dmg || 1);
                     this.bullets.splice(i, 1);
                 }
@@ -487,6 +609,8 @@ export class DoomEngine {
         p.hp -= dmg;
         p.iframes = 60;
         audio.sfx?.('hurt');
+        // R438: arm damage indicator timer (30f visible)
+        this._damageIndicatorT = 30;
         if (p.hp <= 0) this._onPlayerDeath();
         else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
     }
@@ -523,7 +647,29 @@ export class DoomEngine {
         const isBoss = (e.kind === 'boss');
         audio.sfx?.('explode');
         audio.sfx?.('hurt');     // double SFX for screamy death
-        this.player.score += isBoss ? 5000 : 100;
+        // R441: kill combo — chained kills within 4s bump multiplier
+        const now = this.t;
+        if (this._lastKillT == null || (now - this._lastKillT) > 240) {
+            this._comboCount = 1;
+        } else {
+            this._comboCount = (this._comboCount || 0) + 1;
+        }
+        this._lastKillT = now;
+        const multiplier = (this._comboCount >= 5) ? 4 :
+                           (this._comboCount >= 4) ? 3 :
+                           (this._comboCount >= 3) ? 2 : 1;
+        const base = isBoss ? 5000 : 100;
+        const gain = base * multiplier;
+        this.player.score += gain;
+        // Show combo toast when ×2 or higher
+        if (multiplier > 1 && !isBoss) {
+            this._floatText(`COMBO ×${multiplier}!`, e.x, e.y - 0.4);
+            audio.sfx?.('combo' + Math.min(4, multiplier - 1));
+        }
+        return this._continueKill(e, isBoss);
+    }
+
+    _continueKill(e, isBoss) {
         // Slime-puddle corpse entity (kind='puddle') — drawn as flat green
         // billboard via _drawSprite vector fallback. Sits where the enemy fell.
         this.entities.push({
@@ -755,6 +901,10 @@ export class DoomEngine {
 
         this._raycast();
         this._drawSprites();
+        // R440: 3D exit pad light pillar — column of green light rising from
+        // the exit tile, visible when in line of sight. Drawn after sprites
+        // so it can blend over walls.
+        if (this._exitTilePos) this._drawExitPillar();
         this._drawWeapon();
         this._drawHud();
         this._drawMinimap();
@@ -763,6 +913,52 @@ export class DoomEngine {
         // R436: full-screen automap overlay if Tab toggled on. Draws over
         // everything else.
         if (this._automapOpen) this._drawAutomap();
+        // R443: stage-clear celebration overlay while waiting for fade
+        if (this._levelCleared && this._exitT > 0) {
+            const ctx = this.ctx;
+            const t = Math.min(1, this._exitT / 30);
+            ctx.save();
+            // Letterbox bars + dim
+            ctx.fillStyle = `rgba(0, 0, 0, ${0.6 * t})`;
+            ctx.fillRect(0, 0, W, VIEW_H);
+            // Big STAGE CLEAR
+            const ny = 50 + (1 - t) * -50;     // slide-in from top
+            drawTextOutlined(ctx, 'STAGE CLEAR', W / 2, ny, '#ffe070', '#000000', 2, 'center');
+            // Stats lines
+            const p = this.player;
+            const startY = ny + 28;
+            ctx.globalAlpha = Math.max(0, t - 0.3);
+            drawTextOutlined(ctx, `SCORE  ${p.score}`, W / 2, startY, '#ffffff', '#000000', 1, 'center');
+            const aliveClones = this.entities.filter(e => e.alive && e.kind === 'clone').length;
+            const totalEnemies = this.entities.filter(e => e.kind === 'clone' || e.kind === 'puddle').length;
+            const killed = totalEnemies - aliveClones;
+            drawTextOutlined(ctx, `KILLS  ${killed}`, W / 2, startY + 12, '#ffffff', '#000000', 1, 'center');
+            drawTextOutlined(ctx, `KEYS   ${this.keys.size}/3`, W / 2, startY + 24, '#ffffff', '#000000', 1, 'center');
+            const hasBfg = p.weapons.bfg.owned;
+            drawTextOutlined(ctx, `SECRET ${hasBfg ? 'FOUND' : 'MISSED'}`, W / 2, startY + 36, hasBfg ? '#50ff80' : '#a0a0b0', '#000000', 1, 'center');
+            ctx.restore();
+        }
+        // R442: intro overlay — stage name banner over fly-through
+        if (this._introT > 0) {
+            const ctx = this.ctx;
+            // Letterbox bars
+            ctx.save();
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, W, 32);
+            ctx.fillRect(0, VIEW_H - 32, W, 32);
+            // Big stage name
+            drawTextOutlined(ctx, this.data.name || 'DOOM STAGE', W / 2, 14, '#ff5050', '#000000', 2, 'center');
+            // Tagline / boss name
+            const stg = (typeof window !== 'undefined' && window.__game?.constructor)
+                ? window.__game.constructor.STAGES?.[window.__game.currentStage]
+                : null;
+            drawTextOutlined(ctx, this.bossKind || '', W / 2, VIEW_H - 22, '#ffe070', '#000000', 1, 'center');
+            // Skip hint
+            const skipAlpha = (this.t % 60 < 30) ? 1 : 0.4;
+            ctx.globalAlpha = skipAlpha;
+            drawText(ctx, 'PRESS X TO SKIP', W / 2, VIEW_H - 10, '#a0a0b0', 1, 'center');
+            ctx.restore();
+        }
         // R437: exit-pad direction chevron — when the exit pad is active
         // and not yet on the player, show a pulsing arrow at the top of the
         // viewport pointing toward the exit's bearing.
@@ -800,6 +996,75 @@ export class DoomEngine {
             ctx.fillRect(0, 0, W, VIEW_H);
             ctx.restore();
         }
+        // R438: directional damage indicator — red arc on screen edge
+        // pointing toward incoming threat.
+        if (this._damageIndicatorT > 0) {
+            this._damageIndicatorT--;
+            const ctx = this.ctx;
+            const t = this._damageIndicatorT / 30;
+            // Convert world hit angle to view-relative bearing
+            const viewAngle = (this._lastHitAngle || 0) - this.player.angle;
+            // Position arc at one of 8 octants on the screen edge
+            const cx = W / 2, cy = VIEW_H / 2;
+            const radius = Math.min(W, VIEW_H) * 0.45;
+            const ax = cx + Math.cos(viewAngle) * radius;
+            const ay = cy + Math.sin(viewAngle) * radius;
+            ctx.save();
+            ctx.globalAlpha = t * 0.85;
+            // Red wedge — gradient circle at the bearing
+            const grad = ctx.createRadialGradient(ax, ay, 0, ax, ay, 60);
+            grad.addColorStop(0, '#ff3030');
+            grad.addColorStop(0.5, '#c01010');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(ax, ay, 60, 0, Math.PI * 2);
+            ctx.fill();
+            // Hard chevron arrowhead pointing FROM screen edge INTO center
+            ctx.translate(ax, ay);
+            ctx.rotate(viewAngle + Math.PI);
+            ctx.fillStyle = '#ff5050';
+            ctx.beginPath();
+            ctx.moveTo(0, -8);
+            ctx.lineTo(12, 0);
+            ctx.lineTo(0, 8);
+            ctx.lineTo(4, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // R440: green light pillar at the exit pad — projected as a vertical
+    // strip of additive green light. Respects z-buffer so walls hide it.
+    _drawExitPillar() {
+        const ctx = this.ctx;
+        const p = this.player;
+        const ex = this._exitTilePos.x;
+        const ey = this._exitTilePos.y;
+        const dx = ex - p.x, dy = ey - p.y;
+        const ca = Math.cos(-p.angle), sa = Math.sin(-p.angle);
+        const tx = dx * ca - dy * sa;
+        const ty = dx * sa + dy * ca;
+        if (tx <= 0.05) return;
+        const halfFov = FOV / 2;
+        const camPlane = Math.tan(halfFov);
+        const screenX = (W / 2) * (1 + (ty / tx) / camPlane);
+        const colW = Math.max(4, (VIEW_H / tx) * 0.8) | 0;
+        const startX = Math.max(0, screenX - colW / 2 | 0);
+        const endX = Math.min(NUM_COLS - 1, screenX + colW / 2 | 0);
+        // Pillar extends from floor to ceiling
+        const pulse = (Math.sin(this.t * 0.2) + 1) * 0.5;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = (0.25 + pulse * 0.25) * Math.max(0.2, 1 - tx / 10);
+        for (let sx = startX; sx <= endX; sx++) {
+            if (this.zbuffer[sx] < tx) continue;
+            const middleness = 1 - Math.abs((sx - screenX) / (colW / 2));
+            ctx.fillStyle = middleness > 0.5 ? '#80ff80' : '#208040';
+            ctx.fillRect(sx, 0, 1, VIEW_H);
+        }
+        ctx.restore();
     }
 
     // R423e: billboard sprite renderer. Sorts entities back-to-front by
@@ -1276,6 +1541,28 @@ export class DoomEngine {
             ctx.fillRect(6 + i * 7, y + 6, 5, 8);
         }
         drawText(ctx, this.data.name || 'FLOOR 11', 6, y + 18, '#a0a0b0', 1, 'left');
+        // R441: combo indicator — left side near HP bar (HUD strip)
+        if (this._lastKillT != null) {
+            const since = this.t - this._lastKillT;
+            if (since < 240 && this._comboCount >= 2) {
+                const fade = 1 - (since / 240);
+                ctx.save();
+                ctx.globalAlpha = fade;
+                const txt = `×${this._comboCount}`;
+                const col = this._comboCount >= 5 ? '#ff80ff' :
+                            this._comboCount >= 4 ? '#ff8050' :
+                            this._comboCount >= 3 ? '#ffe070' : '#80ff80';
+                // Position above HUD strip on right
+                drawTextOutlined(ctx, txt, W - 6, y - 12, col, '#000000', 2, 'right');
+                // Time bar below
+                const barW = 30;
+                ctx.fillStyle = '#000';
+                ctx.fillRect(W - 6 - barW, y - 4, barW, 2);
+                ctx.fillStyle = col;
+                ctx.fillRect(W - 6 - barW, y - 4, barW * fade, 2);
+                ctx.restore();
+            }
+        }
         // R435: HUD portrait — Doomguy-style face that reacts to HP/rage
         // Picks frame by current HP state. Rage overrides.
         let faceKey = 'doom_face_full';
