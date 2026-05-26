@@ -72,6 +72,16 @@ class Input {
         const canvas = (typeof document !== 'undefined') ? document.getElementById('screen') : null;
         if (!canvas || typeof canvas.addEventListener !== 'function') return;
         canvas.addEventListener('mousemove', e => {
+            // R468: while pointer is locked (Doom mode), clientX/Y is
+            // pinned to lock-time coords or canvas center depending on
+            // browser. Don't update absolute mouseX/Y or aimActive — those
+            // belong to non-locked aim flows (platformer/beat-em-up). Only
+            // accumulate the relative movementX/Y delta for Doom yaw.
+            if (this.pointerLocked) {
+                this.mouseDx += e.movementX || 0;
+                this.mouseDy += e.movementY || 0;
+                return;
+            }
             const rect = canvas.getBoundingClientRect();
             // Scale mouse to canvas-internal coords (256x224 internal)
             const sx = (e.clientX - rect.left) / rect.width * 256;
@@ -79,20 +89,23 @@ class Input {
             this.mouseX = sx;
             this.mouseY = sy;
             this.aimActive = true;
-            // R423b: accumulate relative motion for Doom-mode look. When
-            // pointer is locked, movementX/Y is the true raw delta; when
-            // not locked, fall back to position delta (still usable but
-            // jumpier).
-            if (this.pointerLocked) {
-                this.mouseDx += e.movementX || 0;
-                this.mouseDy += e.movementY || 0;
-            }
         });
         // R423b: pointer-lock tracking. Doom engine calls requestLock() on
         // first canvas click; this state lets gameplay code differentiate
         // "mouse aim available raw" vs "mouse aim from position only."
         document.addEventListener('pointerlockchange', () => {
+            const wasLocked = this.pointerLocked;
             this.pointerLocked = (document.pointerLockElement === canvas);
+            // R468: when pointer is RELEASED (e.g. exiting Doom mode), drop
+            // aimActive so platformer falls back to keyboard aim until the
+            // user actually moves the mouse. Without this, mouseX/Y could
+            // be stale at whatever position they had pre-Doom — making the
+            // platformer aim point at a fixed off-screen spot.
+            if (wasLocked && !this.pointerLocked) {
+                this.aimActive = false;
+                this.mouseDx = 0;
+                this.mouseDy = 0;
+            }
         });
         canvas.addEventListener('mousedown', e => {
             if (e.button === 0) this._down('shoot');

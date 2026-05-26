@@ -4065,6 +4065,11 @@ export class Game {
         this._fpsArena = null;
         this._beatEmUp = null;
         this._doomEngine = null;
+        // R468: defensive — if a prior Doom stage left the pointer locked,
+        // release it before entering a platformer stage so mouse-aim works.
+        if (typeof document !== 'undefined' && document.pointerLockElement) {
+            document.exitPointerLock?.();
+        }
         this.level = new Level(data);
         this.parallax.setTheme(data.theme);
         // R334: stage data can override the parallax bg image independently
