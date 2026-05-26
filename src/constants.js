@@ -178,6 +178,10 @@ export const STAGES = [
     // R423c: stage 23 — Doom-style sewer crawl between stages 4 and 5.
     // Stage 4 chains here via nextStage: 23; stage 23 chains to 5 BOARDROOM.
     { id: 23, name: 'BLOCK 11',                 category: 'campaign', displayId: '4B', theme: THEME.SEWER,      boss: 'SPINDLER_UZIS', music: 'pipeline',  tagline: 'WHATEVER HE\'S BUILDING DOWN HERE — KILL IT' },
+    // R426: BOSS RUSH MODE — relocated from old slot 16 (now FLOOR 11). Title-
+    // screen unlocked mode only; no stage-select tile. category 'mode' so the
+    // stage-select grid filter ignores it.
+    { id: 24, name: 'BOSS RUSH MODE',           category: 'mode',     displayId: '—',  theme: THEME.SERVERROOM, boss: 'GAUNTLET_FULL', music: 'bossRushMode', tagline: 'EVERY BOSS. NO BREAKS.' },
 ];
 
 // Damage flash colors per source.

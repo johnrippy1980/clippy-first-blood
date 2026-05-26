@@ -220,6 +220,25 @@ export class DoomEngine {
         // R423e: tick entities (pickups, enemies, bullets, floaters)
         this._tickEntities();
         this._tickBullets();
+        // R424: trigger BOSS_INTRO cinematic the first time the player gets
+        // within line-of-sight + 5 tiles of the boss. Pauses Doom updates
+        // automatically since the scene routes to SCENE.BOSS_INTRO.
+        if (!this._bossIntroFired) {
+            const boss = this.entities.find(e => e.alive && e.kind === 'boss');
+            if (boss) {
+                const d = Math.hypot(boss.x - p.x, boss.y - p.y);
+                if (d < 5 && this._hasLOS(p.x, p.y, boss.x, boss.y)) {
+                    this._bossIntroFired = true;
+                    const game = (typeof window !== 'undefined') ? window.__game : null;
+                    if (game) {
+                        // Reuse the platformer boss-intro flow — it auto-reads
+                        // STAGES[currentStage].boss for the painted plate.
+                        game.scene = 'bossIntro';
+                        game._bossIntro = { age: 0, done: false };
+                    }
+                }
+            }
+        }
         // Check exit pad
         if (this._onExitPad() && !this._levelCleared) {
             this._levelCleared = true;

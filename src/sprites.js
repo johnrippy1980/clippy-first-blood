@@ -170,6 +170,10 @@ export const SCENE_MANIFEST = {
     'card_cloud_2026':        'card_stage13_cloud.png',
     'card_recyclebin_2026':   'card_stage14_recyclebin.png',
     'card_reality_2026':      'card_stage18_reality.png',
+    // R424: Doom-stage cinematic cards. block11 = sewer clone-tank lab,
+    // floor11 = burning corporate hallway with wheelchair silhouette.
+    'card_doom_block11':      'card_doom_block11.png',
+    'card_doom_floor11':      'card_doom_floor11.png',
     // R281: Ballmer mini-arc cards — office approach, escape cinematic,
     // and arena boss-reveal. Used by STAGE_CARDS (game.js) for stages 6-7
     // and the boss-escapes cinematic between stage 5 and 6.
@@ -218,6 +222,10 @@ export const SCENE_MANIFEST = {
     'boss_intro_HELICOPTER':     'boss_intros/boss_intro_helicopter.png',
     'boss_intro_MECHA_GATES':    'boss_intros/boss_intro_mecha_gates.png',
     'boss_intro_GAUNTLET_FULL':  'boss_intros/boss_intro_bossrush.png',
+    // R424: Doom-mode boss intros — Spindler mini-boss (stage 23) and
+    // post-game wheelchair final form (stage 16).
+    'boss_intro_SPINDLER_UZIS':       'boss_intros/boss_intro_spindler_uzis.png',
+    'boss_intro_SPINDLER_WHEELCHAIR': 'boss_intros/boss_intro_spindler_wheelchair.png',
     // R177: post-game epilogue beats. Clippy's redemption arc shown after
     // the main ending: laughing-stock → memes → 2026 comeback → wonders
     // about Siri. Cinematic plays only after the player has beaten the
