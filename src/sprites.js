@@ -594,6 +594,10 @@ export const ENEMY_MANIFEST = {
     'doom_wall_3': 'doom_wall_3.png',   // glass with server racks behind
     'doom_wall_4': 'doom_wall_4.png',   // bathroom tile w/ cracks
     'doom_wall_5': 'doom_wall_5.png',   // red vending (OUT OF ORDER)
+    // R538b: extra wall textures via Local Howl — added to procedural
+    // substitution pool in R537 for cubicle baseline variety.
+    'doom_wall_6': 'doom_wall_6.png',   // water cooler with blue jug + spigots
+    'doom_wall_7': 'doom_wall_7.png',   // boxy late-90s office copier
     // Enemy + boss billboards
     'doom_clone': 'doom_clone.png',
     'doom_boss_spindler_uzis': 'doom_boss_spindler_uzis.png',

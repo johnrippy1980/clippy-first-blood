@@ -2028,22 +2028,23 @@ export class DoomEngine {
             // doom_wall_N.png; if loaded, sample the column from it.
             // Doors (10,12,13,14) and switches/exit fall back to flat color.
             let tex = null;
-            if (cell >= 1 && cell <= 5) {
-                // R537: procedural wall-texture variation. Map data uses
-                // mostly tile id 1 (cubicle), which made the whole floor
-                // read as repeating TEAMWORK posters. Hash the (mapX,mapY)
-                // and substitute textures 2-5 at ~30% rate so the corridors
-                // mix wood doors, glass + server racks, bathroom tile, and
-                // OUT-OF-ORDER vending machines into the cubicle baseline.
+            if (cell >= 1 && cell <= 7) {
+                // R537/R538b: procedural wall-texture variation. Map data
+                // uses mostly tile id 1 (cubicle). Hash (mapX,mapY) and
+                // substitute textures 2-7 so corridors mix wood doors,
+                // glass + server racks, bathroom tile, vending machines,
+                // water coolers, and copiers into the cubicle baseline.
                 let effectiveCell = cell;
                 if (cell === 1) {
                     const phash = ((mapX * 2654435761) ^ (mapY * 40503) ^ 0xDEADBEEF) >>> 0;
                     const r = phash % 100;
-                    if (r < 12)      effectiveCell = 2;  // wood door  (12%)
-                    else if (r < 22) effectiveCell = 3;  // glass+racks (10%)
-                    else if (r < 30) effectiveCell = 4;  // bathroom tile (8%)
-                    else if (r < 33) effectiveCell = 5;  // vending machine (3%)
-                    // else stays as 1 (cubicle baseline ~67%)
+                    if (r < 10)      effectiveCell = 2;  // wood door  (10%)
+                    else if (r < 18) effectiveCell = 3;  // glass+racks (8%)
+                    else if (r < 25) effectiveCell = 4;  // bathroom tile (7%)
+                    else if (r < 28) effectiveCell = 5;  // vending machine (3%)
+                    else if (r < 36) effectiveCell = 6;  // water cooler (8%)
+                    else if (r < 42) effectiveCell = 7;  // copier (6%)
+                    // else stays as 1 (cubicle baseline ~58%)
                 }
                 tex = sprites.images?.get(`doom_wall_${effectiveCell}`);
                 if (tex && (!tex.complete || tex.naturalWidth === 0)) tex = null;
