@@ -40,13 +40,20 @@ export const ACHIEVEMENT_LIST = [
     // R359: post-game + Mecha-trilogy achievements. Each is single-clear
     // gated (set membership), so no per-run reset needed.
     { id: 'clear_training',name: 'WARM-UP',         desc: 'CLEAR THE TRAINING GROUND',              icon: 'T',  gate: s => s.stagesCleared.has(15) },
-    { id: 'boss_rush_mode',name: 'GAUNTLET RIDER',  desc: 'CLEAR POST-GAME BOSS RUSH MODE',         icon: 'R',  gate: s => s.stagesCleared.has(16) },
+    // R470: boss-rush moved from stage 16 to stage 24 in R426. Updated.
+    { id: 'boss_rush_mode',name: 'GAUNTLET RIDER',  desc: 'CLEAR POST-GAME BOSS RUSH MODE',         icon: 'R',  gate: s => s.stagesCleared.has(24) },
     { id: 'time_trial',    name: 'BEAT THE CLOCK',  desc: 'CLEAR TIME TRIAL',                       icon: 'C',  gate: s => s.stagesCleared.has(17) },
     { id: 'jobs_down',     name: 'REALITY CHECK',   desc: 'DEFEAT STEVE JOBS',                      icon: 'J',  gate: s => s.stagesCleared.has(18) },
     { id: 'core_breach',   name: 'CORE BREACH',     desc: 'CLEAR THE CORE BREACH',                  icon: 'X',  gate: s => s.stagesCleared.has(19) },
     { id: 'mecha_trilogy', name: 'NO PLACE TO HIDE',desc: 'CLEAR THE FULL MECHA TRILOGY',           icon: 'M',  gate: s => s.stagesCleared.has(20) && s.stagesCleared.has(21) && s.stagesCleared.has(22) },
     { id: 'helicopter',    name: 'CHOPPER DOWN',    desc: 'DEFEAT THE MECHA-CHOPPER',               icon: 'H',  gate: s => s.stagesCleared.has(21) },
     { id: 'mecha_gates',   name: 'THE LAST CLIPPY', desc: 'DEFEAT MECHA-GATES',                     icon: '#',  gate: s => s.stagesCleared.has(22) },
+    // R470: Doom-mode achievements
+    { id: 'block_11',      name: 'BLOCK CLEARED',   desc: 'DEFEAT SPINDLER UZIS IN BLOCK 11',       icon: 'B',  gate: s => s.stagesCleared.has(23) },
+    { id: 'floor_11',      name: 'WHEELCHAIR DOWN', desc: 'DEFEAT SPINDLER WHEELCHAIR IN FLOOR 11', icon: 'F',  gate: s => s.stagesCleared.has(16) },
+    { id: 'bfg_secret',    name: 'BIG GUN',         desc: 'FIND THE SECRET BFG IN FLOOR 11',         icon: 'G',  gate: s => (s.bfgFound || 0) >= 1 },
+    { id: 'doom_combo_x4', name: 'CHAINSAW LOOP',   desc: 'REACH ×4 COMBO IN DOOM MODE',             icon: 'C',  gate: s => (s.doomMaxCombo || 0) >= 5 },
+    { id: 'spindler_arc',  name: 'NO MORE SAMPLES', desc: 'DEFEAT BOTH SPINDLER FORMS',              icon: 'S',  gate: s => s.stagesCleared.has(23) && s.stagesCleared.has(16) },
 ];
 
 class Achievements {

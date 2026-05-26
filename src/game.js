@@ -4205,9 +4205,12 @@ export class Game {
             // Show the NEW BEST tag in the SCORE row of the stats panel.
             const sBest = achievements.stats.stageBestScores || {};
             const prevBest = sBest[this.currentStage] || 0;
-            this._stageNewBest = this.player.score > prevBest;
+            // R470: pull score from whichever engine is active
+            const _scorePlayer = this.player || this._doomEngine?.player || this._beatEmUp?.player || this._fpsArena?.player || {};
+            const _curScore = _scorePlayer.score || 0;
+            this._stageNewBest = _curScore > prevBest;
             if (this._stageNewBest) {
-                sBest[this.currentStage] = this.player.score;
+                sBest[this.currentStage] = _curScore;
                 achievements.stats.stageBestScores = sBest;
                 achievements._save?.();
             }
@@ -4228,21 +4231,28 @@ export class Game {
             slot.secret   ||= earned.secret;
             this.runStats.medals[this.currentStage] = slot;
 
-            // Roll stage stats up to run + achievement system
+            // Roll stage stats up to run + achievement system. R470:
+            // null-safe — Doom + beat-em-up + FPS engines have their own
+            // player object so this.player (platformer) may not exist.
             this.runStats.stagesCleared.add(this.currentStage);
-            this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player.maxCombo);
-            for (const [k, v] of Object.entries(this.player.dmgDealt || {})) {
+            this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player?.maxCombo || 0);
+            for (const [k, v] of Object.entries(this.player?.dmgDealt || {})) {
                 this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
             }
             if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
             // Roll the per-stage "target lost" bubble count into the run total
             // before snapshotting for achievements (GHILLIE SUIT).
             this.runStats.enemiesLost = (this.runStats.enemiesLost || 0)
-                + (this.enemies.lostBubbleTotal || 0);
+                + (this.enemies?.lostBubbleTotal || 0);
 
-            // Update achievement snapshot
+            // R470: null-safe for non-platformer engines (Doom/beat/FPS) —
+            // their player objects don't have all the platformer fields.
+            // Pull from the active engine's player when the platformer's
+            // is unavailable.
+            const altPlayer = this._doomEngine?.player || this._beatEmUp?.player || this._fpsArena?.player;
+            const ap = this.player || altPlayer || {};
             const newlyUnlocked = achievements.update({
-                totalKills: this.player.kills,
+                totalKills: ap.kills || 0,
                 stagesCleared: this.runStats.stagesCleared,
                 totalDeaths: this.totalDeaths,
                 noDamageStages: this.runStats.noDamageStages,
@@ -4251,9 +4261,9 @@ export class Game {
                 totalTime: this.totalTime,
                 secretStageDiscovered: this.runStats.stagesCleared.has(10),
                 bulletTimeUses: this.runStats.bulletTimeUses,
-                bestScore: this.player.score,
+                bestScore: ap.score || 0,
                 enemiesLost: this.runStats.enemiesLost,
-                pounceKills: (this.player.pounceKills || 0),
+                pounceKills: (ap.pounceKills || 0),
                 grenadeKills: this.runStats.grenadeKills,
             });
             this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
@@ -4261,14 +4271,15 @@ export class Game {
             // ding regardless of count — the banner queue handles per-entry display.
             if (newlyUnlocked.length > 0) audio.sfx('unlock');
 
-            // Save high score
-            if (this.player.score > achievements.stats.bestScore) {
-                achievements.stats.bestScore = this.player.score;
+            // Save high score (R470: null-safe — ap was resolved above)
+            const apScore = ap.score || 0;
+            if (apScore > achievements.stats.bestScore) {
+                achievements.stats.bestScore = apScore;
                 achievements._save();
             }
             // R223: sync run-best clippy-tag count to persistent stats.
             // High-water-mark so a worse run can't clear the achievement.
-            const tags = this.player.tagsFound || 0;
+            const tags = ap.tagsFound || 0;
             if (tags > (achievements.stats.tagsFound || 0)) {
                 achievements.stats.tagsFound = tags;
                 achievements._save();

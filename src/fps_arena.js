@@ -1336,6 +1336,25 @@ export class FpsArena {
             ctx.fill();
             ctx.restore();
         }
+        // R469: HUD Clippy face — only during DANGER / RAGE
+        {
+            const p = this.player;
+            let faceKey = null;
+            if ((p.rageFrames || 0) > 0) faceKey = 'doom_face_rage';
+            else if (p.hp <= 1) faceKey = 'doom_face_hurt3';
+            else if (p.hp <= 2) faceKey = 'doom_face_hurt2';
+            if (faceKey) {
+                const faceImg = sprites.images?.get(faceKey);
+                if (faceImg?.complete && faceImg.naturalWidth > 0) {
+                    ctx.save();
+                    ctx.imageSmoothingEnabled = false;
+                    const fx = GAME.W - 28 - 4, fy = 38;
+                    const shake = (p.iframes > 30) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+                    ctx.drawImage(faceImg, fx + shake, fy + shake, 24, 24);
+                    ctx.restore();
+                }
+            }
+        }
         // R465: combo HUD — top-right
         if (this._lastKillT != null) {
             const since = this.t - this._lastKillT;

@@ -12,6 +12,7 @@ import { input } from './input.js';
 import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
+import { achievements } from './achievements.js';
 
 const W = GAME.W;
 const H = GAME.H;
@@ -305,6 +306,13 @@ export class DoomEngine {
                 if (game) {
                     // Mark stage cleared so existing chain logic fires
                     game._stageClearReason = 'doomExit';
+                    // R470: invoke the proper clear hook so achievement
+                    // stats roll up (stagesCleared, scores, etc.). Without
+                    // this the doom-stage achievements never fire because
+                    // the runStats roll-up only runs on _onStageClear.
+                    try {
+                        if (game._onStageClear) game._onStageClear();
+                    } catch (e) {}
                     game._fadeTo('stageClear');
                     this._levelCleared = false;   // don't refire
                 }
@@ -420,6 +428,8 @@ export class DoomEngine {
                     audio.sfx?.('secretFound');
                     game?.triggerScreenFlash?.(20, '#50ff80', 0.6);
                     this._floatText('SECRET FOUND!', p.x, p.y);
+                    // R470: stat bump for the 'bfg_secret' achievement
+                    achievements.update?.({ bfgFound: 1 });
                 }
             }
         }
@@ -800,6 +810,11 @@ export class DoomEngine {
             this._comboCount = (this._comboCount || 0) + 1;
         }
         this._lastKillT = now;
+        // R470: track Doom-mode max combo for achievement (max-aware)
+        const prior = achievements.stats?.doomMaxCombo || 0;
+        if (this._comboCount > prior) {
+            achievements.update?.({ doomMaxCombo: this._comboCount });
+        }
         const multiplier = (this._comboCount >= 5) ? 4 :
                            (this._comboCount >= 4) ? 3 :
                            (this._comboCount >= 3) ? 2 : 1;
