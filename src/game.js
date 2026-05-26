@@ -2182,8 +2182,11 @@ export class Game {
         // shot life.
         // GAUNTLET / GAUNTLET_FULL don't have a unique boss-room plate;
         // fall back to the server-room backdrop (matches both stages 7 + 11).
-        const bgBoss = (bossKey === 'GAUNTLET' || bossKey === 'GAUNTLET_FULL')
-            ? 'CTRL_ALT_DEL' : bossKey;
+        // R523: SERVER_TOWER (CRTRON) also reuses the BSOD/server-room
+        // backdrop until a bespoke CRTRON portrait painting lands.
+        let bgBoss = bossKey;
+        if (bossKey === 'GAUNTLET' || bossKey === 'GAUNTLET_FULL') bgBoss = 'CTRL_ALT_DEL';
+        else if (bossKey === 'SERVER_TOWER') bgBoss = 'CTRL_ALT_DEL';
         const bgKey = 'boss_intro_' + bgBoss;
         if (sprites.has(bgKey)) {
             const img = sprites.images.get(bgKey);
