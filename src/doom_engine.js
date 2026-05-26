@@ -1132,9 +1132,11 @@ export class DoomEngine {
         if (this._exitTilePos) this._drawExitPillar();
         this._drawWeapon();
         this._drawHud();
-        // R458: minimap removed from default view — Tab opens full automap
-        // instead. The screenshot showed the minimap dominating 30%+ of the
-        // viewport which broke immersion. Tab now exclusively owns the map.
+        // R458/R498: tiny corner RADAR — proximity view of nearby walls +
+        // enemies. Way smaller than the original minimap (8% of screen);
+        // full automap on Tab still available. Best of both — situational
+        // awareness without dominating the view.
+        this._drawRadar();
         // R423e: pickup/key floating text overlays — drawn world-space
         this._drawFloaters();
         // R436: full-screen automap overlay if Tab toggled on. Draws over
@@ -2061,6 +2063,16 @@ export class DoomEngine {
             const fy = y + (HUD_H - faceSize) / 2 | 0;
             const shake = (p.iframes > 50) ? ((Math.random() - 0.5) * 2) | 0 : 0;
             ctx.drawImage(faceImg, fx + shake, fy + shake, faceSize, faceSize);
+            // R496: white hit-flash overlay during first 8 frames of iframes
+            // so each damage event visibly pops on the face panel.
+            const flashFrames = 8;
+            if (p.iframes > 60 - flashFrames) {
+                const t = (p.iframes - (60 - flashFrames)) / flashFrames;
+                ctx.globalAlpha = t * 0.6;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(fx + shake, fy + shake, faceSize, faceSize);
+                ctx.globalAlpha = 1;
+            }
             ctx.restore();
         }
         // Score below face
@@ -2129,6 +2141,74 @@ export class DoomEngine {
         }
         // Stage name — top edge of HUD strip, full width centered
         drawTextOutlined(ctx, this.data.name || 'FLOOR 11', W / 2, y - 8, '#ffe070', '#000000', 1, 'center');
+    }
+
+    // R498: tiny corner radar — shows walls + entities within RADAR_TILES
+    // of the player. Always visible but small (8% of screen). Tab opens the
+    // full automap as before.
+    _drawRadar() {
+        const ctx = this.ctx;
+        const RADAR_PX = 50;       // total radar size
+        const RADAR_TILES = 6;     // half-extent in world units
+        const ox = W - RADAR_PX - 4;
+        const oy = 4;
+        const p = this.player;
+        // Backplate
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(ox - 1, oy - 1, RADAR_PX + 2, RADAR_PX + 2);
+        ctx.fillStyle = '#0a0a14';
+        ctx.fillRect(ox, oy, RADAR_PX, RADAR_PX);
+        ctx.strokeStyle = '#404048';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(ox, oy, RADAR_PX, RADAR_PX);
+        // Walls within radar range — draw as small dark blocks
+        const pxPerTile = RADAR_PX / (RADAR_TILES * 2);
+        const cx0 = Math.floor(p.x - RADAR_TILES);
+        const cy0 = Math.floor(p.y - RADAR_TILES);
+        const cx1 = Math.ceil(p.x + RADAR_TILES);
+        const cy1 = Math.ceil(p.y + RADAR_TILES);
+        for (let my = cy0; my <= cy1; my++) {
+            if (my < 0 || my >= this.mapH) continue;
+            for (let mx = cx0; mx <= cx1; mx++) {
+                if (mx < 0 || mx >= this.mapW) continue;
+                const cell = this.map[my][mx];
+                if (!cell || this.doorsOpened.has(`${mx},${my}`)) continue;
+                const rx = ox + (mx - p.x + RADAR_TILES) * pxPerTile;
+                const ry = oy + (my - p.y + RADAR_TILES) * pxPerTile;
+                ctx.fillStyle = '#506060';
+                ctx.fillRect(rx | 0, ry | 0, Math.max(1, pxPerTile | 0), Math.max(1, pxPerTile | 0));
+            }
+        }
+        // Entities — red enemies, colored keys, etc.
+        for (const e of this.entities) {
+            if (!e.alive) continue;
+            const dx = e.x - p.x, dy = e.y - p.y;
+            if (Math.abs(dx) > RADAR_TILES || Math.abs(dy) > RADAR_TILES) continue;
+            let col = null;
+            if (e.kind === 'clone') col = '#ff4040';
+            else if (e.kind === 'boss') col = '#ff80ff';
+            else if (e.kind === 'key') col = (e.color === 'red' ? '#ff4040' : e.color === 'yellow' ? '#ffff40' : '#4080ff');
+            else if (e.kind === 'health') col = '#40c050';
+            else if (e.kind === 'ammo') col = '#c0a040';
+            else if (e.kind === 'weapon') col = '#a0a0a8';
+            else if (e.kind === 'barrel') col = '#c04030';
+            if (col) {
+                const rx = ox + (e.x - p.x + RADAR_TILES) * pxPerTile;
+                const ry = oy + (e.y - p.y + RADAR_TILES) * pxPerTile;
+                ctx.fillStyle = col;
+                ctx.fillRect((rx - 1) | 0, (ry - 1) | 0, 2, 2);
+            }
+        }
+        // Player dot + facing
+        const cx = ox + RADAR_PX / 2;
+        const cy = oy + RADAR_PX / 2;
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(cx - 1, cy - 1, 2, 2);
+        ctx.strokeStyle = '#ffe070';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(p.angle) * 6, cy + Math.sin(p.angle) * 6);
+        ctx.stroke();
     }
 
     _drawMinimap() {
