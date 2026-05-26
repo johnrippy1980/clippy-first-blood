@@ -290,6 +290,8 @@ export const BG_MANIFEST = {
     // by default; the lab swap happens partway through (see Level setup).
     'bg_sewer':      'bg_sewer.png',
     'bg_sewer_lab':  'bg_sewer_lab.png',
+    // R472: FPS-stage 19 segment-3/4 backdrop — deep clone-grow corridor
+    'bg_spindler_core_lab': 'bg_spindler_core_lab.png',
     // Ground tile bitmaps — used by level.js to texture solid blocks. Sampled.
     'ground_jungle':     'ground_jungle.png',
     'ground_breakroom':  'ground_breakroom.png',
@@ -373,9 +375,13 @@ export const CLIPPY_MANIFEST = {
     'office_drone':      'office_drone.png',      // desk-lamp shield drone
     'boss_ballmer_fps':  'boss_ballmer_fps.png',  // Ballmer w/ chair (core boss)
     'bg_office':         'bg_office.png',         // corridor backdrop
+    // R472: FPS-stage 6 segment-2 backdrop — exec wing corridor
+    'bg_office_exec_floor': 'bg_office_exec_floor.png',
     // R291: Gates FPS arc — keynote auditorium theme.
     'bg_keynote_corridor':      'bg_keynote_corridor.png',
     'bg_keynote_corridor_dark': 'bg_keynote_corridor_dark.png',
+    // R472: FPS-stage 9 segment-3 backdrop — backstage dark theater
+    'bg_keynote_backstage':     'bg_keynote_backstage.png',
     'keynote_turret':      'keynote_turret.png',
     'keynote_grunt':       'keynote_grunt.png',
     'keynote_drone':       'keynote_drone.png',

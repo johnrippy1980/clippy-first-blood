@@ -2099,7 +2099,8 @@ function makeFpsStage() {
         bossKind: 'SPINDLER',
         // R293: full polish for the long-neglected FPS Spindler bonus stage.
         // 4-segment progression matches the Ballmer + Gates pairs.
-        bgKeys: ['bg_sewer', 'bg_sewer', 'bg_sewer_lab', 'bg_sewer_lab'],
+        // R472: deepen the descent — sewer → dim sewer → lab → CORE deep-lab.
+        bgKeys: ['bg_sewer', 'bg_sewer_lab', 'bg_spindler_core_lab', 'bg_spindler_core_lab'],
         // R299: use the actual Spindler sprite as the core boss — the
         // default lab_core was the generic biotech-reactor cyclops-eye
         // which had nothing to do with Dr. Spindler the character.
@@ -2170,7 +2171,10 @@ function makeFpsStageBallmer() {
         music: 'backstage',     // R302: FPS chase track for the office corridor
         bgKey: 'bg_office',
         bossKind: 'BALLMER',
-        bgKeys: ['bg_office', 'bg_office', 'bg_office', 'bg_office'],
+        // R472: vary backgrounds per segment so the corridor doesn't read as
+        // a static loop. Each segment reveals deeper-into-the-building: lobby
+        // office → exec floor (painted card) → microsoft HQ → boardroom door.
+        bgKeys: ['bg_office', 'bg_office_exec_floor', 'bg_microsoft_hq', 'bg_boardroom'],
         spriteKeys: BALLMER_SPRITE_KEYS,
         // R280: office approach — 4 wave segments, NO boss. Final segment
         // is an empty corridor with the "door to Ballmer's office" visible
@@ -2267,7 +2271,10 @@ function makeFpsStageGates() {
         music: 'backstage',     // R302: FPS chase track
         bgKey: 'bg_keynote_corridor',
         bossKind: 'GATES',
-        bgKeys: ['bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor', 'bg_keynote_corridor'],
+        // R472: vary backgrounds per segment — corridor → dark variant →
+        // backstage painted card → keynote main hall. Sells the progression
+        // from "back hallway" to "actually on stage".
+        bgKeys: ['bg_keynote_corridor', 'bg_keynote_corridor_dark', 'bg_keynote_backstage', 'bg_keynote'],
         spriteKeys: GATES_SPRITE_KEYS,
         segmentLabels: [
             'SEGMENT 1 / TURRETS',
