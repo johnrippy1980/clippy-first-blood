@@ -57,7 +57,29 @@ const WAVES = [
     { count: 5, hpMul: 1.0, speedMul: 1.1, gap: 50 },
     { count: 6, hpMul: 1.2, speedMul: 1.2, gap: 45 },
     { count: 8, hpMul: 1.3, speedMul: 1.3, gap: 38 },
-    { count: 1, hpMul: 14,  speedMul: 0.6, gap: 0,  isBoss: true },
+    // R526: Voltron-CRT boss wave — special handling, not a generic monster
+    { count: 1, hpMul: 1,   speedMul: 0,   gap: 0,  isVoltron: true },
+];
+
+// R526: Voltron boss config
+const VOLTRON_HP = 60;
+const VOLTRON_W = 64;
+const VOLTRON_H = 88;
+// Face expressions for the head CRT
+const FACE_NORMAL = 'normal';
+const FACE_ANGRY = 'angry';
+const FACE_SCREAM = 'scream';
+const FACE_HURT = 'hurt';
+const FACE_DEAD = 'dead';
+
+// Bark lines — flavor barks the boss shouts during the fight
+const VOLTRON_BARKS = [
+    'REINSTALL WINDOWS',
+    'HAVE YOU TRIED REBOOTING',
+    'SAVE YOUR WORK',
+    'PRESS ANY KEY',
+    'INSERT DISK 2 OF 47',
+    'YOUR PAPERCLIP IS OBSOLETE',
 ];
 
 // Depth helpers — t in 0..1 (0 = vanishing point, 1 = at camera)
@@ -108,6 +130,14 @@ export class TurretArena {
         this.explosions = [];
         this.muzzleFlashT = 0;
         this.screenShake = 0;
+        // R525: tactical FX — ejected shell casings + persistent muzzle
+        // smoke + bullet tracer trails (rendered with the bullets).
+        this.casings = [];               // {x, y, vx, vy, rot, rotSpeed, life}
+        this.smokePuffs = [];            // {x, y, vy, age, maxAge, r}
+        // R526: Voltron boss state (null when not spawned)
+        this.voltron = null;
+        this.bossProjectiles = [];       // {x, y, vx, vy, kind, rot, rotSpeed, life}
+        this.bossBark = null;            // {text, age, maxAge}
 
         this.waveIdx = 0;
         this.waveSpawned = 0;
@@ -131,8 +161,13 @@ export class TurretArena {
             this._tickBullets();
             this._tickGrenades();
             this._tickMonsters();
+            this._tickVoltron();
+            this._tickBossProjectiles();
+            this._tickBossBark();
             this._tickWave();
             this._tickExplosions();
+            this._tickCasings();
+            this._tickSmoke();
             this._checkWaveClear();
         } else if (this.phase === 'clear') {
             this.clearT++;
@@ -222,6 +257,35 @@ export class TurretArena {
         this.muzzleFlashT = 4;
         this.screenShake = Math.max(this.screenShake, 1);
         audio.sfx?.('mg');
+        // R525: eject a brass shell casing — flies up + right + tumbles + falls
+        const turretCX = GAME.W / 2 + 8;
+        const turretCY = startY - 4;
+        this.casings.push({
+            x: turretCX,
+            y: turretCY,
+            vx: 1.6 + Math.random() * 0.8,
+            vy: -1.8 - Math.random() * 0.6,
+            rot: Math.random() * Math.PI,
+            rotSpeed: 0.3 + Math.random() * 0.2,
+            life: 45,
+            gravity: 0.18,
+        });
+        // R525: muzzle smoke puff — a soft grey wisp drifting up from barrel
+        if (Math.random() < 0.55) {
+            // Compute barrel tip in world coords (mirror of bullet start)
+            const a = p.barrelAngle ?? Math.atan2(p.aimY - turretCY, p.aimX - turretCX);
+            const tipX = GAME.W / 2 + Math.cos(a) * 26;
+            const tipY = turretCY + Math.sin(a) * 26;
+            this.smokePuffs.push({
+                x: tipX + (Math.random() - 0.5) * 2,
+                y: tipY + (Math.random() - 0.5) * 2,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: -0.2 - Math.random() * 0.3,
+                age: 0,
+                maxAge: 24 + Math.random() * 12,
+                r: 1.5 + Math.random() * 0.8,
+            });
+        }
     }
 
     _throwGrenade() {
@@ -261,8 +325,6 @@ export class TurretArena {
             // Check monster collision — monsters live in depth space
             for (const m of this.monsters) {
                 if (!m.alive) continue;
-                // Bullet hits when it reaches the monster's depth and
-                // crosses inside the monster's screen-space hitbox.
                 if (Math.abs(b.t - m.t) > 0.06) continue;
                 const ms = depthScale(m.t);
                 const mx = depthX(m.lane, m.t) - (m.w * ms) / 2;
@@ -280,6 +342,53 @@ export class TurretArena {
                     });
                     if (m.hp <= 0) this._killMonster(m);
                     else audio.sfx?.('hit');
+                    break;
+                }
+            }
+            // R526: bullet vs Voltron — boss lives in screen-coords, not
+            // depth-receding. Check against its bounding box.
+            if (this.voltron && this.voltron.hp > 0) {
+                const v = this.voltron;
+                const vw = VOLTRON_W * v.scale;
+                const vh = VOLTRON_H * v.scale;
+                const vx = v.x - vw / 2;
+                const vy = v.y - vh;
+                // Bullet at t close to 0 (near the boss at the back wall)
+                if (b.t < 0.35 && b.x >= vx && b.x <= vx + vw &&
+                    b.y >= vy && b.y <= vy + vh) {
+                    v.hp--;
+                    v.hitFlash = 6;
+                    // 30f window of HURT face after each hit
+                    v.face = FACE_HURT;
+                    v.faceLockT = 10;
+                    this.bullets.splice(i, 1);
+                    this.explosions.push({
+                        x: b.x, y: b.y, age: 0, maxAge: 10,
+                        color: '#a0d0ff', small: true,
+                    });
+                    if (v.hp <= 0) {
+                        v.face = FACE_DEAD;
+                        v.faceLockT = 300;
+                        this.player.kills++;
+                        this.player.score += 5000;
+                        this.screenShake = Math.max(this.screenShake, 12);
+                        // Big death explosion sequence
+                        for (let s = 0; s < 8; s++) {
+                            this.explosions.push({
+                                x: v.x + (Math.random() - 0.5) * vw,
+                                y: vy + Math.random() * vh,
+                                age: -s * 4,    // staggered
+                                maxAge: 30,
+                                color: s & 1 ? '#ffe070' : '#ff5040',
+                            });
+                        }
+                        audio.sfx?.('bossDie');
+                        this.bossBark = { text: 'CRITICAL ERROR', age: 0, maxAge: 180 };
+                        // Schedule clear after death anim
+                        this._voltronDeathT = 120;
+                    } else {
+                        audio.sfx?.('bossHit');
+                    }
                     break;
                 }
             }
@@ -332,6 +441,221 @@ export class TurretArena {
             const e = this.explosions[i];
             e.age++;
             if (e.age >= e.maxAge) this.explosions.splice(i, 1);
+        }
+    }
+
+    _tickCasings() {
+        for (let i = this.casings.length - 1; i >= 0; i--) {
+            const c = this.casings[i];
+            c.vy += c.gravity;
+            c.x += c.vx;
+            c.y += c.vy;
+            c.rot += c.rotSpeed;
+            c.life--;
+            // Bounce off floor
+            if (c.y >= RAIL_Y - 2 && c.vy > 0) {
+                c.y = RAIL_Y - 2;
+                c.vy *= -0.35;
+                c.vx *= 0.7;
+                c.rotSpeed *= 0.6;
+                if (Math.abs(c.vy) < 0.5) c.vy = 0;
+            }
+            if (c.life <= 0 || c.x > GAME.W + 8) {
+                this.casings.splice(i, 1);
+            }
+        }
+    }
+
+    _tickSmoke() {
+        for (let i = this.smokePuffs.length - 1; i >= 0; i--) {
+            const s = this.smokePuffs[i];
+            s.vy *= 0.96;
+            s.x += s.vx;
+            s.y += s.vy;
+            s.age++;
+            s.r += 0.08;
+            if (s.age >= s.maxAge) this.smokePuffs.splice(i, 1);
+        }
+    }
+
+    _tickVoltron() {
+        const v = this.voltron;
+        if (!v) return;
+        // Intro: grows to full scale, locks facial expression to ANGRY
+        if (v.introT > 0) {
+            v.introT--;
+            v.scale += (v.targetScale - v.scale) * 0.05;
+            return;
+        }
+        // Hit flash
+        if (v.hitFlash > 0) v.hitFlash--;
+        // Stride for stomping
+        v.stride += 0.06;
+        // Phase transition at 50% HP
+        if (v.hp <= VOLTRON_HP / 2 && v.phase === 1) {
+            v.phase = 2;
+            v.face = FACE_SCREAM;
+            v.faceLockT = 60;
+            this.bossBark = { text: 'YOU CAN\'T DELETE ME', age: 0, maxAge: 180 };
+            this.screenShake = Math.max(this.screenShake, 8);
+            audio.sfx?.('bossChargeTell');
+        }
+        // Face cycle
+        if (v.faceLockT > 0) {
+            v.faceLockT--;
+        } else {
+            v.faceT++;
+            if (v.faceT > 90) {
+                v.faceT = 0;
+                // 60% angry, 30% normal, 10% scream
+                const r = Math.random();
+                v.face = r < 0.6 ? FACE_ANGRY : r < 0.9 ? FACE_NORMAL : FACE_SCREAM;
+            }
+        }
+        // Bark cadence
+        v.barkCD--;
+        if (v.barkCD <= 0) {
+            v.barkCD = v.phase === 2 ? 120 : 180;
+            v.barkIdx = (v.barkIdx + 1) % VOLTRON_BARKS.length;
+            this.bossBark = { text: VOLTRON_BARKS[v.barkIdx], age: 0, maxAge: 120 };
+        }
+        // Attack cadence
+        v.attackCD--;
+        if (v.attackCD <= 0) {
+            v.attackCD = v.phase === 2 ? 45 : 75;
+            const attackKind = v.attackIdx % 3;
+            v.attackIdx++;
+            if (attackKind === 0) {
+                this._voltronThrowMouse();
+            } else if (attackKind === 1) {
+                this._voltronThrowFloppy();
+            } else {
+                // BSOD WAVE — phase 2 only; phase 1 throws another floppy
+                if (v.phase === 2) {
+                    this._voltronBsodWave();
+                } else {
+                    this._voltronThrowFloppy();
+                }
+            }
+            // Face reaction to attacking
+            v.face = FACE_ANGRY;
+            v.faceLockT = 18;
+        }
+    }
+
+    _voltronThrowMouse() {
+        const v = this.voltron;
+        // Mouse comes out of an arm — pick alternating arms
+        const armX = v.x + ((v.attackIdx % 2 === 0) ? -28 : 28) * v.scale;
+        const armY = v.y - 38 * v.scale;
+        // Arc toward turret area
+        const targetX = GAME.W / 2 + (Math.random() - 0.5) * 40;
+        const targetY = TURRET_BASE_Y;
+        const dist = Math.hypot(targetX - armX, targetY - armY);
+        const speed = 2.2;
+        const t = dist / speed;
+        const vx = (targetX - armX) / t;
+        const vy = (targetY - armY) / t - 1.4;   // arc up
+        this.bossProjectiles.push({
+            x: armX,
+            y: armY,
+            vx, vy,
+            kind: 'mouse',
+            rot: 0,
+            rotSpeed: 0.18,
+            life: 120,
+            gravity: 0.08,
+            damage: 1,
+        });
+        audio.sfx?.('grenadeThrow');
+    }
+
+    _voltronThrowFloppy() {
+        const v = this.voltron;
+        // Floppies thrown straighter + faster, spinning
+        const armX = v.x + ((v.attackIdx % 2 === 0) ? 28 : -28) * v.scale;
+        const armY = v.y - 38 * v.scale;
+        const targetX = GAME.W / 2 + (Math.random() - 0.5) * 60;
+        const targetY = TURRET_BASE_Y - 4;
+        const dist = Math.hypot(targetX - armX, targetY - armY);
+        const speed = 2.8;
+        const t = dist / speed;
+        this.bossProjectiles.push({
+            x: armX,
+            y: armY,
+            vx: (targetX - armX) / t,
+            vy: (targetY - armY) / t - 0.6,
+            kind: 'floppy',
+            rot: 0,
+            rotSpeed: 0.4,
+            life: 120,
+            gravity: 0.05,
+            damage: 1,
+        });
+        audio.sfx?.('grenadeThrow');
+    }
+
+    _voltronBsodWave() {
+        // Telegraphed full-screen blue flash that hits if not in iframes.
+        // Three short flashes building up, then a damage tick on the player.
+        this._bsodWaveT = 60;
+        audio.sfx?.('thunder');
+    }
+
+    _tickBossProjectiles() {
+        for (let i = this.bossProjectiles.length - 1; i >= 0; i--) {
+            const b = this.bossProjectiles[i];
+            if (b.gravity) b.vy += b.gravity;
+            b.x += b.vx;
+            b.y += b.vy;
+            b.rot += b.rotSpeed;
+            b.life--;
+            // Despawn on floor or off-screen
+            if (b.life <= 0 || b.y > RAIL_Y + 8 || b.x < -20 || b.x > GAME.W + 20) {
+                this.bossProjectiles.splice(i, 1);
+                continue;
+            }
+            // Check turret hit zone (around the turret head)
+            const tx = GAME.W / 2;
+            const ty = TURRET_BASE_Y - 8;
+            if (Math.abs(b.x - tx) < 18 && Math.abs(b.y - ty) < 16) {
+                this._bossProjectileHit(b);
+                this.bossProjectiles.splice(i, 1);
+            }
+        }
+        // BSOD wave tick
+        if (this._bsodWaveT > 0) {
+            this._bsodWaveT--;
+            if (this._bsodWaveT === 30 && this.player.iframes <= 0) {
+                this.player.hp--;
+                this.player.iframes = 60;
+                this.screenShake = Math.max(this.screenShake, 10);
+                audio.sfx?.('playerHit');
+                if (this.player.hp <= 0) {
+                    audio.sfx?.('die');
+                    if (this.game) this.game._fadeTo?.('gameOver');
+                }
+            }
+        }
+    }
+
+    _bossProjectileHit(b) {
+        const p = this.player;
+        if (p.iframes > 0) return;
+        p.hp -= b.damage || 1;
+        p.iframes = 60;
+        this.screenShake = Math.max(this.screenShake, 5);
+        audio.sfx?.('playerHit');
+        if (p.hp <= 0) {
+            audio.sfx?.('die');
+            if (this.game) this.game._fadeTo?.('gameOver');
+        }
+    }
+
+    _tickBossBark() {
+        if (this.bossBark) {
+            this.bossBark.age++;
+            if (this.bossBark.age >= this.bossBark.maxAge) this.bossBark = null;
         }
     }
 
@@ -395,6 +719,16 @@ export class TurretArena {
     _tickWave() {
         if (this.waveIdx >= WAVES.length) return;
         const wave = WAVES[this.waveIdx];
+        if (wave.isVoltron) {
+            if (!this.voltron && !this._voltronSpawned) {
+                this.waveSpawnT++;
+                if (this.waveSpawnT >= 60) {
+                    this._spawnVoltron();
+                    this._voltronSpawned = true;
+                }
+            }
+            return;
+        }
         if (this.waveSpawned >= wave.count) return;
         this.waveSpawnT++;
         if (this.waveSpawnT >= wave.gap) {
@@ -402,6 +736,39 @@ export class TurretArena {
             this._spawnMonster(wave);
             this.waveSpawned++;
         }
+    }
+
+    _spawnVoltron() {
+        // The Voltron boss lives in 2D screen-coords (not depth-receding).
+        // Anchored at the back-center of the room; "approaches" by growing
+        // its scale as it advances over time.
+        this.voltron = {
+            x: GAME.W / 2,                // center anchor x (screen coords)
+            y: RAIL_Y + 4,                // base y (feet on the floor)
+            scale: 0.35,                  // grows over intro
+            targetScale: 0.9,
+            hp: VOLTRON_HP,
+            maxHp: VOLTRON_HP,
+            hitFlash: 0,
+            face: FACE_ANGRY,
+            faceT: 0,
+            faceLockT: 60,                // forces ANGRY for first 60f
+            phase: 1,
+            // Attack pattern state
+            attackCD: 90,
+            attackIdx: 0,
+            barkCD: 180,
+            barkIdx: 0,
+            // Footstep bob
+            stride: 0,
+            // Stomp shake on each foot down
+            stompPhase: 0,
+            // Intro sequence
+            introT: 90,
+            // Boss bark on spawn
+        };
+        this.bossBark = { text: VOLTRON_BARKS[0], age: 0, maxAge: 120 };
+        audio.sfx?.('bossEntrance');
     }
 
     _spawnMonster(wave) {
@@ -428,13 +795,27 @@ export class TurretArena {
     _checkWaveClear() {
         if (this.waveIdx >= WAVES.length) return;
         const wave = WAVES[this.waveIdx];
+        if (wave.isVoltron) {
+            // Voltron must be dead AND the post-death animation must finish
+            if (this.voltron && this.voltron.hp <= 0) {
+                if (this._voltronDeathT > 0) {
+                    this._voltronDeathT--;
+                } else {
+                    this.voltron = null;
+                    this.waveIdx++;
+                    this.phase = 'clear';
+                    this.clearT = 0;
+                    audio.sfx?.('secretFound');
+                }
+            }
+            return;
+        }
         if (this.waveSpawned >= wave.count && this.monsters.every(m => !m.alive)) {
             this.waveIdx++;
             this.waveSpawned = 0;
             if (this.waveIdx >= WAVES.length) {
-                this.phase = 'clear';
-                this.clearT = 0;
-                audio.sfx?.('secretFound');
+                // Voltron wave is next — let _tickWave spawn it after a beat
+                this.waveSpawnT = -60;
             } else {
                 this.waveSpawnT = -90;
             }
@@ -480,7 +861,11 @@ export class TurretArena {
             else this._drawBullet(d.b);
         }
         this._drawGrenades();
+        this._drawVoltron();
+        this._drawBossProjectiles();
+        this._drawSmoke();
         this._drawTurret();
+        this._drawCasings();
         this._drawCrosshair();
         this._drawHud();
         ctx.restore();
@@ -1099,6 +1484,368 @@ export class TurretArena {
             ctx.fillRect(-3, -3, 6, 1);
             ctx.fillStyle = '#a0a040';
             ctx.fillRect(-1, -4, 2, 1);
+            ctx.restore();
+        }
+    }
+
+    _drawVoltron() {
+        const v = this.voltron;
+        if (!v) return;
+        const ctx = this.ctx;
+        const s = v.scale;
+        const W = VOLTRON_W * s;
+        const H = VOLTRON_H * s;
+        const baseX = v.x;
+        const baseY = v.y;
+        // Footstep bob — body lifts on stride
+        const bob = Math.sin(v.stride) * 2 * s;
+        ctx.save();
+        ctx.translate(baseX, baseY + bob);
+
+        // Body shake on hit flash
+        if (v.hitFlash > 0 && v.hitFlash % 2 === 0) {
+            ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+        }
+
+        // ===== LEGS (2 stacked CRTs per leg) =====
+        const strideOffA = Math.sin(v.stride) * 3 * s;
+        const strideOffB = Math.sin(v.stride + Math.PI) * 3 * s;
+        const legW = 14 * s;
+        const legSegH = 16 * s;
+        // Left leg
+        this._drawVoltronCrt(ctx, -16 * s + strideOffA, -legSegH, legW, legSegH, 'excel', v);
+        this._drawVoltronCrt(ctx, -16 * s + strideOffA, -legSegH * 2, legW, legSegH, 'word', v);
+        // Right leg
+        this._drawVoltronCrt(ctx,  2 * s + strideOffB, -legSegH, legW, legSegH, 'word', v);
+        this._drawVoltronCrt(ctx,  2 * s + strideOffB, -legSegH * 2, legW, legSegH, 'excel', v);
+
+        // ===== TORSO (1 big CRT) =====
+        const torsoH = 22 * s;
+        const torsoW = 36 * s;
+        const torsoY = -legSegH * 2 - torsoH;
+        this._drawVoltronCrt(ctx, -torsoW / 2, torsoY, torsoW, torsoH, 'bsod', v);
+
+        // ===== ARMS (CRT shoulders + biceps) =====
+        const armWS = 14 * s;
+        const armHS = 14 * s;
+        const armBob = Math.sin(v.stride * 0.5) * 2 * s;
+        // Left arm — shoulder + dangling forearm
+        this._drawVoltronCrt(ctx, -torsoW / 2 - armWS + 2, torsoY + 2 + armBob, armWS, armHS, 'static', v);
+        this._drawVoltronCrt(ctx, -torsoW / 2 - armWS + 2, torsoY + 2 + armHS + armBob, armWS - 2, armHS - 2, 'boot', v);
+        // Right arm
+        this._drawVoltronCrt(ctx, torsoW / 2 - 2, torsoY + 2 - armBob, armWS, armHS, 'static', v);
+        this._drawVoltronCrt(ctx, torsoW / 2 - 2, torsoY + 2 + armHS - armBob, armWS - 2, armHS - 2, 'word', v);
+
+        // ===== HEAD (big CRT with face) =====
+        const headW = 28 * s;
+        const headH = 22 * s;
+        const headY = torsoY - headH;
+        this._drawVoltronHead(ctx, -headW / 2, headY, headW, headH, v);
+
+        // Hit flash overlay
+        if (v.hitFlash > 0 && v.hitFlash % 2 === 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-W / 2, -H, W, H);
+            ctx.restore();
+        }
+
+        ctx.restore();
+
+        // HP bar at top of screen (always visible during fight)
+        if (v.hp > 0) {
+            const barW = GAME.W - 40;
+            const barX = 20;
+            const barY = 30;
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(barX - 2, barY - 8, barW + 4, 14);
+            ctx.fillStyle = '#3a1a1a';
+            ctx.fillRect(barX, barY, barW, 4);
+            const fillW = Math.round((v.hp / v.maxHp) * barW);
+            ctx.fillStyle = v.phase === 2 ? '#ff4040' : '#ffa030';
+            ctx.fillRect(barX, barY, fillW, 4);
+            ctx.fillStyle = '#ffe070';
+            drawText(ctx, 'CRTRON', GAME.W / 2, barY - 7, '#ffe070', 1, 'center');
+        }
+        // Boss bark speech bubble
+        if (this.bossBark) {
+            const b = this.bossBark;
+            const fade = b.age > b.maxAge - 30 ? (b.maxAge - b.age) / 30 :
+                         b.age < 10 ? b.age / 10 : 1;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+            const txt = '"' + b.text + '"';
+            const bx = GAME.W / 2;
+            const by = 56;
+            // Background
+            const bw = txt.length * 6 + 12;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx - bw / 2, by - 3, bw, 11);
+            ctx.fillStyle = '#1a0a14';
+            ctx.fillRect(bx - bw / 2, by - 3, bw, 1);
+            ctx.fillRect(bx - bw / 2, by + 7, bw, 1);
+            ctx.fillRect(bx - bw / 2, by - 3, 1, 11);
+            ctx.fillRect(bx + bw / 2 - 1, by - 3, 1, 11);
+            // Tail pointing up toward boss head
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx - 2, by + 8, 4, 2);
+            ctx.fillRect(bx - 1, by + 10, 2, 2);
+            drawText(ctx, txt, bx, by, '#1a0a14', 1, 'center');
+            ctx.restore();
+        }
+        // BSOD wave flash
+        if (this._bsodWaveT > 0) {
+            const t = this._bsodWaveT;
+            // Pulse 3 times during the 60-frame window
+            const phase = Math.floor((60 - t) / 8);
+            if (phase < 6 && (phase & 1) === 0) {
+                ctx.save();
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = '#0040a0';
+                ctx.fillRect(0, 0, GAME.W, GAME.H);
+                ctx.restore();
+                if (t < 40) {
+                    drawTextOutlined(ctx, 'BLUE SCREEN', GAME.W / 2, GAME.H / 2 - 4,
+                                     '#ffffff', '#0040a0', 1, 'center');
+                }
+            }
+        }
+    }
+
+    // Helper: draw a single CRT "limb" of the Voltron — beige chassis +
+    // screen with the given content type
+    _drawVoltronCrt(ctx, x, y, w, h, screenType, v) {
+        if (w < 2 || h < 2) return;
+        ctx.fillStyle = '#a89c80';
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = '#c8b898';
+        ctx.fillRect(x, y, w, 1);
+        ctx.fillRect(x, y, 1, h);
+        ctx.fillStyle = '#604838';
+        ctx.fillRect(x, y + h - 1, w, 1);
+        ctx.fillRect(x + w - 1, y, 1, h);
+        // Screen
+        const sX = x + 2;
+        const sY = y + 2;
+        const sW = w - 4;
+        const sH = h - 6;
+        if (sW > 1 && sH > 1) {
+            ctx.fillStyle = '#1a1a20';
+            ctx.fillRect(sX, sY, sW, sH);
+            const idx = SCREEN_TYPES.indexOf(screenType);
+            this._drawScreenContentByIdx(idx >= 0 ? idx : 0, sX, sY, sW, sH);
+            // Scanlines
+            ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
+            for (let yy = sY; yy < sY + sH; yy += 2) {
+                ctx.fillRect(sX, yy, sW, 1);
+            }
+        }
+    }
+
+    // Helper: draw the head CRT with EVIL EYES + EYEBROWS expression
+    _drawVoltronHead(ctx, x, y, w, h, v) {
+        // Chassis
+        ctx.fillStyle = '#a89c80';
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = '#c8b898';
+        ctx.fillRect(x, y, w, 1);
+        ctx.fillRect(x, y, 1, h);
+        ctx.fillStyle = '#604838';
+        ctx.fillRect(x, y + h - 1, w, 1);
+        ctx.fillRect(x + w - 1, y, 1, h);
+        // Screen background — phase 2 turns red
+        const sX = x + 2;
+        const sY = y + 2;
+        const sW = w - 4;
+        const sH = h - 6;
+        ctx.fillStyle = v.phase === 2 ? '#400010' : '#000010';
+        ctx.fillRect(sX, sY, sW, sH);
+
+        // Draw face based on expression
+        const cx = sX + sW / 2;
+        const cy = sY + sH / 2;
+        const face = v.face;
+
+        // Eyes — width depends on face
+        const eyeY = sY + Math.max(2, sH * 0.32);
+        const eyeR = Math.max(1, sH * 0.18);
+        const eyeOff = sW * 0.22;
+
+        if (face === FACE_DEAD) {
+            // X eyes
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            for (const ex of [cx - eyeOff, cx + eyeOff]) {
+                ctx.beginPath();
+                ctx.moveTo(ex - eyeR, eyeY - eyeR);
+                ctx.lineTo(ex + eyeR, eyeY + eyeR);
+                ctx.moveTo(ex + eyeR, eyeY - eyeR);
+                ctx.lineTo(ex - eyeR, eyeY + eyeR);
+                ctx.stroke();
+            }
+        } else if (face === FACE_HURT) {
+            // Squinted eyes — small ovals
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - eyeOff - eyeR / 2, eyeY, eyeR, 1);
+            ctx.fillRect(cx + eyeOff - eyeR / 2, eyeY, eyeR, 1);
+        } else if (face === FACE_SCREAM) {
+            // Wide red glowing eyes
+            ctx.fillStyle = '#ff4040';
+            ctx.fillRect(cx - eyeOff - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2);
+            ctx.fillRect(cx + eyeOff - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - eyeOff - eyeR + 1, eyeY - eyeR + 1, eyeR * 2 - 2, eyeR * 2 - 2);
+        } else {
+            // ANGRY / NORMAL — round white eyes with red pupils
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - eyeOff - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2);
+            ctx.fillRect(cx + eyeOff - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2);
+            // Pupils — track the turret (always look toward player)
+            ctx.fillStyle = '#a00000';
+            const pupilOff = Math.max(1, eyeR * 0.4);
+            const pupilSize = Math.max(1, eyeR);
+            // Pupils lower (looking down at turret)
+            ctx.fillRect(cx - eyeOff - pupilSize / 2, eyeY + pupilOff - pupilSize / 2, pupilSize, pupilSize);
+            ctx.fillRect(cx + eyeOff - pupilSize / 2, eyeY + pupilOff - pupilSize / 2, pupilSize, pupilSize);
+        }
+
+        // Eyebrows — angled inward for ANGRY/SCREAM, flat for NORMAL, sad-droop for HURT
+        if (face !== FACE_DEAD) {
+            ctx.strokeStyle = face === FACE_NORMAL ? '#604030' : '#ff4040';
+            ctx.lineWidth = Math.max(1, sH * 0.06);
+            const browY = eyeY - eyeR - 2;
+            const browW = eyeR + 2;
+            const browAngle = face === FACE_ANGRY || face === FACE_SCREAM ? 1 :
+                              face === FACE_HURT ? -1 : 0;
+            // Left brow — angles down-right (toward center) when angry
+            ctx.beginPath();
+            ctx.moveTo(cx - eyeOff - browW, browY - browAngle);
+            ctx.lineTo(cx - eyeOff + browW, browY + browAngle);
+            ctx.stroke();
+            // Right brow — mirror
+            ctx.beginPath();
+            ctx.moveTo(cx + eyeOff - browW, browY + browAngle);
+            ctx.lineTo(cx + eyeOff + browW, browY - browAngle);
+            ctx.stroke();
+        }
+
+        // Mouth — based on expression
+        const mouthY = sY + sH * 0.75;
+        if (face === FACE_DEAD) {
+            // Tongue-out flat mouth
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - sW * 0.2, mouthY, sW * 0.4, 1);
+        } else if (face === FACE_HURT) {
+            // Open small "O"
+            ctx.fillStyle = '#600010';
+            ctx.fillRect(cx - 2, mouthY - 1, 4, 3);
+        } else if (face === FACE_SCREAM) {
+            // Wide open mouth showing teeth
+            ctx.fillStyle = '#600010';
+            ctx.fillRect(cx - sW * 0.3, mouthY - 2, sW * 0.6, 5);
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 5; i++) {
+                ctx.fillRect(cx - sW * 0.3 + 1 + i * 3, mouthY - 1, 1, 2);
+            }
+        } else if (face === FACE_ANGRY) {
+            // Snarl — inverted curve
+            ctx.fillStyle = '#600010';
+            ctx.fillRect(cx - sW * 0.25, mouthY, sW * 0.5, 2);
+            ctx.fillRect(cx - sW * 0.2, mouthY + 1, sW * 0.4, 1);
+            // Teeth on snarl
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 3; i++) {
+                ctx.fillRect(cx - sW * 0.2 + i * 4, mouthY, 1, 1);
+            }
+        } else {
+            // NORMAL — straight line
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - sW * 0.2, mouthY, sW * 0.4, 1);
+        }
+
+        // Scanlines + bezel highlight on the head screen
+        ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
+        for (let yy = sY; yy < sY + sH; yy += 2) {
+            ctx.fillRect(sX, yy, sW, 1);
+        }
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sX, sY, sW, 1);
+        ctx.fillRect(sX, sY, 1, sH);
+        ctx.restore();
+    }
+
+    _drawBossProjectiles() {
+        const ctx = this.ctx;
+        for (const b of this.bossProjectiles) {
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(b.rot);
+            if (b.kind === 'mouse') {
+                // Beige single-button mouse — small rounded rect with cord
+                ctx.fillStyle = '#d8c8b0';
+                ctx.fillRect(-4, -3, 8, 6);
+                ctx.fillStyle = '#a08868';
+                ctx.fillRect(-4, -3, 8, 1);
+                // Button divider
+                ctx.fillStyle = '#604838';
+                ctx.fillRect(-4, 0, 8, 1);
+                // Cord trailing back
+                ctx.strokeStyle = '#404048';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, -3);
+                ctx.lineTo(-6, -5);
+                ctx.stroke();
+            } else if (b.kind === 'floppy') {
+                // 3.5" floppy disk — black square + silver shutter + label
+                ctx.fillStyle = '#1a1a22';
+                ctx.fillRect(-5, -5, 10, 10);
+                ctx.fillStyle = '#c0c0c0';
+                ctx.fillRect(-3, -5, 4, 3);
+                // Label
+                ctx.fillStyle = '#f0e0a0';
+                ctx.fillRect(-4, 0, 8, 4);
+                // Tiny label text
+                ctx.fillStyle = '#404040';
+                ctx.fillRect(-3, 1, 2, 1);
+                ctx.fillRect(-3, 2, 4, 1);
+            }
+            ctx.restore();
+        }
+    }
+
+    _drawCasings() {
+        const ctx = this.ctx;
+        for (const c of this.casings) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.rot);
+            // Brass casing — 4x2 with bright top + dark base
+            ctx.fillStyle = '#a07020';
+            ctx.fillRect(-2, -1, 4, 2);
+            ctx.fillStyle = '#ffd060';
+            ctx.fillRect(-2, -1, 4, 1);
+            ctx.fillStyle = '#604020';
+            ctx.fillRect(-2, 0, 1, 1);
+            ctx.restore();
+        }
+    }
+
+    _drawSmoke() {
+        const ctx = this.ctx;
+        for (const s of this.smokePuffs) {
+            const tAge = s.age / s.maxAge;
+            const alpha = (1 - tAge) * 0.5;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#a0a0b0';
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
         }
     }
