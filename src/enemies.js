@@ -143,6 +143,24 @@ class Bullet {
         // iMac throws from the JOBS fight). Default 0 → existing straight
         // bullets unchanged.
         if (this._gravity) this.vy += this._gravity;
+        // R512: optional homing for slow JOBS "ONE MORE THING" projectile.
+        // Steers vx/vy toward target by _homeStrength fraction each frame.
+        if (this._homeTarget && this._homeStrength) {
+            const tx = this._homeTarget.x + (this._homeTarget.w || 16) / 2;
+            const ty = this._homeTarget.y + (this._homeTarget.h || 16) / 2;
+            const dx = tx - this.x;
+            const dy = ty - this.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            this.vx += (dx / dist) * this._homeStrength;
+            this.vy += (dy / dist) * this._homeStrength;
+            // Cap speed so the homing doesn't slingshot into the player
+            const sp = Math.hypot(this.vx, this.vy);
+            const cap = 1.6;
+            if (sp > cap) {
+                this.vx = (this.vx / sp) * cap;
+                this.vy = (this.vy / sp) * cap;
+            }
+        }
         this.x += this.vx; this.y += this.vy;
         this.life--;
         if (level.isSolid(this.x, this.y)) {
@@ -1036,6 +1054,9 @@ class Boss extends Enemy {
     update(level, player) {
         this.timer++;
         if (this.hitFlash > 0) this.hitFlash--;
+        // R512: tick down JOBS "ONE MORE THING" telegraph counter so the
+        // pre-fire yellow halo only shows during the 30-frame windup
+        if (this._oneMoreThingTelegraph > 0) this._oneMoreThingTelegraph--;
         // Gravity if grounded boss
         if (BOSS_TEMPLATES[this.kind].grounded) {
             this.vy += GAME.GRAVITY * 0.5;
@@ -1410,28 +1431,48 @@ class Boss extends Enemy {
                 }
                 break;
             case 'CTRL_ALT_DEL':
-                // 3-variant: BSOD zigzag, error-popup ring, aimed crash.
-                if (this.attackIndex % 3 === 0) {
-                    for (let i = 0; i < 3; i++) {
-                        const b = new Bullet(this.x + this.w / 2, this.y + 8 + i * 10, aim * speed, Math.sin(this.timer / 10 + i) * 1.2, 1);
-                        b.color = '#4080c0';
+                // R512: 3 variants in phase 1; phase 2 cycles 4 adding
+                // BSOD FREEZE — drops 5 stationary bullet "system errors"
+                // around the boss that linger for 120f as positional
+                // hazards. Forces the player to weave around frozen shots.
+                {
+                    const mod = (this.phase === 2) ? 4 : 3;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        for (let i = 0; i < 3; i++) {
+                            const b = new Bullet(this.x + this.w / 2, this.y + 8 + i * 10, aim * speed, Math.sin(this.timer / 10 + i) * 1.2, 1);
+                            b.color = '#4080c0';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        for (let i = 0; i < 6; i++) {
+                            const a = (i / 6) * Math.PI * 2 + this.timer / 50;
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
+                                Math.cos(a) * speed * 0.8, Math.sin(a) * speed * 0.8, 1);
+                            b.color = '#6090e0';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 2) {
+                        const { cx, cy, shots } = aimed(speed * 1.3, 0, 1);
+                        const b = new Bullet(cx, cy, shots[0].vx, shots[0].vy, 2);
+                        b.color = '#3060b0';
                         globalEnemyBullets.push(b);
+                    } else {
+                        // BSOD FREEZE — 5 frozen error popups in a ring
+                        // around the boss. Long life (120f), velocity 0.
+                        const cx0 = this.x + this.w / 2;
+                        const cy0 = this.y + this.h / 2;
+                        for (let i = 0; i < 5; i++) {
+                            const a = (i / 5) * Math.PI * 2;
+                            const bx = cx0 + Math.cos(a) * 48;
+                            const by = cy0 + Math.sin(a) * 32;
+                            const b = new Bullet(bx, by, 0, 0, 1);
+                            b.color = '#a0c0ff';
+                            b.life = 120;
+                            b._bsodFreeze = true;
+                            globalEnemyBullets.push(b);
+                        }
                     }
-                } else if (this.attackIndex % 3 === 1) {
-                    // R232: error-popup ring — 6 popups radiate out
-                    for (let i = 0; i < 6; i++) {
-                        const a = (i / 6) * Math.PI * 2 + this.timer / 50;
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2,
-                            Math.cos(a) * speed * 0.8, Math.sin(a) * speed * 0.8, 1);
-                        b.color = '#6090e0';
-                        globalEnemyBullets.push(b);
-                    }
-                } else {
-                    // R232: aimed crash-bullet — heavy aimed shot
-                    const { cx, cy, shots } = aimed(speed * 1.3, 0, 1);
-                    const b = new Bullet(cx, cy, shots[0].vx, shots[0].vy, 2);
-                    b.color = '#3060b0';
-                    globalEnemyBullets.push(b);
                 }
                 break;
             case 'BALLMER':
@@ -1515,27 +1556,54 @@ class Boss extends Enemy {
                 }
                 break;
             case 'CLIPPY_2':
-                // 3-variant: mirror line, mirror spread, aimed pink crit.
-                if (this.attackIndex % 3 === 0) {
-                    for (let i = -1; i <= 1; i++) {
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + i * 6, aim * speed * 1.4, 0, 1);
-                        b.color = '#ff60ff';
-                        globalEnemyBullets.push(b);
-                    }
-                } else if (this.attackIndex % 3 === 1) {
-                    for (let i = 0; i < 5; i++) {
-                        const a = ((i - 2) / 5) * 1.2;
-                        const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, aim * speed * Math.cos(a), Math.sin(a) * speed, 1);
-                        b.color = '#ff60ff';
-                        globalEnemyBullets.push(b);
-                    }
-                } else {
-                    // R232: aimed crit — 4-shot tight beam at player
-                    const { cx, cy, shots } = aimed(speed * 1.5, 0, 4, 0.25);
-                    for (const s of shots) {
-                        const b = new Bullet(cx, cy, s.vx, s.vy, 1);
-                        b.color = '#ff90ff';
-                        globalEnemyBullets.push(b);
+                // R512: 3 variants in phase 1; phase 2 cycles 4 adding
+                // PERFECT MIRROR — 8-shot pink ring + an inner counter-
+                // rotating ring of 8 dim purples, expanding outward like
+                // a "this is what you look like" reflection.
+                {
+                    const mod = (this.phase === 2) ? 4 : 3;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        for (let i = -1; i <= 1; i++) {
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2 + i * 6, aim * speed * 1.4, 0, 1);
+                            b.color = '#ff60ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        for (let i = 0; i < 5; i++) {
+                            const a = ((i - 2) / 5) * 1.2;
+                            const b = new Bullet(this.x + this.w / 2, this.y + this.h / 2, aim * speed * Math.cos(a), Math.sin(a) * speed, 1);
+                            b.color = '#ff60ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 2) {
+                        const { cx, cy, shots } = aimed(speed * 1.5, 0, 4, 0.25);
+                        for (const s of shots) {
+                            const b = new Bullet(cx, cy, s.vx, s.vy, 1);
+                            b.color = '#ff90ff';
+                            globalEnemyBullets.push(b);
+                        }
+                    } else {
+                        // PERFECT MIRROR — twin counter-rotating rings.
+                        // Inner ring spins clockwise, outer ring spins
+                        // counter-clockwise. Reads as a kaleidoscopic
+                        // "reflection" attack befitting the antagonist.
+                        const cx0 = this.x + this.w / 2;
+                        const cy0 = this.y + this.h / 2;
+                        for (let i = 0; i < 8; i++) {
+                            const a1 = (i / 8) * Math.PI * 2 + this.timer / 25;
+                            const a2 = -((i / 8) * Math.PI * 2) + this.timer / 25;
+                            const b1 = new Bullet(cx0, cy0,
+                                Math.cos(a1) * speed * 1.0,
+                                Math.sin(a1) * speed * 1.0, 1);
+                            b1.color = '#ff60ff';
+                            globalEnemyBullets.push(b1);
+                            const b2 = new Bullet(cx0, cy0,
+                                Math.cos(a2) * speed * 0.65,
+                                Math.sin(a2) * speed * 0.65, 1);
+                            b2.color = '#a050a0';
+                            globalEnemyBullets.push(b2);
+                        }
                     }
                 }
                 break;
@@ -1571,41 +1639,90 @@ class Boss extends Enemy {
                 }
                 break;
             case 'JOBS':
-                // R190: two-pattern dance.
-                // Even index: iPod barrage — 3-shot horizontal spread of
-                //   small fast white projectiles aimed at the player.
-                //   Phase 2 adds a 4th shot for fan width.
-                // Odd index: cube iMac throw — single heavy projectile
-                //   that arcs up and falls. Phase 2 throws three in a fan.
-                if (this.attackIndex % 2 === 0) {
-                    const shots = this.phase === 2 ? 4 : 3;
-                    for (let i = 0; i < shots; i++) {
-                        const yOff = (i - (shots - 1) / 2) * 6;
-                        const b = new Bullet(
-                            this.x + this.w / 2,
-                            this.y + this.h / 2 + yOff,
-                            aim * speed * 1.5,
-                            yOff * 0.04,    // slight drift toward fan center
-                            1
-                        );
-                        b.color = '#f0f0f0';   // iPod white
-                        b._jobsIpod = true;     // hook for trail rendering
-                        globalEnemyBullets.push(b);
-                    }
-                } else {
-                    const fanCount = this.phase === 2 ? 3 : 1;
-                    for (let i = 0; i < fanCount; i++) {
-                        const offset = (i - (fanCount - 1) / 2) * 0.5;
-                        const b = new Bullet(
-                            this.x + this.w / 2,
-                            this.y + 4,
-                            aim * speed * 0.8 + offset,
-                            -2.2,            // arc up
-                            2                // heavy hit (2 dmg)
-                        );
-                        b.color = '#80c0ff';   // bondi blue cube iMac
-                        b._jobsCube = true;
-                        b._gravity = 0.12;     // arc-down acceleration
+                // R512: was 2 patterns (iPod + iMac). Felt thin for a
+                // post-game titan fight. Now 3 patterns + a phase-2-only
+                // "ONE MORE THING" telegraphed mega shot for 4 total.
+                //   variant 0: iPod barrage (existing horizontal fan)
+                //   variant 1: cube iMac arc throw (existing arcing heavy)
+                //   variant 2: REALITY GLITCH — curved 5-shot scything wave
+                //               at the player, color-shift purple→cyan
+                //   variant 3 (P2): ONE MORE THING — 30f telegraphed pause,
+                //               then a slow huge homing apple-logo projectile
+                //               that tracks player for 240f at low speed
+                {
+                    const mod = (this.phase === 2) ? 4 : 3;
+                    const variant = this.attackIndex % mod;
+                    if (variant === 0) {
+                        // iPod barrage
+                        const shots = this.phase === 2 ? 4 : 3;
+                        for (let i = 0; i < shots; i++) {
+                            const yOff = (i - (shots - 1) / 2) * 6;
+                            const b = new Bullet(
+                                this.x + this.w / 2,
+                                this.y + this.h / 2 + yOff,
+                                aim * speed * 1.5,
+                                yOff * 0.04,
+                                1
+                            );
+                            b.color = '#f0f0f0';
+                            b._jobsIpod = true;
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 1) {
+                        // Cube iMac arc throw
+                        const fanCount = this.phase === 2 ? 3 : 1;
+                        for (let i = 0; i < fanCount; i++) {
+                            const offset = (i - (fanCount - 1) / 2) * 0.5;
+                            const b = new Bullet(
+                                this.x + this.w / 2,
+                                this.y + 4,
+                                aim * speed * 0.8 + offset,
+                                -2.2,
+                                2
+                            );
+                            b.color = '#80c0ff';
+                            b._jobsCube = true;
+                            b._gravity = 0.12;
+                            globalEnemyBullets.push(b);
+                        }
+                    } else if (variant === 2) {
+                        // REALITY GLITCH — 5-shot scything wave with color
+                        // shift along the arc. Each shot launches at a
+                        // different angle; the spread reads as a violet
+                        // reality-warp aimed across the player's path.
+                        const cx = this.x + this.w / 2;
+                        const cy = this.y + this.h / 2;
+                        const dx = (player.x + player.w / 2) - cx;
+                        const dy = (player.y + player.h / 2) - cy;
+                        const aimAng = Math.atan2(dy, dx);
+                        for (let i = 0; i < 5; i++) {
+                            const a = aimAng + ((i - 2) / 5) * 0.55;
+                            const b = new Bullet(cx, cy,
+                                Math.cos(a) * speed * 1.15,
+                                Math.sin(a) * speed * 1.15, 1);
+                            // Purple in center, cyan at edges — "glitching"
+                            b.color = i === 2 ? '#c060ff' :
+                                      Math.abs(i - 2) === 1 ? '#9080ff' : '#60c0ff';
+                            b._jobsGlitch = true;
+                            globalEnemyBullets.push(b);
+                        }
+                    } else {
+                        // ONE MORE THING — phase-2 only signature attack.
+                        // 30-frame visual telegraph (sprite glow handled by
+                        // a flag the boss renderer checks), then a single
+                        // slow homing projectile that drifts toward the
+                        // player for 240 frames. Heavy 2 damage. Player
+                        // gets a clear "dodge or break LOS" window.
+                        this._oneMoreThingTelegraph = 30;
+                        const cx = this.x + this.w / 2;
+                        const cy = this.y + this.h / 2;
+                        const b = new Bullet(cx, cy, aim * 0.4, 0, 2);
+                        b.color = '#ffe070';
+                        b._jobsOneMoreThing = true;
+                        b._homeTarget = player;
+                        b._homeStrength = 0.025;
+                        b._maxLife = 240;
+                        b.life = 240;
                         globalEnemyBullets.push(b);
                     }
                 }
@@ -1737,6 +1854,27 @@ class Boss extends Enemy {
                     ctx.restore();
                 }
             }
+        }
+        // R512: JOBS "ONE MORE THING" telegraph — pulsing yellow halo
+        // around the boss during the 30f windup so the player gets a
+        // dodge / cover read before the slow homing apple-logo fires.
+        if (this._oneMoreThingTelegraph > 0) {
+            const tT = this._oneMoreThingTelegraph / 30;
+            const cx = Math.round(this.x + this.w / 2 - camera.viewX);
+            const cy = Math.round(this.y + this.h / 2 - camera.viewY);
+            const r = this.w * 0.7 + Math.sin(this.timer * 0.4) * 4;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.4 + tT * 0.3;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            grad.addColorStop(0, 'rgba(255,224,112,0)');
+            grad.addColorStop(0.6, '#ffe070');
+            grad.addColorStop(1, 'rgba(255,224,112,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
         // Larger ground-contact shadow for grounded bosses. Sells the weight
         // of the silhouette against painted boss arenas; flying bosses skip.
