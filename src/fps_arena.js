@@ -1464,6 +1464,36 @@ export class FpsArena {
             'CORE',
         ];
         drawText(ctx, labels[this.segment] || '', GAME.W / 2, 6, '#80a0c0', 1, 'center');
+        // R474: big segment-intro overlay during the 60f 'advance' phase.
+        // Letterbox bars slide in + the upcoming segment label scales up so
+        // the transition feels intentional instead of a quiet backdrop swap.
+        if (this.phase === 'advance') {
+            const t = this.advanceT / 60;          // 0 → 1
+            // Letterbox bars: slide-in over first 12f, hold, slide-out last 12f
+            const barH = 22;
+            let barT;
+            if (this.advanceT < 12) barT = this.advanceT / 12;
+            else if (this.advanceT > 48) barT = (60 - this.advanceT) / 12;
+            else barT = 1;
+            barT = Math.max(0, Math.min(1, barT));
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.fillRect(0, 0, GAME.W, barH * barT);
+            ctx.fillRect(0, GAME.H - barH * barT, GAME.W, barH * barT);
+            // Next-segment label (we're advancing INTO this.segment+1)
+            const nextLabel = labels[this.segment + 1] || labels[this.segment] || '';
+            const fadeIn = Math.min(1, this.advanceT / 18);
+            const fadeOut = Math.min(1, (60 - this.advanceT) / 12);
+            const labelA = Math.min(fadeIn, fadeOut);
+            ctx.globalAlpha = labelA;
+            // Slight scale pulse on intro
+            const scale = 2;
+            drawTextOutlined(ctx, nextLabel, GAME.W / 2, GAME.H / 2 - 6, '#ffe070', '#000000', scale, 'center');
+            // Tiny "ADVANCING" subtitle below
+            ctx.globalAlpha = labelA * 0.6;
+            drawText(ctx, 'ADVANCING...', GAME.W / 2, GAME.H / 2 + 12, '#80a0c0', 1, 'center');
+            ctx.restore();
+        }
     }
 
     _drawBarriers() {

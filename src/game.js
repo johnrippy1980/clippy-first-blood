@@ -4371,7 +4371,13 @@ export class Game {
                 // (true post-game side stages 15-19, and the final 22)
                 // bounce to title. Stage 22 clear also fires the
                 // game-complete cinematic before returning.
-                const data = this.level?.data || this.level;
+                // R475: pull stage data from whichever engine is active so
+                // non-platformer stages (Doom/beat/FPS) read their nextStage
+                // correctly. BLOCK 11 (Doom) needs to chain to BOARDROOM (5).
+                const data = this.level?.data || this.level ||
+                             this._doomEngine?.data ||
+                             this._beatEmUp?.data ||
+                             this._fpsArena?.data;
                 const linked = data?.nextStage;
                 if (linked) {
                     nextStage = linked;

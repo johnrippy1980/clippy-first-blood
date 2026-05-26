@@ -1996,7 +1996,8 @@ export class DoomEngine {
         }
         // Right side — active weapon + ammo
         const w = this._activeWeapon();
-        const ammoStr = w.ammo === Infinity ? '∞' : String(w.ammo);
+        // R473: pixelfont doesn't include ∞ glyph; use "--" for infinite ammo
+        const ammoStr = w.ammo === Infinity ? '--' : String(w.ammo);
         drawText(ctx, `${w.name} ${ammoStr}`, W - 6, y + 8, '#ffe070', 1, 'right');
         // Weapon slots 1-4: dim = unowned, bright = owned, yellow = active
         const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
