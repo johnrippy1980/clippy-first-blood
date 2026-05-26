@@ -1795,6 +1795,10 @@ export class Game {
                 this._bossKillBeatFired = true;
                 this.triggerSlowMo(AMBIENT.SLOWMO_BOSS_KILL_F);
                 this.camera.shake(6);
+                // R520: red "TARGET DOWN" stamp during the slow-mo window.
+                // Big bold text overlay tied to the boss-kill beat — gives
+                // the kill weight beyond just an explosion + slow-mo.
+                this._bossKillStampT = 90;
             }
             this._onStageClear();
         }
@@ -2055,6 +2059,34 @@ export class Game {
                 drawText(ctx, '...DEEPER...', GAME.W / 2, GAME.H / 2 + 6, '#506040', 1, 'center');
                 ctx.globalAlpha = 1;
             }
+        }
+        // R520: TARGET DOWN stamp during boss-kill slow-mo. Big bold red
+        // stamp that scales in (1.5x → 1.0x) over first 15f, holds, then
+        // fades alpha → 0 over the last 30f. Reads like a hand-stamped
+        // case-closed file label.
+        if (this._bossKillStampT > 0) {
+            const total = 90;
+            const t = total - this._bossKillStampT;
+            this._bossKillStampT--;
+            ctx.save();
+            const cx = GAME.W / 2;
+            const cy = GAME.H / 2 - 8;
+            // Scale-in for first 15 frames
+            const scale = t < 15 ? 1.5 - (t / 15) * 0.5 : 1.0;
+            const rot = t < 8 ? (8 - t) * 0.04 : 0.04 + Math.sin(t * 0.04) * 0.005;
+            const alpha = this._bossKillStampT < 30 ? this._bossKillStampT / 30 : 1;
+            ctx.globalAlpha = alpha;
+            ctx.translate(cx, cy);
+            ctx.rotate(rot - 0.08);
+            ctx.scale(scale, scale);
+            // Background red box behind the text for the stamp feel
+            const w = 100, h = 24;
+            ctx.strokeStyle = '#ff1a1a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-w / 2, -h / 2, w, h);
+            ctx.strokeRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6);
+            drawTextOutlined(ctx, 'TARGET DOWN', 0, -4, '#ff3030', '#3a0a0a', 1, 'center');
+            ctx.restore();
         }
     }
 
