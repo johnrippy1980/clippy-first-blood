@@ -93,6 +93,14 @@ export class BeatEmUp {
             rageFrames: 0,
             rageMaxFrames: 300,
             rageUsedThisStage: false,
+            // R519: thrown debris/chair for melee mode. Single tool that
+            // reaches flying enemies (helicopter, drone) since punches +
+            // jumpkick can't extend that far vertically. 3 per stage,
+            // refilled at start. Cooldown 30f between throws so the
+            // player can't spam-clear a wave.
+            debrisAmmo: 3,
+            debrisMaxAmmo: 3,
+            debrisCD: 0,
         };
 
         this.bullets = [];        // player shots
@@ -989,6 +997,15 @@ export class BeatEmUp {
                 this._melee();
                 p.shootCD = 12;
             }
+            // R519: throw debris/chair via the grenade button — reaches
+            // flying enemies that punches/jumpkick can't hit. Stage starts
+            // with debrisAmmo=3. Cooldown 30f so it's a tactical option.
+            if (p.debrisCD > 0) p.debrisCD--;
+            if (input.isPressed('grenade') && p.debrisAmmo > 0 && p.debrisCD <= 0) {
+                this._throwDebris();
+                p.debrisAmmo--;
+                p.debrisCD = 30;
+            }
         } else {
             if (input.isHeld('shoot') && p.shootCD <= 0) {
                 this._fire();
@@ -996,6 +1013,32 @@ export class BeatEmUp {
                 p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
             }
         }
+    }
+
+    // R519: throw a chair/debris projectile — reaches flying enemies that
+    // the punch/jumpkick can't hit. Theme-aware: Ballmer's boardroom (stage
+    // 7) throws a chair; apocalypse crater (stage 22) throws rubble.
+    _throwDebris() {
+        const p = this.player;
+        const visY = p.y - (p.airY || 0);
+        const isChair = this.data.theme === undefined ? false :
+            (this.data.bgKey?.includes('boardroom') || this.data.bgKey?.includes('hq'));
+        // Bullet-style projectile but with gravity, larger size, more damage.
+        // Reuses the bullet pipeline so hit/despawn logic already works.
+        this.bullets.push({
+            x: p.x + p.w / 2 + p.facing * 8,
+            y: visY + p.h / 2 - 6,
+            vx: p.facing * 3.5,
+            vy: -3.2,
+            life: 90,
+            _debris: true,
+            _isChair: isChair,
+            _rotation: 0,
+            _rotSpeed: p.facing * 0.25,
+            _gravity: 0.18,
+            _damage: 2,
+        });
+        audio.sfx?.(isChair ? 'crateBreak' : 'grenadeThrow');
     }
 
     // R516: melee attack — context-sensitive based on movement state.
@@ -1100,6 +1143,9 @@ export class BeatEmUp {
     _tickBullets() {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
+            // R519: debris bullets have gravity + rotation
+            if (b._gravity) b.vy += b._gravity;
+            if (b._rotSpeed) b._rotation = (b._rotation || 0) + b._rotSpeed;
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
@@ -1122,7 +1168,7 @@ export class BeatEmUp {
                 if (!e.alive) continue;
                 if (b.x >= e.x && b.x <= e.x + e.w &&
                     b.y >= e.y && b.y <= e.y + e.h) {
-                    e.hp--;
+                    e.hp -= (b._damage || 1);
                     e.hitFlash = 4;
                     this.bullets.splice(i, 1);
                     if (e.hp <= 0) {
@@ -1570,6 +1616,35 @@ export class BeatEmUp {
         // so they read at a glance.
         for (const b of this.bullets) {
             const dx = b.x - this.scroll;
+            // R519: debris (thrown chair/rock) — bigger tumbling sprite
+            if (b._debris) {
+                ctx.save();
+                ctx.translate(Math.round(dx), Math.round(b.y));
+                ctx.rotate(b._rotation || 0);
+                if (b._isChair) {
+                    // Chair: brown rectangle + tall backrest + 4 legs
+                    ctx.fillStyle = '#5a3a20';
+                    ctx.fillRect(-5, -3, 10, 5);  // seat
+                    ctx.fillStyle = '#3a2010';
+                    ctx.fillRect(-5, -9, 2, 6);   // backrest
+                    ctx.fillStyle = '#a07050';
+                    ctx.fillRect(-4, -2, 8, 1);   // seat highlight
+                    ctx.fillStyle = '#3a2010';
+                    ctx.fillRect(-4, 2, 1, 3);    // legs
+                    ctx.fillRect(3, 2, 1, 3);
+                } else {
+                    // Rubble: angular grey chunk with crack lines
+                    ctx.fillStyle = '#605040';
+                    ctx.fillRect(-5, -4, 10, 8);
+                    ctx.fillStyle = '#8a7a60';
+                    ctx.fillRect(-4, -3, 8, 1);
+                    ctx.fillStyle = '#3a2818';
+                    ctx.fillRect(-3, -2, 1, 4);
+                    ctx.fillRect(2, -1, 1, 3);
+                }
+                ctx.restore();
+                continue;
+            }
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.globalAlpha = 0.5;
@@ -2264,6 +2339,23 @@ export class BeatEmUp {
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(4, 18, 18, 8);
         drawText(ctx, 'x' + Math.max(0, this.player.lives), 6, 20, '#ffcc80', 1, 'left');
+        // R519: melee-mode debris counter — small icon + count, right of
+        // the lives bezel. Tells the player "V THROW" is available and
+        // how many they have left. Hidden when meleeMode is off.
+        if (this.meleeMode) {
+            const dx = 26, dy = 18;
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(dx, dy, 26, 8);
+            // Tiny chair/rubble icon
+            const isChair = !!(this.data.bgKey?.includes('boardroom') || this.data.bgKey?.includes('hq'));
+            ctx.fillStyle = isChair ? '#5a3a20' : '#605040';
+            ctx.fillRect(dx + 2, dy + 3, 5, 3);
+            if (isChair) {
+                ctx.fillRect(dx + 2, dy + 1, 1, 3); // backrest
+            }
+            drawText(ctx, 'V', dx + 10, dy + 2, '#a890b0', 1, 'left');
+            drawText(ctx, 'x' + this.player.debrisAmmo, dx + 16, dy + 2, '#ffcc80', 1, 'left');
+        }
         // Wave counter bezel
         const total = this.data.waves?.length || 1;
         const waveTxt = 'WAVE ' + Math.min(this.waveIdx + 1, total) + ' / ' + total;
