@@ -935,6 +935,16 @@ export class BeatEmUp {
         }
         if (p.iframes > 0) p.iframes--;
         if (p.shootCD > 0) p.shootCD--;
+        // R484: low-HP heartbeat at HP ≤ 1
+        if (p.hp <= 1 && p.hp > 0) {
+            this._hbTick = (this._hbTick || 0) + 1;
+            if (this._hbTick >= 50) {
+                audio.sfx?.('heartbeat');
+                this._hbTick = 0;
+            }
+        } else {
+            this._hbTick = 0;
+        }
         if (input.isHeld('shoot') && p.shootCD <= 0) {
             this._fire();
             // R418: rage halves fire cooldown

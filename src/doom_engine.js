@@ -194,6 +194,16 @@ export class DoomEngine {
             return;   // skip player control during intro
         }
         this._tickPlayer();
+        // R484: low-HP heartbeat at HP ≤ 1 — same cadence as platformer
+        if (this.player.hp <= 1 && this.player.hp > 0) {
+            this._hbTick = (this._hbTick || 0) + 1;
+            if (this._hbTick >= 50) {   // ~0.83s between beats
+                audio.sfx?.('heartbeat');
+                this._hbTick = 0;
+            }
+        } else {
+            this._hbTick = 0;
+        }
         // R434: ambient atmosphere SFX — fluorescent buzz every 4s, drip every
         // ~3s on sewer levels, occasional distant clone snarl. Cheap atmospherics.
         if (this.t % 240 === 0) audio.sfx?.('fluorescent');
