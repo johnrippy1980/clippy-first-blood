@@ -641,6 +641,10 @@ export const ENEMY_MANIFEST = {
     'doom_face_hurt2':      'doom_face_hurt2.png',
     'doom_face_hurt3':      'doom_face_hurt3.png',
     'doom_face_rage':       'doom_face_rage.png',
+    // R492: extra bloody intermediate states + berserk mode (rage + low HP)
+    'doom_face_bloody_med':   'doom_face_bloody_med.png',
+    'doom_face_bloody_heavy': 'doom_face_bloody_heavy.png',
+    'doom_face_berserk':      'doom_face_berserk.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',

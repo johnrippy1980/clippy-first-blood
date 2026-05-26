@@ -16,7 +16,10 @@ import { achievements } from './achievements.js';
 
 const W = GAME.W;
 const H = GAME.H;
-const HUD_H = 32;
+// R492: Doom-1 style HUD bar — taller (40px) to fit central face panel
+// flanked by HP/ammo on left + keys/weapons on right, with bordered
+// sub-panels.
+const HUD_H = 40;
 const VIEW_H = H - HUD_H;
 const NUM_COLS = W;                 // one ray per pixel column
 const FOV = Math.PI / 3;            // 60° — matches Doom 1
@@ -1956,23 +1959,155 @@ export class DoomEngine {
         return `rgb(${r},${g},${b})`;
     }
 
+    // R492: Doom-1 style HUD bar. Three bordered panels — LEFT (HP+ammo
+    // numerics), CENTER (Clippy face that bloodies with damage), RIGHT
+    // (weapons + keycards). Score + stage label at the very bottom.
     _drawHud() {
         const ctx = this.ctx;
-        const y = H - HUD_H;
-        ctx.fillStyle = '#0a0a14';
-        ctx.fillRect(0, y, W, HUD_H);
-        ctx.fillStyle = '#404048';
-        ctx.fillRect(0, y, W, 1);
-        // HP bar bottom-left
         const p = this.player;
+        const y = H - HUD_H;
+        // Background panel — dark blue-grey with a top highlight + bottom shadow
+        ctx.fillStyle = '#181820';
+        ctx.fillRect(0, y, W, HUD_H);
+        // Subtle gradient — top is brighter, bottom darker
+        const grad = ctx.createLinearGradient(0, y, 0, y + HUD_H);
+        grad.addColorStop(0, 'rgba(80, 80, 100, 0.18)');
+        grad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, y, W, HUD_H);
+        // Top edge highlight
+        ctx.fillStyle = '#606078';
+        ctx.fillRect(0, y, W, 1);
+        ctx.fillStyle = '#0a0a14';
+        ctx.fillRect(0, y + 1, W, 1);
+
+        // --- panel dividers ---
+        // Three sections: left (0-86), center (86-170), right (170-256)
+        const leftX = 0, leftW = 86;
+        const centerX = 86, centerW = 84;
+        const rightX = 170, rightW = 86;
+        // Vertical dividers
+        ctx.fillStyle = '#404048';
+        ctx.fillRect(leftX + leftW - 1, y + 2, 1, HUD_H - 4);
+        ctx.fillRect(centerX + centerW - 1, y + 2, 1, HUD_H - 4);
+
+        // --- LEFT PANEL: HP bar + ammo numeric ---
+        // "HEALTH" label
+        drawText(ctx, 'HEALTH', leftX + 4, y + 4, '#a0a0b0', 1, 'left');
+        // HP bar — bigger chunks, brighter
+        const hpBarY = y + 13;
         for (let i = 0; i < p.maxHp; i++) {
-            ctx.fillStyle = i < p.hp ? '#ff4040' : '#400808';
-            ctx.fillRect(6 + i * 7, y + 6, 5, 8);
+            const filled = i < p.hp;
+            ctx.fillStyle = filled ? '#ff4040' : '#400808';
+            ctx.fillRect(leftX + 4 + i * 8, hpBarY, 6, 10);
+            // Top highlight on filled cells
+            if (filled) {
+                ctx.fillStyle = '#ff8080';
+                ctx.fillRect(leftX + 4 + i * 8, hpBarY, 6, 1);
+            }
         }
-        drawText(ctx, this.data.name || 'FLOOR 11', 6, y + 18, '#a0a0b0', 1, 'left');
-        // R449: score display — bottom center of HUD
-        drawText(ctx, `${p.score || 0}`, W / 2, y + 22, '#ffe070', 1, 'center');
-        // R441: combo indicator — left side near HP bar (HUD strip)
+        // Heart icon + numeric HP for instant read
+        ctx.fillStyle = '#ff4040';
+        const hx = leftX + 4, hy = y + 27;
+        ctx.fillRect(hx + 0, hy + 1, 2, 1);
+        ctx.fillRect(hx + 3, hy + 1, 2, 1);
+        ctx.fillRect(hx + 0, hy + 2, 5, 1);
+        ctx.fillRect(hx + 1, hy + 3, 3, 1);
+        ctx.fillRect(hx + 2, hy + 4, 1, 1);
+        drawText(ctx, `${p.hp}/${p.maxHp}`, leftX + 12, y + 27, '#ffffff', 1, 'left');
+        // Ammo readout for active weapon
+        const w = this._activeWeapon();
+        const ammoStr = w.ammo === Infinity ? '--' : String(w.ammo);
+        drawText(ctx, 'AMMO', leftX + 50, y + 4, '#a0a0b0', 1, 'left');
+        drawText(ctx, ammoStr, leftX + 50, y + 13, '#ffe070', 1, 'left');
+        drawText(ctx, w.name, leftX + 50, y + 27, '#80a0c0', 1, 'left');
+
+        // --- CENTER PANEL: bloody Clippy face ---
+        // R492: HP-tier face escalation. Uses extended bloody frames when
+        // they're loaded; falls back to original 5-frame set otherwise.
+        let faceKey = 'doom_face_full';
+        if (p.rageFrames > 0 && p.hp <= 1) faceKey = 'doom_face_berserk'; // R492 new
+        else if (p.rageFrames > 0) faceKey = 'doom_face_rage';
+        else if (p.hp <= 1) faceKey = 'doom_face_hurt3';
+        else if (p.hp <= 2) faceKey = 'doom_face_bloody_heavy'; // R492 new
+        else if (p.hp <= 3) faceKey = 'doom_face_hurt2';
+        else if (p.hp <= 4) faceKey = 'doom_face_bloody_med'; // R492 new
+        else if (p.hp <= 5) faceKey = 'doom_face_hurt1';
+        // Fallback chain if the new bloody frames aren't loaded yet
+        const faceFallbacks = {
+            doom_face_bloody_med:   'doom_face_hurt1',
+            doom_face_bloody_heavy: 'doom_face_hurt2',
+            doom_face_berserk:      'doom_face_rage',
+        };
+        let faceImg = sprites.images?.get(faceKey);
+        if (!faceImg?.complete || faceImg.naturalWidth === 0) {
+            const fallback = faceFallbacks[faceKey] || 'doom_face_full';
+            faceImg = sprites.images?.get(fallback);
+        }
+        // Face well — slight inset panel
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(centerX + 18, y + 2, 48, 36);
+        ctx.fillStyle = '#403040';
+        ctx.fillRect(centerX + 18, y + 2, 48, 1);
+        ctx.fillRect(centerX + 18, y + 37, 48, 1);
+        ctx.fillRect(centerX + 18, y + 2, 1, 36);
+        ctx.fillRect(centerX + 65, y + 2, 1, 36);
+        if (faceImg?.complete && faceImg.naturalWidth > 0) {
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            const faceSize = 32;
+            const fx = (centerX + (centerW - faceSize) / 2) | 0;
+            const fy = y + (HUD_H - faceSize) / 2 | 0;
+            const shake = (p.iframes > 50) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+            ctx.drawImage(faceImg, fx + shake, fy + shake, faceSize, faceSize);
+            ctx.restore();
+        }
+        // Score below face
+        drawText(ctx, `${p.score || 0}`, centerX + centerW / 2, y + HUD_H - 4, '#ffe070', 1, 'center');
+
+        // --- RIGHT PANEL: keycards (top row) + weapon slots (bottom row) ---
+        drawText(ctx, 'KEYS', rightX + 4, y + 4, '#a0a0b0', 1, 'left');
+        const colors = ['red', 'yellow', 'blue'];
+        for (let i = 0; i < colors.length; i++) {
+            const c = colors[i];
+            const has = this.keys.has(c);
+            const kx = rightX + 4 + i * 12;
+            const ky = y + 13;
+            // Outline frame
+            ctx.fillStyle = '#202028';
+            ctx.fillRect(kx, ky, 10, 10);
+            if (has) {
+                ctx.fillStyle = c === 'red' ? '#ff4040' : c === 'yellow' ? '#ffff40' : '#4080ff';
+                ctx.fillRect(kx + 1, ky + 1, 8, 8);
+                // White highlight
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(kx + 2, ky + 2, 2, 1);
+            } else {
+                // Empty slot — faint X
+                ctx.fillStyle = '#383848';
+                ctx.fillRect(kx + 2, ky + 4, 6, 1);
+            }
+        }
+        // Weapon slots
+        drawText(ctx, 'WEAPONS', rightX + 4, y + 27, '#a0a0b0', 1, 'left');
+        const wKeys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
+        for (let i = 0; i < wKeys.length; i++) {
+            const w2 = p.weapons[wKeys[i]];
+            const isActive = (p.weaponIdx === i);
+            const wx = rightX + 50 + i * 9;
+            const wy = y + 27;
+            // Frame
+            ctx.fillStyle = isActive ? '#ffe070' : (w2.owned ? '#a0a0b8' : '#404048');
+            const label = String(i + 1);
+            drawText(ctx, label, wx, wy, isActive ? '#000' : (w2.owned ? '#ffffff' : '#202028'), 1, 'left');
+            // Active highlight underline
+            if (isActive) {
+                ctx.fillRect(wx - 1, wy + 6, 6, 1);
+            }
+        }
+
+        // R441: combo indicator — top-center above HUD strip (was right)
         if (this._lastKillT != null) {
             const since = this.t - this._lastKillT;
             if (since < 240 && this._comboCount >= 2) {
@@ -1983,9 +2118,7 @@ export class DoomEngine {
                 const col = this._comboCount >= 5 ? '#ff80ff' :
                             this._comboCount >= 4 ? '#ff8050' :
                             this._comboCount >= 3 ? '#ffe070' : '#80ff80';
-                // Position above HUD strip on right
-                drawTextOutlined(ctx, txt, W - 6, y - 12, col, '#000000', 2, 'right');
-                // Time bar below
+                drawTextOutlined(ctx, txt, W - 6, y - 14, col, '#000000', 2, 'right');
                 const barW = 30;
                 ctx.fillStyle = '#000';
                 ctx.fillRect(W - 6 - barW, y - 4, barW, 2);
@@ -1994,47 +2127,8 @@ export class DoomEngine {
                 ctx.restore();
             }
         }
-        // R435: HUD portrait — Doomguy-style face that reacts to HP/rage
-        // Picks frame by current HP state. Rage overrides.
-        let faceKey = 'doom_face_full';
-        if (p.rageFrames > 0) faceKey = 'doom_face_rage';
-        else if (p.hp <= 1) faceKey = 'doom_face_hurt3';
-        else if (p.hp <= 2) faceKey = 'doom_face_hurt2';
-        else if (p.hp <= 4) faceKey = 'doom_face_hurt1';
-        const faceImg = sprites.images?.get(faceKey);
-        if (faceImg?.complete && faceImg.naturalWidth > 0) {
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            const fx = (W - 28) / 2 | 0;
-            const fy = y + (HUD_H - 28) / 2 | 0;
-            // Damage shake — when iframes high, jitter the face position
-            const shake = (p.iframes > 50) ? ((Math.random() - 0.5) * 2) | 0 : 0;
-            ctx.drawImage(faceImg, fx + shake, fy + shake, 28, 28);
-            ctx.restore();
-        }
-        // R423e: collected key icons — squares in HP-bar row
-        const keyX = 6 + p.maxHp * 7 + 6;
-        let kx = keyX;
-        for (const color of ['red', 'yellow', 'blue']) {
-            if (this.keys.has(color)) {
-                ctx.fillStyle = color === 'red' ? '#ff4040' : color === 'yellow' ? '#ffff40' : '#4080ff';
-                ctx.fillRect(kx, y + 6, 6, 8);
-                kx += 8;
-            }
-        }
-        // Right side — active weapon + ammo
-        const w = this._activeWeapon();
-        // R473: pixelfont doesn't include ∞ glyph; use "--" for infinite ammo
-        const ammoStr = w.ammo === Infinity ? '--' : String(w.ammo);
-        drawText(ctx, `${w.name} ${ammoStr}`, W - 6, y + 8, '#ffe070', 1, 'right');
-        // Weapon slots 1-4: dim = unowned, bright = owned, yellow = active
-        const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
-        for (let i = 0; i < 4; i++) {
-            const w2 = this.player.weapons[keys[i]];
-            const isActive = (this.player.weaponIdx === i);
-            const col = isActive ? '#ffe070' : (w2.owned ? '#a0a0b8' : '#404048');
-            drawText(ctx, String(i + 1), W - 96 + i * 22, y + 18, col, 1, 'left');
-        }
+        // Stage name — top edge of HUD strip, full width centered
+        drawTextOutlined(ctx, this.data.name || 'FLOOR 11', W / 2, y - 8, '#ffe070', '#000000', 1, 'center');
     }
 
     _drawMinimap() {
