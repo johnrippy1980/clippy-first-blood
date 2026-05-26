@@ -1523,8 +1523,13 @@ export class FpsArena {
         for (const t of this.turrets) {
             if (!t.alive) continue;
             const scale = depthScale(t.t);
-            const tw = t.w * scale;
             const th = t.h * scale;
+            // R471: preserve source sprite aspect ratio — was using t.w * scale
+            // for width which forced 28×22 dest on a 20×22 source, producing a
+            // 1.4× horizontal stretch that grew with depthScale. Now derive
+            // width from source aspect, fall back to t.w if no sprite.
+            const aspect = img ? (img.naturalWidth / img.naturalHeight) : (t.w / t.h);
+            const tw = th * aspect;
             const tx = depthX(t.originX, t.t) - tw / 2;
             const ty = depthY(t.t) - th;
             if (img) {
@@ -1555,8 +1560,12 @@ export class FpsArena {
             if (!g.alive || g.runT < g.spawnDelay) continue;
             const tt = Math.min(1, (g.runT - g.spawnDelay) / GRUNT_RUN_FRAMES);
             const scale = depthScale(tt);
-            const gw = 24 * scale;
             const gh = 32 * scale;
+            // R471: aspect-correct width from sprite source (lab_grunt is 32×40,
+            // so aspect = 0.8). Was hardcoded 24/32 = 0.75 which squished the
+            // sprite ~6% horizontally — visible at near-camera scale.
+            const aspect = img ? (img.naturalWidth / img.naturalHeight) : (24 / 32);
+            const gw = gh * aspect;
             // R350: running animation — vertical bob + horizontal weave +
             // pre-fire crouch make grunts feel alive instead of just zooming
             // toward the camera. Bob amplitude scales with depth so far-away
@@ -1673,7 +1682,12 @@ export class FpsArena {
         const allShieldsDead = this.shields.every(s => !s.alive);
         if (coreImg) {
             ctx.imageSmoothingEnabled = false;
-            const drawW = c.w + 4, drawH = c.h + 4;
+            // R471: aspect-correct width from sprite source. Was c.w+4, which
+            // forced 22-wide on a 26×40 (or 18-wide phase-2 on 26×40) source
+            // — visibly squished the boss. Lock height, derive width.
+            const drawH = c.h + 4;
+            const aspect = coreImg.naturalWidth / coreImg.naturalHeight;
+            const drawW = drawH * aspect;
             const dx = Math.round(c.x - drawW / 2);
             const dy = Math.round(c.y - drawH / 2);
             // Pulse-glow under the core when exposed
@@ -1709,7 +1723,10 @@ export class FpsArena {
             const sy = c.y + Math.sin(s.angle) * s.radius;
             if (shieldImg) {
                 ctx.imageSmoothingEnabled = false;
-                const sw = 14, sh = 14;
+                // R471: aspect-correct shield dimension (was forcing 14×14
+                // square on 11×16 source = 27% horizontal stretch)
+                const sh = 14;
+                const sw = sh * (shieldImg.naturalWidth / shieldImg.naturalHeight);
                 const dx = Math.round(sx - sw / 2);
                 const dy = Math.round(sy - sh / 2);
                 ctx.drawImage(shieldImg, 0, 0, shieldImg.width, shieldImg.height,
