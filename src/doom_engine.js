@@ -252,7 +252,25 @@ export class DoomEngine {
         // Fire on shoot held (cooldown gated)
         const w = this._activeWeapon();
         if (w.cooldown > 0) w.cooldown--;
-        if (input.isHeld?.('shoot') && w.cooldown <= 0 && w.owned && (w.ammo > 0 || w.ammo === Infinity)) {
+        // R504: BFG charge-up. When player holds shoot with BFG active +
+        // ammo + cooldown ready, tick chargeT up to 30. At 30, fire.
+        // Releasing shoot mid-charge cancels (preserves ammo).
+        const isBFG = (w === p.weapons.bfg);
+        if (isBFG && w.cooldown <= 0 && w.owned && w.ammo > 0) {
+            if (input.isHeld?.('shoot')) {
+                if (this._bfgChargeT == null) this._bfgChargeT = 0;
+                this._bfgChargeT++;
+                // Audio cue at start of charge
+                if (this._bfgChargeT === 1) audio.sfx?.('powerup');
+                if (this._bfgChargeT >= 30) {
+                    this._fire();
+                    this._bfgChargeT = null;
+                }
+            } else if (this._bfgChargeT != null && this._bfgChargeT > 0) {
+                // Released mid-charge — cancel
+                this._bfgChargeT = null;
+            }
+        } else if (input.isHeld?.('shoot') && w.cooldown <= 0 && w.owned && (w.ammo > 0 || w.ammo === Infinity)) {
             this._fire();
         }
         if (p.muzzleFlash > 0) p.muzzleFlash--;
@@ -994,7 +1012,16 @@ export class DoomEngine {
         // R427: dedicated SFX per weapon
         if (w === p.weapons.mg)       audio.sfx?.('mg');
         else if (w === p.weapons.shotgun)  audio.sfx?.('shotgun');
-        else if (w === p.weapons.chainsaw) audio.sfx?.('chainsaw');
+        else if (w === p.weapons.chainsaw) {
+            // R503: chainsaw fires every 6f; playing SFX on every shot
+            // sounds choppy. Throttle to once per 18f for a continuous
+            // rev feel without overlapping noise.
+            this._chainsawSfxT = (this._chainsawSfxT || 0) + 1;
+            if (this._chainsawSfxT >= 18 || this._chainsawSfxT === 1) {
+                audio.sfx?.('chainsaw');
+                if (this._chainsawSfxT >= 18) this._chainsawSfxT = 0;
+            }
+        }
         else if (w === p.weapons.bfg)      { audio.sfx?.('powerup'); audio.sfx?.('explode'); }
         // R423e: spawn projectile(s) per weapon
         // MG: 1 bullet, fast, 1 dmg
@@ -1717,6 +1744,26 @@ export class DoomEngine {
                 ctx.fillStyle = '#80ff80';
                 ctx.fillRect(W / 2 - 6, baseY - 38 + recoil, 12, 8);
             }
+            ctx.restore();
+        }
+        // R504: BFG charging glow — grows green orb at barrel tip while held
+        if (this._bfgChargeT > 0 && w === p.weapons.bfg) {
+            const cT = this._bfgChargeT / 30;
+            const cR = 4 + cT * 24;
+            const fx = W / 2;
+            const fy = baseY - 36 + recoil + bobY + swapOffset;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.6 + Math.sin(this.t * 0.5) * 0.2;
+            const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, cR);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.3, '#a0ff80');
+            grad.addColorStop(0.7, '#208030');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(fx, fy, cR, 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
         }
         // Muzzle flash — radial white-yellow burst at barrel tip

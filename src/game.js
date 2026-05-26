@@ -2531,9 +2531,42 @@ export class Game {
                 drawText(ctx, 'TARGET: ' + stage.boss.replace(/_/g, ' '),
                          GAME.W / 2, panelY + 46, '#ff8060', 1, 'center');
             }
+            // R505: Doom mode shows live inventory row in pause overlay
+            if (this._doomMode && this._doomEngine?.player) {
+                const dp = this._doomEngine.player;
+                // Keys row
+                let kx = GAME.W / 2 - 30;
+                drawText(ctx, 'KEYS', kx, panelY + 56, '#808090', 1, 'left');
+                kx += 22;
+                for (const color of ['red', 'yellow', 'blue']) {
+                    if (this._doomEngine.keys.has(color)) {
+                        ctx.fillStyle = color === 'red' ? '#ff4040' : color === 'yellow' ? '#ffff40' : '#4080ff';
+                        ctx.fillRect(kx, panelY + 56, 6, 6);
+                    } else {
+                        ctx.fillStyle = '#202028';
+                        ctx.fillRect(kx, panelY + 56, 6, 6);
+                    }
+                    kx += 10;
+                }
+                // Weapons row
+                const wKeys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
+                const wNames = ['MG', 'SHOT', 'SAW', 'BFG'];
+                let wx = GAME.W / 2 - 50;
+                drawText(ctx, 'GUNS', wx, panelY + 66, '#808090', 1, 'left');
+                wx += 22;
+                for (let i = 0; i < 4; i++) {
+                    const w = dp.weapons[wKeys[i]];
+                    const isActive = (dp.weaponIdx === i);
+                    const col = isActive ? '#ffe070' : (w.owned ? '#ffffff' : '#404048');
+                    drawText(ctx, wNames[i], wx, panelY + 66, col, 1, 'left');
+                    wx += wNames[i].length * 6 + 4;
+                }
+            }
         }
 
-        const startY = panelY + 58;
+        // R505: bump startY when Doom inventory row is shown so menu
+        // options don't overlap the keys/guns rows
+        const startY = panelY + (this._doomMode ? 76 : 58);
         for (let i = 0; i < PAUSE_OPTIONS.length; i++) {
             const y = startY + i * 16;
             const isSel = i === this.pauseIndex;
