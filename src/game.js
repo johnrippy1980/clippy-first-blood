@@ -1005,6 +1005,16 @@ export class Game {
     _tickStory() {
         audio.playTrack('story');
         this.storyTimer++;
+        // R513: P (pause) acts as SKIP-ALL — jump straight to stage 1.
+        // Onboarding audit found 7 story pages = 7+ X presses before
+        // play. Returning players know the story; this lets them skip
+        // without disabling the typewriter pacing for first-time players.
+        if (input.isPressed('pause')) {
+            audio.sfx('select');
+            this.storyPage = STORY_PAGES.length;
+            this._startStage(1);
+            return;
+        }
         if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
             // If the typewriter is still revealing, first press skips to the
             // end of the page; only the second press advances. Stops players
@@ -1072,6 +1082,10 @@ export class Game {
             if (shown >= totalChars && this.storyTimer % 60 < 40) {
                 drawText(this.ctx, 'X TO CONTINUE', GAME.W - 4, GAME.H - 8, '#a08090', 1, 'right');
             }
+            // R513: SKIP hint on the left so returning players can blow
+            // through the 7-page intro. Dim color so it doesn't compete
+            // with the painted scene for attention.
+            drawText(this.ctx, 'P TO SKIP', 4, GAME.H - 8, '#604068', 1, 'left');
             return;
         }
 
@@ -1986,15 +2000,15 @@ export class Game {
         // name + HP bar live in the bottom strip and the hint collides
         // with both. By the time a boss spawns the exec has read the hint.
         const _bossActive = (this.boss && this.boss.alive) || this._bossEntrance;
-        // R212: also suppress when the READY card is on — that screen
-        // already taught the full keymap right before this stage, so a
-        // bottom-strip hint repeating ARROWS/Z/X for the first 7s of
-        // play is redundant clutter. Players who flipped showReady off
-        // (veterans skipping the keymap) still get this in-stage hint.
-        // Suppress in Time Trial — player has already beaten the game, doesn't
-        // need stage-1 controls onboarding, and the hint would clutter the
-        // clock readout.
-        if (!_bossActive && !this.timeTrialMode && !options.get('showReady')
+        // R513: show the stage-1 in-game controls hint for ALL players
+        // (not just those who skipped READY). Reinforces controls for
+        // newcomers in the heat of the action — fades in 30-90, holds
+        // until 330, fades out by 420 (~7 seconds total). Veterans don't
+        // mind a fading bottom overlay during the first 7 seconds; new
+        // players genuinely benefit from the reinforcement.
+        // Suppress in Time Trial — player has already beaten the game.
+        // Suppress during boss/mini-boss — hint collides with boss bar.
+        if (!_bossActive && !this.timeTrialMode
             && this.scene === SCENE.PLAY && this.currentStage === 1
             && this.stageTime > 30 && this.stageTime < 420) {
             const t = this.stageTime;
