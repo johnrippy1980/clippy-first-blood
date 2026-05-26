@@ -2175,6 +2175,28 @@ export class BeatEmUp {
             } else {
                 ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
             }
+            // R516: procedural rotor blur for the beat-em-up helicopter.
+            // The Contra-3 Hind painting has a static rotor; without this
+            // the chopper reads as floating decoration, not a live threat.
+            // Two crossing blade smears + a faint disc.
+            if (e.type === 'helicopter') {
+                const rotorY = dy + 6;
+                const rotorCX = dx + dw / 2;
+                const bladeW = dw * 0.78;
+                ctx.save();
+                ctx.globalAlpha = 0.30;
+                ctx.fillStyle = '#0a0a0a';
+                ctx.beginPath();
+                ctx.ellipse(rotorCX, rotorY, bladeW / 2, 3.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 0.65;
+                ctx.fillStyle = '#1a1a1a';
+                const t1 = Math.sin(this.t * 0.6);
+                const t2 = Math.sin(this.t * 0.6 + Math.PI);
+                ctx.fillRect(rotorCX + t1 * bladeW * 0.35 - bladeW / 2, rotorY - 1, bladeW, 2);
+                ctx.fillRect(rotorCX + t2 * bladeW * 0.35 - bladeW / 2, rotorY - 1, bladeW, 2);
+                ctx.restore();
+            }
             // R361: boss aggro pulse — boss flickers a red multiply tint
             // every ~30 frames while alive. Sells the menace.
             if (e.isBoss && (e._animT & 31) < 6) {
