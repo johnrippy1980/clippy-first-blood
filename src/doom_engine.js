@@ -1746,24 +1746,55 @@ export class DoomEngine {
             }
             ctx.restore();
         }
-        // R504: BFG charging glow — grows green orb at barrel tip while held
+        // R504/R507: BFG charging glow — orb floats ABOVE the gun (where the
+        // projectile will spawn) so the BFG sprite's painted green cross
+        // doesn't swallow the effect. Plus a screen-edge green vignette
+        // that intensifies with charge to sell the "powering up" beat.
         if (this._bfgChargeT > 0 && w === p.weapons.bfg) {
             const cT = this._bfgChargeT / 30;
-            const cR = 4 + cT * 24;
+            const cR = 8 + cT * 28;
             const fx = W / 2;
-            const fy = baseY - 36 + recoil + bobY + swapOffset;
+            // Position above gun in the viewport, where the projectile spawns
+            // baseY is at viewport bottom; gun sprite extends ~120px up.
+            // Float orb well above gun top (~y=40 in 256x180 viewport).
+            const fy = 50 + recoil + bobY + swapOffset;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
-            ctx.globalAlpha = 0.6 + Math.sin(this.t * 0.5) * 0.2;
+            // Strong alpha that pulses
+            ctx.globalAlpha = 0.85 + Math.sin(this.t * 0.5) * 0.15;
             const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, cR);
             grad.addColorStop(0, '#ffffff');
-            grad.addColorStop(0.3, '#a0ff80');
-            grad.addColorStop(0.7, '#208030');
+            grad.addColorStop(0.2, '#e0ffd0');
+            grad.addColorStop(0.5, '#60ff60');
+            grad.addColorStop(0.8, '#208030');
             grad.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(fx, fy, cR, 0, Math.PI * 2);
             ctx.fill();
+            // Crackling tendrils — 4 short lines flickering out from core
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.9 * cT;
+            for (let i = 0; i < 4; i++) {
+                const a = this.t * 0.3 + i * Math.PI / 2 + Math.random() * 0.5;
+                const len = cR * 0.7 + Math.random() * cR * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(fx, fy);
+                ctx.lineTo(fx + Math.cos(a) * len, fy + Math.sin(a) * len);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Screen-edge green vignette — frames the action
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.15 + cT * 0.25;
+            const vg = ctx.createRadialGradient(W / 2, VIEW_H / 2, VIEW_H * 0.4, W / 2, VIEW_H / 2, VIEW_H * 0.9);
+            vg.addColorStop(0, 'rgba(0,0,0,0)');
+            vg.addColorStop(1, '#40ff40');
+            ctx.fillStyle = vg;
+            ctx.fillRect(0, 0, W, VIEW_H);
             ctx.restore();
         }
         // Muzzle flash — radial white-yellow burst at barrel tip
