@@ -18,25 +18,25 @@ export const ACHIEVEMENT_LIST = [
     { id: 'clear_game',    name: 'THE LIST IS DONE',desc: 'COMPLETE THE GAME',                      icon: '*',  gate: s => s.stagesCleared.has(13) },
     { id: 'no_death_run',  name: 'UNTOUCHABLE',     desc: 'BEAT THE GAME WITH ZERO DEATHS',         icon: 'O',  gate: s => s.stagesCleared.has(13) && s.totalDeaths === 0 },
     { id: 'no_dmg_stage',  name: 'GHOST',           desc: 'CLEAR A STAGE WITHOUT TAKING DAMAGE',    icon: 'G',  gate: s => s.noDamageStages >= 1 },
-    { id: 'combo_5',       name: 'STREAK',          desc: 'CHAIN 5 KILLS',                          icon: '5',  gate: s => s.maxCombo >= 5 },
-    { id: 'combo_10',      name: 'RAMPAGE',         desc: 'CHAIN 10 KILLS',                         icon: 'X',  gate: s => s.maxCombo >= 10 },
-    { id: 'combo_20',      name: 'CARNAGE',         desc: 'CHAIN 20 KILLS',                         icon: 'C',  gate: s => s.maxCombo >= 20 },
-    { id: 'combo_30',      name: 'GOD-LIKE',        desc: 'CHAIN 30 KILLS',                         icon: '+',  gate: s => s.maxCombo >= 30 },
-    { id: 'all_weapons',   name: 'ARSENAL',         desc: 'FIRE EVERY WEAPON TYPE',                 icon: 'W',  gate: s => Object.keys(s.weaponDamage || {}).filter(k => s.weaponDamage[k] > 0).length >= 6 },
+    { id: 'combo_5',       name: 'STREAK',          desc: 'CHAIN 5 KILLS',                          icon: '5',  gate: s => s.maxCombo >= 5,  progress: s => [Math.min(s.maxCombo || 0, 5),  5] },
+    { id: 'combo_10',      name: 'RAMPAGE',         desc: 'CHAIN 10 KILLS',                         icon: 'X',  gate: s => s.maxCombo >= 10, progress: s => [Math.min(s.maxCombo || 0, 10), 10] },
+    { id: 'combo_20',      name: 'CARNAGE',         desc: 'CHAIN 20 KILLS',                         icon: 'C',  gate: s => s.maxCombo >= 20, progress: s => [Math.min(s.maxCombo || 0, 20), 20] },
+    { id: 'combo_30',      name: 'GOD-LIKE',        desc: 'CHAIN 30 KILLS',                         icon: '+',  gate: s => s.maxCombo >= 30, progress: s => [Math.min(s.maxCombo || 0, 30), 30] },
+    { id: 'all_weapons',   name: 'ARSENAL',         desc: 'FIRE EVERY WEAPON TYPE',                 icon: 'W',  gate: s => Object.keys(s.weaponDamage || {}).filter(k => s.weaponDamage[k] > 0).length >= 6, progress: s => [Math.min(Object.keys(s.weaponDamage || {}).filter(k => s.weaponDamage[k] > 0).length, 6), 6] },
     // R291: speed_run final stage shifted 11→13; boss_rush gauntlet 10→12.
     { id: 'speed_run',     name: 'SPEEDRUNNER',     desc: 'BEAT GAME UNDER 12 MINUTES',             icon: 'T',  gate: s => s.stagesCleared.has(13) && s.totalTime < 12 * 60 * 60 },
     { id: 'boss_rush',     name: 'GAUNTLET',        desc: 'BEAT THE BOSS RUSH STAGE',               icon: 'R',  gate: s => s.stagesCleared.has(12) },
     { id: 'secret_room',   name: 'OFF THE GRID',    desc: 'DISCOVER THE SECRET STAGE',              icon: 'S',  gate: s => s.secretStageDiscovered === true },
     { id: 'second_chance', name: 'CLOSE CALL',      desc: 'TRIGGER BULLET-TIME RESCUE',             icon: 'B',  gate: s => s.bulletTimeUses >= 1 },
     { id: 'high_score',    name: 'TOP TIER',        desc: 'SCORE OVER 100,000',                     icon: '$',  gate: s => s.bestScore >= 100000 },
-    { id: 'ghillie',       name: 'GHILLIE SUIT',    desc: 'HIDE FROM 10 ENEMIES IN TALL COVER',     icon: '~',  gate: s => (s.enemiesLost || 0) >= 10 },
+    { id: 'ghillie',       name: 'GHILLIE SUIT',    desc: 'HIDE FROM 10 ENEMIES IN TALL COVER',     icon: '~',  gate: s => (s.enemiesLost || 0) >= 10, progress: s => [Math.min(s.enemiesLost || 0, 10), 10] },
     { id: 'silent_strike', name: 'SILENT STRIKE',   desc: 'LAND A STEALTH POUNCE KILL',             icon: 'P',  gate: s => (s.pounceKills || 0) >= 1 },
-    { id: 'grenadier',     name: 'GRENADIER',       desc: 'KILL 5 ENEMIES WITH GRENADES',           icon: '^',  gate: s => (s.grenadeKills || 0) >= 5 },
+    { id: 'grenadier',     name: 'GRENADIER',       desc: 'KILL 5 ENEMIES WITH GRENADES',           icon: '^',  gate: s => (s.grenadeKills || 0) >= 5, progress: s => [Math.min(s.grenadeKills || 0, 5), 5] },
     // R223: paperclip dog-tag full set — 7 tags hidden behind
     // breakable walls across stages 2..8 (one per stage). Most are
     // tucked behind walls that take real exploration or a grenade
     // to reach. Single-run high-water mark; once earned, locked in.
-    { id: 'full_set',      name: 'FULL SET',        desc: 'COLLECT 7 CLIPPY TAGS',                  icon: 'P',  gate: s => (s.tagsFound || 0) >= 7 },
+    { id: 'full_set',      name: 'FULL SET',        desc: 'COLLECT 7 CLIPPY TAGS',                  icon: 'P',  gate: s => (s.tagsFound || 0) >= 7, progress: s => [Math.min(s.tagsFound || 0, 7), 7] },
     // R359: post-game + Mecha-trilogy achievements. Each is single-clear
     // gated (set membership), so no per-run reset needed.
     { id: 'clear_training',name: 'WARM-UP',         desc: 'CLEAR THE TRAINING GROUND',              icon: 'T',  gate: s => s.stagesCleared.has(15) },

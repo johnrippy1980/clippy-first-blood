@@ -2841,22 +2841,44 @@ export class Game {
             const iconText = unlocked ? a.icon : '?';
             const iconColor = unlocked ? '#ffe070' : '#604068';
             drawTextOutlined(ctx, iconText, x + tileW / 2, y + 4, iconColor, '#1a0000', 1, 'center');
-            // Mini-name (tight truncate — 6 chars max @ 1× pixel font ≈ 36px,
-            // fits the 40px tile with 2px side margin). Full name renders in
-            // the detail strip at the bottom.
-            const shortName = unlocked ? a.name : '?????';
+            // Mini-name — unlocked shows truncated name; locked tiles
+            // still show their truncated name (was '?????') so players
+            // can scan the grid for what they want to chase rather than
+            // staring at a wall of identical question marks.
+            const shortName = a.name;
             const truncated = shortName.length > 6 ? shortName.substring(0, 5) + '.' : shortName;
             drawText(ctx, truncated, x + tileW / 2, y + 18, unlocked ? '#fff' : '#403048', 1, 'center');
         }
         // Detail strip at the bottom — selected achievement name + description.
         // Sits above the help row so they don't collide.
+        // R514: locked tiles now show the achievement NAME (so players can
+        // browse what's available) but keep the desc hidden until unlocked
+        // unless the achievement has a `progress` lambda — in that case
+        // show the (current/target) counter as the discoverable hint.
         const sel = ACHIEVEMENT_LIST[cursor];
         if (sel) {
             const selUnlocked = achievements.isUnlocked(sel.id);
             ctx.fillStyle = '#0a0612';
             ctx.fillRect(8, GAME.H - 32, GAME.W - 16, 20);
-            drawText(ctx, selUnlocked ? sel.name : '???', GAME.W / 2, GAME.H - 30, selUnlocked ? '#ffe070' : '#604068', 1, 'center');
-            drawText(ctx, selUnlocked ? sel.desc : 'NOT YET UNLOCKED', GAME.W / 2, GAME.H - 20, selUnlocked ? '#a0c0e0' : '#403048', 1, 'center');
+            // Name row — locked achievements now show the name (was '???')
+            drawText(ctx, sel.name, GAME.W / 2, GAME.H - 30,
+                     selUnlocked ? '#ffe070' : '#806080', 1, 'center');
+            // Detail row — desc when unlocked; progress counter or
+            // "NOT YET UNLOCKED" placeholder when locked
+            let detail;
+            let detailColor;
+            if (selUnlocked) {
+                detail = sel.desc;
+                detailColor = '#a0c0e0';
+            } else if (sel.progress) {
+                const [cur, tgt] = sel.progress(achievements.stats);
+                detail = sel.desc + '   ' + cur + ' / ' + tgt;
+                detailColor = '#7080a0';
+            } else {
+                detail = 'NOT YET UNLOCKED';
+                detailColor = '#403048';
+            }
+            drawText(ctx, detail, GAME.W / 2, GAME.H - 20, detailColor, 1, 'center');
         }
         drawText(ctx, 'ARROWS NAV   P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
