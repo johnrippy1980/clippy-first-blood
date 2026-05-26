@@ -1084,7 +1084,9 @@ export class DoomEngine {
         if (this._exitTilePos) this._drawExitPillar();
         this._drawWeapon();
         this._drawHud();
-        this._drawMinimap();
+        // R458: minimap removed from default view — Tab opens full automap
+        // instead. The screenshot showed the minimap dominating 30%+ of the
+        // viewport which broke immersion. Tab now exclusively owns the map.
         // R423e: pickup/key floating text overlays — drawn world-space
         this._drawFloaters();
         // R436: full-screen automap overlay if Tab toggled on. Draws over
@@ -1114,6 +1116,20 @@ export class DoomEngine {
             const hasBfg = p.weapons.bfg.owned;
             drawTextOutlined(ctx, `SECRET ${hasBfg ? 'FOUND' : 'MISSED'}`, W / 2, startY + 36, hasBfg ? '#50ff80' : '#a0a0b0', '#000000', 1, 'center');
             ctx.restore();
+        }
+        // R458: TAB-FOR-MAP hint — visible for the first 4 seconds AFTER the
+        // intro fly-through ends. Subtle top-right blink so player knows
+        // they can press Tab for the map (since we removed the always-on mini).
+        if (this._introT <= 0 && this.t < 480 && !this._automapOpen) {
+            const ctx = this.ctx;
+            const phase = (this.t / 30) | 0;
+            if (phase % 2 === 0) {
+                ctx.save();
+                const fade = Math.max(0, 1 - (this.t - 240) / 240);
+                ctx.globalAlpha = fade;
+                drawTextOutlined(ctx, 'TAB FOR MAP', W - 6, 8, '#a0c0ff', '#000000', 1, 'right');
+                ctx.restore();
+            }
         }
         // R442: intro overlay — stage name banner over fly-through
         if (this._introT > 0) {
@@ -1417,6 +1433,16 @@ export class DoomEngine {
         // now we draw vector blocks so the engine is testable before art lands.
         const spriteImg = this._getSpriteFor(e);
         if (spriteImg && this._fadeReady(spriteImg)) {
+            // R460: enemy bob — alive enemies sway up/down on world-time so
+            // they don't look frozen. Boss bobs slower + larger. Charging
+            // boss vibrates instead of bobs (more menacing).
+            let bob = 0;
+            if (e.kind === 'clone') bob = Math.sin(this.t * 0.18 + (e.x + e.y)) * (spriteH * 0.04);
+            else if (e.kind === 'boss') {
+                if (e._charging) bob = (Math.random() - 0.5) * (spriteH * 0.06);
+                else bob = Math.sin(this.t * 0.10 + e.x) * (spriteH * 0.05);
+            }
+            const adjY = drawY + bob;
             // Draw painted sprite column-by-column, respecting zbuffer
             const iw = spriteImg.width;
             for (let sx = startX; sx <= endX; sx++) {
@@ -1426,7 +1452,7 @@ export class DoomEngine {
                 ctx.drawImage(
                     spriteImg,
                     u, 0, 1, spriteImg.height,
-                    sx, drawY, 1, spriteH,
+                    sx, adjY, 1, spriteH,
                 );
             }
             // Hit-flash overlay
@@ -1516,14 +1542,28 @@ export class DoomEngine {
         const sprKey = keyMap[wKeys[p.weaponIdx]];
         const img = sprKey && sprites.images?.get(sprKey);
         const baseY = VIEW_H - 4;
-        // Recoil bob — when firing, weapon dips down a few pixels
-        const recoil = p.muzzleFlash > 0 ? (p.muzzleFlash * 1.5) | 0 : 0;
+        // R459: BEEFIER RECOIL — bigger dip + horizontal shake on fire.
+        // Was muzzleFlash*1.5 (~7px max), now ~24px peak with bob-out curve.
+        const mf = p.muzzleFlash || 0;
+        // Exponential out: 1 at peak, 0 at end. mf goes 5 -> 0.
+        const fT = mf / 5;
+        const recoil = (fT * 24) | 0;
+        const xShake = mf > 0 ? ((Math.random() - 0.5) * mf * 1.5) | 0 : 0;
+        // R459: walking bob — gentle sine sway when player moves (matches
+        // axis input). Adds subtle motion when not firing.
+        const ax = input.axis();
+        const moving = Math.abs(ax.x) > 0.1 || Math.abs(ax.y) > 0.1;
+        const bobY = moving ? (Math.sin(this.t * 0.25) * 3) | 0 : 0;
+        const bobX = moving ? (Math.sin(this.t * 0.125) * 2) | 0 : 0;
         if (img && img.complete && img.naturalWidth > 0) {
             const hudH = Math.min(128, VIEW_H);
             const hudW = (img.width / img.height) * hudH;
             ctx.save();
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(img, (W - hudW) / 2 | 0, baseY - hudH + recoil, hudW | 0, hudH | 0);
+            ctx.drawImage(img,
+                ((W - hudW) / 2 + xShake + bobX) | 0,
+                (baseY - hudH + recoil + bobY) | 0,
+                hudW | 0, hudH | 0);
             ctx.restore();
         } else {
             // Vector fallback
@@ -1720,6 +1760,14 @@ export class DoomEngine {
                 // the side the texture would otherwise read backwards.
                 if (side === 0 && rayDirX < 0) texX = tex.width - texX - 1;
                 if (side === 1 && rayDirY > 0) texX = tex.width - texX - 1;
+                // R461: per-cell variation — hash (mapX, mapY) to permute the
+                // texture so identical adjacent tiles don't read as one
+                // repeated poster wall. Three permutations: identity,
+                // horizontal mirror, half-width offset.
+                const hash = ((mapX * 73856093) ^ (mapY * 19349663)) >>> 0;
+                const variant = hash % 3;
+                if (variant === 1) texX = tex.width - texX - 1;          // mirror
+                else if (variant === 2) texX = (texX + (tex.width / 2)) % tex.width | 0;   // offset
                 // Distance fade: darken further-away walls by clipping alpha
                 const fade = Math.max(0.35, 1 - dist / 9);
                 ctx.save();
