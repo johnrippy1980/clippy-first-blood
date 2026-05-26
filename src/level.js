@@ -2460,6 +2460,10 @@ function makeBeatEmUpMechaApproach() {
 function makeBeatEmUpBallmer() {
     return {
         beatMode: true,
+        // R516: stage 7 is the boardroom brawl — the FIGHT, not a shootout.
+        // Player starts unarmed (GUN'S JAMMED bark) and uses punches/kicks
+        // until the final wave drops a new MG pickup.
+        meleeMode: true,
         theme: THEME.BOARDROOM,
         music: 'arenaBoss',
         bgKey: 'bg_boardroom',
@@ -2583,6 +2587,10 @@ function makeBeatEmUpMechaGates() {
     const STAGE_W = GAME.W * 6;
     return {
         beatMode: true,
+        // R516: stage 22 is the apocalypse-crater brawl — pure melee until
+        // the player breaks through to find a new MG. True-final
+        // street-fighter beat: Clippy with empty hands vs MECHA-GATES.
+        meleeMode: true,
         theme: THEME.KEYNOTE,
         music: 'apocalypse',
         bgKey: 'bg_apocalypse_crater',

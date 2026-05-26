@@ -107,6 +107,17 @@ export class BeatEmUp {
         this.clearT = 0;
         this.doorT = 0;
 
+        // R516: melee mode — stages 7 (Ballmer Arena) and 22 (Mecha-Gates)
+        // start with "GUN'S JAMMED" bark and force unarmed combat. Player
+        // punches/kicks instead of shooting until the final wave drops a
+        // new MG pickup that re-enables ranged.
+        this.meleeMode = !!stageData.meleeMode;
+        this._meleeIntroBark = this.meleeMode ? 60 : 0; // delay before bark
+        this._meleeIntroShown = false;
+        this._meleeGunPickup = null;  // {x, y} once dropped
+        this._punchCombo = 0;          // 0/1/2/3 chain counter
+        this._punchComboT = 0;         // frames until combo resets
+
         // Camera scroll — street advances as the player kills waves
         this.scroll = 0;
         this.targetScroll = 0;
@@ -844,6 +855,15 @@ export class BeatEmUp {
             if (this.waveIdx >= (this.data.waves?.length || 0)) {
                 this.phase = 'clear';
                 this.clearT = 0;
+                // R516: melee stage — spawn the gun pickup at clear so the
+                // player can re-arm before the stage transitions. Skipping
+                // the pickup is fine; visual reward for getting through
+                // unarmed.
+                if (this.meleeMode && !this._meleeGunPickup) {
+                    const p = this.player;
+                    this._meleeGunPickup = { x: p.x + 80, y: p.y + p.h - 4 };
+                    audio.sfx?.('attract');
+                }
             } else {
                 // R379: auto-spawn next wave if EITHER (a) there are no
                 // chokepoints at all (stage 7 Ballmer arena) OR (b) the
@@ -869,6 +889,20 @@ export class BeatEmUp {
     _tickPlayer() {
         const ax = input.axis();
         const p = this.player;
+        // R516: melee gun pickup collision — once spawned, walking onto it
+        // re-enables ranged fire and clears the pickup.
+        if (this._meleeGunPickup) {
+            const g = this._meleeGunPickup;
+            if (Math.abs((p.x + p.w / 2) - g.x) < 12 && Math.abs(p.y - g.y) < 24) {
+                this.meleeMode = false;
+                this._meleeGunPickup = null;
+                this._meleeBarkT = 90;
+                this._meleeIntroShown = false; // reuse bark slot for new line
+                this._meleeBarkLines = ["GOT ONE.", "BACK IN BUSINESS."];
+                audio.sfx?.('pickup');
+                audio.sfx?.('mgCharged');
+            }
+        }
         // R418: rage tick + 1.5× movement boost
         if (p.rageFrames > 0) p.rageFrames--;
         const rageMul = p.rageFrames > 0 ? 1.5 : 1;
@@ -946,10 +980,92 @@ export class BeatEmUp {
         } else {
             this._hbTick = 0;
         }
-        if (input.isHeld('shoot') && p.shootCD <= 0) {
-            this._fire();
-            // R418: rage halves fire cooldown
-            p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
+        // R516: in melee mode the SHOOT button punches/kicks instead of firing.
+        // Press (not hold) to commit a discrete attack; rapid-fire builds combo.
+        if (this.meleeMode) {
+            if (this._punchComboT > 0) this._punchComboT--;
+            else this._punchCombo = 0;
+            if (input.isPressed('shoot') && p.shootCD <= 0) {
+                this._melee();
+                p.shootCD = 12;
+            }
+        } else {
+            if (input.isHeld('shoot') && p.shootCD <= 0) {
+                this._fire();
+                // R418: rage halves fire cooldown
+                p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
+            }
+        }
+    }
+
+    // R516: melee attack — context-sensitive based on movement state.
+    // Ground + neutral = jab. Ground + holding direction = combo chain
+    // (3-hit, last hit has knockback). Airborne = jump-kick. Down+SHOOT
+    // = roundhouse sweep (360° hit, hits all enemies within range).
+    _melee() {
+        const p = this.player;
+        const ax = input.axis();
+        const airborne = (p.airY || 0) > 8;
+        let kind, reach, dmg, knockback, hitColor;
+        if (airborne) {
+            kind = 'jumpkick'; reach = 18; dmg = 2; knockback = 3.2; hitColor = '#ffe070';
+        } else if (ax.y > 0.4) {
+            // DOWN+shoot — roundhouse sweep, hits in both directions
+            kind = 'roundhouse'; reach = 22; dmg = 2; knockback = 2.8; hitColor = '#ff8060';
+        } else {
+            // Combo chain: jab → cross → hook
+            this._punchCombo = Math.min(3, this._punchCombo + 1);
+            this._punchComboT = 30;
+            if (this._punchCombo === 1)      { kind = 'jab';   reach = 14; dmg = 1; knockback = 1.0; hitColor = '#ffffff'; }
+            else if (this._punchCombo === 2) { kind = 'cross'; reach = 15; dmg = 1; knockback = 1.4; hitColor = '#ffe070'; }
+            else                              { kind = 'hook';  reach = 16; dmg = 2; knockback = 3.5; hitColor = '#ff6060'; this._punchCombo = 0; }
+        }
+        // Visual state — set so _drawPlayer can render the attack pose.
+        // Punches read better at 14f than the original 10 (hits the
+        // 200ms readability threshold); roundhouse + jumpkick longer.
+        p._meleeState = { kind, t: 0, dur: kind === 'roundhouse' ? 22 : kind === 'jumpkick' ? 18 : 14 };
+
+        // Hit detection — check all enemies in the attack arc
+        const px = p.x + p.w / 2;
+        const py = (p.y - (p.airY || 0)) + p.h / 2;
+        let hitAny = false;
+        for (const e of this.enemies) {
+            if (!e.alive || e._isPlayer) continue;
+            const ex = e.x + e.w / 2;
+            const ey = e.y + e.h / 2;
+            const dx = ex - px;
+            const dy = ey - py;
+            const dist = Math.hypot(dx, dy);
+            if (dist > reach) continue;
+            // Front cone for jab/cross/hook/jumpkick; full circle for roundhouse
+            if (kind !== 'roundhouse') {
+                if (Math.sign(dx) !== p.facing && Math.abs(dx) > 4) continue;
+            }
+            // Depth tolerance — must be on similar y-plane (this is 2.5D)
+            if (Math.abs(e.y - p.y) > 32) continue;
+            // Land the hit
+            e.hp -= dmg;
+            e.hitFlash = 12;
+            e.vx = Math.sign(dx || p.facing) * knockback;
+            e.vy = (kind === 'jumpkick') ? 1.2 : -0.6;
+            this._meleeImpacts = this._meleeImpacts || [];
+            this._meleeImpacts.push({ x: ex - this.scroll, y: ey - (e.airY || 0), age: 0, color: hitColor });
+            hitAny = true;
+            if (e.hp <= 0) {
+                e.alive = false;
+                e.deathT = 0;
+                this.player.kills = (this.player.kills || 0) + 1;
+                this._lastKillT = this.t;
+                this._comboCount = (this._comboCount || 0) + 1;
+                audio.sfx('enemyDie');
+            }
+        }
+        // Audio + hitstop
+        if (hitAny) {
+            audio.sfx(kind === 'hook' || kind === 'roundhouse' ? 'bossHit' : 'hit');
+            this._hitstop = (kind === 'hook' || kind === 'roundhouse') ? 4 : 2;
+        } else {
+            audio.sfx('jump'); // whiff — quick whoosh
         }
     }
 
@@ -1502,6 +1618,8 @@ export class BeatEmUp {
             ctx.fillStyle = '#ffe0a0';
             ctx.fillRect(dx, b.y, 2, 1);
         }
+        // R516: melee impact bursts + intro bark + pickup pulse
+        this._drawMeleeFx();
         // R314+R331: typed particles. p.x is world-coords; subtract
         // scroll for the draw call.
         const sc = this.scroll;
@@ -1640,6 +1758,98 @@ export class BeatEmUp {
         }
     }
 
+    // R516: melee mode visual — render impact sparks (bursts on hit) and
+    // the intro bark balloon "GUN'S JAMMED. CLOBBERIN' TIME."
+    _drawMeleeFx() {
+        // Render impacts + pickup glow even after meleeMode flips off, so
+        // the final bark + lingering impacts complete before disappearing.
+        if (!this.meleeMode && !this._meleeBarkT && (!this._meleeImpacts || !this._meleeImpacts.length)) return;
+        const ctx = this.ctx;
+        // Impact bursts — radial yellow-white starbursts that fade in 12f
+        if (this._meleeImpacts && this._meleeImpacts.length) {
+            for (let i = this._meleeImpacts.length - 1; i >= 0; i--) {
+                const m = this._meleeImpacts[i];
+                m.age++;
+                if (m.age > 12) { this._meleeImpacts.splice(i, 1); continue; }
+                const t = m.age / 12;
+                const r = 4 + t * 14;
+                ctx.save();
+                ctx.globalAlpha = 1 - t;
+                // 8-point starburst
+                ctx.strokeStyle = m.color;
+                ctx.lineWidth = 1;
+                for (let k = 0; k < 8; k++) {
+                    const a = (k / 8) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(m.x + Math.cos(a) * 2, m.y + Math.sin(a) * 2);
+                    ctx.lineTo(m.x + Math.cos(a) * r, m.y + Math.sin(a) * r);
+                    ctx.stroke();
+                }
+                // Comic-style POW! text on heavy hits
+                if (m.color === '#ff6060' || m.color === '#ff8060') {
+                    if (m.age < 8) {
+                        drawTextOutlined(ctx, 'POW!', m.x, m.y - 12 - m.age, '#ffe070', '#a02020', 1, 'center');
+                    }
+                }
+                ctx.restore();
+            }
+        }
+        // Intro bark — delay 60f after stage start, show for 180f
+        if (this._meleeIntroBark > 0) {
+            this._meleeIntroBark--;
+            return;
+        }
+        if (!this._meleeIntroShown) {
+            this._meleeIntroShown = true;
+            this._meleeBarkT = 180;
+            audio.sfx?.('comboBreak');
+        }
+        if (this._meleeBarkT > 0) {
+            this._meleeBarkT--;
+            const p = this.player;
+            const drawX = p.x - this.scroll;
+            const drawY = p.y - (p.airY || 0);
+            const fade = this._meleeBarkT > 30 ? 1 : this._meleeBarkT / 30;
+            ctx.save();
+            ctx.globalAlpha = fade;
+            // Speech bubble background — use override lines (gun-pickup
+            // bark) if set, otherwise the intro "gun's jammed" line.
+            const lines = this._meleeBarkLines || ["GUN'S JAMMED.", "CLOBBERIN' TIME!"];
+            const lineW = 88;
+            const bx = Math.round(drawX + p.w + 4);
+            const by = Math.round(drawY - 24);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx, by, lineW, 22);
+            ctx.fillStyle = '#1a0a14';
+            ctx.fillRect(bx, by, lineW, 1);
+            ctx.fillRect(bx, by + 21, lineW, 1);
+            ctx.fillRect(bx, by, 1, 22);
+            ctx.fillRect(bx + lineW - 1, by, 1, 22);
+            // Tail pointing to player
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx - 3, by + 14, 3, 2);
+            ctx.fillRect(bx - 6, by + 16, 3, 2);
+            drawText(ctx, lines[0], bx + lineW / 2, by + 4,  '#1a0a14', 1, 'center');
+            drawText(ctx, lines[1], bx + lineW / 2, by + 12, '#1a0a14', 1, 'center');
+            ctx.restore();
+        }
+        // End-of-stage gun pickup glow
+        if (this._meleeGunPickup) {
+            const g = this._meleeGunPickup;
+            const gx = Math.round(g.x - this.scroll);
+            const gy = Math.round(g.y);
+            const pulse = 0.6 + 0.4 * Math.sin(this.t * 0.2);
+            ctx.save();
+            ctx.globalAlpha = pulse;
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(gx - 6, gy - 3, 12, 6);
+            ctx.fillStyle = '#604020';
+            ctx.fillRect(gx + 2, gy - 1, 6, 2);
+            drawTextOutlined(ctx, 'NEW MG', gx, gy - 12, '#ffe070', '#1a0a14', 1, 'center');
+            ctx.restore();
+        }
+    }
+
     _drawPlayer() {
         const ctx = this.ctx;
         const p = this.player;
@@ -1678,6 +1888,99 @@ export class BeatEmUp {
             } else {
                 ctx.drawImage(img, 0, 0, img.width, img.height,
                               Math.round(drawX), Math.round(drawY), dw, dh);
+            }
+            // R516: procedural melee extension — draw fist/foot extending
+            // forward during the attack frames since we don't have hand-
+            // drawn punch sprites. Color/shape varies by attack kind so
+            // each combo step reads distinctly.
+            if (p._meleeState) {
+                const ms = p._meleeState;
+                ms.t++;
+                if (ms.t >= ms.dur) {
+                    p._meleeState = null;
+                } else {
+                    const ext = ms.t / ms.dur;
+                    const peak = Math.sin(ext * Math.PI); // 0→1→0 over duration
+                    const cx = drawX + dw / 2;
+                    const cy = drawY + dh / 2;
+                    const dir = p.facing;
+                    ctx.save();
+                    ctx.imageSmoothingEnabled = false;
+                    if (ms.kind === 'jab' || ms.kind === 'cross') {
+                        // Straight punch — fist 14px out at peak
+                        const fx = cx + dir * (4 + peak * 14);
+                        const fy = cy - 2;
+                        // Arm streak
+                        ctx.strokeStyle = ms.kind === 'cross' ? '#ffe070' : '#f0f0f0';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(cx, cy);
+                        ctx.lineTo(fx, fy);
+                        ctx.stroke();
+                        // Fist
+                        ctx.fillStyle = '#e0c0a0';
+                        ctx.fillRect(fx - 2, fy - 2, 4, 4);
+                        ctx.fillStyle = '#403020';
+                        ctx.fillRect(fx - 2, fy - 2, 4, 1);
+                    } else if (ms.kind === 'hook') {
+                        // Hook — arcing punch, comes from above-shoulder
+                        const ang = -0.4 + peak * 0.8;
+                        const reach = 14;
+                        const fx = cx + dir * Math.cos(ang) * reach;
+                        const fy = cy - Math.abs(Math.sin(ang)) * 8;
+                        ctx.strokeStyle = '#ff8080';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.moveTo(cx, cy - 2);
+                        ctx.lineTo(fx, fy);
+                        ctx.stroke();
+                        ctx.fillStyle = '#e0c0a0';
+                        ctx.fillRect(fx - 3, fy - 3, 6, 6);
+                        // Speed lines behind
+                        ctx.strokeStyle = '#ffe070';
+                        ctx.lineWidth = 1;
+                        for (let k = 0; k < 3; k++) {
+                            ctx.beginPath();
+                            ctx.moveTo(cx - dir * 2, cy - 4 + k);
+                            ctx.lineTo(cx - dir * 8, cy - 4 + k);
+                            ctx.stroke();
+                        }
+                    } else if (ms.kind === 'jumpkick') {
+                        // Foot extends forward + down from airborne body
+                        const fx = cx + dir * (6 + peak * 10);
+                        const fy = cy + 4 + peak * 8;
+                        ctx.strokeStyle = '#ffe070';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(cx, cy);
+                        ctx.lineTo(fx, fy);
+                        ctx.stroke();
+                        // Boot
+                        ctx.fillStyle = '#604030';
+                        ctx.fillRect(fx - 3, fy - 2, 6, 4);
+                        ctx.fillStyle = '#a08060';
+                        ctx.fillRect(fx + dir * 2, fy - 1, 2, 2);
+                    } else if (ms.kind === 'roundhouse') {
+                        // Spinning sweep — draw an arc of motion blur
+                        ctx.strokeStyle = '#ff8060';
+                        ctx.lineWidth = 2;
+                        ctx.globalAlpha = 0.8;
+                        const sweepAng = peak * Math.PI * 2;
+                        for (let k = 0; k < 5; k++) {
+                            const a = sweepAng - k * 0.2;
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, 16, a - 0.05, a + 0.05);
+                            ctx.stroke();
+                        }
+                        // Foot at current arc position
+                        const fx = cx + Math.cos(sweepAng) * 16;
+                        const fy = cy + Math.sin(sweepAng) * 16;
+                        ctx.globalAlpha = 1;
+                        ctx.fillStyle = '#604030';
+                        ctx.fillRect(fx - 3, fy - 2, 6, 4);
+                    }
+                    ctx.restore();
+                }
             }
             // R409: ground shadow ellipse while airborne so the depth
             // reads — the higher you jump, the more dim/spread the shadow.
