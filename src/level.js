@@ -1909,6 +1909,11 @@ function makeDoomPipelineBlock11() {
             // ---- BOSS ARENA (east, rows 5-13, col 24-30) — gated by RED+BLUE ----
             { kind: 'health', x: 26.5, y: 8.5, amount: 4 },
             { kind: 'ammo', x: 27.5, y: 12.5, weapon: 'shotgun', amount: 24 },
+            // R451: exploding barrels — tactical cover + damage tool
+            { kind: 'barrel', x: 26.5, y: 6.5 },
+            { kind: 'barrel', x: 29.5, y: 6.5 },
+            { kind: 'barrel', x: 26.5, y: 11.5 },
+            { kind: 'barrel', x: 29.5, y: 11.5 },
             { kind: 'boss', x: 28.5, y: 8.5 },
         ],
     };
@@ -2041,6 +2046,13 @@ function makeDoomFloor11() {
             { kind: 'ammo', x: 38.5, y: 1.5, weapon: 'shotgun', amount: 24 },
             { kind: 'ammo', x: 1.5, y: 1.5, weapon: 'shotgun', amount: 24 },
             { kind: 'health', x: 20.5, y: 4.5, amount: 4 },
+            // R451: exploding barrels arranged around boss arena
+            { kind: 'barrel', x: 12.5, y: 1.5 },
+            { kind: 'barrel', x: 17.5, y: 3.5 },
+            { kind: 'barrel', x: 23.5, y: 3.5 },
+            { kind: 'barrel', x: 28.5, y: 1.5 },
+            { kind: 'barrel', x: 10.5, y: 3.5 },
+            { kind: 'barrel', x: 30.5, y: 3.5 },
         ],
     };
 }

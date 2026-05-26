@@ -217,6 +217,9 @@ export class DoomEngine {
         // Mouse-look — consume delta. Scaled so a slow drag turns naturally.
         const md = input.getMouseDelta?.() || { dx: 0, dy: 0 };
         if (md.dx) p.angle += md.dx * 0.0035 * rageMul;
+        // R453: gamepad right-stick X for yaw
+        const padTurn = input.getGamepadTurn?.() || 0;
+        if (Math.abs(padTurn) > 0.1) p.angle += padTurn * 0.04 * rageMul;
         // Forward/back (along view vector)
         if (Math.abs(ax.y) > 0.1) {
             const sp = MOVE_SPEED * rageMul * (ax.y < 0 ? 1 : -0.7);
@@ -340,6 +343,12 @@ export class DoomEngine {
                 if (e.life <= 0) e.alive = false;
                 continue;
             }
+            // R452: wall decal — static, just ticks toward expiration
+            if (e.kind === 'decal') {
+                e.life--;
+                if (e.life <= 0) e.alive = false;
+                continue;
+            }
             // Pickup: collide with player within 0.6 tiles
             if (e.kind === 'key' || e.kind === 'ammo' || e.kind === 'health' || e.kind === 'weapon') {
                 const d = Math.hypot(e.x - p.x, e.y - p.y);
@@ -352,6 +361,12 @@ export class DoomEngine {
             // Enemy AI: chase player, shoot if line-of-sight + in range
             if (e.kind === 'clone' || e.kind === 'boss') {
                 this._tickEnemy(e);
+            }
+            // R451: barrel — static target until shot, then explodes
+            if (e.kind === 'barrel') {
+                if (e.hp == null) e.hp = 2;
+                if (e.hitFlash > 0) e.hitFlash--;
+                // Render-only entity, no AI tick
             }
         }
         // Compact dead entities occasionally
@@ -602,6 +617,23 @@ export class DoomEngine {
                             color: b.isBFG ? '#50ff80' : '#ffe070',
                         });
                     }
+                    // R452: wall decal — bullet hole that lingers 8s
+                    // Step back one frame so decal sits ON the wall surface,
+                    // not buried inside it
+                    this.entities.push({
+                        alive: true, kind: 'decal',
+                        x: b.x - (b.vx || 0) * 0.5,
+                        y: b.y - (b.vy || 0) * 0.5,
+                        life: 480, maxLife: 480,
+                    });
+                    // Cap decals at 24 to prevent runaway entity count
+                    let decalCount = 0;
+                    for (let k = this.entities.length - 1; k >= 0; k--) {
+                        if (this.entities[k].alive && this.entities[k].kind === 'decal') {
+                            decalCount++;
+                            if (decalCount > 24) { this.entities[k].alive = false; break; }
+                        }
+                    }
                 }
                 this.bullets.splice(i, 1);
                 continue;
@@ -622,10 +654,12 @@ export class DoomEngine {
                 // Hit enemy?
                 let didHit = false;
                 for (const e of this.entities) {
-                    if (!e.alive || (e.kind !== 'clone' && e.kind !== 'boss')) continue;
+                    if (!e.alive || (e.kind !== 'clone' && e.kind !== 'boss' && e.kind !== 'barrel')) continue;
                     const d = Math.hypot(b.x - e.x, b.y - e.y);
                     // R446: BFG has bigger hitbox + pierces multiple enemies
-                    const hitRadius = b.isBFG ? 1.2 : ((e.kind === 'boss') ? 0.6 : 0.4);
+                    const hitRadius = b.isBFG ? 1.2 :
+                                      (e.kind === 'barrel') ? 0.5 :
+                                      (e.kind === 'boss') ? 0.6 : 0.4;
                     if (d < hitRadius) {
                         // BFG-tagged bullets: don't double-damage same enemy
                         if (b._hitIds && b._hitIds.has(e)) continue;
@@ -633,7 +667,11 @@ export class DoomEngine {
                         e.hitFlash = 6;
                         didHit = true;
                         if (e.hp <= 0) {
-                            this._killEnemy(e);
+                            if (e.kind === 'barrel') {
+                                this._explodeBarrel(e);
+                            } else {
+                                this._killEnemy(e);
+                            }
                         } else {
                             audio.sfx?.('hurt');
                             e.fireCD = Math.max(e.fireCD || 0, 24);
@@ -709,6 +747,43 @@ export class DoomEngine {
         audio.sfx?.('die');
     }
 
+    // R451: barrel detonation. Splash damage to all enemies + player in
+    // radius 1.5 tiles. Chains: a barrel can detonate adjacent barrels.
+    _explodeBarrel(b) {
+        b.alive = false;
+        audio.sfx?.('explode');
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        game?.triggerScreenFlash?.(8, '#ff8030', 0.4);
+        game?.camera?.shake?.(4);
+        // Spawn 16 fire particles
+        if (game?._particles?.explosion) {
+            game._particles.explosion(b.x * 16, b.y * 16, '#ff8030', 16);
+        }
+        // Splash damage
+        const R = 1.5;
+        for (const e of this.entities) {
+            if (!e.alive) continue;
+            if (e === b) continue;
+            const d = Math.hypot(e.x - b.x, e.y - b.y);
+            if (d > R) continue;
+            if (e.kind === 'clone' || e.kind === 'boss') {
+                e.hp = (e.hp || 4) - 4;
+                e.hitFlash = 8;
+                e._alerted = true;
+                if (e.hp <= 0) this._killEnemy(e);
+            } else if (e.kind === 'barrel') {
+                // Chain reaction
+                this._explodeBarrel(e);
+            }
+        }
+        // Splash on player too
+        const dp = Math.hypot(this.player.x - b.x, this.player.y - b.y);
+        if (dp < R && this.player.iframes <= 0) {
+            this._lastHitAngle = Math.atan2(this.player.y - b.y, this.player.x - b.x);
+            this._damagePlayer(2);
+        }
+    }
+
     // R432: enemy death — gore burst + score + death-puddle entity. The
     // entity becomes a slime-puddle "corpse" that lingers for 240f then
     // expires (mostly visual flavor; doesn't block movement).
@@ -750,6 +825,38 @@ export class DoomEngine {
             maxLife: isBoss ? 600 : 240,
             scale: isBoss ? 1.5 : 1.0,
         });
+        // R450: random loot drops on kill
+        if (isBoss) {
+            // Boss guaranteed drops: big health + big ammo cache
+            this.entities.push({
+                alive: true, kind: 'health',
+                x: e.x - 0.3, y: e.y, amount: 4,
+            });
+            this.entities.push({
+                alive: true, kind: 'ammo',
+                x: e.x + 0.3, y: e.y, weapon: 'shotgun', amount: 24,
+            });
+        } else {
+            // Clone: 25% ammo, 10% health (cumulative — both possible)
+            if (Math.random() < 0.25) {
+                const isShotgun = Math.random() < 0.5;
+                this.entities.push({
+                    alive: true, kind: 'ammo',
+                    x: e.x + (Math.random() - 0.5) * 0.4,
+                    y: e.y + (Math.random() - 0.5) * 0.4,
+                    weapon: isShotgun ? 'shotgun' : 'mg',
+                    amount: isShotgun ? 3 : 8,
+                });
+            }
+            if (Math.random() < 0.10) {
+                this.entities.push({
+                    alive: true, kind: 'health',
+                    x: e.x + (Math.random() - 0.5) * 0.4,
+                    y: e.y + (Math.random() - 0.5) * 0.4,
+                    amount: 1,
+                });
+            }
+        }
         // Spawn 12 gore particles via game.particles (the existing platformer
         // particle system); they ride screen space so won't track world but
         // give a nice 1-second burst on kill.
@@ -1255,6 +1362,24 @@ export class DoomEngine {
         } else if (e.kind === 'weapon') {
             baseColor = '#a0a0a8';
             accentColor = '#ffe070';
+        } else if (e.kind === 'barrel') {
+            // R451: red barrel — flash white when hit, dark band on top
+            baseColor = e.hitFlash > 0 ? '#ffffff' : '#c04030';
+            accentColor = e.hitFlash > 0 ? '#ffffff' : '#ffe070';
+        } else if (e.kind === 'decal') {
+            // R452: dark bullet hole — small 3x3 dark pixel that fades over life
+            const ageT = e.life / e.maxLife;
+            if (ageT <= 0) return;
+            const px = screenX | 0;
+            const py = (drawY + spriteH * 0.5) | 0;
+            if (this.zbuffer[px] >= tx) {
+                ctx.save();
+                ctx.globalAlpha = ageT * 0.65;
+                ctx.fillStyle = '#181820';
+                ctx.fillRect(px - 1, py - 1, 3, 3);
+                ctx.restore();
+            }
+            return;
         } else if (e.kind === 'spark') {
             // R433: tiny 2x2 spark pixel in the spark color, fades fast
             const ageT = e.life / e.maxLife;

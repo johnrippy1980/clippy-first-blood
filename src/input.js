@@ -126,6 +126,11 @@ class Input {
         return { dx, dy };
     }
 
+    // R453: gamepad right-stick X for Doom-mode yaw. Returns -1..1 (deadzone'd).
+    getGamepadTurn() {
+        return this.gamepadTurnX || 0;
+    }
+
     // R423b: request pointer-lock on the canvas. Browsers require this be
     // called from a user gesture; the Doom engine calls it from a click
     // handler. Safe to call when already locked — browser no-ops.
@@ -237,6 +242,10 @@ class Input {
         // Right stick for 360 aim
         const rx = gp.axes[2] || 0;
         const ry = gp.axes[3] || 0;
+        // R453: cache right-stick X for Doom-mode yaw input (separate from
+        // the aimVec which targets a world point). gamepadTurnX is consumed
+        // by the Doom engine via getGamepadTurn() per frame.
+        this.gamepadTurnX = Math.abs(rx) > dz ? rx : 0;
         if (Math.hypot(rx, ry) > dz) {
             const d = Math.hypot(rx, ry);
             this.aimVec.x = rx / d;
