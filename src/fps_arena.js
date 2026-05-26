@@ -1469,6 +1469,100 @@ export class FpsArena {
                 ctx.stroke();
             }
         }
+        // R537/R538: procedural wall ornaments — sconces / signs / ceiling
+        // pipes that scroll past at the wall rib depths. Sells "I am
+        // moving through a real corridor with detail," not just abstract
+        // perspective lines. Theme-adaptive: BOARDROOM = corporate signs,
+        // KEYNOTE = stage rigging, SEWER = dripping pipes, default = vents.
+        const theme = this.data.theme;
+        const isBoardroom = theme === undefined ? false :
+            (this.data.bgKey?.includes('office') || this.data.bgKey?.includes('hq') ||
+             this.data.bgKey?.includes('boardroom'));
+        const isKeynote = this.data.bgKey?.includes('keynote');
+        const isSewer = this.data.bgKey?.includes('sewer') || this.data.bgKey?.includes('lab');
+        // 3 depth bands of ornaments: far, mid, near. Each spawns ornaments
+        // on both walls at varying t positions, scrolling subtly with adv.
+        const ornaments = [
+            { t: 0.32, side: 'left',  kind: 'sconce' },
+            { t: 0.32, side: 'right', kind: 'sign' },
+            { t: 0.50, side: 'left',  kind: 'sign' },
+            { t: 0.50, side: 'right', kind: 'sconce' },
+            { t: 0.70, side: 'left',  kind: 'sconce' },
+            { t: 0.70, side: 'right', kind: 'sign' },
+        ];
+        for (const o of ornaments) {
+            const t = o.t + adv * 0.05;
+            if (t > 0.95) continue;
+            const scale = 0.18 + t * t * 0.82;   // matches depth scale
+            // Project onto the wall edge — wall goes from screen-edge at y=GAME.H
+            // toward (VANISH_X, VANISH_Y). Find the wall-y at this depth.
+            const wallY = depthY(t) - 28 * scale;
+            const wallX = o.side === 'left'
+                ? VANISH_X * (1 - t)             // left wall at depth t
+                : GAME.W - (GAME.W - VANISH_X) * (1 - t);
+            const ow = 12 * scale;
+            const oh = 14 * scale;
+            ctx.save();
+            ctx.globalAlpha = 0.55 + t * 0.35;
+            if (o.kind === 'sconce') {
+                // Wall sconce — lamp housing + soft glow underneath
+                ctx.fillStyle = '#404048';
+                ctx.fillRect(wallX - ow / 2, wallY, ow, oh * 0.6);
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(wallX - ow / 3, wallY + 2 * scale, ow * 0.67, 2 * scale);
+                // Bloom
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.3 + t * 0.2;
+                const blr = 8 * scale;
+                const bg = ctx.createRadialGradient(wallX, wallY + 2, 0, wallX, wallY + 2, blr);
+                bg.addColorStop(0, '#ffe070');
+                bg.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = bg;
+                ctx.beginPath();
+                ctx.arc(wallX, wallY + 2, blr, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (o.kind === 'sign') {
+                // Theme-aware sign
+                if (isBoardroom) {
+                    // Corporate plaque — gold rectangle with text bars
+                    ctx.fillStyle = '#806040';
+                    ctx.fillRect(wallX - ow / 2, wallY, ow, oh * 0.7);
+                    ctx.fillStyle = '#c0a060';
+                    ctx.fillRect(wallX - ow / 2, wallY, ow, 1);
+                    ctx.fillStyle = '#1a1410';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillRect(wallX - ow / 3 + i * (ow / 4),
+                                     wallY + 3 * scale, ow / 6, 1);
+                    }
+                } else if (isKeynote) {
+                    // Stage rigging — black truss with hanging cable
+                    ctx.fillStyle = '#202028';
+                    ctx.fillRect(wallX - ow / 2, wallY, ow, 2 * scale);
+                    ctx.strokeStyle = '#404048';
+                    ctx.beginPath();
+                    ctx.moveTo(wallX, wallY + 2 * scale);
+                    ctx.lineTo(wallX, wallY + oh);
+                    ctx.stroke();
+                    ctx.fillStyle = '#a0a0a0';
+                    ctx.fillRect(wallX - 1, wallY + oh - 2, 2, 2);
+                } else if (isSewer) {
+                    // Pipe junction — vertical pipe + valve
+                    ctx.fillStyle = '#5a4838';
+                    ctx.fillRect(wallX - 1, wallY, 2, oh);
+                    ctx.fillStyle = '#806040';
+                    ctx.fillRect(wallX - ow / 4, wallY + oh / 2, ow / 2, 2 * scale);
+                } else {
+                    // Generic vent — louvered rectangle
+                    ctx.fillStyle = '#303040';
+                    ctx.fillRect(wallX - ow / 2, wallY, ow, oh * 0.6);
+                    ctx.fillStyle = '#101018';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillRect(wallX - ow / 2, wallY + 2 + i * 2 * scale, ow, 1);
+                    }
+                }
+            }
+            ctx.restore();
+        }
         // Back wall (boss room) — visible only in segment 3.
         if (this.segment === 3) {
             ctx.fillStyle = 'rgba(20, 8, 32, 0.85)';
