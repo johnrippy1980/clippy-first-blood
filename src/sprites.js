@@ -570,6 +570,31 @@ export const ENEMY_MANIFEST = {
     'ambient_explosion_2':  'ambient_explosion_2.png',
     'ambient_explosion_3':  'ambient_explosion_3.png',
     'ambient_explosion_4':  'ambient_explosion_4.png',
+    // R423e: Doom-mode painted assets (raycaster textures, billboards, HUD).
+    // Wall textures — opaque 64×64 textured tiles indexed by WALL_LIGHT id.
+    'doom_wall_1': 'doom_wall_1.png',   // cubicle (TEAMWORK poster)
+    'doom_wall_2': 'doom_wall_2.png',   // exec wood door (OFFICE plaque)
+    'doom_wall_3': 'doom_wall_3.png',   // glass with server racks behind
+    'doom_wall_4': 'doom_wall_4.png',   // bathroom tile w/ cracks
+    'doom_wall_5': 'doom_wall_5.png',   // red vending (OUT OF ORDER)
+    // Enemy + boss billboards
+    'doom_clone': 'doom_clone.png',
+    'doom_boss_spindler_uzis': 'doom_boss_spindler_uzis.png',
+    'doom_boss_spindler_wheelchair': 'doom_boss_spindler_wheelchair.png',
+    // First-person weapon HUD frames
+    'doom_weapon_mg': 'doom_weapon_mg.png',
+    'doom_weapon_shotgun': 'doom_weapon_shotgun.png',
+    'doom_weapon_chainsaw': 'doom_weapon_chainsaw.png',
+    'doom_weapon_bfg': 'doom_weapon_bfg.png',
+    // Pickup icons (procedural — keys, health, ammo, weapon pickups)
+    'doom_key_red': 'doom_key_red.png',
+    'doom_key_yellow': 'doom_key_yellow.png',
+    'doom_key_blue': 'doom_key_blue.png',
+    'doom_health': 'doom_health.png',
+    'doom_ammo': 'doom_ammo.png',
+    'doom_pickup_shotgun': 'doom_pickup_shotgun.png',
+    'doom_pickup_chainsaw': 'doom_pickup_chainsaw.png',
+    'doom_pickup_bfg': 'doom_pickup_bfg.png',
     'holepunch_walk':   'v2_holepunch_walk.png',
     'holepunch_attack': 'v2_holepunch_attack.png',
     'holepunch_hurt':   'v2_holepunch_hurt.png',

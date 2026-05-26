@@ -1790,81 +1790,177 @@ function makeStagePipeline() {
 // the engine, doomMap is the 2D tile grid, doomStart sets spawn position.
 
 // R423c: stage 23 PIPELINE: BLOCK 11 — sewer-themed Doom maze between
-// stages 4 and 5. Evil Clippy clones grown in Spindler's lab + mini-boss
-// SPINDLER_UZIS at the exit. Chains back to stage 5 BOARDROOM.
+// stages 4 and 5. Inspired by Doom 1 E1M1 layout: zigzag opening, two
+// branching paths (north clone tanks vs south lab), keycard-gated exit
+// to boss arena. Evil Clippy clones in corridors + SPINDLER_UZIS boss.
+//
+// Tile legend (matches WALL_LIGHT in doom_engine.js):
+//   1 = cubicle / pipe bracket wall
+//   2 = exec wood (lab door frame)
+//   3 = glass (observation panel into clone tanks)
+//   4 = bathroom tile (chemical shower area)
+//   5 = vending machine (lab control panel)
+//  10 = plain door (opens on USE)
+//  12 = red-key door, 13 = yellow-key door, 14 = blue-key door
+//  20 = switch (opens all plain doors when used)
+//  30 = exit pad (spawned after boss dies)
 function makeDoomPipelineBlock11() {
+    // 24x18 — wider so we get real branching. Layout: spawn south-west,
+    // northwest = clone-tank wing (red key), northeast = lab control wing
+    // (blue key + shotgun pickup), south corridor = chemical showers (health),
+    // central hub gates the boss arena east via red+blue keyed doors.
+    const M = [
+        // 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 0
+        [ 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 1
+        [ 1, 0, 3, 3, 0, 0, 1, 0, 3, 0, 3, 0, 3, 0, 1, 0, 5, 5, 5, 0, 0, 0, 0, 1],  // 2
+        [ 1, 0, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 5, 0, 1, 1, 0, 1],  // 3
+        [ 1, 0, 0, 0, 0, 0, 1, 0, 3, 0, 3, 0, 3, 0, 1, 0, 5, 5, 5, 0, 1, 0, 0, 1],  // 4   (clone tanks N)
+        [ 1, 1, 1, 0,12, 1, 1, 0, 0, 0, 0, 0, 0, 0,10, 0, 0, 0, 0, 0, 1, 0, 0, 1],  // 5   (red-key door W, plain door center)
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,14, 1, 1],  // 6   (blue door E)
+        [ 1, 0, 1, 1,10, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1],  // 7
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],  // 8   (HUB)
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0,20, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1],  // 9   (switch in central locked room)
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],  // 10
+        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 1,10, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1],  // 11  (switch room door)
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 12
+        [ 1, 0, 4, 4, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 4, 0, 0, 0, 0, 0, 1],  // 13
+        [ 1, 0, 4, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 1],  // 14  (shower S)
+        [ 1, 0, 4, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 1],  // 15
+        [ 1, 0, 4, 4, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 4, 0, 0, 0, 0, 0, 1],  // 16
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 17
+    ];
     return {
         doomMode: true,
         name: 'BLOCK 11',
         theme: 'sewer',
         music: 'pipeline',
         bgKey: 'bg_sewer',
-        // 16×16 sewer-pipe maze. Mostly cubicle dividers (tile 1) used as
-        // pipe-bracket walls; a few glass observation panels (3) into the
-        // clone-grow tanks; vending (5) hot-codes Dr Spindler's lab entry.
-        doomMap: [
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,1,0,3,3,3,0,1,1,1,0,0,1],
-            [1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,1],
-            [1,0,1,0,0,0,3,0,3,0,0,0,1,0,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,1],
-            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-            [1,0,3,0,1,0,0,5,0,0,1,0,3,0,0,1],
-            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-            [1,0,0,0,1,1,1,0,1,1,1,0,0,0,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,1,0,3,3,3,0,1,1,1,0,0,1],
-            [1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        ],
-        doomStart: { x: 2.5, y: 14.5 },
-        // R423c: routes to stage 5 BOARDROOM after clear
+        doomMap: M,
+        doomStart: { x: 1.5, y: 14.5 },     // spawn far south-west
+        exitAt: { x: 22, y: 8 },            // boss arena, east of blue door
         nextStage: 5,
         ambientProps: [],
-        // Placeholder enemy/boss data — populated in R423c phase
-        doomEnemies: [],
         doomBoss: 'SPINDLER_UZIS',
+        // Entities — clone enemies sprinkled in corridors, keys in branches,
+        // pickups along the way, boss in east arena beyond blue door.
+        doomEntities: [
+            // Pickups along approach
+            { kind: 'health', x: 3.5, y: 12.5, amount: 2 },
+            { kind: 'ammo', x: 5.5, y: 13.5, weapon: 'mg', amount: 30 },
+            // Clones in corridors (corridors only, not behind walls)
+            { kind: 'clone', x: 7.5, y: 12.5 },
+            { kind: 'clone', x: 12.5, y: 12.5 },
+            // Hub-area clones
+            { kind: 'clone', x: 15.5, y: 8.5 },
+            { kind: 'clone', x: 9.5, y: 8.5 },
+            // North clone-tanks branch: SHOTGUN + red key
+            { kind: 'weapon', x: 17.5, y: 3.5, weapon: 'shotgun' },
+            { kind: 'key', color: 'red', x: 3.5, y: 1.5 },
+            { kind: 'clone', x: 9.5, y: 1.5 },
+            { kind: 'clone', x: 16.5, y: 1.5 },
+            // Switch room (locked behind plain door 11,11)
+            { kind: 'health', x: 10.5, y: 9.5, amount: 4 },
+            // South shower area: ammo pickups + 1 clone
+            { kind: 'ammo', x: 3.5, y: 15.5, weapon: 'shotgun', amount: 12 },
+            { kind: 'ammo', x: 18.5, y: 15.5, weapon: 'shotgun', amount: 12 },
+            { kind: 'clone', x: 12.5, y: 15.5 },
+            // East wing: blue key + boss
+            { kind: 'key', color: 'blue', x: 22.5, y: 1.5 },
+            { kind: 'health', x: 22.5, y: 12.5, amount: 4 },
+            { kind: 'boss', x: 22.5, y: 8.5 },
+        ],
     };
 }
 
 // R423d: stage 16 FLOOR 11 — post-game Doom-style Microsoft HQ crawl.
-// Surprise SPINDLER_WHEELCHAIR boss with mounted miniguns. Currently
-// replaces the BOSS RUSH MODE tile (which moves to a title-screen mode).
+// Larger + more complex than BLOCK 11. Inspired by Doom E1M5/E1M8 — three
+// colored keycards required, branching through cubicles → bathroom →
+// exec wing → server room → final boss arena in glass chamber.
+//
+// Boss: SPINDLER_WHEELCHAIR (mounted miniguns). Surprise return —
+// player thinks they killed him in BLOCK 11, now he's worse.
 function makeDoomFloor11() {
+    // 28x20 — fully realized floor plan. Spawn south. Branch tree:
+    //   south-center spawn → west cubicles (yellow key) or east bathrooms (health)
+    //   then north into central server-room hub (red key required for north)
+    //   exec wing east of hub holds blue key (behind shotgun grunts)
+    //   final boss chamber north of hub through red+blue door
+    //   secret BFG hidden in west bathroom (switch opens it)
+    const M = [
+        // 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 0
+        [ 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],  // 1  (BOSS chamber)
+        [ 1, 0, 3, 0, 3, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 1, 0, 2, 2, 0, 0, 0, 0, 1],  // 2
+        [ 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 3, 3, 0, 1],  // 3
+        [ 1, 0, 3, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 1],  // 4
+        [ 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0,12, 0,14, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],  // 5  (red+blue door at boss entry)
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 6
+        [ 1, 0, 3, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1],  // 7
+        [ 1, 0, 3, 0, 0, 0, 1, 0, 1, 0, 5, 5, 5, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 1],  // 8  (server hub)
+        [ 1, 0, 0, 0, 0, 0, 1, 0,10, 0, 5, 0, 5, 0,10, 0, 1, 0, 1, 0, 1, 0,14, 0, 0, 2, 0, 1],  // 9  (HUB w/ blue door east into exec)
+        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 5, 5, 5, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 1],  // 10
+        [ 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1],  // 11
+        [ 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 12
+        [ 1, 0, 1, 0, 4, 4, 4, 4, 0, 1, 1, 0,13, 0, 1, 1, 0, 4, 4, 4, 4, 0, 1, 0, 1, 1, 0, 1],  // 13 (yellow door btwn cubicles + hub)
+        [ 1, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 1, 0, 0, 1],  // 14
+        [ 1, 0, 0, 0, 4, 0,20, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1],  // 15 (secret switch in W bathroom)
+        [ 1, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 1, 0, 0, 1],  // 16
+        [ 1, 0, 1, 0, 4, 4, 4, 4, 0, 1, 1, 0,10, 0, 1, 1, 0, 4, 4, 4, 4, 0, 1, 0, 1, 0, 0, 1],  // 17
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 18 (spawn corridor)
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 19
+    ];
     return {
         doomMode: true,
         name: 'FLOOR 11',
         theme: 'serverroom',
         music: 'bossBattle',
         bgKey: 'bg_serverroom',
-        // 16×16 corporate maze — outer walls + cubicle dividers + an exec
-        // wing in the bottom-right corner. Tile ids match WALL_LIGHT in
-        // doom_engine.js: 1=cubicle, 2=exec wood, 3=glass, 4=bathroom, 5=vending.
-        doomMap: [
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,0,1,1,0,0,3,3,0,2,2,0,1],
-            [1,0,1,0,0,0,1,0,0,0,0,0,2,0,0,1],
-            [1,0,1,0,0,0,1,0,0,0,0,0,2,0,0,1],
-            [1,0,1,1,0,1,1,0,0,0,0,0,2,2,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,0,4,4,4,0,5,0,0,0,1,1,0,0,1],
-            [1,0,0,4,0,4,0,0,0,0,0,1,0,0,0,1],
-            [1,0,0,4,0,0,0,0,0,0,0,1,1,0,0,1],
-            [1,0,0,4,4,4,0,0,0,0,0,0,0,0,0,1],
-            [1,0,0,0,0,0,0,3,3,3,0,0,0,0,0,1],
-            [1,0,1,1,0,0,0,0,0,0,0,1,1,0,0,1],
-            [1,0,1,1,0,0,0,0,0,0,0,1,0,0,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        ],
-        doomStart: { x: 2.5, y: 14.5 },
+        doomMap: M,
+        doomStart: { x: 14.5, y: 18.5 },        // spawn center-south
+        exitAt: { x: 14, y: 1 },                // exit pad in boss chamber
         ambientProps: [],
-        doomEnemies: [],
         doomBoss: 'SPINDLER_WHEELCHAIR',
+        doomEntities: [
+            // SPAWN approach pickups
+            { kind: 'health', x: 14.5, y: 18.0, amount: 2 },
+            { kind: 'ammo', x: 12.5, y: 18.5, weapon: 'mg', amount: 30 },
+            // West bathroom (yellow key + secret BFG via switch)
+            { kind: 'clone', x: 5.5, y: 14.5 },
+            { kind: 'key', color: 'yellow', x: 5.5, y: 15.5 },   // YELLOW KEY in W bathroom
+            { kind: 'health', x: 5.5, y: 13.5, amount: 4 },
+            // East bathroom
+            { kind: 'clone', x: 18.5, y: 14.5 },
+            { kind: 'clone', x: 19.5, y: 16.5 },
+            { kind: 'ammo', x: 19.5, y: 14.5, weapon: 'shotgun', amount: 12 },
+            // West cubicle column (spawn area corridor north)
+            { kind: 'clone', x: 2.5, y: 12.5 },
+            { kind: 'clone', x: 2.5, y: 7.5 },
+            // Server-room HUB
+            { kind: 'weapon', x: 13.5, y: 9.5, weapon: 'shotgun' },  // shotgun in central server
+            { kind: 'clone', x: 10.5, y: 8.5 },
+            { kind: 'clone', x: 13.5, y: 7.5 },
+            { kind: 'clone', x: 17.5, y: 10.5 },
+            // East exec wing (blue key behind plain door from hub)
+            { kind: 'clone', x: 22.5, y: 9.5 },
+            { kind: 'clone', x: 25.5, y: 7.5 },
+            { kind: 'key', color: 'blue', x: 25.5, y: 9.5 },        // BLUE KEY in exec
+            { kind: 'health', x: 25.5, y: 11.5, amount: 4 },
+            { kind: 'ammo', x: 23.5, y: 12.5, weapon: 'shotgun', amount: 12 },
+            // Hub door (10) east of exec leads NORTH to red key chamber
+            { kind: 'clone', x: 9.5, y: 6.5 },
+            // North-west boss prep area — red key in glass observation room
+            { kind: 'key', color: 'red', x: 9.5, y: 2.5 },           // RED KEY in N
+            { kind: 'health', x: 17.5, y: 2.5, amount: 4 },
+            { kind: 'ammo', x: 9.5, y: 4.5, weapon: 'shotgun', amount: 24 },
+            { kind: 'clone', x: 12.5, y: 3.5 },
+            { kind: 'clone', x: 16.5, y: 3.5 },
+            // BOSS CHAMBER — far north
+            { kind: 'boss', x: 14.5, y: 1.5 },
+            // SECRET BFG — hidden behind switch in W bathroom; spawn nearby
+            // so once switch opens path, player can pick it up
+            { kind: 'weapon', x: 4.5, y: 12.5, weapon: 'bfg' },
+        ],
     };
 }
 
