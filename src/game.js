@@ -41,6 +41,7 @@ const SCENE = {
     GAME_OVER: 'gameOver',
     GAME_COMPLETE: 'gameComplete',
     EPILOGUE: 'epilogue',        // R191: post-game Clippy redemption arc cinematic
+    CREDITS: 'credits',          // R511: scrolling credits after epilogue
     // R229: locked-camera FPS arena (Contra arcade stage-3 style). Player
     // strafes a ground rail, fires straight up to take out turret banks
     // and sensors, then a boss spawns. Self-contained scene — does not
@@ -383,6 +384,7 @@ export class Game {
             case SCENE.GAME_OVER:    this._tickGameOver(); break;
             case SCENE.GAME_COMPLETE:this._tickGameComplete(); break;
             case SCENE.EPILOGUE:     this._tickEpilogue(); break;
+            case SCENE.CREDITS:      this._tickCredits(); break;
         }
         // Global hotkeys
         if (input.isPressed('mute')) { audio.toggleMute(); audio.sfx('select'); }
@@ -501,6 +503,7 @@ export class Game {
             case SCENE.GAME_OVER:    this._drawGameOver(); break;
             case SCENE.GAME_COMPLETE:this._drawGameComplete(); break;
             case SCENE.EPILOGUE:     this._drawEpilogue(); break;
+            case SCENE.CREDITS:      this._drawCredits(); break;
         }
 
         // Hit-pause emphasis: while time is frozen for a few frames, paint a
@@ -5080,8 +5083,11 @@ export class Game {
         const beats = this._epilogueBeats();
         const beat = beats[this.epilogueIndex];
         if (!beat) {
-            // Past the last scene — fade to title and reset the run.
-            this._restartRun();
+            // R511: past the last epilogue scene — roll credits before
+            // dropping back to title. Gives the painted art and the run
+            // a proper "the end" moment instead of a hard cut.
+            this.scene = SCENE.CREDITS;
+            this.storyTimer = 0;
             return;
         }
         const advance = input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start');
@@ -5137,6 +5143,114 @@ export class Game {
             }
         }
     }
+
+    // R511: scrolling credits — bottom-to-top crawl that runs after the
+    // 4-beat epilogue. Keeps the painted MAC scene visible behind a 45%
+    // dim so the crawl reads while still feeling like part of the ending.
+    // Skippable: any input fast-forwards by 10x; second press jumps to title.
+    _creditsLines() {
+        const path = this._runRank ? this._runRank.letter : '?';
+        return [
+            { t: 'CLIPPY: FIRST BLOOD', big: true },
+            { t: '' },
+            { t: 'OFFICE WARFARE LTD' },
+            { t: '' },
+            { t: 'DIRECTED BY' },
+            { t: 'JOHN RIPPY', big: true },
+            { t: '' },
+            { t: 'CODE & DESIGN' },
+            { t: 'JOHN RIPPY' },
+            { t: 'CLAUDE OPUS 4.7' },
+            { t: '' },
+            { t: 'PAINTED ART' },
+            { t: 'GPT-IMAGE-2 / LOCAL HOWL' },
+            { t: '' },
+            { t: 'INSPIRED BY' },
+            { t: 'CONTRA  -  DOOM' },
+            { t: 'METAL SLUG  -  STREETS OF RAGE' },
+            { t: '' },
+            { t: 'DEDICATED TO' },
+            { t: 'EVERY PIECE OF SOFTWARE' },
+            { t: 'THE WORLD LAUGHED AT' },
+            { t: '' },
+            { t: 'YOUR FINAL RANK: ' + path, big: true },
+            { t: '' },
+            { t: '' },
+            { t: 'THANK YOU FOR PLAYING' },
+            { t: '' },
+            { t: '' },
+            { t: 'PRESS X TO RETURN' },
+        ];
+    }
+
+    _tickCredits() {
+        this.storyTimer++;
+        // Any input speeds up the crawl. Second press once the last line
+        // has cleared the screen jumps directly to title.
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            if (this._creditsSkipped) {
+                this._creditsSkipped = false;
+                this._restartRun();
+                return;
+            }
+            this._creditsSkipped = true;
+            audio.sfx('select');
+        }
+        // Auto-return after the crawl has fully scrolled past
+        const lines = this._creditsLines();
+        const lineH = 14;
+        const speed = this._creditsSkipped ? 4 : 0.6;
+        const totalScroll = lines.length * lineH + GAME.H + 32;
+        if (this.storyTimer * speed > totalScroll) {
+            this._restartRun();
+            return;
+        }
+    }
+
+    _drawCredits() {
+        const ctx = this.ctx;
+        // Keep last epilogue scene as the backdrop, heavily dimmed
+        if (sprites.has('epi_mac_siri')) {
+            const img = sprites.images.get('epi_mac_siri');
+            const scale = Math.max(GAME.W / img.width, GAME.H / img.height);
+            const dw = img.width * scale;
+            const dh = img.height * scale;
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, (GAME.W - dw) / 2, (GAME.H - dh) / 2, dw, dh);
+            ctx.imageSmoothingEnabled = false;
+        } else {
+            ctx.fillStyle = '#0a0410';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+        }
+        ctx.fillStyle = 'rgba(8, 4, 14, 0.78)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+
+        // Scroll lines bottom-to-top
+        const lines = this._creditsLines();
+        const lineH = 14;
+        const speed = this._creditsSkipped ? 4 : 0.6;
+        const offset = this.storyTimer * speed;
+        const startY = GAME.H + 8 - offset;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const ly = startY + i * lineH;
+            // Cull off-screen lines so we don't draw 30 strings per frame
+            if (ly < -8 || ly > GAME.H + 8) continue;
+            if (!line.t) continue;
+            if (line.big) {
+                drawTextOutlined(ctx, line.t, GAME.W / 2, ly, '#ffe070', '#1a0a14', 1, 'center');
+            } else {
+                drawText(ctx, line.t, GAME.W / 2, ly, '#c0a0d0', 1, 'center');
+            }
+        }
+
+        // Footer hint
+        if (this.storyTimer % 60 < 40) {
+            drawText(ctx, this._creditsSkipped ? 'X TO TITLE' : 'X TO SKIP',
+                     GAME.W / 2, GAME.H - 10, '#604068', 1, 'center');
+        }
+    }
+
     // Three endings keyed off the player's run: PERFECT (mastery), VENGEANCE (default),
     // MERCIFUL (low-kill / pacifist-leaning playthrough). Each gets unique tint + text.
     _endingPath() {
