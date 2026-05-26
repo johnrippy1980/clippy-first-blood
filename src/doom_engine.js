@@ -566,6 +566,9 @@ export class DoomEngine {
     }
 
     _solidAt(x, y) {
+        // R430: guard against NaN — when player teleports or bullet vx/vy
+        // gets corrupted, NaN coords would crash this.map[NaN][NaN].
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
         const mx = Math.floor(x);
         const my = Math.floor(y);
         if (mx < 0 || my < 0 || mx >= this.mapW || my >= this.mapH) return true;
