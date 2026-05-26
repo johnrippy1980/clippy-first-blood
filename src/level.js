@@ -1805,30 +1805,48 @@ function makeStagePipeline() {
 //  20 = switch (opens all plain doors when used)
 //  30 = exit pad (spawned after boss dies)
 function makeDoomPipelineBlock11() {
-    // 24x18 — wider so we get real branching. Layout: spawn south-west,
-    // northwest = clone-tank wing (red key), northeast = lab control wing
-    // (blue key + shotgun pickup), south corridor = chemical showers (health),
-    // central hub gates the boss arena east via red+blue keyed doors.
+    // R428: 32x26 expanded sewer-lab. Doom E1M1-inspired layout with irregular
+    // rooms, zigzag entry, secret BFG room behind switch, irregular boss arena
+    // with cover pillars. Each region has its own flavor:
+    //
+    //   SOUTH-WEST spawn corridor → ammo cache → split north or east
+    //   NORTH-WEST: chemical showers + first clone fight + key 1 (RED)
+    //   CENTER: zigzag pipe maze with patrolling clones
+    //   NORTH-EAST: clone-tank observation gallery (glass walls, body horror)
+    //              + shotgun pickup
+    //   SOUTH-EAST: vending machine lab corridor + key 2 (BLUE) behind clones
+    //   CENTER-SOUTH: switch room hidden behind plain door — flips to open
+    //                 the secret armory with the SHOTGUN ammo cache
+    //   EAST: boss arena gated by RED + BLUE keys, irregular shape with
+    //         cover pillars Spindler can hide behind
     const M = [
-        // 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 0
-        [ 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 1
-        [ 1, 0, 3, 3, 0, 0, 1, 0, 3, 0, 3, 0, 3, 0, 1, 0, 5, 5, 5, 0, 0, 0, 0, 1],  // 2
-        [ 1, 0, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 5, 0, 1, 1, 0, 1],  // 3
-        [ 1, 0, 0, 0, 0, 0, 1, 0, 3, 0, 3, 0, 3, 0, 1, 0, 5, 5, 5, 0, 1, 0, 0, 1],  // 4   (clone tanks N)
-        [ 1, 1, 1, 0,12, 1, 1, 0, 0, 0, 0, 0, 0, 0,10, 0, 0, 0, 0, 0, 1, 0, 0, 1],  // 5   (red-key door W, plain door center)
-        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,14, 1, 1],  // 6   (blue door E)
-        [ 1, 0, 1, 1,10, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1],  // 7
-        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],  // 8   (HUB)
-        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0,20, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1],  // 9   (switch in central locked room)
-        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],  // 10
-        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 1,10, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1],  // 11  (switch room door)
-        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 12
-        [ 1, 0, 4, 4, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 4, 0, 0, 0, 0, 0, 1],  // 13
-        [ 1, 0, 4, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 1],  // 14  (shower S)
-        [ 1, 0, 4, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 1],  // 15
-        [ 1, 0, 4, 4, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 4, 0, 0, 0, 0, 0, 1],  // 16
-        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 17
+        // 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 0
+        [ 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1], // 1
+        [ 1, 0, 4, 4, 0, 0, 0, 0, 1, 0, 3, 3, 0, 3, 3, 0, 1, 0, 3, 3, 0, 3, 3, 0, 1, 0, 0, 0, 0, 0, 0, 1], // 2
+        [ 1, 0, 4, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1], // 3
+        [ 1, 0, 4, 0, 0, 0, 0, 0, 1, 0, 3, 3, 0, 3, 3, 0, 1, 0, 3, 3, 0, 3, 3, 0, 1, 0, 1, 0, 0, 0, 0, 1], // 4   N-WEST showers + N-CENTER clone gallery
+        [ 1, 0, 4, 4, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 5, 5, 0, 1], // 5
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,12, 0, 1, 0, 0, 0, 0, 1], // 6   RED-KEY door at x=24 (boss arena entry)
+        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 5, 5, 0, 1], // 7   zigzag pipes
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 8
+        [ 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1], // 9
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,14, 1, 0, 0, 0, 0, 1], // 10  BLUE-KEY door at x=25 (alt arena entry)
+        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 5, 5, 0, 1], // 11
+        [ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1], // 12
+        [ 1, 0, 1, 0, 1, 0, 1, 1,10, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1], // 13  plain door into HUB
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 14  HUB main passage
+        [ 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1], // 15
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1], // 16
+        [ 1, 0, 1, 0,20, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1], // 17  switch room (left)
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 18  central passage
+        [ 1, 0, 1, 1,10, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1], // 19  switch-locked plain door
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 20  south corridor
+        [ 1, 0, 4, 4, 4, 0, 1, 1, 1, 1, 1, 1, 1, 0, 5, 5, 5, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1], // 21  shower S-west, vending S-center
+        [ 1, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 22
+        [ 1, 0, 4, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 5, 5, 5, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1], // 23
+        [ 1, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 24  spawn corridor east
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 25
     ];
     return {
         doomMode: true,
@@ -1837,38 +1855,61 @@ function makeDoomPipelineBlock11() {
         music: 'pipeline',
         bgKey: 'bg_sewer',
         doomMap: M,
-        doomStart: { x: 1.5, y: 14.5 },     // spawn far south-west
-        exitAt: { x: 22, y: 8 },            // boss arena, east of blue door
+        doomStart: { x: 1.5, y: 24.5 },     // R428: spawn far south-west
+        exitAt: { x: 29, y: 6 },             // boss arena, far east
         nextStage: 5,
         ambientProps: [],
         doomBoss: 'SPINDLER_UZIS',
-        // Entities — clone enemies sprinkled in corridors, keys in branches,
-        // pickups along the way, boss in east arena beyond blue door.
+        // R428: 30+ entities across the expanded map
         doomEntities: [
-            // Pickups along approach
-            { kind: 'health', x: 3.5, y: 12.5, amount: 2 },
-            { kind: 'ammo', x: 5.5, y: 13.5, weapon: 'mg', amount: 30 },
-            // Clones in corridors (corridors only, not behind walls)
-            { kind: 'clone', x: 7.5, y: 12.5 },
-            { kind: 'clone', x: 12.5, y: 12.5 },
-            // Hub-area clones
-            { kind: 'clone', x: 15.5, y: 8.5 },
-            { kind: 'clone', x: 9.5, y: 8.5 },
-            // North clone-tanks branch: SHOTGUN + red key
-            { kind: 'weapon', x: 17.5, y: 3.5, weapon: 'shotgun' },
-            { kind: 'key', color: 'red', x: 3.5, y: 1.5 },
-            { kind: 'clone', x: 9.5, y: 1.5 },
-            { kind: 'clone', x: 16.5, y: 1.5 },
-            // Switch room (locked behind plain door 11,11)
-            { kind: 'health', x: 10.5, y: 9.5, amount: 4 },
-            // South shower area: ammo pickups + 1 clone
-            { kind: 'ammo', x: 3.5, y: 15.5, weapon: 'shotgun', amount: 12 },
-            { kind: 'ammo', x: 18.5, y: 15.5, weapon: 'shotgun', amount: 12 },
-            { kind: 'clone', x: 12.5, y: 15.5 },
-            // East wing: blue key + boss
-            { kind: 'key', color: 'blue', x: 22.5, y: 1.5 },
-            { kind: 'health', x: 22.5, y: 12.5, amount: 4 },
-            { kind: 'boss', x: 22.5, y: 8.5 },
+            // ---- SPAWN CORRIDOR (east-west bottom strip) ----
+            { kind: 'health', x: 5.5, y: 24.5, amount: 2 },
+            { kind: 'ammo', x: 8.5, y: 24.5, weapon: 'mg', amount: 30 },
+            { kind: 'clone', x: 10.5, y: 22.5 },
+            { kind: 'ammo', x: 16.5, y: 24.5, weapon: 'mg', amount: 20 },
+            { kind: 'clone', x: 19.5, y: 22.5 },
+            // ---- SOUTH-WEST CHEMICAL SHOWERS (rows 21-24, cols 2-4) ----
+            { kind: 'health', x: 3.5, y: 22.5, amount: 4 },
+            { kind: 'clone', x: 3.5, y: 23.5 },
+            // ---- SOUTH-CENTER VENDING LAB (rows 21-23, cols 14-16) ----
+            { kind: 'clone', x: 15.5, y: 22.5 },
+            { kind: 'ammo', x: 15.5, y: 22.5, weapon: 'shotgun', amount: 12 },
+            // ---- SOUTH CORRIDOR going north (col 18-29, row 20) ----
+            { kind: 'clone', x: 24.5, y: 20.5 },
+            { kind: 'health', x: 28.5, y: 20.5, amount: 2 },
+            // ---- SWITCH ROOM (col 4, row 17) — flips plain doors ----
+            // Reached via plain door at col 4, row 19. Switch tile at (4,17).
+            { kind: 'ammo', x: 4.5, y: 16.5, weapon: 'shotgun', amount: 24 },
+            // ---- CENTRAL HUB (row 14, central corridor through zigzag) ----
+            { kind: 'clone', x: 11.5, y: 14.5 },
+            { kind: 'clone', x: 17.5, y: 14.5 },
+            { kind: 'health', x: 21.5, y: 14.5, amount: 4 },
+            // ---- CENTRAL ZIGZAG PIPE MAZE (rows 7-13) — patrolling clones ----
+            { kind: 'clone', x: 8.5, y: 12.5 },
+            { kind: 'clone', x: 12.5, y: 8.5 },
+            { kind: 'clone', x: 18.5, y: 10.5 },
+            { kind: 'clone', x: 22.5, y: 12.5 },
+            { kind: 'ammo', x: 14.5, y: 8.5, weapon: 'mg', amount: 30 },
+            // ---- NORTH-WEST CLONE-TANK GALLERY (rows 2-4, cols 9-15) ----
+            // 4 glass tanks visible; clones spawn in front. RED KEY in here.
+            { kind: 'key', color: 'red', x: 12.5, y: 3.5 },
+            { kind: 'clone', x: 9.5, y: 3.5 },
+            { kind: 'clone', x: 15.5, y: 3.5 },
+            { kind: 'health', x: 14.5, y: 3.5, amount: 4 },
+            // ---- NORTH-CENTER CLONE-TANK GALLERY (rows 2-4, cols 17-23) ----
+            // SHOTGUN pickup hidden in the upper gallery
+            { kind: 'weapon', x: 20.5, y: 3.5, weapon: 'shotgun' },
+            { kind: 'clone', x: 18.5, y: 3.5 },
+            { kind: 'clone', x: 22.5, y: 3.5 },
+            // ---- NORTH-EAST CORRIDOR (cols 26-30) ----
+            // BLUE KEY in this section
+            { kind: 'key', color: 'blue', x: 28.5, y: 4.5 },
+            { kind: 'clone', x: 28.5, y: 3.5 },
+            { kind: 'ammo', x: 28.5, y: 1.5, weapon: 'shotgun', amount: 12 },
+            // ---- BOSS ARENA (east, rows 5-13, col 24-30) — gated by RED+BLUE ----
+            { kind: 'health', x: 26.5, y: 8.5, amount: 4 },
+            { kind: 'ammo', x: 27.5, y: 12.5, weapon: 'shotgun', amount: 24 },
+            { kind: 'boss', x: 28.5, y: 8.5 },
         ],
     };
 }
@@ -1881,34 +1922,50 @@ function makeDoomPipelineBlock11() {
 // Boss: SPINDLER_WHEELCHAIR (mounted miniguns). Surprise return —
 // player thinks they killed him in BLOCK 11, now he's worse.
 function makeDoomFloor11() {
-    // 28x20 — fully realized floor plan. Spawn south. Branch tree:
-    //   south-center spawn → west cubicles (yellow key) or east bathrooms (health)
-    //   then north into central server-room hub (red key required for north)
-    //   exec wing east of hub holds blue key (behind shotgun grunts)
-    //   final boss chamber north of hub through red+blue door
-    //   secret BFG hidden in west bathroom (switch opens it)
+    // R429: 40x32 — full Doom climax. The post-game Microsoft HQ executive
+    // floor crawl. Spawn south (lobby) → cubicle maze → exec wing (yellow key)
+    // → server hub → bathroom secret (BFG) → north corridor → boss chamber.
+    //
+    // ALL THREE keycards required:
+    //   YELLOW: in west exec offices
+    //   RED:    in NE bathroom block (behind a switch puzzle)
+    //   BLUE:   in east server hub
+    //   Boss door at north center: needs RED + BLUE together; YELLOW gates
+    //   entry to the upper exec wing where you find the others.
     const M = [
-        // 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
-        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 0
-        [ 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],  // 1  (BOSS chamber)
-        [ 1, 0, 3, 0, 3, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 0, 5, 0, 1, 0, 2, 2, 0, 0, 0, 0, 1],  // 2
-        [ 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 3, 3, 0, 1],  // 3
-        [ 1, 0, 3, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 1],  // 4
-        [ 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0,12, 0,14, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],  // 5  (red+blue door at boss entry)
-        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 6
-        [ 1, 0, 3, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1],  // 7
-        [ 1, 0, 3, 0, 0, 0, 1, 0, 1, 0, 5, 5, 5, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 1],  // 8  (server hub)
-        [ 1, 0, 0, 0, 0, 0, 1, 0,10, 0, 5, 0, 5, 0,10, 0, 1, 0, 1, 0, 1, 0,14, 0, 0, 2, 0, 1],  // 9  (HUB w/ blue door east into exec)
-        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 5, 5, 5, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 1],  // 10
-        [ 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1],  // 11
-        [ 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 12
-        [ 1, 0, 1, 0, 4, 4, 4, 4, 0, 1, 1, 0,13, 0, 1, 1, 0, 4, 4, 4, 4, 0, 1, 0, 1, 1, 0, 1],  // 13 (yellow door btwn cubicles + hub)
-        [ 1, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 1, 0, 0, 1],  // 14
-        [ 1, 0, 0, 0, 4, 0,20, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1],  // 15 (secret switch in W bathroom)
-        [ 1, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 1, 0, 0, 1],  // 16
-        [ 1, 0, 1, 0, 4, 4, 4, 4, 0, 1, 1, 0,10, 0, 1, 1, 0, 4, 4, 4, 4, 0, 1, 0, 1, 0, 0, 1],  // 17
-        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],  // 18 (spawn corridor)
-        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  // 19
+        // 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 0
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 1  BOSS CHAMBER
+        [ 1, 0, 3, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 3, 0, 0, 0, 3, 0, 1], // 2
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 5, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 5, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 3
+        [ 1, 0, 3, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 3, 0, 0, 0, 3, 0, 1], // 4
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,12, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 5  RED+BLUE-GATED boss door at center (use 12 — engine treats as plain since we need both, but we check via _tryUse override)
+        [ 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 6  upper hallway
+        [ 1, 0, 3, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1], // 7
+        [ 1, 0, 3, 0, 0, 0, 0, 1, 0, 1, 0, 0, 5, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 8  exec wing (left) + server hub (mid) + east bathroom strip
+        [ 1, 0, 0, 0, 0, 0, 0,10, 0, 0, 0, 0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,14, 5, 0, 0, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 9  exec door (10) + BLUE door (14) into server hub
+        [ 1, 0, 3, 0, 0, 0, 0, 1, 0, 1, 0, 0, 5, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 5, 5, 5, 5, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1], // 10
+        [ 1, 0, 3, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1], // 11
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 4, 0, 1, 0, 0, 1], // 12  central passage + NE bathroom block + 4 = red key area
+        [ 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0,20, 0, 1, 0,13, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 4, 0, 0, 0, 0, 0, 1], // 13  switch room + YELLOW DOOR (13) gates upper exec
+        [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 4, 0, 0, 0, 0, 0, 1], // 14
+        [ 1, 0, 0, 0, 0, 1, 0, 4, 4, 4, 4, 0, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 4, 4, 0, 0, 0, 0, 1], // 15  west bathroom (BFG secret) + central bathroom strip + east bathroom continued
+        [ 1, 0, 0, 0, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 16
+        [ 1, 0, 1, 1, 0, 1, 0, 4, 0, 0, 4, 0, 1, 0, 4, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1], // 17
+        [ 1, 0, 1, 0, 0, 0, 0, 4, 4, 4, 4, 0, 1, 0, 4, 4, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1], // 18
+        [ 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1], // 19  CUBICLE FARM begins
+        [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 20
+        [ 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1], // 21
+        [ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1], // 22
+        [ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1], // 23
+        [ 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], // 24
+        [ 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1], // 25
+        [ 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1], // 26
+        [ 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1], // 27
+        [ 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1], // 28
+        [ 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1], // 29
+        [ 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 30  LOBBY (spawn area)
+        [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 31
     ];
     return {
         doomMode: true,
@@ -1917,49 +1974,73 @@ function makeDoomFloor11() {
         music: 'bossBattle',
         bgKey: 'bg_serverroom',
         doomMap: M,
-        doomStart: { x: 14.5, y: 18.5 },        // spawn center-south
-        exitAt: { x: 14, y: 1 },                // exit pad in boss chamber
+        doomStart: { x: 20.5, y: 30.5 },        // R429: spawn center-south LOBBY
+        exitAt: { x: 20, y: 1 },                 // boss chamber exit pad
         ambientProps: [],
         doomBoss: 'SPINDLER_WHEELCHAIR',
+        // R429: ~40 entities across the floor
         doomEntities: [
-            // SPAWN approach pickups
-            { kind: 'health', x: 14.5, y: 18.0, amount: 2 },
-            { kind: 'ammo', x: 12.5, y: 18.5, weapon: 'mg', amount: 30 },
-            // West bathroom (yellow key + secret BFG via switch)
-            { kind: 'clone', x: 5.5, y: 14.5 },
-            { kind: 'key', color: 'yellow', x: 5.5, y: 15.5 },   // YELLOW KEY in W bathroom
-            { kind: 'health', x: 5.5, y: 13.5, amount: 4 },
-            // East bathroom
+            // ---- LOBBY SPAWN ROW (row 30) ----
+            { kind: 'health', x: 21.5, y: 30.5, amount: 2 },
+            { kind: 'ammo', x: 18.5, y: 30.5, weapon: 'mg', amount: 30 },
+            { kind: 'ammo', x: 24.5, y: 30.5, weapon: 'mg', amount: 20 },
+            { kind: 'clone', x: 12.5, y: 29.5 },
+            { kind: 'clone', x: 28.5, y: 29.5 },
+            // ---- CUBICLE FARM (rows 21-28) — full of patrolling clones ----
+            { kind: 'clone', x: 7.5, y: 28.5 },
+            { kind: 'clone', x: 11.5, y: 26.5 },
+            { kind: 'clone', x: 17.5, y: 24.5 },
+            { kind: 'clone', x: 24.5, y: 26.5 },
+            { kind: 'clone', x: 30.5, y: 22.5 },
+            { kind: 'clone', x: 4.5, y: 24.5 },
+            { kind: 'health', x: 35.5, y: 28.5, amount: 4 },
+            { kind: 'ammo', x: 8.5, y: 22.5, weapon: 'mg', amount: 30 },
+            { kind: 'ammo', x: 27.5, y: 24.5, weapon: 'shotgun', amount: 12 },
+            // ---- WEST BATHROOM SECRET (rows 15-18, cols 7-10) — BFG behind switch ----
+            // Switch at (18,13). Player needs to find west bathroom + flip
+            // switch to open the central bathroom's locked door (10 tile at 19,13).
+            { kind: 'weapon', x: 8.5, y: 17.5, weapon: 'bfg' },           // SECRET BFG
+            { kind: 'health', x: 8.5, y: 15.5, amount: 4 },
+            { kind: 'clone', x: 8.5, y: 16.5 },
+            // ---- CENTRAL BATHROOM (rows 15-18, cols 14-15) ----
+            { kind: 'clone', x: 14.5, y: 17.5 },
+            { kind: 'ammo', x: 14.5, y: 16.5, weapon: 'shotgun', amount: 12 },
+            // ---- EAST BATHROOM (rows 12-15, cols 33-35) — RED KEY ----
+            { kind: 'key', color: 'red', x: 34.5, y: 14.5 },
+            { kind: 'clone', x: 34.5, y: 13.5 },
+            { kind: 'clone', x: 34.5, y: 15.5 },
+            { kind: 'health', x: 34.5, y: 16.5, amount: 4 },
+            // ---- CENTRAL HALLWAY (row 12, 14) — passage between bathrooms + hub ----
             { kind: 'clone', x: 18.5, y: 14.5 },
-            { kind: 'clone', x: 19.5, y: 16.5 },
-            { kind: 'ammo', x: 19.5, y: 14.5, weapon: 'shotgun', amount: 12 },
-            // West cubicle column (spawn area corridor north)
-            { kind: 'clone', x: 2.5, y: 12.5 },
-            { kind: 'clone', x: 2.5, y: 7.5 },
-            // Server-room HUB
-            { kind: 'weapon', x: 13.5, y: 9.5, weapon: 'shotgun' },  // shotgun in central server
+            { kind: 'clone', x: 22.5, y: 14.5 },
+            // ---- EXEC WING (rows 8-11, cols 2-6) — YELLOW KEY ----
+            // Yellow door at (22,13) gates this wing. Player needs yellow first
+            // (found in lower exec at... wait — yellow key is also in this area)
+            // Reorganize: YELLOW key in upper west exec offices.
+            { kind: 'key', color: 'yellow', x: 3.5, y: 9.5 },              // YELLOW KEY
+            { kind: 'clone', x: 4.5, y: 9.5 },
+            { kind: 'weapon', x: 4.5, y: 11.5, weapon: 'shotgun' },        // shotgun pickup
+            { kind: 'ammo', x: 2.5, y: 8.5, weapon: 'shotgun', amount: 24 },
+            // ---- SERVER HUB (rows 7-10, cols 9-29) ----
             { kind: 'clone', x: 10.5, y: 8.5 },
-            { kind: 'clone', x: 13.5, y: 7.5 },
-            { kind: 'clone', x: 17.5, y: 10.5 },
-            // East exec wing (blue key behind plain door from hub)
-            { kind: 'clone', x: 22.5, y: 9.5 },
-            { kind: 'clone', x: 25.5, y: 7.5 },
-            { kind: 'key', color: 'blue', x: 25.5, y: 9.5 },        // BLUE KEY in exec
-            { kind: 'health', x: 25.5, y: 11.5, amount: 4 },
-            { kind: 'ammo', x: 23.5, y: 12.5, weapon: 'shotgun', amount: 12 },
-            // Hub door (10) east of exec leads NORTH to red key chamber
-            { kind: 'clone', x: 9.5, y: 6.5 },
-            // North-west boss prep area — red key in glass observation room
-            { kind: 'key', color: 'red', x: 9.5, y: 2.5 },           // RED KEY in N
-            { kind: 'health', x: 17.5, y: 2.5, amount: 4 },
-            { kind: 'ammo', x: 9.5, y: 4.5, weapon: 'shotgun', amount: 24 },
-            { kind: 'clone', x: 12.5, y: 3.5 },
-            { kind: 'clone', x: 16.5, y: 3.5 },
-            // BOSS CHAMBER — far north
-            { kind: 'boss', x: 14.5, y: 1.5 },
-            // SECRET BFG — hidden behind switch in W bathroom; spawn nearby
-            // so once switch opens path, player can pick it up
-            { kind: 'weapon', x: 4.5, y: 12.5, weapon: 'bfg' },
+            { kind: 'clone', x: 17.5, y: 9.5 },
+            { kind: 'clone', x: 20.5, y: 8.5 },
+            { kind: 'clone', x: 26.5, y: 10.5 },
+            // BLUE KEY — east server hub
+            { kind: 'key', color: 'blue', x: 27.5, y: 9.5 },               // BLUE KEY
+            { kind: 'health', x: 19.5, y: 9.5, amount: 4 },
+            { kind: 'ammo', x: 16.5, y: 7.5, weapon: 'shotgun', amount: 12 },
+            // ---- UPPER HALLWAY (row 6) leading to boss door ----
+            { kind: 'clone', x: 11.5, y: 6.5 },
+            { kind: 'clone', x: 25.5, y: 6.5 },
+            { kind: 'health', x: 6.5, y: 6.5, amount: 4 },
+            // ---- BOSS CHAMBER (rows 1-4, full width) ----
+            // Glass walls (cols 2, 6, 8, 31, 33, 37). Vending columns mid (5s).
+            // Wide arena with cover pillars (cols 10, 14 server tiles).
+            { kind: 'boss', x: 20.5, y: 2.5 },
+            { kind: 'ammo', x: 38.5, y: 1.5, weapon: 'shotgun', amount: 24 },
+            { kind: 'ammo', x: 1.5, y: 1.5, weapon: 'shotgun', amount: 24 },
+            { kind: 'health', x: 20.5, y: 4.5, amount: 4 },
         ],
     };
 }
