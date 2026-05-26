@@ -4612,7 +4612,17 @@ export class Game {
                     return;
                 }
             } else {
-                nextStage = this.currentStage + 1;
+                // R540: respect the stage's own nextStage field for main
+                // campaign stages too. Was only honored on post-game (>=15).
+                // Lets stage 3 chain into 25 (HOLD THE LINE) instead of
+                // jumping straight to 4. Same data fallback chain used in
+                // the post-game branch.
+                const data = this.level?.data || this.level ||
+                             this._doomEngine?.data ||
+                             this._beatEmUp?.data ||
+                             this._fpsArena?.data ||
+                             this._turretArena?.data;
+                nextStage = data?.nextStage || (this.currentStage + 1);
             }
             // R281/R291: per-stage escape cinematics. Insert a one-shot
             // painted "boss escapes" card between stages 5→6 (Ballmer flees
