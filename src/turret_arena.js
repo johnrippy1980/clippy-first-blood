@@ -507,7 +507,36 @@ export class TurretArena {
 
     _drawRoom() {
         const ctx = this.ctx;
-        // Floor receding to vanishing point — 5 horizontal rails fading back
+        // R524: layered atmospheric back wall with server racks — gives the
+        // arena scale and matches the "datacenter overrun by CRTs" vibe.
+        // Drawn before perspective rails so they sit on the back wall.
+        const racksY = BACK_WALL_Y - 14;
+        for (let r = 0; r < 7; r++) {
+            const rx = 40 + r * 26;
+            const rh = 28 + (r * 11) % 14;
+            // Rack body
+            ctx.fillStyle = '#0a0e1a';
+            ctx.fillRect(rx, racksY, 18, rh);
+            ctx.fillStyle = '#1a2a40';
+            ctx.fillRect(rx, racksY, 18, 1);   // top rim
+            // LED rows — blinking server status
+            for (let row = 0; row < Math.floor(rh / 5); row++) {
+                const ly = racksY + 3 + row * 5;
+                const blink = ((r + row) * 17 + Math.floor(this.t / 18)) % 7;
+                if (blink === 0)      ctx.fillStyle = '#40ff60';
+                else if (blink === 1) ctx.fillStyle = '#ff4040';
+                else                  ctx.fillStyle = '#204040';
+                ctx.fillRect(rx + 3, ly, 1, 1);
+                ctx.fillStyle = '#204040';
+                ctx.fillRect(rx + 7, ly, 1, 1);
+                ctx.fillRect(rx + 12, ly, 1, 1);
+                if ((r + row) % 4 === 0) {
+                    ctx.fillStyle = '#80c0ff';
+                    ctx.fillRect(rx + 7, ly, 1, 1);
+                }
+            }
+        }
+        // Floor receding to vanishing point — 6 horizontal rails fading back
         ctx.save();
         ctx.strokeStyle = '#3a3a48';
         ctx.lineWidth = 1;
@@ -516,7 +545,6 @@ export class TurretArena {
             const tRail = i / (railCount + 1);
             const y = depthY(tRail);
             ctx.globalAlpha = 0.3 + 0.5 * tRail;
-            // Floor line wider as it comes closer
             const halfW = 20 + tRail * (GAME.W / 2 - 10);
             ctx.beginPath();
             ctx.moveTo(VANISH_X - halfW, y);
@@ -528,29 +556,88 @@ export class TurretArena {
         ctx.beginPath();
         ctx.moveTo(0, RAIL_Y); ctx.lineTo(VANISH_X, VANISH_Y);
         ctx.moveTo(GAME.W, RAIL_Y); ctx.lineTo(VANISH_X, VANISH_Y);
-        // Ceiling
         ctx.moveTo(0, BACK_WALL_Y - 30); ctx.lineTo(VANISH_X, VANISH_Y);
         ctx.moveTo(GAME.W, BACK_WALL_Y - 30); ctx.lineTo(VANISH_X, VANISH_Y);
         ctx.stroke();
         ctx.restore();
 
-        // Back wall — corkboard / server-room mural at vanishing point
-        ctx.fillStyle = '#1a1a24';
-        ctx.fillRect(VANISH_X - 30, BACK_WALL_Y - 10, 60, 20);
-        // CRT shelves silhouettes on the back wall
-        for (let i = 0; i < 6; i++) {
-            const sx = VANISH_X - 24 + i * 8;
-            const sh = 4 + (i & 1) * 2;
-            ctx.fillStyle = '#0a0a14';
-            ctx.fillRect(sx, BACK_WALL_Y - 6, 6, sh);
-            ctx.fillStyle = '#2a4060';
-            ctx.fillRect(sx + 1, BACK_WALL_Y - 5, 4, 2);
+        // R524: smashed CRT debris scattered on floor (background dressing)
+        // Static — placed at fixed lane positions so they don't jitter.
+        if (!this._debris) {
+            this._debris = [];
+            // Generate 6 debris pieces at varying depths and lanes
+            for (let i = 0; i < 6; i++) {
+                const t = 0.25 + (i / 6) * 0.6;
+                const lane = (i * 0.193 + 0.15) % 0.95;
+                this._debris.push({
+                    t, lane,
+                    kind: (i % 3), // 0=crt chunk, 1=screen shard, 2=cable coil
+                    rotSeed: i * 137,
+                });
+            }
         }
-        // Ceiling fluorescent tubes — humming
-        const flick = (this.t * 0.5 | 0) & 7;
-        ctx.fillStyle = flick === 0 ? '#605840' : '#8a8060';
+        for (const d of this._debris) {
+            const ds = depthScale(d.t);
+            const dx = depthX(d.lane, d.t);
+            const dy = depthY(d.t);
+            const dw = 12 * ds;
+            const dh = 6 * ds;
+            if (d.kind === 0) {
+                // CRT chunk — beige rect with broken screen
+                ctx.fillStyle = '#5a4838';
+                ctx.fillRect(dx - dw / 2, dy - dh, dw, dh);
+                ctx.fillStyle = '#1a1a20';
+                ctx.fillRect(dx - dw / 2 + 1, dy - dh + 1, dw - 2, dh - 2);
+                // Crack lines
+                ctx.fillStyle = '#80a0c0';
+                ctx.fillRect(dx - dw / 2 + dw * 0.3, dy - dh + 1, 1, dh - 2);
+            } else if (d.kind === 1) {
+                // Screen shard — angular blue glass shard
+                ctx.fillStyle = '#3050a0';
+                ctx.fillRect(dx - dw / 3, dy - dh / 2, dw * 0.6, dh / 2);
+                ctx.fillStyle = '#80a0ff';
+                ctx.fillRect(dx - dw / 3, dy - dh / 2, dw * 0.6, 1);
+            } else {
+                // Cable coil — dark loop
+                ctx.fillStyle = '#202030';
+                ctx.fillRect(dx - dw / 2, dy - 2, dw, 2);
+                ctx.fillStyle = '#404048';
+                ctx.fillRect(dx - dw / 2 + dw * 0.3, dy - 3, 2, 1);
+            }
+        }
+        // R524: hanging cables from ceiling — 4 swaying loops
+        ctx.save();
+        ctx.strokeStyle = '#1a1a22';
+        ctx.lineWidth = 1;
         for (let i = 0; i < 4; i++) {
+            const cx = 30 + i * 60;
+            const sway = Math.sin(this.t * 0.02 + i) * 3;
+            const dropY = 12 + (i & 1) * 4;
+            ctx.beginPath();
+            ctx.moveTo(cx, 0);
+            ctx.quadraticCurveTo(cx + sway, dropY * 0.5, cx + sway, dropY);
+            ctx.stroke();
+            // Cable end with stripped wire tips
+            ctx.fillStyle = '#604040';
+            ctx.fillRect(cx + sway - 1, dropY - 1, 2, 2);
+            // Tiny spark on a 90f cycle
+            if (((this.t + i * 23) % 90) < 4) {
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(cx + sway, dropY + 1, 1, 1);
+            }
+        }
+        ctx.restore();
+
+        // Ceiling fluorescent tubes — humming with occasional flicker
+        const flick = (this.t * 0.5 | 0) & 31;
+        const flickerOff = (flick === 0 || flick === 2);
+        for (let i = 0; i < 4; i++) {
+            ctx.fillStyle = flickerOff ? '#403838' : '#8a8060';
             ctx.fillRect(40 + i * 50, 4, 20, 2);
+            // Fixture mount
+            ctx.fillStyle = '#303040';
+            ctx.fillRect(40 + i * 50, 2, 2, 2);
+            ctx.fillRect(58 + i * 50, 2, 2, 2);
         }
     }
 
@@ -685,9 +772,13 @@ export class TurretArena {
         ctx.rotate(tilt);
         ctx.translate(-cx, -baseY);
 
+        // R524: body sway with walk — shifts the whole sprite left/right
+        // on the stride cadence. Subtle, but sells "lurching toward you".
+        const swayX = Math.sin(m._stride || 0) * scale * 0.6;
         // Stride drives leg bob
         const strideA = Math.sin(m._stride || 0);
         const strideB = Math.sin((m._stride || 0) + Math.PI);
+        ctx.translate(swayX, 0);
         const legW = Math.max(2, 3 * scale);
         const legH = h * 0.35;
         const legY = y + h * 0.65;
@@ -702,20 +793,34 @@ export class TurretArena {
         ctx.fillRect(leftLegX  - 1, legY + legH - 2, footW, 2);
         ctx.fillRect(rightLegX - 1, legY + legH - 2, footW, 2);
 
-        // Arms — outstretched zombie arms reaching forward toward camera
+        // R524: arms — outstretched zombie arms reaching forward toward
+        // camera. As monsters approach (m.t > 0.6) the arms lunge forward
+        // and the bob accelerates — they're trying to grab the camera.
+        const lungeT = Math.max(0, (m.t - 0.6) / 0.4);   // 0 at t=0.6, 1 at t=1
+        const lungeReach = lungeT * 4 * scale;
+        const bobRate = 0.12 + lungeT * 0.18;
+        const armBob = Math.sin(this.t * bobRate) * scale * (1 + lungeT * 1.5);
         ctx.fillStyle = '#1a1a20';
         const armY = y + h * 0.4;
-        const armW = Math.max(3, 6 * scale);
+        const armW = Math.max(3, 6 * scale) + lungeReach;
         const armH = Math.max(2, 3 * scale);
-        const armBob = Math.sin(this.t * 0.12) * scale;
-        // Reach down-out toward camera; both arms swing slightly
         ctx.fillRect(cx - w / 2 - armW + 2, armY + armBob, armW, armH);
         ctx.fillRect(cx + w / 2 - 2, armY - armBob, armW, armH);
-        // Hands
+        // Hands with finger detail
         ctx.fillStyle = '#a0a0a8';
         const handW = Math.max(2, 2 * scale);
-        ctx.fillRect(cx - w / 2 - armW, armY + armBob - 1, handW, armH + 2);
-        ctx.fillRect(cx + w / 2 + armW - handW - 2, armY - armBob - 1, handW, armH + 2);
+        const lHandX = cx - w / 2 - armW;
+        const rHandX = cx + w / 2 + armW - handW - 2;
+        ctx.fillRect(lHandX, armY + armBob - 1, handW, armH + 2);
+        ctx.fillRect(rHandX, armY - armBob - 1, handW, armH + 2);
+        // Fingers — 3 angular tips per hand. Only visible at close depth.
+        if (scale > 0.4) {
+            ctx.fillStyle = '#6a6a70';
+            for (let f = 0; f < 3; f++) {
+                ctx.fillRect(lHandX - 1, armY + armBob - 1 + f, 1, 1);
+                ctx.fillRect(rHandX + handW, armY - armBob - 1 + f, 1, 1);
+            }
+        }
 
         // CRT chassis — beige plastic box
         ctx.fillStyle = '#a89c80';
@@ -806,72 +911,163 @@ export class TurretArena {
             ctx.fillRect(x, y, Math.max(1, w), Math.max(1, h));
             return;
         }
+        // R524: occasional CRT horizontal sync glitch — every ~120 frames
+        // shift a random row. Sells the "broken old CRT" vibe.
+        const glitchPhase = (this.t + (x * 7) | 0) % 120;
+        const glitchActive = glitchPhase < 4;
         if (type === 'boot') {
+            // Win98 boot screen — black with 4-pane Windows logo + label
             ctx.fillStyle = '#000010';
             ctx.fillRect(x, y, w, h);
-            const fx = x + Math.max(1, w * 0.15);
-            const fy = y + Math.max(1, h * 0.2);
-            const fw = Math.max(4, w * 0.5);
+            // 4-pane Windows flag centered
+            const fw = Math.max(6, w * 0.45);
             const fh = Math.max(4, h * 0.5);
-            ctx.fillStyle = '#ff4040'; ctx.fillRect(fx, fy, fw / 2, fh / 2);
-            ctx.fillStyle = '#40ff40'; ctx.fillRect(fx + fw / 2, fy, fw / 2, fh / 2);
-            ctx.fillStyle = '#4080ff'; ctx.fillRect(fx, fy + fh / 2, fw / 2, fh / 2);
-            ctx.fillStyle = '#ffe040'; ctx.fillRect(fx + fw / 2, fy + fh / 2, fw / 2, fh / 2);
-            ctx.fillStyle = '#ffffff';
-            for (let i = 0; i < Math.floor(w / 4); i++) {
-                ctx.fillRect(x + 2 + i * 3, y + h - 3, 2, 1);
+            const fx = x + (w - fw) / 2;
+            const fy = y + Math.max(1, h * 0.15);
+            const half = Math.max(1, fw / 2 | 0);
+            const halfH = Math.max(1, fh / 2 | 0);
+            ctx.fillStyle = '#ff4040'; ctx.fillRect(fx, fy, half, halfH);
+            ctx.fillStyle = '#40ff40'; ctx.fillRect(fx + half, fy, half, halfH);
+            ctx.fillStyle = '#4080ff'; ctx.fillRect(fx, fy + halfH, half, halfH);
+            ctx.fillStyle = '#ffe040'; ctx.fillRect(fx + half, fy + halfH, half, halfH);
+            // Logo flag wave — alternate pixel rows for "billowing"
+            if ((this.t >> 2) & 1) {
+                ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                ctx.fillRect(fx, fy + halfH, fw, 1);
+            }
+            // "WINDOWS 98" label below — 1px dotted text
+            if (h >= 10) {
+                ctx.fillStyle = '#a0c0ff';
+                // W-I-N-9-8 simple pixel letters as dots
+                const lblY = y + h - 3;
+                for (let i = 0; i < Math.min(6, Math.floor(w / 4)); i++) {
+                    ctx.fillRect(x + 2 + i * 3, lblY, 2, 1);
+                }
             }
         } else if (type === 'bsod') {
+            // Blue Screen of Death — solid blue + white error rows
             ctx.fillStyle = '#0040a0';
             ctx.fillRect(x, y, w, h);
+            // Top error banner — inverted (white bg, blue text)
             ctx.fillStyle = '#ffffff';
-            for (let i = 0; i < Math.min(6, Math.floor(w / 2)); i++) {
-                ctx.fillRect(x + 2 + i * 2, y + 2, 1, 2);
+            ctx.fillRect(x, y, w, 2);
+            ctx.fillStyle = '#0040a0';
+            // Big block "WINDOWS" tag dots
+            for (let i = 0; i < Math.min(5, Math.floor(w / 3)); i++) {
+                ctx.fillRect(x + 2 + i * 2, y + 1, 1, 1);
             }
-            for (let r = 0; r < Math.floor((h - 4) / 2); r++) {
-                const rowW = ((r * 7 + 3) % (w - 4));
-                ctx.fillRect(x + 2, y + 5 + r * 2, Math.max(1, rowW), 1);
+            // Error message body — multiple white text rows
+            ctx.fillStyle = '#ffffff';
+            const lineCount = Math.floor((h - 6) / 2);
+            for (let r = 0; r < lineCount; r++) {
+                // Vary row width to look like real error text
+                const baseW = ((r * 11 + 7) % (w - 4));
+                let rowW = Math.max(2, baseW);
+                if (glitchActive && r === (glitchPhase % lineCount)) {
+                    rowW = w - 4;  // sync glitch row stretches full width
+                }
+                ctx.fillRect(x + 2, y + 5 + r * 2, rowW, 1);
+            }
+            // PRESS ANY KEY blink at bottom
+            if (h >= 12 && (this.t >> 4) & 1) {
+                ctx.fillStyle = '#ffe070';
+                ctx.fillRect(x + 2, y + h - 3, w - 4, 1);
             }
         } else if (type === 'word') {
+            // Word doc — blue title bar, white body, text lines, cursor
             ctx.fillStyle = '#000080';
             ctx.fillRect(x, y, w, 2);
+            // Title bar text (white dots simulating "DOCUMENT.DOC")
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(x, y + 2, w, h - 2);
-            ctx.fillStyle = '#404040';
-            for (let r = 0; r < Math.floor((h - 4) / 2); r++) {
-                const lineW = ((r * 7 + 3) % (w - 4));
-                ctx.fillRect(x + 2, y + 4 + r * 2, Math.max(1, lineW), 1);
+            for (let i = 0; i < Math.min(8, Math.floor(w / 2)); i++) {
+                if (i !== 3) ctx.fillRect(x + 1 + i * 2, y, 1, 1);
             }
+            // Menu bar (grey)
+            ctx.fillStyle = '#c0c0c0';
+            ctx.fillRect(x, y + 2, w, 2);
+            ctx.fillStyle = '#000000';
+            for (let i = 0; i < 4; i++) ctx.fillRect(x + 1 + i * 3, y + 3, 2, 1);
+            // White page body
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x, y + 4, w, h - 4);
+            // Text lines (alternating widths to look like real paragraphs)
+            ctx.fillStyle = '#202020';
+            const wordLines = Math.floor((h - 6) / 2);
+            for (let r = 0; r < wordLines; r++) {
+                const lineW = Math.max(2, ((r * 13 + 5) % (w - 4)));
+                ctx.fillRect(x + 2, y + 6 + r * 2, lineW, 1);
+            }
+            // Blinking cursor
             if ((this.t >> 3) & 1) {
                 ctx.fillStyle = '#000000';
-                ctx.fillRect(x + 4, y + h - 4, 1, 2);
+                ctx.fillRect(x + 4, y + h - 3, 1, 2);
             }
         } else if (type === 'excel') {
-            ctx.fillStyle = '#f0f0e8';
-            ctx.fillRect(x, y, w, h);
+            // Excel — green header, beige cells, grid, numbers
             ctx.fillStyle = '#006040';
             ctx.fillRect(x, y, w, 2);
+            // Green "X" logo dot
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + 1, y, 1, 1);
+            ctx.fillRect(x + 2, y + 1, 1, 1);
+            // Cells body
+            ctx.fillStyle = '#f0f0e8';
+            ctx.fillRect(x, y + 2, w, h - 2);
+            // Vertical grid
             ctx.fillStyle = '#a0a0a0';
             for (let gx = 4; gx < w; gx += 4) {
                 ctx.fillRect(x + gx, y + 2, 1, h - 2);
             }
-            for (let gy = 2; gy < h; gy += 3) {
+            // Horizontal grid
+            for (let gy = 4; gy < h; gy += 3) {
                 ctx.fillRect(x, y + gy, w, 1);
             }
+            // Selected cell highlight
+            const selX = x + 4 + Math.floor((this.t / 30) % 3) * 4;
+            const selY = y + 4 + Math.floor((this.t / 60) % 2) * 3;
+            if (selX + 4 < x + w && selY + 3 < y + h) {
+                ctx.strokeStyle = '#006040';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(selX, selY, 4, 3);
+            }
+            // Numbers in cells
             ctx.fillStyle = '#202020';
-            for (let i = 0; i < 4; i++) {
-                ctx.fillRect(x + 1 + i * 4, y + 4 + (i & 1) * 3, 2, 1);
+            for (let i = 0; i < Math.min(6, Math.floor(w / 4)); i++) {
+                for (let j = 0; j < Math.min(3, Math.floor((h - 4) / 3)); j++) {
+                    if (((i + j) * 7 + this.t / 60 | 0) & 1) {
+                        ctx.fillRect(x + 1 + i * 4, y + 5 + j * 3, 2, 1);
+                    }
+                }
             }
         } else {
-            // Static
+            // TV static — much more chaotic, with horizontal hold lines
             ctx.fillStyle = '#202020';
             ctx.fillRect(x, y, w, h);
-            for (let i = 0; i < Math.min(24, w * h / 4); i++) {
+            // Noise dots
+            for (let i = 0; i < Math.min(40, w * h / 3); i++) {
                 const px = x + Math.floor(Math.random() * w);
                 const py = y + Math.floor(Math.random() * h);
-                ctx.fillStyle = (i & 1) ? '#a0a0a0' : '#404040';
+                const v = Math.random();
+                ctx.fillStyle = v < 0.3 ? '#ffffff' :
+                                v < 0.6 ? '#a0a0a0' : '#404040';
                 ctx.fillRect(px, py, 1, 1);
             }
+            // Horizontal hold lines drifting up
+            ctx.fillStyle = '#606060';
+            const holdY = y + ((this.t * 2) % h);
+            ctx.fillRect(x, holdY, w, 1);
+            const holdY2 = y + ((this.t * 2 + h / 2) % h);
+            ctx.fillStyle = '#404040';
+            ctx.fillRect(x, holdY2, w, 1);
+        }
+        // R524: occasional sync-glitch overlay — shift a 2-pixel row right
+        // by a few pixels every ~120 frames
+        if (glitchActive && w > 6) {
+            const gy = y + 2 + Math.floor(Math.random() * (h - 4));
+            ctx.fillStyle = '#1a1a20';
+            ctx.fillRect(x, gy, 2, 2);
+            ctx.fillStyle = '#80a0c0';
+            ctx.fillRect(x + w - 2, gy, 2, 2);
         }
     }
 
