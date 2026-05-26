@@ -1071,11 +1071,24 @@ export class BeatEmUp {
             }
             // Attack
             if (e.attackCD > 0) e.attackCD--;
+            // R466: boss charge-tell — when _patternCD is in the 20f window
+            // before firing, flash sprite + play tell SFX once.
+            if (e.isBoss && (e.isMechaPhase1 || e.isMechaPhase2)) {
+                const cd = e._patternCD || 0;
+                if (cd > 0 && cd <= 20) {
+                    e.hitFlash = Math.max(e.hitFlash || 0, 1);   // sustain red overlay
+                    if (cd === 20 && !e._chargeTold) {
+                        audio.sfx?.('bossChargeTell');
+                        e._chargeTold = true;
+                    }
+                }
+            }
             if (e.attackCD <= 0) {
                 // R413: MECHA-GATES phase 1 boss — gatling spray attack
                 // every ~80 frames regardless of distance. Fires a 5-shot
                 // fan at the player's last position. Final-boss-tier.
                 if (e.isBoss && e.isMechaPhase1 && (e._patternCD = (e._patternCD || 0) - 1) <= 0) {
+                    e._chargeTold = false;
                     e._patternCD = 100;
                     e.attackCD = 30;
                     // 5-shot fan aimed at player with 0.5 rad spread
@@ -1100,6 +1113,7 @@ export class BeatEmUp {
                 // chairs in an arc every ~70 frames. Slower volley but
                 // each chair is a heavier projectile.
                 else if (e.isBoss && e.isMechaPhase2 && (e._patternCD = (e._patternCD || 0) - 1) <= 0) {
+                    e._chargeTold = false;
                     e._patternCD = 90;
                     e.attackCD = 24;
                     const speed = 1.8;

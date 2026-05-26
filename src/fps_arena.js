@@ -545,7 +545,7 @@ export class FpsArena {
                     consumed = true;
                     if (t.hp <= 0) {
                         t.alive = false;
-                        this.player.score += 1000;
+                        this._scoreKill(1000, tx + t.w / 2, ty);
                         audio.sfx('bossHit');
                         this._explosion(tx + t.w / 2, ty + t.h / 2, '#ff6020');
                     } else {
@@ -570,7 +570,7 @@ export class FpsArena {
                     consumed = true;
                     if (g.hp <= 0) {
                         g.alive = false;
-                        this.player.score += 750;
+                        this._scoreKill(750, gx + gw / 2, gy);
                         audio.sfx('enemyDie');
                         this._explosion(gx + gw / 2, gy + gh / 2, '#a8c060');
                     } else {
@@ -594,7 +594,7 @@ export class FpsArena {
                         consumed = true;
                         if (s.hp <= 0) {
                             s.alive = false;
-                            this.player.score += 1500;
+                            this._scoreKill(1500, sx, sy);
                             audio.sfx('bossHit');
                             this._explosion(sx + 5, sy + 5, '#a060ff');
                         } else {
@@ -666,6 +666,8 @@ export class FpsArena {
             if (p.iframes <= 0 &&
                 b.x >= p.x - hitW/2 && b.x <= p.x + p.w + hitW/2 &&
                 b.y >= p.y - hitH/2 && b.y <= p.y + p.h + hitH/2) {
+                // R465: bullet velocity angle for damage indicator
+                this._lastHitAngle = Math.atan2(b.vy || 0, b.vx || 0) + Math.PI;
                 this._damagePlayer(b.isChair ? 2 : 1);
                 this.enemyBullets.splice(i, 1);
             }
@@ -683,6 +685,8 @@ export class FpsArena {
         p.hp -= dmg;
         p.iframes = 60;
         audio.sfx('playerHit');
+        // R465: arm directional damage indicator
+        this._damageIndicatorT = 30;
         if (p.hp <= 0) this._onPlayerDeath();
         else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
     }
@@ -702,6 +706,30 @@ export class FpsArena {
             particles.spawn?.(p.x + p.w / 2, p.y + p.h / 2,
                 Math.cos(a) * 2.4, Math.sin(a) * 2.4, 24, '#ff5050', 2, 0.05);
         }
+    }
+
+    // R465: combo-aware score gain. Chained kills within 4s bump multiplier.
+    // Returns the effective gain (post-multiplier) for any callers that need it.
+    _scoreKill(base, x, y) {
+        const t = this.t || 0;
+        if (this._lastKillT == null || (t - this._lastKillT) > 240) {
+            this._comboCount = 1;
+        } else {
+            this._comboCount = (this._comboCount || 0) + 1;
+        }
+        this._lastKillT = t;
+        const mult = (this._comboCount >= 5) ? 4 :
+                     (this._comboCount >= 4) ? 3 :
+                     (this._comboCount >= 3) ? 2 : 1;
+        const gain = base * mult;
+        this.player.score += gain;
+        if (mult > 1 && x != null && y != null) {
+            particles.floatingText?.(x, y - 6, `COMBO ×${mult}!`,
+                mult >= 4 ? '#ff80ff' : mult >= 3 ? '#ff8050' : '#ffe070',
+                50, -0.6, 1);
+            audio.sfx?.('combo' + Math.min(4, mult - 1));
+        }
+        return gain;
     }
 
     // R262: respawn in-place when HP hits 0, only fall to gameOver after all
@@ -845,8 +873,14 @@ export class FpsArena {
         c.fireT++;
         // R308: phase-2 Mecha-Gates fires faster via fireCdMul shrinkage
         const firePeriod = CORE_FIRE_PERIOD * (c.fireCdMul || 1);
+        // R465: charge-tell — 20f windup before attack, red flash on boss
+        if (c.fireT >= firePeriod - 20 && c.fireT < firePeriod) {
+            if (c.fireT === firePeriod - 20) audio.sfx?.('bossChargeTell');
+            c.hitFlash = Math.max(c.hitFlash || 0, 1);   // red glow during charge
+        }
         if (c.fireT >= firePeriod) {
             c.fireT = 0;
+            c.hitFlash = 0;
             // R271: per-stage attack pattern. Default = 5-way spread fan
             // (Spindler's bio-core). Ballmer = chair-throw arcs.
             const style = this.data.coreAttackStyle || 'spread5';
@@ -1281,6 +1315,42 @@ export class FpsArena {
         if (hasShake) ctx.restore();
         // HUD
         this._drawHUD();
+        // R465: directional damage indicator
+        if (this._damageIndicatorT > 0) {
+            this._damageIndicatorT--;
+            const t = this._damageIndicatorT / 30;
+            const ang = this._lastHitAngle || 0;
+            const cx = GAME.W / 2, cy = GAME.H / 2;
+            const radius = Math.min(GAME.W, GAME.H) * 0.42;
+            const ax = cx + Math.cos(ang) * radius;
+            const ay = cy + Math.sin(ang) * radius;
+            ctx.save();
+            ctx.globalAlpha = t * 0.85;
+            const grad = ctx.createRadialGradient(ax, ay, 0, ax, ay, 50);
+            grad.addColorStop(0, '#ff3030');
+            grad.addColorStop(0.5, '#c01010');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(ax, ay, 50, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+        // R465: combo HUD — top-right
+        if (this._lastKillT != null) {
+            const since = this.t - this._lastKillT;
+            if (since < 240 && this._comboCount >= 2) {
+                const fade = 1 - (since / 240);
+                ctx.save();
+                ctx.globalAlpha = fade;
+                const txt = `×${this._comboCount}`;
+                const col = this._comboCount >= 5 ? '#ff80ff' :
+                            this._comboCount >= 4 ? '#ff8050' :
+                            this._comboCount >= 3 ? '#ffe070' : '#80ff80';
+                drawTextOutlined(ctx, txt, GAME.W - 6, 30, col, '#000000', 2, 'right');
+                ctx.restore();
+            }
+        }
         // Stage-clear overlay
         if (this.phase === 'clear') {
             const t = this.clearT || 0;

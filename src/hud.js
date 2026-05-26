@@ -2,7 +2,7 @@
 
 import { GAME, WEAPON } from './constants.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
-import { drawClippyFrame } from './sprites.js';
+import { drawClippyFrame, sprites } from './sprites.js';
 import { input } from './input.js';
 import { achievements } from './achievements.js';
 
@@ -430,6 +430,27 @@ export function drawHUD(ctx, state) {
     const sec = Math.floor((time / 60) % 60);
     const t = `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
     drawTextOutlined(ctx, t, GAME.W - 4, 18, '#7af0ff', '#001020', 1, 'right');
+
+    // R467: Doom-style face portrait — only shown during DANGER (HP ≤ 2) or
+    // RAGE. Avoids cluttering the platformer HUD during normal play but
+    // gives a strong visual beat when things get dire. Uses the Doom face
+    // sprites generated in R435.
+    let faceKey = null;
+    if ((player.rageFrames || 0) > 0) faceKey = 'doom_face_rage';
+    else if (player.hp <= 1) faceKey = 'doom_face_hurt3';
+    else if (player.hp <= 2) faceKey = 'doom_face_hurt2';
+    if (faceKey) {
+        const faceImg = sprites.images?.get(faceKey);
+        if (faceImg?.complete && faceImg.naturalWidth > 0) {
+            const fx = GAME.W - 28 - 4, fy = 24;
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            // Damage shake when iframes high
+            const shake = (player.iFrames > 60) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+            ctx.drawImage(faceImg, fx + shake, fy + shake, 24, 24);
+            ctx.restore();
+        }
+    }
 
     // Controller icon (small) when gamepad connected
     if (input.gamepadIndex != null) {
