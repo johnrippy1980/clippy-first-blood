@@ -2083,7 +2083,20 @@ export const STAGE_LOADERS = [
     () => makeBeatEmUpMechaGates(),          // R335: stage 22 MECHA-GATES — beat-em-up final (was FPS)
     () => makeDoomPipelineBlock11(),         // R423c: stage 23 PIPELINE: BLOCK 11 — Doom-style sewer crawl between stages 4 and 5
     () => makeBossRushMode(),                // R426: stage 24 BOSS RUSH MODE — relocated from old slot 16; launched only from title-screen MAIN_MENU
+    () => makeTurretStage(),                 // R523: stage 25 HOLD THE LINE — mounted-turret CRT monster waves
 ];
+
+// R523: turret-arena stage data. Returns turretMode:true so _startStage
+// routes to TurretArena instead of the platformer pipeline.
+function makeTurretStage() {
+    return {
+        turretMode: true,
+        theme: THEME.SERVERROOM,
+        music: 'arenaBoss',
+        // No bgKey — engine draws a procedural warehouse interior.
+        // (When a painted bg lands later, set bgKey: 'bg_turret_arena')
+    };
+}
 
 // R261: FPS-arena stage data. NOT a regular level — returns fpsMode flag so
 // _startStage routes to the FpsArena scene instead of the platformer pipeline.

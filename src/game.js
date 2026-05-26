@@ -11,6 +11,7 @@ import { BossLair, BOSS_LAIRS } from './boss_lair.js';
 import { FpsArena } from './fps_arena.js';
 import { BeatEmUp } from './beatem_up.js';
 import { DoomEngine } from './doom_engine.js';
+import { TurretArena } from './turret_arena.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies.js';
 import { PickupManager } from './pickups.js';
@@ -49,6 +50,7 @@ const SCENE = {
     FPS_PLAY: 'fpsPlay',
     BEAT_PLAY: 'beatPlay',   // R306: beat-em-up street brawler scene
     DOOM_PLAY: 'doomPlay',   // R423: free-roam first-person raycaster scene
+    TURRET_PLAY: 'turretPlay', // R523: third-person mounted turret stage
 };
 
 // MM:SS format for frame-based timers. Used by mode-best-time displays.
@@ -372,6 +374,10 @@ export class Game {
                 if (input.isPressed('pause')) { this._enterPauseFrom(SCENE.DOOM_PLAY); break; }
                 if (this._doomEngine) this._doomEngine.update();
                 break;
+            case SCENE.TURRET_PLAY:
+                if (input.isPressed('pause')) { this._enterPauseFrom(SCENE.TURRET_PLAY); break; }
+                if (this._turretArena) this._turretArena.update();
+                break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
@@ -477,6 +483,7 @@ export class Game {
             case SCENE.FPS_PLAY:     if (this._fpsArena) this._fpsArena.draw(); break;
             case SCENE.BEAT_PLAY:    if (this._beatEmUp) this._beatEmUp.draw(); break;
             case SCENE.DOOM_PLAY:    if (this._doomEngine) this._doomEngine.draw(); break;
+            case SCENE.TURRET_PLAY:  if (this._turretArena) this._turretArena.draw(); break;
             case SCENE.PAUSE: {
                 // R351: pause overlay must paint over whichever play scene we
                 // came from (platformer / FPS / beat-em-up). Falls back to
@@ -485,6 +492,7 @@ export class Game {
                 if (from === SCENE.FPS_PLAY && this._fpsArena) this._fpsArena.draw();
                 else if (from === SCENE.BEAT_PLAY && this._beatEmUp) this._beatEmUp.draw();
                 else if (from === SCENE.DOOM_PLAY && this._doomEngine) this._doomEngine.draw();
+                else if (from === SCENE.TURRET_PLAY && this._turretArena) this._turretArena.draw();
                 else this._drawPlay();
                 this._drawPauseOverlay();
                 break;
@@ -1132,6 +1140,11 @@ export class Game {
             if (this._doomMode) {
                 this._doomPendingPlay = false;
                 this._fadeTo(SCENE.DOOM_PLAY);
+                return;
+            }
+            if (this._turretMode) {
+                this._turretPendingPlay = false;
+                this._fadeTo(SCENE.TURRET_PLAY);
                 return;
             }
             // R209 — Milos #2: gate PLAY behind READY card unless the
@@ -3549,6 +3562,9 @@ export class Game {
         if (gameCleared || konami) ids.push(16);   // FLOOR 11 (Doom)
         if (gameCleared || konami) ids.push(18);   // REALITY DISTORTION (Jobs)
         if (konami) ids.push(19);
+        // R523: HOLD THE LINE turret stage — post-game tile alongside
+        // FLOOR 11 + RDF, available after the campaign clear or via konami.
+        if (gameCleared || konami) ids.push(25);
         // R306: Mecha-Gates 3-stage super-secret arc — konami-only.
         // 20 = beat-em-up approach, 21 = FPS corridor, 22 = FPS arena.
         if (konami) {
@@ -4222,15 +4238,33 @@ export class Game {
             this._fadeTo(SCENE.STAGE_INTRO);
             return;
         }
+        // R523: mounted-turret arena stage. Third-person over-the-shoulder
+        // wave defense vs CRT-monster monsters. Same dispatch pattern.
+        if (data.turretMode) {
+            this._fpsArena = null;  this._fpsMode = false;
+            this._beatEmUp = null;  this._beatMode = false;
+            this._doomEngine = null; this._doomMode = false;
+            this._turretArena = new TurretArena(data, this.ctx, this);
+            this._turretMode = true;
+            this._turretPendingPlay = true;
+            this.parallax.setTheme(data.theme);
+            audio.playTrack(data.music || 'arenaBoss');
+            this.storyTimer = 0;
+            this._fadeTo(SCENE.STAGE_INTRO);
+            return;
+        }
         this._fpsPendingPlay = false;
         this._beatPendingPlay = false;
         this._doomPendingPlay = false;
+        this._turretPendingPlay = false;
         this._fpsMode = false;
         this._beatMode = false;
         this._doomMode = false;
+        this._turretMode = false;
         this._fpsArena = null;
         this._beatEmUp = null;
         this._doomEngine = null;
+        this._turretArena = null;
         // R468: defensive — if a prior Doom stage left the pointer locked,
         // release it before entering a platformer stage so mouse-aim works.
         if (typeof document !== 'undefined' && document.pointerLockElement) {
