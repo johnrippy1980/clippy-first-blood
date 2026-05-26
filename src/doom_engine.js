@@ -656,6 +656,11 @@ export class DoomEngine {
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
+            // R533: defensive guard. _damagePlayer can trigger _onPlayerDeath
+            // which sets `this.bullets.length = 0`, leaving stale indices in
+            // this loop with `b === undefined`. Skip the dead slot instead
+            // of crashing the game loop on Floor 11's lethal final hit.
+            if (!b) continue;
             b.x += b.vx;
             b.y += b.vy;
             b.life--;
