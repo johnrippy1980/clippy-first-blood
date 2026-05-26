@@ -1586,8 +1586,36 @@ export class FpsArena {
             // width from source aspect, fall back to t.w if no sprite.
             const aspect = img ? (img.naturalWidth / img.naturalHeight) : (t.w / t.h);
             const tw = th * aspect;
+            // R520: pre-fire glow + recoil bob for stationary turrets.
+            // Frames-to-fire counts down from TURRET_FIRE_PERIOD. In the
+            // last 15 frames a red charge-glow pulses below the turret;
+            // immediately AFTER firing (first 4 frames after fireT wraps),
+            // a small recoil bob sells the discharge.
+            const framesToFire = TURRET_FIRE_PERIOD - t.fireT;
+            const charging = framesToFire > 0 && framesToFire <= 15;
+            const recoiling = t.fireT >= 0 && t.fireT < 4;
+            const recoilY = recoiling ? (4 - t.fireT) * 1.5 : 0;
             const tx = depthX(t.originX, t.t) - tw / 2;
-            const ty = depthY(t.t) - th;
+            const ty = depthY(t.t) - th + recoilY;
+            // Charge glow underneath
+            if (charging) {
+                const cT = (15 - framesToFire) / 15;
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.4 + cT * 0.4;
+                const cR = 6 + cT * 8;
+                const cx = depthX(t.originX, t.t);
+                const cy = depthY(t.t) - 4;
+                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cR);
+                grad.addColorStop(0, '#ffe070');
+                grad.addColorStop(0.5, '#ff4040');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, cR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
             if (img) {
                 ctx.imageSmoothingEnabled = false;
                 ctx.drawImage(img, 0, 0, img.width, img.height,
