@@ -138,6 +138,8 @@ export class TurretArena {
         this.voltron = null;
         this.bossProjectiles = [];       // {x, y, vx, vy, kind, rot, rotSpeed, life}
         this.bossBark = null;            // {text, age, maxAge}
+        // R528: floating damage numbers — {x, y, vy, age, maxAge, value, color}
+        this.damageNumbers = [];
 
         this.waveIdx = 0;
         this.waveSpawned = 0;
@@ -168,6 +170,7 @@ export class TurretArena {
             this._tickExplosions();
             this._tickCasings();
             this._tickSmoke();
+            this._tickDamageNumbers();
             this._checkWaveClear();
         } else if (this.phase === 'clear') {
             this.clearT++;
@@ -340,6 +343,14 @@ export class TurretArena {
                         x: b.x, y: b.y, t: m.t, age: 0, maxAge: 8,
                         color: '#a0d0ff', small: true,
                     });
+                    // R528: damage number floats up from impact
+                    this.damageNumbers.push({
+                        x: b.x, y: b.y,
+                        vy: -0.8,
+                        age: 0, maxAge: 30,
+                        value: '1',
+                        color: '#ffe070',
+                    });
                     if (m.hp <= 0) this._killMonster(m);
                     else audio.sfx?.('hit');
                     break;
@@ -366,26 +377,17 @@ export class TurretArena {
                         x: b.x, y: b.y, age: 0, maxAge: 10,
                         color: '#a0d0ff', small: true,
                     });
+                    // R528: damage number — bigger pop for boss hits
+                    this.damageNumbers.push({
+                        x: b.x, y: b.y,
+                        vy: -1.0,
+                        age: 0, maxAge: 36,
+                        value: '1',
+                        color: v.phase === 2 ? '#ff8060' : '#ffe070',
+                        big: true,
+                    });
                     if (v.hp <= 0) {
-                        v.face = FACE_DEAD;
-                        v.faceLockT = 300;
-                        this.player.kills++;
-                        this.player.score += 5000;
-                        this.screenShake = Math.max(this.screenShake, 12);
-                        // Big death explosion sequence
-                        for (let s = 0; s < 8; s++) {
-                            this.explosions.push({
-                                x: v.x + (Math.random() - 0.5) * vw,
-                                y: vy + Math.random() * vh,
-                                age: -s * 4,    // staggered
-                                maxAge: 30,
-                                color: s & 1 ? '#ffe070' : '#ff5040',
-                            });
-                        }
-                        audio.sfx?.('bossDie');
-                        this.bossBark = { text: 'CRITICAL ERROR', age: 0, maxAge: 180 };
-                        // Schedule clear after death anim
-                        this._voltronDeathT = 120;
+                        this._triggerVoltronDeath();
                     } else {
                         audio.sfx?.('bossHit');
                     }
@@ -476,6 +478,43 @@ export class TurretArena {
             s.r += 0.08;
             if (s.age >= s.maxAge) this.smokePuffs.splice(i, 1);
         }
+    }
+
+    _tickDamageNumbers() {
+        for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
+            const d = this.damageNumbers[i];
+            d.y += d.vy;
+            d.vy *= 0.94;     // gentle ease-out
+            d.age++;
+            if (d.age >= d.maxAge) this.damageNumbers.splice(i, 1);
+        }
+    }
+
+    _triggerVoltronDeath() {
+        const v = this.voltron;
+        if (!v || v._deathTriggered) return;
+        v._deathTriggered = true;
+        v.face = FACE_DEAD;
+        v.faceLockT = 300;
+        this.player.kills++;
+        this.player.score += 5000;
+        this.screenShake = Math.max(this.screenShake, 12);
+        const vw = VOLTRON_W * v.scale;
+        const vh = VOLTRON_H * v.scale;
+        const vy = v.y - vh;
+        // Stage 1: chained body explosions
+        for (let s = 0; s < 14; s++) {
+            this.explosions.push({
+                x: v.x + (Math.random() - 0.5) * vw,
+                y: vy + Math.random() * vh,
+                age: -s * 4,
+                maxAge: 30,
+                color: s & 1 ? '#ffe070' : '#ff5040',
+            });
+        }
+        audio.sfx?.('bossDie');
+        this.bossBark = { text: 'CRITICAL ERROR', age: 0, maxAge: 180 };
+        this._voltronDeathT = 180;
     }
 
     _tickVoltron() {
@@ -811,6 +850,18 @@ export class TurretArena {
             if (this.voltron && this.voltron.hp <= 0) {
                 if (this._voltronDeathT > 0) {
                     this._voltronDeathT--;
+                    // R528: countdown death flash + stamp timers
+                    if (this._voltronDeathFlash > 0) this._voltronDeathFlash--;
+                    if (this._voltronDeathT === 105) {
+                        // Fire the white flash
+                        this._voltronDeathFlash = 18;
+                        this.screenShake = Math.max(this.screenShake, 16);
+                        audio.sfx?.('explosion');
+                    }
+                    if (this._voltronDeathT === 90) {
+                        this._voltronStampT = 120;
+                    }
+                    if (this._voltronStampT > 0) this._voltronStampT--;
                 } else {
                     this.voltron = null;
                     this.waveIdx++;
@@ -877,6 +928,7 @@ export class TurretArena {
         this._drawSmoke();
         this._drawTurret();
         this._drawCasings();
+        this._drawDamageNumbers();
         this._drawCrosshair();
         this._drawHud();
         ctx.restore();
@@ -1633,6 +1685,36 @@ export class TurretArena {
             drawText(ctx, txt, bx, by, '#1a0a14', 1, 'center');
             ctx.restore();
         }
+        // R528: dramatic boss-death overlays
+        if (this._voltronDeathFlash > 0) {
+            const fT = this._voltronDeathFlash / 18;
+            ctx.save();
+            ctx.globalAlpha = fT;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            ctx.restore();
+        }
+        if (this._voltronStampT > 0) {
+            const total = 120;
+            const t = total - this._voltronStampT;
+            const scale = t < 12 ? 1.6 - (t / 12) * 0.6 : 1.0;
+            const rot = t < 8 ? (8 - t) * 0.05 : 0.04 + Math.sin(t * 0.03) * 0.005;
+            const alpha = this._voltronStampT < 30 ? this._voltronStampT / 30 : 1;
+            ctx.save();
+            const cx = GAME.W / 2;
+            const cy = GAME.H / 2 - 8;
+            ctx.globalAlpha = alpha;
+            ctx.translate(cx, cy);
+            ctx.rotate(rot - 0.08);
+            ctx.scale(scale, scale);
+            const w = 120, h = 24;
+            ctx.strokeStyle = '#ff1a1a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-w / 2, -h / 2, w, h);
+            ctx.strokeRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6);
+            drawTextOutlined(ctx, 'SYSTEM HALTED', 0, -4, '#ff3030', '#3a0a0a', 1, 'center');
+            ctx.restore();
+        }
         // BSOD wave flash
         if (this._bsodWaveT > 0) {
             const t = this._bsodWaveT;
@@ -1885,6 +1967,18 @@ export class TurretArena {
         }
     }
 
+    _drawDamageNumbers() {
+        const ctx = this.ctx;
+        for (const d of this.damageNumbers) {
+            const fade = 1 - (d.age / d.maxAge);
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, fade);
+            const scale = d.big ? 2 : 1;
+            drawTextOutlined(ctx, d.value, d.x, d.y, d.color, '#1a0a14', scale, 'center');
+            ctx.restore();
+        }
+    }
+
     _drawCasings() {
         const ctx = this.ctx;
         for (const c of this.casings) {
@@ -1919,12 +2013,16 @@ export class TurretArena {
 
     _drawExplosion(e) {
         const ctx = this.ctx;
+        // R528: explosions can have negative age (staggered spawn for death
+        // sequence). Skip render until age catches up so we don't push a
+        // negative radius into createRadialGradient.
+        if (e.age < 0) return;
         const tAge = e.age / e.maxAge;
         const depthMul = depthScale(e.t ?? 1);
-        const r = (e.small ? (2 + tAge * 3) : (4 + tAge * 16)) * depthMul;
+        const r = Math.max(1, (e.small ? (2 + tAge * 3) : (4 + tAge * 16)) * depthMul);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = (1 - tAge) * 0.9;
+        ctx.globalAlpha = Math.max(0, (1 - tAge) * 0.9);
         const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, r);
         grad.addColorStop(0, '#ffffff');
         grad.addColorStop(0.4, e.color || '#ffa030');
