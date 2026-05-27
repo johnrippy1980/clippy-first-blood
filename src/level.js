@@ -2379,7 +2379,10 @@ function makeBeatEmUpMechaApproach() {
     return {
         beatMode: true,
         theme: THEME.KEYNOTE,
-        music: 'apocalypse',
+        // R548: dedicated stage 20 opener track DIRECT. Splits from
+        // shared apocalypse.mp3 (still used for stages 16 + 22) so the
+        // mecha trilogy has musical progression: DIRECT → CONDUIT → ?
+        music: 'direct',
         bgKey: 'bg_apocalypse_street',
         bossKind: 'MECHA_GATES',
         spriteKeys: {

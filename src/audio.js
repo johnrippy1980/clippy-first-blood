@@ -82,6 +82,9 @@ const FILE_TRACKS = {
     // reusing recycleBin which felt mismatched — chopper pursuit
     // deserves its own track.
     conduit:      'assets/audio/conduit.mp3',                  // stage 21 MECHA CORRIDOR
+    // R548: dedicated stage 20 MECHA APPROACH opener. Was sharing
+    // apocalypse with stage 22. Splits the mecha trilogy musically.
+    direct:       'assets/audio/direct.mp3',                   // stage 20 MECHA APPROACH
 };
 
 class Audio {

@@ -69,6 +69,10 @@ export const TRACK_MANIFEST = [
     // 1.26x.mp3 (the Recycle Bin secret theme) which felt mismatched —
     // 'Conduit' fits the chopper-pursuit-through-corridor beat.
     { track: 'conduit',      title: 'CONDUIT',                mood: 'STAGE 21 (P6)', author: 'R_I_P' },
+    // R548: stage 20 MECHA APPROACH (beat-em-up opener of the mecha
+    // trilogy). Was reusing apocalypse with stage 22. 'Direct' fits the
+    // marching frontal-assault beat on the crashed mech site.
+    { track: 'direct',       title: 'DIRECT',                 mood: 'STAGE 20 (P5)', author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
@@ -187,7 +191,7 @@ export const STAGES = [
     { id: 19, name: 'CORE BREACH',              category: 'postgame', displayId: 'P4', theme: THEME.SEWER,      boss: 'SPINDLER',      music: 'dreamsFade', tagline: 'POST-GAME — THE DEEPER LAB.' },
     // R306: 3-stage Mecha-Gates arc — konami-only super-final arc.
     // Stage 20 = beat-em-up street approach; 21 = FPS corridor; 22 = arena.
-    { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
+    { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'direct', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
     { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'HELICOPTER',    music: 'conduit', tagline: 'SUPER SECRET — CHOPPER CHASE',   introBgKey: 'bg_apocalypse' },
     { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
     // R423c: stage 23 — Doom-style sewer crawl between stages 4 and 5.

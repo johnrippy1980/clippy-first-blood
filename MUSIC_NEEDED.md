@@ -1,6 +1,6 @@
 # MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-## R545 + R546 + R547 UPDATE — FOUR NEW TRACKS LANDED
+## R545 → R548 UPDATE — FIVE NEW TRACKS LANDED
 
 - **STEEL TONGUES** → stage 25 HOLD THE LINE (Tier-1 #1 closed).
   Industrial siege metal for the turret-defense wave phase.
@@ -14,11 +14,15 @@
   #5 closed). Splits the chopper pursuit off from the shared
   `recycleBin.mp3` (which was the S1 secret theme — felt
   mismatched against the chase beat).
+- **DIRECT** → stage 20 MECHA APPROACH opener (Tier-2 #3 partial).
+  Splits the mecha-trilogy opener off from the shared
+  `apocalypse.mp3`. Mecha trilogy now has DIRECT → CONDUIT → ?
+  (stage 22 still shares apocalypse with stage 16).
 
-Both Tier-1 critical items + 2 Tier-2 items now closed. 25 shipped
+Both Tier-1 critical items + 3 Tier-2 items now closed. 26 shipped
 tracks total. Outstanding wishlist items below.
 
-All 25 currently-shipped tracks are wired and present on disk. The
+All 26 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -90,20 +94,16 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R547)
+## SUMMARY (POST-R548)
 
-- **0 tracks broken or missing** (all 25 declared files exist)
+- **0 tracks broken or missing** (all 26 declared files exist)
 - **0 Tier-1 critical gaps** closed
-- **3 desirable additions** still outstanding (was 4; CONDUIT
-  closed the chopper-chase mismatch)
-- Best remaining ROI: stages 20 + 22 each deserve a unique track
-  to split the MECHA TRILOGY arc (currently both still share
-  `the-light-bleeds-through.mp3`; stage 21 now has its own
-  CONDUIT). A pair `mecha-approach.mp3` + `mecha-gates-final.mp3`
-  would complete the trilogy musically.
+- **2 desirable additions** still outstanding
+- Best remaining ROI: stage 22 MECHA-GATES finale — currently still
+  shares apocalypse.mp3 with stage 16. Splitting it off would
+  complete the mecha trilogy musical arc DIRECT → CONDUIT → ?
 
-REMAINING WISHLIST: 3 tracks
-- Stage 20 MECHA APPROACH (currently shares apocalypse with 22)
-- Stage 22 MECHA-GATES (currently shares apocalypse with 20)
+REMAINING WISHLIST: 2 tracks
+- Stage 22 MECHA-GATES finale (currently shares apocalypse with 16)
 - Stage 7 BALLMER ARENA dedicated brawl theme (currently shares
-  arena.mp3)
+  arena.mp3 with stage 10)
