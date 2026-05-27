@@ -3041,9 +3041,11 @@ export class Game {
             // visible gap. Pixel-font is wider than character count
             // suggests so we under-count conservatively.
             // R554: 13-char title 'STEEL TONGUES' still touched 'STAGE 25'
-            // because the visual width per char varies. Clamp to 11 so
-            // even the widest letters keep a visible gap.
-            const titleMax = 11;
+            // because the visual width per char varies.
+            // R559: 11 was still too long for wide-letter titles like
+            // 'NIGHT DRIVE' (N + M are wide). Drop to 10 to guarantee
+            // visible gap.
+            const titleMax = 10;
             const titleClip = t.title.length > titleMax
                 ? t.title.slice(0, titleMax - 1) + '.'
                 : t.title;
