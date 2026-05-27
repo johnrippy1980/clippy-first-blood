@@ -5565,6 +5565,15 @@ export class Game {
         // quit-from-pause skips that path. Drop it here so the queue can't
         // bleed into a future BOSS RUSH session.
         this._gauntletQueue = null;
+        // R565: also null non-platformer engines. Quitting from a Doom/FPS/
+        // beat/turret stage and starting a new run could leave the stale
+        // engine instance reachable via *.data fallback chains, polluting
+        // achievement updates, next-stage routing, etc. Pair with the
+        // R564c _startStage-side cleanup so both entry paths are safe.
+        this._fpsArena = null;     this._fpsMode = false;     this._fpsPendingPlay = false;
+        this._beatEmUp = null;     this._beatMode = false;    this._beatPendingPlay = false;
+        this._doomEngine = null;   this._doomMode = false;    this._doomPendingPlay = false;
+        this._turretArena = null;  this._turretMode = false;  this._turretPendingPlay = false;
     }
 
     _fadeTo(scene) {
