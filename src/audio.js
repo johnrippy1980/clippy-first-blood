@@ -85,6 +85,9 @@ const FILE_TRACKS = {
     // R548: dedicated stage 20 MECHA APPROACH opener. Was sharing
     // apocalypse with stage 22. Splits the mecha trilogy musically.
     direct:       'assets/audio/direct.mp3',                   // stage 20 MECHA APPROACH
+    // R550: stage 22 MECHA-GATES true-final beat-em-up climax. 169s of
+    // payback vengeance theme — fits the super-secret arc's climax.
+    payback:      'assets/audio/payback.mp3',                  // stage 22 MECHA-GATES
 };
 
 class Audio {

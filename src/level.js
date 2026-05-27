@@ -2626,7 +2626,10 @@ function makeBeatEmUpMechaGates() {
         // street-fighter beat: Clippy with empty hands vs MECHA-GATES.
         meleeMode: true,
         theme: THEME.KEYNOTE,
-        music: 'apocalypse',
+        // R550: dedicated finale track PAYBACK. Was sharing apocalypse.mp3
+        // with stage 16. Mecha trilogy musical arc now complete:
+        // DIRECT (20) → CONDUIT (21) → PAYBACK (22).
+        music: 'payback',
         bgKey: 'bg_apocalypse_crater',
         bossKind: 'MECHA_GATES',
         spriteKeys: {

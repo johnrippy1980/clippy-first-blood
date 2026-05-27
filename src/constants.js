@@ -73,6 +73,11 @@ export const TRACK_MANIFEST = [
     // trilogy). Was reusing apocalypse with stage 22. 'Direct' fits the
     // marching frontal-assault beat on the crashed mech site.
     { track: 'direct',       title: 'DIRECT',                 mood: 'STAGE 20 (P5)', author: 'R_I_P' },
+    // R550: stage 22 MECHA-GATES finale (true-final beat-em-up climax).
+    // Splits apocalypse.mp3 off stage 22 — now apocalypse plays only on
+    // stage 16 FLOOR 11. Mecha trilogy musical arc complete:
+    // DIRECT → CONDUIT → PAYBACK.
+    { track: 'payback',      title: 'PAYBACK',                mood: 'STAGE 22 (P7)', author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
@@ -193,7 +198,7 @@ export const STAGES = [
     // Stage 20 = beat-em-up street approach; 21 = FPS corridor; 22 = arena.
     { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'direct', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
     { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'HELICOPTER',    music: 'conduit', tagline: 'SUPER SECRET — CHOPPER CHASE',   introBgKey: 'bg_apocalypse' },
-    { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
+    { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'payback', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
     // R423c: stage 23 — Doom-style sewer crawl between stages 4 and 5.
     // Stage 4 chains here via nextStage: 23; stage 23 chains to 5 BOARDROOM.
     { id: 23, name: 'BLOCK 11',                 category: 'campaign', displayId: '4B', theme: THEME.SEWER,      boss: 'SPINDLER_UZIS', music: 'bossRushMode',  tagline: 'WHATEVER HE\'S BUILDING DOWN HERE — KILL IT' },
