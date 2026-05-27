@@ -74,6 +74,10 @@ const FILE_TRACKS = {
     // backstage.mp3 previously used for both stage 6 + 9.
     steelTongues: 'assets/audio/steel-tongues.mp3',            // stage 25 HOLD THE LINE
     metro:        'assets/audio/metro.mp3',                    // stage 9 KEYNOTE CORRIDOR
+    // R546: CRTRON boss-phase music. Swaps in when the Voltron-CRT boss
+    // spawns; playTrack handles the 350ms crossfade so the steelTongues
+    // wave music ramps out as gears ramps in.
+    gears:        'assets/audio/gears.mp3',                    // CRTRON boss spawn
 };
 
 class Audio {

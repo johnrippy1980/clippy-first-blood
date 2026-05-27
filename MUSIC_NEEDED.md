@@ -1,17 +1,20 @@
 # MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-## R545 UPDATE — TWO NEW TRACKS LANDED
+## R545 + R546 UPDATE — THREE NEW TRACKS LANDED
 
-- **STEEL TONGUES** → assigned to stage 25 HOLD THE LINE (was the
-  Tier-1 critical gap). Industrial siege metal pairing perfectly
-  with the turret-defense vs CRTRON beat.
-- **METRO** → assigned to stage 9 KEYNOTE CORRIDOR, splitting it
-  off from the shared `backstage.mp3` (Tier-2 desirable variety).
+- **STEEL TONGUES** → stage 25 HOLD THE LINE (Tier-1 #1 closed).
+  Industrial siege metal for the turret-defense wave phase.
+- **METRO** → stage 9 KEYNOTE CORRIDOR (Tier-2 #4 closed).
+  Splits stage 9 off from the shared `backstage.mp3`.
+- **GEARS** → CRTRON boss-phase (Tier-1 #2 closed). Auto-swaps in
+  via `audio.playTrack('gears')` inside `_spawnVoltron()` — the
+  existing 350ms playTrack crossfade ramps STEEL TONGUES out as
+  GEARS ramps in the moment the boss spawns.
 
-Stage 25 (Tier 1) and stage 9 (Tier 2 item 2) are now both crossed
-off. 23 shipped tracks total. Outstanding wishlist items below.
+Both Tier-1 critical items + 1 Tier-2 item now closed. 24 shipped
+tracks total. Outstanding wishlist items below.
 
-All 23 currently-shipped tracks are wired and present on disk. The
+All 24 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -56,12 +59,7 @@ want to compose more.
 
 1. ~~**HOLD THE LINE** (stage 25)~~ — **LANDED R545 (steel-tongues.mp3)**
 
-2. **CRTRON BOSS** (CRTRON-specific layer or whole new track)
-   - Could be a layered stem that overlays STEEL TONGUES during the
-     boss fight, intensifying at phase 2
-   - Mood: glitchy synthwave + dial-up modem + 90s computing
-     bootscreen sample
-   - Filename: `crtron-boss.mp3`
+2. ~~**CRTRON BOSS**~~ — **LANDED R546 (gears.mp3)**
 
 ### TIER 2 — desirable variety
 
@@ -91,11 +89,13 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R545)
+## SUMMARY (POST-R546)
 
-- **0 tracks broken or missing** (all 23 declared files exist)
-- **0 critical gaps** (R545 landed STEEL TONGUES for stage 25)
-- **5 desirable additions** still outstanding (was 6 — METRO took
-  the KEYNOTE CORRIDOR slot)
-- Best remaining ROI: CRTRON BOSS layer (Tier 1 item 2) to overlay
-  on STEEL TONGUES during the boss phase
+- **0 tracks broken or missing** (all 24 declared files exist)
+- **0 Tier-1 critical gaps** (R545 + R546 closed both)
+- **4 desirable additions** still outstanding (was 5; GEARS closed
+  CRTRON BOSS)
+- Best remaining ROI: MECHA TRILOGY 3-part split — stages 20/21/22
+  currently all share `the-light-bleeds-through.mp3`. Splitting
+  into intro/chase/final variants would give the super-secret arc
+  the same musical arc as its narrative arc.

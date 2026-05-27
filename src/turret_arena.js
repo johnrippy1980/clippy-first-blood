@@ -835,6 +835,9 @@ export class TurretArena {
         };
         this.bossBark = { text: VOLTRON_BARKS[0], age: 0, maxAge: 120 };
         audio.sfx?.('bossEntrance');
+        // R546: swap to dedicated CRTRON boss track. playTrack handles a
+        // 350ms crossfade so steelTongues ramps out as gears ramps in.
+        audio.playTrack?.('gears');
     }
 
     _spawnMonster(wave) {

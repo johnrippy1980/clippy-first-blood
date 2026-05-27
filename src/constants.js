@@ -60,6 +60,11 @@ export const TRACK_MANIFEST = [
     // the shared 'backstage' track previously used for both 6 + 9.
     { track: 'steelTongues', title: 'STEEL TONGUES',          mood: 'STAGE 25 (3B)', author: 'R_I_P' },
     { track: 'metro',        title: 'METRO',                  mood: 'STAGE 9',       author: 'R_I_P' },
+    // R546: CRTRON boss-phase track. Swaps in when the Voltron-CRT boss
+    // spawns in stage 25; the wave music (steelTongues) ramps out as
+    // GEARS ramps in. Mechanical-horror grind matches the giant bipedal
+    // CRT-monitor monstrosity stomping forward.
+    { track: 'gears',        title: 'GEARS',                  mood: 'CRTRON BOSS',   author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
