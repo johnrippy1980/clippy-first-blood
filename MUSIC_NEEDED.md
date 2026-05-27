@@ -1,6 +1,6 @@
 # MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-## R545 → R551 UPDATE — SEVEN NEW TRACKS LANDED (zero shares remain)
+## R545 → R552 UPDATE — EIGHT NEW TRACKS LANDED
 
 - **STEEL TONGUES** → stage 25 HOLD THE LINE (Tier-1 #1 closed).
   Industrial siege metal for the turret-defense wave phase.
@@ -22,11 +22,16 @@
 - **INDIRECT** → stage 24 BOSS RUSH MODE (R551). Eliminates the
   final track-share (evolution was on 23+24). Now evolution
   exclusive to stage 23. Pairs conceptually with DIRECT.
+- **NO** → pure soundtrack-gallery bonus slot (R552). No stage
+  routing — discoverable only via the soundtrack screen. Restores
+  the gallery-only slot vacated when bonus2 was promoted to
+  stage 7 in R549.
 
-All wishlist items + ALL track shares now closed. 28 shipped
-tracks total. **Every stage has its own unique track.**
+All wishlist items + ALL track shares now closed. 29 shipped
+tracks total. **Every stage has its own unique track + a true
+bonus-gallery slot.**
 
-All 28 currently-shipped tracks are wired and present on disk. The
+All 29 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -98,15 +103,15 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R551 — FULLY UNIQUE ARRANGEMENT)
+## SUMMARY (POST-R552)
 
-- **28 tracks total, all wired** across 25 stages + title + credits
-  + CRTRON boss auto-swap
+- **29 tracks total, all wired** across 25 stages + title + credits
+  + CRTRON boss auto-swap + 1 pure gallery bonus
 - **0 broken or missing**
 - **0 critical gaps**
 - **0 desirable gaps**
 - **0 track shares** — every stage has its own unique track
+- **1 pure soundtrack-gallery bonus** (NO)
 
-This is the cleanest possible arrangement. Any future composition
-becomes either a true bonus-gallery slot or a replacement for an
-existing track the composer wants to swap out.
+Any future composition becomes a second gallery bonus, or a swap
+replacement for an existing track.

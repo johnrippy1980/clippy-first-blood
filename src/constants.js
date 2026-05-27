@@ -83,6 +83,11 @@ export const TRACK_MANIFEST = [
     // is the natural pair to DIRECT (R548) — completes the conceptual
     // counterpoint set.
     { track: 'indirect',     title: 'INDIRECT',               mood: 'STAGE 24 BOSS RUSH MODE', author: 'R_I_P' },
+    // R552: pure soundtrack-gallery bonus track. No stage routing —
+    // appears only in the gallery for the player to discover. Restores
+    // the gallery-only slot that R549 vacated when bonus2 was promoted
+    // to stage 7.
+    { track: 'no',           title: 'NO',                     mood: 'BONUS TRACK',   author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.

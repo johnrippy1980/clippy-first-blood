@@ -91,6 +91,9 @@ const FILE_TRACKS = {
     // R551: stage 24 BOSS RUSH MODE post-game gauntlet. Splits evolution
     // off stage 24 — now exclusive to stage 23 BLOCK 11.
     indirect:     'assets/audio/indirect.mp3',                 // stage 24 BOSS RUSH MODE
+    // R552: pure soundtrack-gallery bonus. No stage routing — discoverable
+    // only via the soundtrack screen.
+    no:           'assets/audio/no.mp3',                       // bonus-gallery only
 };
 
 class Audio {
