@@ -3150,6 +3150,8 @@ export class Game {
             { key: 'boss_intro_COPIER_3000',  label: 'COPIER 3000',  unlock: stageDone(1) },
             { key: 'boss_intro_SHREDDER',     label: 'SHREDDER',     unlock: stageDone(2) },
             { key: 'boss_intro_CTRL_ALT_DEL', label: 'CTRL-ALT-DEL', unlock: stageDone(3) },
+            // R554: SPINDLER (stage 4 pipeline) was missing from the gallery
+            { key: 'boss_intro_SPINDLER',     label: 'DR. SPINDLER', unlock: stageDone(4) },
             { key: 'boss_intro_BALLMER',      label: 'BALLMER',      unlock: stageDone(4) },
             // R281: Ballmer mini-arc cinematics — 5 (escape), 6 (office), 7 (arena).
             { key: 'card_ballmer_escapes',    label: 'B. ESCAPE',    unlock: stageDone(5) },
@@ -3163,6 +3165,8 @@ export class Game {
             { key: 'boss_intro_GAUNTLET',     label: 'BOSS RUSH',    unlock: stageDone(11) },
             { key: 'boss_intro_ALGORITHM',    label: 'ALGORITHM',    unlock: stageDone(12) },
             { key: 'boss_intro_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
+            // R554: helicopter (stage 21) painted intro lives in the gallery
+            { key: 'boss_intro_HELICOPTER',   label: 'CHOPPER',      unlock: stageDone(21) || cleared },
             { key: 'ending',                  label: 'ENDING',       unlock: cleared },
             { key: 'epi_laughingstock',       label: 'LAUGHINGSTOCK', unlock: cleared },
             { key: 'epi_memes',               label: 'MEMES',         unlock: cleared },
