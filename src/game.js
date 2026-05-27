@@ -4443,7 +4443,11 @@ export class Game {
             const sBest = achievements.stats.stageBestScores || {};
             const prevBest = sBest[this.currentStage] || 0;
             // R470: pull score from whichever engine is active
-            const _scorePlayer = this.player || this._doomEngine?.player || this._beatEmUp?.player || this._fpsArena?.player || {};
+            // R564b: extended with _turretArena (was missing from R563b
+            // sweep — same family bug, would silently miss stage 25 scores)
+            const _scorePlayer = this.player || this._doomEngine?.player
+                              || this._beatEmUp?.player || this._fpsArena?.player
+                              || this._turretArena?.player || {};
             const _curScore = _scorePlayer.score || 0;
             this._stageNewBest = _curScore > prevBest;
             if (this._stageNewBest) {
