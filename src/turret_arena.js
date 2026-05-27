@@ -978,59 +978,36 @@ export class TurretArena {
 
     _drawRoom() {
         const ctx = this.ctx;
-        // R524: layered atmospheric back wall with server racks — gives the
-        // arena scale and matches the "datacenter overrun by CRTs" vibe.
-        // Drawn before perspective rails so they sit on the back wall.
-        const racksY = BACK_WALL_Y - 14;
-        for (let r = 0; r < 7; r++) {
-            const rx = 40 + r * 26;
-            const rh = 28 + (r * 11) % 14;
-            // Rack body
-            ctx.fillStyle = '#0a0e1a';
-            ctx.fillRect(rx, racksY, 18, rh);
-            ctx.fillStyle = '#1a2a40';
-            ctx.fillRect(rx, racksY, 18, 1);   // top rim
-            // LED rows — blinking server status
-            for (let row = 0; row < Math.floor(rh / 5); row++) {
-                const ly = racksY + 3 + row * 5;
-                const blink = ((r + row) * 17 + Math.floor(this.t / 18)) % 7;
-                if (blink === 0)      ctx.fillStyle = '#40ff60';
-                else if (blink === 1) ctx.fillStyle = '#ff4040';
-                else                  ctx.fillStyle = '#204040';
-                ctx.fillRect(rx + 3, ly, 1, 1);
-                ctx.fillStyle = '#204040';
-                ctx.fillRect(rx + 7, ly, 1, 1);
-                ctx.fillRect(rx + 12, ly, 1, 1);
-                if ((r + row) % 4 === 0) {
-                    ctx.fillStyle = '#80c0ff';
-                    ctx.fillRect(rx + 7, ly, 1, 1);
-                }
+        // R566c: painted datacenter background (turret_arena_bg) is drawn
+        // by _drawBg before this; it includes the server racks, ceiling
+        // fluorescents, smashed CRT debris, and vanishing-point composition.
+        // We only draw the very faint floor perspective rails as a subtle
+        // depth cue for monster lane positioning — and only if NO painted
+        // background loaded (procedural fallback).
+        if (!this.bgImg) {
+            ctx.save();
+            ctx.strokeStyle = '#3a3a48';
+            ctx.lineWidth = 1;
+            const railCount = 6;
+            for (let i = 1; i <= railCount; i++) {
+                const tRail = i / (railCount + 1);
+                const y = depthY(tRail);
+                ctx.globalAlpha = 0.3 + 0.5 * tRail;
+                const halfW = 20 + tRail * (GAME.W / 2 - 10);
+                ctx.beginPath();
+                ctx.moveTo(VANISH_X - halfW, y);
+                ctx.lineTo(VANISH_X + halfW, y);
+                ctx.stroke();
             }
-        }
-        // Floor receding to vanishing point — 6 horizontal rails fading back
-        ctx.save();
-        ctx.strokeStyle = '#3a3a48';
-        ctx.lineWidth = 1;
-        const railCount = 6;
-        for (let i = 1; i <= railCount; i++) {
-            const tRail = i / (railCount + 1);
-            const y = depthY(tRail);
-            ctx.globalAlpha = 0.3 + 0.5 * tRail;
-            const halfW = 20 + tRail * (GAME.W / 2 - 10);
+            ctx.globalAlpha = 0.45;
             ctx.beginPath();
-            ctx.moveTo(VANISH_X - halfW, y);
-            ctx.lineTo(VANISH_X + halfW, y);
+            ctx.moveTo(0, RAIL_Y); ctx.lineTo(VANISH_X, VANISH_Y);
+            ctx.moveTo(GAME.W, RAIL_Y); ctx.lineTo(VANISH_X, VANISH_Y);
+            ctx.moveTo(0, BACK_WALL_Y - 30); ctx.lineTo(VANISH_X, VANISH_Y);
+            ctx.moveTo(GAME.W, BACK_WALL_Y - 30); ctx.lineTo(VANISH_X, VANISH_Y);
             ctx.stroke();
+            ctx.restore();
         }
-        // Side wall lines — converging
-        ctx.globalAlpha = 0.45;
-        ctx.beginPath();
-        ctx.moveTo(0, RAIL_Y); ctx.lineTo(VANISH_X, VANISH_Y);
-        ctx.moveTo(GAME.W, RAIL_Y); ctx.lineTo(VANISH_X, VANISH_Y);
-        ctx.moveTo(0, BACK_WALL_Y - 30); ctx.lineTo(VANISH_X, VANISH_Y);
-        ctx.moveTo(GAME.W, BACK_WALL_Y - 30); ctx.lineTo(VANISH_X, VANISH_Y);
-        ctx.stroke();
-        ctx.restore();
 
         // R524: smashed CRT debris scattered on floor (background dressing)
         // Static — placed at fixed lane positions so they don't jitter.
@@ -1279,15 +1256,27 @@ export class TurretArena {
         const sY = y + Math.max(1, 2 * scale);
         const sW = w - Math.max(2, 4 * scale);
         const sH = h * 0.45;
-        ctx.fillStyle = '#1a1a20';
-        ctx.fillRect(sX, sY, sW, sH);
-        this._drawScreenContent(m, sX, sY, sW, sH);
-        // Scanlines
-        ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
-        for (let yy = sY; yy < sY + sH; yy += Math.max(2, 2 * scale | 0)) {
-            ctx.fillRect(sX, yy, sW, 1);
+        // R566c: painted CRT face sprite replaces the procedural screen
+        // content (was 12 generated face variants drawn with fillRect).
+        // Sprite has built-in scanlines + glow; we skip the post-overlay.
+        const faceImg = sprites.images.get('turret_crt_face');
+        if (faceImg) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.fillStyle = '#0a0a14';
+            ctx.fillRect(sX, sY, sW, sH);
+            ctx.drawImage(faceImg, 0, 0, faceImg.width, faceImg.height,
+                          sX, sY, sW, sH);
+        } else {
+            ctx.fillStyle = '#1a1a20';
+            ctx.fillRect(sX, sY, sW, sH);
+            this._drawScreenContent(m, sX, sY, sW, sH);
+            ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
+            for (let yy = sY; yy < sY + sH; yy += Math.max(2, 2 * scale | 0)) {
+                ctx.fillRect(sX, yy, sW, 1);
+            }
         }
-        // CRT bezel highlight (top + left thin)
+        // CRT bezel highlight (top + left thin) — kept on both paths for
+        // chassis depth.
         ctx.save();
         ctx.globalAlpha = 0.3;
         ctx.fillStyle = '#ffffff';

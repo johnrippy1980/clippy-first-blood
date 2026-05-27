@@ -223,7 +223,7 @@ export const STAGES = [
     // R523/R535: mounted-turret stage — Clippy mans an emplaced MG against
     // CRT-monster waves crawling out of the broken server racks. Mid-
     // campaign breather between Server Room (3) and Pipeline (4).
-    { id: 25, name: 'HOLD THE LINE',            category: 'campaign', displayId: '3B', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'steelTongues',  tagline: 'THE RACKS ARE BLEEDING.', },
+    { id: 25, name: 'HOLD THE LINE',            category: 'campaign', displayId: '3B', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'steelTongues',  tagline: 'THE RACKS ARE BLEEDING.', bgKey: 'turret_arena_bg' },
 ];
 
 // Damage flash colors per source.

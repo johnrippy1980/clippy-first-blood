@@ -2105,8 +2105,11 @@ function makeTurretStage() {
         // industrial siege metal that matches the turret-defense vs CRTRON
         // narrative. Was previously reusing 'arenaBoss'.
         music: 'steelTongues',
-        // No bgKey — engine draws a procedural warehouse interior.
-        // (When a painted bg lands later, set bgKey: 'bg_turret_arena')
+        // R566c: painted datacenter background (256×96, gemini-pro).
+        // Dropped the procedural server-rack loop in _drawRoom — this image
+        // covers the back wall + ceiling fluorescents + smashed CRT debris
+        // with proper vanishing-point composition.
+        bgKey: 'turret_arena_bg',
         // R535: chain forward to The Pipeline (stage 4) after CRTRON falls.
         nextStage: 4,
     };
