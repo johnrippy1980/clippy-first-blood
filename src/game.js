@@ -2192,7 +2192,8 @@ export class Game {
         // backdrop until a bespoke CRTRON portrait painting lands.
         let bgBoss = bossKey;
         if (bossKey === 'GAUNTLET' || bossKey === 'GAUNTLET_FULL') bgBoss = 'CTRL_ALT_DEL';
-        else if (bossKey === 'SERVER_TOWER') bgBoss = 'CTRL_ALT_DEL';
+        // R566f: SERVER_TOWER now has its own bespoke CRTRON cinematic plate;
+        // the temporary CTRL_ALT_DEL fallback from R523 is no longer needed.
         const bgKey = 'boss_intro_' + bgBoss;
         if (sprites.has(bgKey)) {
             const img = sprites.images.get(bgKey);
@@ -3136,6 +3137,9 @@ export class Game {
                 { key: 'boss_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
                 { key: 'helicopter',        label: 'MECHA CHOPPER',unlock: stageDone(21) || konami },
                 { key: 'boss_mecha_gates',  label: 'MECHA-GATES',  unlock: stageDone(22) || konami },
+                // R566f: CRTRON / SERVER_TOWER — stage 25 HOLD THE LINE boss.
+                // Asset key matches boss_intro_SERVER_TOWER painted plate.
+                { key: 'boss_intro_SERVER_TOWER', label: 'CRTRON', unlock: stageDone(25) || konami },
             ];
         }
         // Default: SCENES tab
@@ -3169,6 +3173,8 @@ export class Game {
             { key: 'boss_intro_JOBS',         label: 'STEVE JOBS',   unlock: cleared },
             // R554: helicopter (stage 21) painted intro lives in the gallery
             { key: 'boss_intro_HELICOPTER',   label: 'CHOPPER',      unlock: stageDone(21) || cleared },
+            // R566f: CRTRON / HOLD THE LINE — stage 25 boss-intro plate.
+            { key: 'boss_intro_SERVER_TOWER', label: 'CRTRON',       unlock: stageDone(25) || cleared },
             { key: 'ending',                  label: 'ENDING',       unlock: cleared },
             { key: 'epi_laughingstock',       label: 'LAUGHINGSTOCK', unlock: cleared },
             { key: 'epi_memes',               label: 'MEMES',         unlock: cleared },

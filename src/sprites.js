@@ -218,6 +218,10 @@ export const SCENE_MANIFEST = {
     // R226: Dr. Spindler boss-intro plate. Re-uses the cinematic portrait
     // from boss_spindler_portrait.png (lab backdrop already baked in).
     'boss_intro_SPINDLER':     'boss_intros/boss_intro_spindler.png',
+    // R566f: CRTRON cinematic plate — stage 25 HOLD THE LINE boss.
+    // Generated via Local Howl (gemini-pro) — drops the temporary
+    // CTRL_ALT_DEL fallback that was used since R523.
+    'boss_intro_SERVER_TOWER': 'boss_intros/boss_intro_server_tower.png',
     // R359: post-game boss intros. R401: HELICOPTER + MECHA_GATES now
     // get dedicated painted boss-portrait plates (close-up Hind + the
     // Bill-Gates-piloted battle mech) instead of reusing the wide
