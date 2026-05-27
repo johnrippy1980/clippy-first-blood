@@ -4234,8 +4234,11 @@ export class Game {
             // R457: clear other engines so stale instances from a prior
             // stage don't leak into the new scene (caught by playtest scan
             // which saw stage 22 → 23 leaving _beatEmUp set).
+            // R564c: also null _turretArena (R523 engine) — adjacent engine
+            // omitted from the earlier cleanups.
             this._beatEmUp = null;  this._beatMode = false;
             this._doomEngine = null; this._doomMode = false;
+            this._turretArena = null; this._turretMode = false;
             this._fpsArena = new FpsArena(data, this.ctx, this);
             this._fpsMode = true;
             this._fpsPendingPlay = true;   // signal _tickStageIntro to FPS_PLAY
@@ -4249,8 +4252,10 @@ export class Game {
         // FPS — route through STAGE_INTRO first, then hand off to BEAT_PLAY.
         if (data.beatMode) {
             // R457: clear other engines (see above)
+            // R564c: include _turretArena
             this._fpsArena = null;  this._fpsMode = false;
             this._doomEngine = null; this._doomMode = false;
+            this._turretArena = null; this._turretMode = false;
             this._beatEmUp = new BeatEmUp(data, this.ctx, this);
             this._beatMode = true;
             this._beatPendingPlay = true;
@@ -4264,8 +4269,10 @@ export class Game {
         // pattern — STAGE_INTRO first, then hand off to DOOM_PLAY.
         if (data.doomMode) {
             // R457: clear other engines (see above)
+            // R564c: include _turretArena
             this._fpsArena = null;  this._fpsMode = false;
             this._beatEmUp = null;  this._beatMode = false;
+            this._turretArena = null; this._turretMode = false;
             this._doomEngine = new DoomEngine(data, this.ctx, this);
             this._doomMode = true;
             this._doomPendingPlay = true;
