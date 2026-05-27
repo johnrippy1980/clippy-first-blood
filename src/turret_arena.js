@@ -27,11 +27,15 @@ import { drawText, drawTextOutlined } from './pixelfont.js';
 const VANISH_X    = GAME.W / 2;
 const VANISH_Y    = 64;
 const RAIL_Y      = GAME.H - 28;     // ground rail at bottom
-const PLAYER_W    = 24;
-const PLAYER_H    = 36;
-const PLAYER_X    = GAME.W / 2 - PLAYER_W / 2;   // anchored center
-const PLAYER_Y    = RAIL_Y - PLAYER_H;
-const TURRET_BASE_Y = RAIL_Y - 16;
+// R566: Clippy IS the player — no separate "turret" sprite. Sized to fill
+// the lower portion of the viewport so he reads as the foreground actor.
+// The clippy_back_* sprite is 19×40 native; scale to ~2.4x for presence
+// while keeping pixelart crispness (integer-ish scale, smoothing off).
+const PLAYER_W    = 46;     // ~2.4x of native 19
+const PLAYER_H    = 96;     // ~2.4x of native 40
+const PLAYER_X    = GAME.W / 2 - PLAYER_W / 2;
+const PLAYER_Y    = RAIL_Y - PLAYER_H + 8;       // overlap rail slightly
+const TURRET_BASE_Y = RAIL_Y - 16;               // legacy ref, kept for muzzle anchor
 const BACK_WALL_Y = 56;
 
 // Crosshair / aim
@@ -1111,102 +1115,73 @@ export class TurretArena {
     _drawTurret() {
         const ctx = this.ctx;
         const p = this.player;
-        // Back-of-Clippy first (smaller than full screen)
-        const clippyImg = sprites.images.get('clippy_back_idle');
+        // R566: Clippy IS the player. The clippy_back_* sprite already
+        // depicts him holding a gun; no separate turret/sandbag/tripod
+        // rig is drawn. Cycle between idle and the 4-frame run-fire
+        // animation while shooting to convey recoil.
+        const firing = this.muzzleFlashT > 0 || (this._fireRecoverT && this._fireRecoverT > 0);
+        let spriteKey = 'clippy_back_idle';
+        if (firing) {
+            // 4-frame fire cycle — pick by tick
+            const idx = ((this.t / 3) | 0) % 4 + 1;
+            spriteKey = `clippy_back_run_${idx}`;
+        }
+        const clippyImg = sprites.images.get(spriteKey)
+                       || sprites.images.get('clippy_back_idle');
         if (clippyImg) {
             ctx.imageSmoothingEnabled = false;
+            // Slight horizontal sway from aim direction — Clippy's body
+            // leans toward where the crosshair is, selling that he's
+            // tracking the target.
+            const aimSwayX = ((p.aimX - GAME.W / 2) / GAME.W) * 6 | 0;
+            const recoilY = firing ? -((this.muzzleFlashT || 0) * 0.5 | 0) : 0;
             ctx.drawImage(clippyImg, 0, 0, clippyImg.width, clippyImg.height,
-                          PLAYER_X, PLAYER_Y, PLAYER_W, PLAYER_H);
-        } else {
-            // Procedural Clippy-from-behind silhouette
-            ctx.fillStyle = '#a0a0c0';
-            ctx.fillRect(PLAYER_X + 8, PLAYER_Y + 4, 8, 14);
-            ctx.fillStyle = '#606080';
-            ctx.fillRect(PLAYER_X + 6, PLAYER_Y + 8, 12, 2);
-            ctx.fillRect(PLAYER_X + 4, PLAYER_Y + 18, 16, 12);
+                          PLAYER_X + aimSwayX, PLAYER_Y + recoilY,
+                          PLAYER_W, PLAYER_H);
         }
 
-        // Turret base — heavy mount in front of Clippy
-        const tx = GAME.W / 2 - 18;
-        const ty = TURRET_BASE_Y - 4;
-        // Sandbags below
-        ctx.fillStyle = '#604838';
-        for (let i = 0; i < 3; i++) {
-            ctx.fillRect(tx - 4 + i * 14, ty + 10, 16, 8);
-        }
-        ctx.fillStyle = '#806050';
-        for (let i = 0; i < 3; i++) {
-            ctx.fillRect(tx - 4 + i * 14, ty + 10, 16, 1);
-        }
-        // Tripod
-        ctx.fillStyle = '#404048';
-        ctx.fillRect(tx + 16, ty + 4, 4, 14);
-        ctx.fillRect(tx + 6, ty + 14, 4, 4);
-        ctx.fillRect(tx + 26, ty + 14, 4, 4);
-        // Mounting head
-        ctx.fillStyle = '#606070';
-        ctx.fillRect(tx + 8, ty, 20, 8);
-        ctx.fillStyle = '#404050';
-        ctx.fillRect(tx + 8, ty, 20, 1);
-        ctx.fillRect(tx + 8, ty + 7, 20, 1);
-
-        // Barrel — points from turret toward crosshair
-        const pivotX = GAME.W / 2;
-        const pivotY = ty + 4;
-        const aimDX = p.aimX - pivotX;
-        const aimDY = p.aimY - pivotY;
-        const aimAng = Math.atan2(aimDY, aimDX);
-        ctx.save();
-        ctx.translate(pivotX, pivotY);
-        ctx.rotate(aimAng);
-        // Barrel rectangle
-        const barrelLen = 26;
-        ctx.fillStyle = '#303038';
-        ctx.fillRect(0, -3, barrelLen, 6);
-        ctx.fillStyle = '#505058';
-        ctx.fillRect(0, -3, barrelLen, 1);
-        // Cooling fins
-        ctx.fillStyle = '#404048';
-        for (let i = 0; i < 5; i++) {
-            ctx.fillRect(4 + i * 4, -4, 1, 8);
-        }
-        // Muzzle
-        ctx.fillStyle = '#1a1a22';
-        ctx.fillRect(barrelLen - 3, -3, 3, 6);
-        // Muzzle flash
+        // Muzzle flash at Clippy's weapon position (the gun-tip sits
+        // roughly at his upper-right when viewed from behind, ~70% up
+        // and ~65% across the sprite). Rendered in screen space, not
+        // rotated — Clippy's hands hold the gun, not a mounted turret.
         if (this.muzzleFlashT > 0) {
             const fT = this.muzzleFlashT / 4;
+            const muzzleX = PLAYER_X + PLAYER_W * 0.65;
+            const muzzleY = PLAYER_Y + PLAYER_H * 0.30;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.globalAlpha = fT * 0.95;
-            const r = 5 + fT * 7;
-            const grad = ctx.createRadialGradient(barrelLen, 0, 0, barrelLen, 0, r);
+            const r = 6 + fT * 9;
+            const grad = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, r);
             grad.addColorStop(0, '#ffffff');
             grad.addColorStop(0.4, '#ffd060');
             grad.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.arc(barrelLen, 0, r, 0, Math.PI * 2);
+            ctx.arc(muzzleX, muzzleY, r, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
         }
-        ctx.restore();
 
-        // Heat gauge — vertical bar to the right of the turret head
-        const hx = tx + 32;
-        const hy = ty + 2;
+        // Heat gauge — anchored upper-right corner of player sprite
+        // (was anchored to the now-removed turret head).
+        const hx = PLAYER_X + PLAYER_W + 4;
+        const hy = PLAYER_Y + 8;
         ctx.fillStyle = '#0a0a14';
         ctx.fillRect(hx, hy, 3, 10);
         const fillH = Math.round((p.heat / OVERHEAT_MAX) * 10);
         ctx.fillStyle = p.overheated ? '#ff4040' :
                         p.heat > OVERHEAT_MAX * 0.7 ? '#ffa030' : '#ffe070';
         ctx.fillRect(hx, hy + 10 - fillH, 3, fillH);
-        // Steam vent when overheated
+        // Steam vent when overheated — anchored to upper area of player
+        // sprite so the steam reads as Clippy's gun overheating.
         if (p.overheated) {
+            const ventX = PLAYER_X + PLAYER_W * 0.65;
+            const ventY = PLAYER_Y + PLAYER_H * 0.25;
             for (let i = 0; i < 3; i++) {
-                const sx = tx + 16 + (Math.random() - 0.5) * 12;
-                const sy = ty - ((this.t + i * 17) % 20);
-                const alpha = 1 - Math.abs(sy - ty) / 20;
+                const sx = ventX + (Math.random() - 0.5) * 12;
+                const sy = ventY - ((this.t + i * 17) % 20);
+                const alpha = 1 - Math.abs(sy - ventY) / 20;
                 ctx.save();
                 ctx.globalAlpha = alpha * 0.5;
                 ctx.fillStyle = '#c0c0d0';

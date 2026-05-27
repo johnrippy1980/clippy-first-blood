@@ -152,9 +152,12 @@ export class DoomEngine {
         // pointer is auto-released on scene change).
         this._installPointerLockOnce();
 
-        // R442: level intro fly-through — spin the camera 360° at spawn
-        // for ~4s before allowing input. Skippable with X / jump.
-        this._introT = 240;        // ~4s at 60fps
+        // R442: level intro fly-through — spin the camera 360° at spawn.
+        // R566: cut 240→90 frames (4s → 1.5s). The 4-second forced spin felt
+        // like the controls were broken — players consistently thought they
+        // were stuck spinning in circles. 1.5s is a quick taste of the room
+        // without overstaying its welcome.
+        this._introT = 90;
         this._introStartAngle = this.player.angle;
     }
 
@@ -197,8 +200,8 @@ export class DoomEngine {
         // R442: level intro fly-through — spin camera + lock input
         if (this._introT > 0) {
             this._introT--;
-            // 360° rotation over the intro duration
-            const total = 240;
+            // R566: total matches the _introT seed (was 240, now 90).
+            const total = 90;
             const t = (total - this._introT) / total;
             this.player.angle = this._introStartAngle + t * Math.PI * 2;
             // Skip on input
@@ -1084,7 +1087,12 @@ export class DoomEngine {
 
     _moveBy(dx, dy) {
         const p = this.player;
-        const PAD = 0.18;
+        // R566: bumped 0.18 → 0.32. At PAD=0.18 the player could press up
+        // against a wall so closely that dist < 0.25, causing the wall column
+        // height to exceed the VIEW_H*8 clamp and visually "pinch" toward the
+        // bottom of the screen (classic Wolf3D close-range artifact). 0.32
+        // keeps the player far enough back that lineH stays in normal range.
+        const PAD = 0.32;
         // X axis
         const nx = p.x + dx;
         const checkX = nx + (dx > 0 ? PAD : -PAD);
@@ -2024,7 +2032,10 @@ export class DoomEngine {
                 ? (sideX - deltaX)
                 : (sideY - deltaY);
             this.zbuffer[col] = dist;
-            const lineH = Math.min(VIEW_H * 4, Math.abs(VIEW_H / Math.max(0.0001, dist)));
+            // R566: clamp raised VIEW_H*4 → VIEW_H*8. Combined with the
+            // PAD=0.32 collision bump in _moveBy, players can no longer get
+            // close enough to a wall to trigger the column-clamp pinch.
+            const lineH = Math.min(VIEW_H * 8, Math.abs(VIEW_H / Math.max(0.0001, dist)));
             const drawStart = Math.max(0, (VIEW_H - lineH) / 2 | 0);
             const drawEnd = Math.min(VIEW_H - 1, (VIEW_H + lineH) / 2 | 0);
             // R423e: try painted texture first. Each wall id 1..5 has a
