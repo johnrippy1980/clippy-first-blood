@@ -1755,14 +1755,27 @@ export class TurretArena {
         const sW = w - 4;
         const sH = h - 6;
         if (sW > 1 && sH > 1) {
-            ctx.fillStyle = '#1a1a20';
-            ctx.fillRect(sX, sY, sW, sH);
-            const idx = SCREEN_TYPES.indexOf(screenType);
-            this._drawScreenContentByIdx(idx >= 0 ? idx : 0, sX, sY, sW, sH);
-            // Scanlines
-            ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
-            for (let yy = sY; yy < sY + sH; yy += 2) {
-                ctx.fillRect(sX, yy, sW, 1);
+            // R566e: painted CRT face replaces per-CRT procedural screen
+            // content. CRTRON is a creature made of angry monitors —
+            // covering each body segment in the same menacing face sells
+            // the "swarm consciousness" vibe better than mixed app screens.
+            // Head still gets the bespoke expression renderer below.
+            const faceImg = sprites.images.get('turret_crt_face');
+            if (faceImg) {
+                ctx.fillStyle = '#0a0a14';
+                ctx.fillRect(sX, sY, sW, sH);
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(faceImg, 0, 0, faceImg.width, faceImg.height,
+                              sX, sY, sW, sH);
+            } else {
+                ctx.fillStyle = '#1a1a20';
+                ctx.fillRect(sX, sY, sW, sH);
+                const idx = SCREEN_TYPES.indexOf(screenType);
+                this._drawScreenContentByIdx(idx >= 0 ? idx : 0, sX, sY, sW, sH);
+                ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
+                for (let yy = sY; yy < sY + sH; yy += 2) {
+                    ctx.fillRect(sX, yy, sW, 1);
+                }
             }
         }
     }
