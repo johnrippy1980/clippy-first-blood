@@ -53,7 +53,7 @@ export const TRACK_MANIFEST = [
     { track: 'training',     title: 'RESOLUTION',             mood: 'TRAINING (T)',  author: 'R_I_P' },
     { track: 'bossRushMode', title: 'EVOLUTION',              mood: 'POST-GAME P1',  author: 'R_I_P' },
     { track: 'timeTrial',    title: 'NEVER THE SAME',         mood: 'POST-GAME P2',  author: 'R_I_P' },
-    { track: 'bonus2',       title: 'BONUS',                  mood: 'BONUS TRACK',   author: 'R_I_P' },
+    { track: 'bonus2',       title: 'BONUS',                  mood: 'STAGE 7 (R549)',author: 'R_I_P' },
     // R545: new tracks land. Steel Tongues = the industrial siege of
     // HOLD THE LINE (stage 25 turret defense vs CRTRON). Metro = the
     // dedicated KEYNOTE CORRIDOR theme (stage 9), splitting it off from
@@ -172,7 +172,7 @@ export const STAGES = [
     { id: 5, name: 'THE BOARD ROOM',         category: 'campaign', displayId: '05', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'boardroom',  tagline: 'DEVELOPERS DEVELOPERS DEVELOPERS', bossEscapes: true },
     // R302: FPS chase corridor uses new `backstage` track; arena uses new `arenaBoss`.
     { id: 6, name: 'BALLMER OFFICE',         category: 'campaign', displayId: '06', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'backstage',  tagline: "HE'S IN THE BUILDING.", introBgKey: 'bg_microsoft_hq' },
-    { id: 7, name: 'BALLMER ARENA',          category: 'campaign', displayId: '07', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'arenaBoss',  tagline: 'CHAIRS WILL FLY.' },
+    { id: 7, name: 'BALLMER ARENA',          category: 'campaign', displayId: '07', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'bonus2',  tagline: 'CHAIRS WILL FLY.' },
     { id: 8, name: 'KEYNOTE HALL',           category: 'campaign', displayId: '08', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB', bossEscapes: true },
     // R302: Gates FPS chase + arena get the same new tracks as Ballmer's pair.
     { id: 9, name: 'KEYNOTE CORRIDOR',       category: 'campaign', displayId: '09', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'metro',  tagline: 'BACKSTAGE PASS REQUIRED.' },

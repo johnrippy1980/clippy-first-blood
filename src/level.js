@@ -2495,7 +2495,11 @@ function makeBeatEmUpBallmer() {
         // until the final wave drops a new MG pickup.
         meleeMode: true,
         theme: THEME.BOARDROOM,
-        music: 'arenaBoss',
+        // R549: dedicated brawl track. Was sharing arena.mp3 with stage 10
+        // (Gates platformer arena) which felt redundant. bonus2.mp3 is a
+        // shorter, punchier 54s loop that fits the wave-based brawler beat
+        // better than the long-form arena.mp3.
+        music: 'bonus2',
         bgKey: 'bg_boardroom',
         bossKind: 'BALLMER',
         spriteKeys: {

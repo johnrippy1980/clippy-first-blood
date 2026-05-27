@@ -94,16 +94,23 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R548)
+## SUMMARY (POST-R549 — FINAL ARRANGEMENT)
 
-- **0 tracks broken or missing** (all 26 declared files exist)
-- **0 Tier-1 critical gaps** closed
-- **2 desirable additions** still outstanding
-- Best remaining ROI: stage 22 MECHA-GATES finale — currently still
-  shares apocalypse.mp3 with stage 16. Splitting it off would
-  complete the mecha trilogy musical arc DIRECT → CONDUIT → ?
+- **26 tracks total, all wired** across 25 stages + title + credits
+- **0 broken or missing**
+- **0 critical gaps**
 
-REMAINING WISHLIST: 2 tracks
-- Stage 22 MECHA-GATES finale (currently shares apocalypse with 16)
-- Stage 7 BALLMER ARENA dedicated brawl theme (currently shares
-  arena.mp3 with stage 10)
+REMAINING SHARES (all by design, no longer flagged as gaps):
+- `arena.mp3` → stage 10 only (R549 freed it; stage 7 moved to bonus2)
+- `apocalypse.mp3` → stages 16 + 22 (both apocalyptic finales,
+  thematically consistent)
+- `evolution.mp3` → stages 23 + 24 (both gauntlet/boss-rush stages,
+  thematically consistent)
+
+NO SOUNDTRACK-GALLERY-ONLY TRACKS REMAIN. bonus2 was promoted to
+stage 7 in R549. If you want a dedicated bonus-only slot for the
+soundtrack gallery, the next composition could fill that.
+
+OPTIONAL FUTURE COMPOSITIONS:
+- Dedicated stage 22 MECHA-GATES finale (currently shares apocalypse)
+- Pure soundtrack-gallery bonus track (no stage routing)
