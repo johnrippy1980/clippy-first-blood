@@ -1,0 +1,27 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs/promises';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+await page.goto('http://localhost:8765/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+await page.click('#screen');
+await page.evaluate(() => {
+    window.__game._konamiUnlocked = true;
+    window.__game.unlockedStage = 25;
+    window.__game.gameCleared = true;
+    window.__game.currentStage = 13;
+    window.__game.scene = 'gameComplete';
+    window.__game.storyTimer = 0;
+    window.__game.totalTime = 12 * 3600;
+    window.__game.totalDeaths = 2;
+    window.__game.runStats = window.__game.runStats || {};
+    window.__game.runStats.noDamageStages = 2;
+    if (!window.__game.player) window.__game.player = {};
+    window.__game.player.score = 99999;
+    window.__game.player.kills = 200;
+    window.__game.player.maxCombo = 15;
+});
+await page.waitForTimeout(800);
+const u = await page.evaluate(() => document.getElementById('screen')?.toDataURL('image/png'));
+if (u) await fs.writeFile('/tmp/r558_ending.png', Buffer.from(u.replace(/^data:image\/png;base64,/, ''), 'base64'));
+await browser.close();
