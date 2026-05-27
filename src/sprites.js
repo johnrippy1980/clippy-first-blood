@@ -598,6 +598,8 @@ export const ENEMY_MANIFEST = {
     // substitution pool in R537 for cubicle baseline variety.
     'doom_wall_6': 'doom_wall_6.png',   // water cooler with blue jug + spigots
     'doom_wall_7': 'doom_wall_7.png',   // boxy late-90s office copier
+    'doom_wall_8': 'doom_wall_8.png',   // red fire extinguisher in recessed cradle
+    'doom_wall_9': 'doom_wall_9.png',   // open server rack with cable spaghetti
     // Enemy + boss billboards
     'doom_clone': 'doom_clone.png',
     'doom_boss_spindler_uzis': 'doom_boss_spindler_uzis.png',
