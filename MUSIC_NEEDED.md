@@ -1,6 +1,6 @@
 # MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-## R545 + R546 UPDATE — THREE NEW TRACKS LANDED
+## R545 + R546 + R547 UPDATE — FOUR NEW TRACKS LANDED
 
 - **STEEL TONGUES** → stage 25 HOLD THE LINE (Tier-1 #1 closed).
   Industrial siege metal for the turret-defense wave phase.
@@ -10,11 +10,15 @@
   via `audio.playTrack('gears')` inside `_spawnVoltron()` — the
   existing 350ms playTrack crossfade ramps STEEL TONGUES out as
   GEARS ramps in the moment the boss spawns.
+- **CONDUIT** → stage 21 MECHA CORRIDOR helicopter chase (Tier-2
+  #5 closed). Splits the chopper pursuit off from the shared
+  `recycleBin.mp3` (which was the S1 secret theme — felt
+  mismatched against the chase beat).
 
-Both Tier-1 critical items + 1 Tier-2 item now closed. 24 shipped
+Both Tier-1 critical items + 2 Tier-2 items now closed. 25 shipped
 tracks total. Outstanding wishlist items below.
 
-All 24 currently-shipped tracks are wired and present on disk. The
+All 25 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -72,10 +76,7 @@ want to compose more.
 
 4. ~~**KEYNOTE CORRIDOR** (stage 9)~~ — **LANDED R545 (metro.mp3)**
 
-5. **MECHA CORRIDOR** (stage 21 chopper chase, currently shares
-   `1.26x.mp3` which is the Recycle Bin secret track)
-   - The Recycle Bin theme on a chopper chase is jarring
-   - Filename: `chopper-chase.mp3`
+5. ~~**MECHA CORRIDOR** (stage 21 chopper chase)~~ — **LANDED R547 (conduit.mp3)**
 
 ### TIER 3 — nice-to-have
 
@@ -89,13 +90,20 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R546)
+## SUMMARY (POST-R547)
 
-- **0 tracks broken or missing** (all 24 declared files exist)
-- **0 Tier-1 critical gaps** (R545 + R546 closed both)
-- **4 desirable additions** still outstanding (was 5; GEARS closed
-  CRTRON BOSS)
-- Best remaining ROI: MECHA TRILOGY 3-part split — stages 20/21/22
-  currently all share `the-light-bleeds-through.mp3`. Splitting
-  into intro/chase/final variants would give the super-secret arc
-  the same musical arc as its narrative arc.
+- **0 tracks broken or missing** (all 25 declared files exist)
+- **0 Tier-1 critical gaps** closed
+- **3 desirable additions** still outstanding (was 4; CONDUIT
+  closed the chopper-chase mismatch)
+- Best remaining ROI: stages 20 + 22 each deserve a unique track
+  to split the MECHA TRILOGY arc (currently both still share
+  `the-light-bleeds-through.mp3`; stage 21 now has its own
+  CONDUIT). A pair `mecha-approach.mp3` + `mecha-gates-final.mp3`
+  would complete the trilogy musically.
+
+REMAINING WISHLIST: 3 tracks
+- Stage 20 MECHA APPROACH (currently shares apocalypse with 22)
+- Stage 22 MECHA-GATES (currently shares apocalypse with 20)
+- Stage 7 BALLMER ARENA dedicated brawl theme (currently shares
+  arena.mp3)

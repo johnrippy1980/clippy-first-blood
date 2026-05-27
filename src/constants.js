@@ -65,6 +65,10 @@ export const TRACK_MANIFEST = [
     // GEARS ramps in. Mechanical-horror grind matches the giant bipedal
     // CRT-monitor monstrosity stomping forward.
     { track: 'gears',        title: 'GEARS',                  mood: 'CRTRON BOSS',   author: 'R_I_P' },
+    // R547: stage 21 MECHA CORRIDOR (helicopter chase). Was reusing
+    // 1.26x.mp3 (the Recycle Bin secret theme) which felt mismatched —
+    // 'Conduit' fits the chopper-pursuit-through-corridor beat.
+    { track: 'conduit',      title: 'CONDUIT',                mood: 'STAGE 21 (P6)', author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
@@ -184,7 +188,7 @@ export const STAGES = [
     // R306: 3-stage Mecha-Gates arc — konami-only super-final arc.
     // Stage 20 = beat-em-up street approach; 21 = FPS corridor; 22 = arena.
     { id: 20, name: 'MECHA APPROACH',           category: 'postgame', displayId: 'P5', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — STREET BRAWLER', introBgKey: 'bg_apocalypse' },
-    { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'HELICOPTER',    music: 'recycleBin', tagline: 'SUPER SECRET — CHOPPER CHASE',   introBgKey: 'bg_apocalypse' },
+    { id: 21, name: 'MECHA CORRIDOR',           category: 'postgame', displayId: 'P6', theme: THEME.KEYNOTE,    boss: 'HELICOPTER',    music: 'conduit', tagline: 'SUPER SECRET — CHOPPER CHASE',   introBgKey: 'bg_apocalypse' },
     { id: 22, name: 'MECHA-GATES',              category: 'postgame', displayId: 'P7', theme: THEME.KEYNOTE,    boss: 'MECHA_GATES',   music: 'apocalypse', tagline: 'SUPER SECRET — TRUE FINAL.',     introBgKey: 'bg_apocalypse' },
     // R423c: stage 23 — Doom-style sewer crawl between stages 4 and 5.
     // Stage 4 chains here via nextStage: 23; stage 23 chains to 5 BOARDROOM.

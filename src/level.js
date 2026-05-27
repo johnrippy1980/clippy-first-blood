@@ -2863,7 +2863,10 @@ function makeStageMechaHelicopter() {
             { kind: 'distantBird', x: 0, y: 30, speed: 0.5, dir: 'right', color: '#080408' },
             { kind: 'distantBird', x: 0, y: 50, speed: 0.6, dir: 'left',  color: '#080408' },
         ],
-        music: 'recycleBin',   // R323 swap kept the glitched-chase feel here
+        // R547: dedicated stage 21 chase track CONDUIT. Was reusing
+        // recycleBin (the S1 secret theme) which felt mismatched against
+        // the helicopter-pursuit beat.
+        music: 'conduit',
         nextStage: 22,         // chains into the Mecha-Gates beat-em-up
         bossDisplayName: 'HELICOPTER',
         introBgKey: 'bg_apocalypse',

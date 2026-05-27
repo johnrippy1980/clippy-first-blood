@@ -78,6 +78,10 @@ const FILE_TRACKS = {
     // spawns; playTrack handles the 350ms crossfade so the steelTongues
     // wave music ramps out as gears ramps in.
     gears:        'assets/audio/gears.mp3',                    // CRTRON boss spawn
+    // R547: dedicated stage 21 MECHA CORRIDOR (helicopter chase). Was
+    // reusing recycleBin which felt mismatched — chopper pursuit
+    // deserves its own track.
+    conduit:      'assets/audio/conduit.mp3',                  // stage 21 MECHA CORRIDOR
 };
 
 class Audio {
