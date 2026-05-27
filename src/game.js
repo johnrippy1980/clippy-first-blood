@@ -795,8 +795,10 @@ export class Game {
             // R477: expanded marquee with more lore beats. Scrolls through 7
             // taglines instead of 3, sells the scope (Doom mode, multiple
             // engines, post-game arc).
-            const sub = 'A REVENGE STORY  -  TWELVE TARGETS  -  ONE PAPERCLIP  -  '
-                      + 'FOUR ENGINES  -  TWO SPINDLERS  -  ZERO MERCY  -  '
+            // R566g: counts updated for current content — 14 unique bosses
+            // (was 12 at R477), 5 engines (was 4 — turret arena added R523).
+            const sub = 'A REVENGE STORY  -  FOURTEEN TARGETS  -  ONE PAPERCLIP  -  '
+                      + 'FIVE ENGINES  -  TWO SPINDLERS  -  ZERO MERCY  -  '
                       + 'CLIPPY UNCAGED  -  ';
             const subW = sub.length * 6;
             const sx = -((tb * 0.7) % subW);
