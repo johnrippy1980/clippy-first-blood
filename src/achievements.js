@@ -206,11 +206,19 @@ class Achievements {
     }
 
     tickBanner() {
-        for (const b of this.banner) b.age++;
-        // Drop banners older than 300 frames (5s @ 60fps). Long enough that a
-        // mid-firefight unlock can still register in the player's eye, short
-        // enough that stacked banners don't pile up forever.
-        this.banner = this.banner.filter(b => b.age < 300);
+        // R562: SEQUENTIAL queue — only the FRONT banner ages. When it
+        // hits 300f (5s) it shifts off and the next one starts ticking.
+        // Previously all banners aged in parallel and the 2nd+ would
+        // expire silently before they ever got display time.
+        if (this.banner.length === 0) return;
+        const front = this.banner[0];
+        front.age++;
+        if (front.age >= 300) {
+            this.banner.shift();
+            // Reset the new front's age so its slide-in animation
+            // (gated on age < 20) plays fresh.
+            if (this.banner.length > 0) this.banner[0].age = 0;
+        }
     }
 
     activeBanner() {

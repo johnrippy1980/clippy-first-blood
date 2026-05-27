@@ -1,0 +1,20 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+await page.goto('http://localhost:8765/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+await page.click('#screen');
+await page.evaluate(() => { window.__game.scene = 'options'; window.__game.optionsIndex = 3; });
+await page.waitForTimeout(200);
+// SCANLINES is index 3 — press LEFT (or RIGHT) to toggle
+const before = await page.evaluate(async () => (await import('/src/options.js')).options.get('scanlines'));
+console.log('scanlines before:', before);
+await page.keyboard.press('ArrowLeft');
+await page.waitForTimeout(200);
+const after = await page.evaluate(async () => (await import('/src/options.js')).options.get('scanlines'));
+console.log('scanlines after LEFT:', after);
+await page.keyboard.press('ArrowRight');
+await page.waitForTimeout(200);
+const after2 = await page.evaluate(async () => (await import('/src/options.js')).options.get('scanlines'));
+console.log('scanlines after RIGHT:', after2);
+await browser.close();
