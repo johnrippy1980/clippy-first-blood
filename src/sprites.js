@@ -727,6 +727,11 @@ export const ENEMY_MANIFEST = {
     'pickup_homing':    'pickup_homing.png',
     'pickup_thunder':   'pickup_thunder.png',
     'pickup_shotgun':   'pickup_shotgun.png',
+    // R566b: stage 25 HOLD THE LINE (turret arena) painted assets.
+    // Generated via Local Howl image-gen, downscaled to native pixel size.
+    'turret_crosshair':  'turret_crosshair.png',     // 32x32 tactical bracket reticle
+    'turret_crt_face':   'turret_crt_face.png',      // 64x64 enemy screen content
+    'turret_arena_bg':   'turret_arena_bg.png',      // 256x96 datacenter backdrop
 };
 
 // ============================================================

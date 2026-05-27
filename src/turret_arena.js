@@ -2054,18 +2054,30 @@ export class TurretArena {
         const x = Math.round(p.aimX);
         const y = Math.round(p.aimY);
         const pulse = 0.7 + Math.sin(this.t * 0.3) * 0.3;
+        // R566b: painted crosshair sprite. Fall back to the procedural
+        // bracket reticle if the asset hasn't loaded yet (hot-load safety).
+        const img = sprites.images.get('turret_crosshair');
+        if (img) {
+            const W = 24;        // displayed size (native asset is 32×32)
+            const H = 24;
+            ctx.save();
+            ctx.globalAlpha = pulse;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, img.width, img.height,
+                          x - W / 2 | 0, y - H / 2 | 0, W, H);
+            ctx.restore();
+            return;
+        }
         ctx.save();
         ctx.globalAlpha = pulse;
         ctx.strokeStyle = '#ff4040';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        // 4 ticks with gap in center
         ctx.moveTo(x - 8, y); ctx.lineTo(x - 3, y);
         ctx.moveTo(x + 3, y); ctx.lineTo(x + 8, y);
         ctx.moveTo(x, y - 8); ctx.lineTo(x, y - 3);
         ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 8);
         ctx.stroke();
-        // Center dot
         ctx.fillStyle = '#ff4040';
         ctx.fillRect(x, y, 1, 1);
         ctx.restore();
