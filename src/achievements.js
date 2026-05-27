@@ -54,6 +54,9 @@ export const ACHIEVEMENT_LIST = [
     { id: 'bfg_secret',    name: 'BIG GUN',         desc: 'FIND THE SECRET BFG IN FLOOR 11',         icon: 'G',  gate: s => (s.bfgFound || 0) >= 1 },
     { id: 'doom_combo_x4', name: 'CHAINSAW LOOP',   desc: 'REACH ×4 COMBO IN DOOM MODE',             icon: 'C',  gate: s => (s.doomMaxCombo || 0) >= 5 },
     { id: 'spindler_arc',  name: 'NO MORE SAMPLES', desc: 'DEFEAT BOTH SPINDLER FORMS',              icon: 'S',  gate: s => s.stagesCleared.has(23) && s.stagesCleared.has(16) },
+    // R565c: HOLD THE LINE turret stage achievement (R523-introduced).
+    // No achievement existed for clearing CRTRON — fixed here.
+    { id: 'crtron_down',   name: 'CRT NIGHTMARES OVER',desc: 'DEFEAT CRTRON IN HOLD THE LINE',       icon: 'C',  gate: s => s.stagesCleared.has(25) },
 ];
 
 class Achievements {
