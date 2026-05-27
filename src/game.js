@@ -4168,6 +4168,14 @@ export class Game {
             console.warn('_startStage: invalid stage', n, '— defaulting to 1');
             n = 1;
         }
+        // R542: cancel any in-flight scene transition before starting the
+        // new stage. _fadeTo no-ops when this.transition != 0, so a stale
+        // mid-transition state would silently drop the new fade-to-STAGE_INTRO
+        // call and leave the scene on the prior stage's PLAY (e.g. starting
+        // stage 25 turret stage while stage 4 was mid-fade left scene='play'
+        // but engines already swapped to turret — visible crash on next tick).
+        this.transition = 0;
+        this.transitionTarget = null;
         this.currentStage = n;
         // R291: main campaign is 1-13. Training (15), boss-rush-mode (16),
         // time-trial (17), reality-distortion (18), core-breach (19) don't

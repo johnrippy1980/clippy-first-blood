@@ -1677,20 +1677,23 @@ export class TurretArena {
 
         ctx.restore();
 
-        // HP bar at top of screen (always visible during fight)
+        // R542: CRTRON HP bar — moved down out of the WAVE+SCORE HUD strip.
+        // Was at barY=30 (label drew at y=23 over the SCORE bezel at y=16-26
+        // and the score numerals at y=18, creating a visible black overlap).
+        // Now positioned at the bottom of the viewport above the turret to
+        // mirror the platformer's boss HP bar pattern.
         if (v.hp > 0) {
             const barW = GAME.W - 40;
             const barX = 20;
-            const barY = 30;
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.fillRect(barX - 2, barY - 8, barW + 4, 14);
+            const barY = GAME.H - 22;
+            ctx.fillStyle = 'rgba(0,0,0,0.78)';
+            ctx.fillRect(barX - 4, barY - 9, barW + 8, 15);
             ctx.fillStyle = '#3a1a1a';
             ctx.fillRect(barX, barY, barW, 4);
             const fillW = Math.round((v.hp / v.maxHp) * barW);
             ctx.fillStyle = v.phase === 2 ? '#ff4040' : '#ffa030';
             ctx.fillRect(barX, barY, fillW, 4);
-            ctx.fillStyle = '#ffe070';
-            drawText(ctx, 'CRTRON', GAME.W / 2, barY - 7, '#ffe070', 1, 'center');
+            drawText(ctx, 'CRTRON', GAME.W / 2, barY - 8, '#ffe070', 1, 'center');
         }
         // Boss bark speech bubble
         if (this.bossBark) {
