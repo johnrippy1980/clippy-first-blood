@@ -312,6 +312,19 @@ class Audio {
             case 'explosion':   return this._explode(t);     // alias for explode
             case 'crateBreak':  return this._crateHit(t);    // alias for crateHit
             case 'shoot':       return this._gunshot(t, { thump: 60, body: 1100, bodyDur: 0.08, crack: 4200, layers: 1 });
+            // R566h: Doom-flavored enemy sounds. Distinct from the player's
+            // `hurt`/`die` so it's clear who is making which sound.
+            case 'enemySpot':   return this._enemySpot(t);    // sight player — aggressive snarl
+            case 'enemyGrowl':  return this._enemyGrowl(t);   // distant ambient prowl
+            case 'enemyAttack': return this._enemyAttack(t);  // melee swing/lunge shriek
+            case 'enemyPain':   return this._enemyPain(t);    // took damage — sharper yelp
+            // Doom-flavored door/pickup audio. Previous beeps/blips were
+            // un-thematic for a Doom riff.
+            case 'doorSlide':   return this._doorSlide(t);
+            case 'doorOpen':    return this._doorSlide(t);
+            case 'pickup_health': return this._pickupHealth(t);
+            case 'pickup_armor':  return this._pickupArmor(t);
+            case 'pickup_ammo':   return this._pickupAmmo(t);
         }
     }
 
@@ -384,24 +397,52 @@ class Audio {
     //      "BOOM-RRRR" tail that defines DOOM's super-shotty
     //   3) bright high-pass crack at the head for the percussive snap
     // Heavier and longer than MG/SPREAD so the player FEELS each blast.
+    // R566h: shotgun upgraded to BRUTAL 12-gauge cannon.
+    // Now has: (1) bigger sub-bass slam, (2) twin noise bodies for the
+    // pellet spread (slightly detuned dual lowpass + bandpass for thicker
+    // chest), (3) brighter crack with extended decay, (4) chunky pump
+    // action follow-up with deeper "schhh-CLACK" feel, (5) bonus dry
+    // "boom echo" tail at 60Hz so the room feels it.
     _shotgunBlast(t) {
-        // Sub thump — sine sweep 80Hz → 28Hz
+        // SUB SLAM — fatter sine sweep, lower fundamental.
+        // Was 80→28Hz, now 95→22Hz over 200ms for deeper chest punch.
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'sine';
-        o.frequency.setValueAtTime(80, t);
-        o.frequency.exponentialRampToValueAtTime(28, t + 0.15);
-        this._envOn(g, 0.65, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.frequency.setValueAtTime(95, t);
+        o.frequency.exponentialRampToValueAtTime(22, t + 0.20);
+        this._envOn(g, 0.95, t);                    // was 0.65 — way louder
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
         o.connect(g).connect(this.sfxBus);
-        o.start(t); o.stop(t + 0.2);
-        // Mid body — long noise tail that rolls off lowpass for the BOOM
-        this._noise(t,         0.45, 0.30, 700,  'lp', 1.2);
-        this._noise(t + 0.005, 0.30, 0.28, 1200, 'bp', 1.6);
-        // Bright crack — sharp head transient
-        this._noise(t,         0.10, 0.18, 4200, 'hp', 1);
-        // Mechanical "kachunk" tail — quick square click at 220Hz for the
-        // pump-action read.
-        this._tonal(t + 0.18, 'square', 220, 110, 0.06, 0.12);
+        o.start(t); o.stop(t + 0.26);
+
+        // DRY BOOM ECHO — second low oscillator slightly later for room
+        // reflection feel. Doom shotgun has this thick "BOOM" tail.
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sine';
+        o2.frequency.setValueAtTime(60, t + 0.03);
+        o2.frequency.exponentialRampToValueAtTime(28, t + 0.28);
+        this._envOn(g2, 0.40, t + 0.03);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t + 0.03); o2.stop(t + 0.34);
+
+        // MID BODY — beefier noise tail. Bumped gains, extended duration.
+        this._noise(t,         0.62, 0.38, 700,  'lp', 1.2);    // was 0.45/0.30
+        this._noise(t + 0.005, 0.48, 0.34, 1200, 'bp', 1.6);    // was 0.30/0.28
+        // Sub-spread layer for pellet thickness
+        this._noise(t + 0.01,  0.32, 0.22, 450,  'lp', 0.8);
+
+        // BRIGHT CRACK — sharper attack, brighter (5200 vs 4200), longer
+        this._noise(t,         0.18, 0.22, 5200, 'hp', 1);
+
+        // MECHANICAL PUMP — was a single square click. Now: cocking +
+        // shell-eject sequence. Reads as a real pump-action reload.
+        // "Schhh" (shell sliding) at +180ms
+        this._noise(t + 0.18, 0.08, 0.10, 2400, 'bp', 3);
+        // "CLACK" mechanical seat at +260ms — heavier than original
+        this._tonal(t + 0.26, 'square', 280, 140, 0.10, 0.16);
+        // Bright metallic ping on the clack
+        this._noise(t + 0.26, 0.06, 0.04, 3800, 'hp', 2);
     }
 
     // R259: empty grenade-belt click. Quick dull mechanical click — short
@@ -621,50 +662,70 @@ class Audio {
     // that simulates the chain teeth biting. Noise gain bumped 0.12 -> 0.16
     // so the grind has bite. Called every few frames while shoot is held, so
     // each call stays short (~100-120ms) and overlaps for a continuous drone.
+    // R566h: chainsaw — meatier, buzzier, more brutal.
+    // Added: detuned sub-octave saw for thicker bass growl, heavier
+    // teeth-grinding noise (broader Q, hotter gain), longer sustain so
+    // each tick reads more like an actual chainsaw engagement rather
+    // than a wimpy click. Now also routes through sfxBus for proper
+    // gain compensation (was hitting master direct — louder than meters).
     _chainsawRev(t) {
-        // Sawtooth growl — wobble between 110-160Hz for the "chuga-chuga"
+        // PRIMARY GROWL — sawtooth bass, slightly lower base for thicker growl
         const o = this.ctx.createOscillator();
         const g = this.ctx.createGain();
         o.type = 'sawtooth';
-        const baseF = 110 + Math.random() * 50;
+        const baseF = 90 + Math.random() * 40;     // was 110+50, now 90+40 — deeper
         o.frequency.setValueAtTime(baseF, t);
-        o.frequency.linearRampToValueAtTime(baseF * 1.4, t + 0.04);
-        o.frequency.linearRampToValueAtTime(baseF, t + 0.08);
+        o.frequency.linearRampToValueAtTime(baseF * 1.5, t + 0.04);   // bigger wobble
+        o.frequency.linearRampToValueAtTime(baseF, t + 0.10);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.24, t + 0.005);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
-        o.connect(g).connect(this.master);
-        o.start(t); o.stop(t + 0.12);
-        // Noise layer — chain teeth grinding
+        g.gain.exponentialRampToValueAtTime(0.40, t + 0.005);         // was 0.24 — meaner
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);        // was 0.10 — longer
+        o.connect(g).connect(this.sfxBus);                            // was master
+        o.start(t); o.stop(t + 0.14);
+
+        // SUB-OCTAVE LAYER — sawtooth at half the base freq for the
+        // chest-feel growl real chainsaws have.
+        const sub = this.ctx.createOscillator();
+        const subG = this.ctx.createGain();
+        sub.type = 'sawtooth';
+        sub.frequency.setValueAtTime(baseF * 0.5, t);
+        sub.frequency.linearRampToValueAtTime(baseF * 0.75, t + 0.04);
+        sub.frequency.linearRampToValueAtTime(baseF * 0.5, t + 0.10);
+        subG.gain.setValueAtTime(0.0001, t);
+        subG.gain.exponentialRampToValueAtTime(0.22, t + 0.005);
+        subG.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.14);
+
+        // GRINDING NOISE — heavier, broader bandpass for chunkier teeth
         const n = this.ctx.createBufferSource();
-        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.08, this.ctx.sampleRate);
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.11, this.ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.55;  // was 0.4
         n.buffer = buf;
         const bp = this.ctx.createBiquadFilter();
         bp.type = 'bandpass';
-        bp.frequency.value = 1800;
-        bp.Q.value = 4;
+        bp.frequency.value = 1600;
+        bp.Q.value = 2.5;                          // was 4 — broader = chunkier
         const ng = this.ctx.createGain();
         ng.gain.setValueAtTime(0.0001, t);
-        ng.gain.exponentialRampToValueAtTime(0.16, t + 0.005);
-        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-        n.connect(bp).connect(ng).connect(this.master);
-        n.start(t); n.stop(t + 0.08);
-        // R251: metallic whine layer — high-frequency sine that wobbles 60Hz
-        // around 2800Hz, simulating the chain teeth singing as they spin.
-        // Quiet (~0.06) so it sits atop the growl without dominating.
+        ng.gain.exponentialRampToValueAtTime(0.28, t + 0.005);   // was 0.16 — louder
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+        n.connect(bp).connect(ng).connect(this.sfxBus);
+        n.start(t); n.stop(t + 0.11);
+
+        // METALLIC WHINE — chain teeth singing, slightly hotter
         const w = this.ctx.createOscillator(); const wg = this.ctx.createGain();
         w.type = 'sine';
         const whineBase = 2800 + Math.random() * 200;
         w.frequency.setValueAtTime(whineBase, t);
-        w.frequency.linearRampToValueAtTime(whineBase - 60, t + 0.05);
-        w.frequency.linearRampToValueAtTime(whineBase, t + 0.10);
+        w.frequency.linearRampToValueAtTime(whineBase - 80, t + 0.05);
+        w.frequency.linearRampToValueAtTime(whineBase, t + 0.12);
         wg.gain.setValueAtTime(0.0001, t);
-        wg.gain.exponentialRampToValueAtTime(0.06, t + 0.005);
-        wg.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
-        w.connect(wg).connect(this.master);
-        w.start(t); w.stop(t + 0.12);
+        wg.gain.exponentialRampToValueAtTime(0.09, t + 0.005);   // was 0.06
+        wg.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+        w.connect(wg).connect(this.sfxBus);
+        w.start(t); w.stop(t + 0.14);
     }
 
     // Grenade throw — short metallic pin-pull click followed by a cloth/air
@@ -971,50 +1032,79 @@ class Audio {
     }
 
     // Real-feeling gunshot. Sub kick + filtered noise body + HPF crack.
+    // R566h: BRUTAL gunshot — restored Doom-flavored chunkiness.
+    // Original was 3 layers (thump/body/crack) at moderate gain. This adds:
+    //  - Sub-octave kick-drum slam below the thump (45Hz fundamental)
+    //    that hits chest like a real centerfire round.
+    //  - Body noise tail extended + 12dB hotter for the meaty mid bark.
+    //  - Crack noise burst pushed brighter (HPF higher, slightly longer)
+    //    so the snap reads through music and SFX layers.
+    //  - Cylinder/mechanism "click" pre-shot for the mechanical feel
+    //    Doom guns have (1f offset so it doesn't smear the transient).
     _gunshot(t, { thump = 80, body = 1400, bodyDur = 0.12, crack = 5000, layers = 1 }) {
         for (let layer = 0; layer < layers; layer++) {
             const start = t + layer * 0.025;
-            // Sub-bass thump: kick-drum-style sine pitch sweep
+
+            // SUB-OCTAVE SLAM — kick-drum punch below the main thump.
+            // Sine sweep from 110Hz → 38Hz over 80ms. Brutal chest hit.
+            const sub = this.ctx.createOscillator();
+            const subG = this.ctx.createGain();
+            sub.type = 'sine';
+            sub.frequency.setValueAtTime(thump * 1.3, start);
+            sub.frequency.exponentialRampToValueAtTime(thump * 0.4, start + 0.08);
+            subG.gain.setValueAtTime(0.0, start);
+            subG.gain.linearRampToValueAtTime(0.78, start + 0.004);
+            subG.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
+            sub.connect(subG).connect(this.sfxBus);
+            sub.start(start); sub.stop(start + 0.15);
+
+            // PRIMARY THUMP — the original kick, now louder
             const o = this.ctx.createOscillator();
             const og = this.ctx.createGain();
             o.type = 'sine';
             o.frequency.setValueAtTime(thump * 2, start);
             o.frequency.exponentialRampToValueAtTime(thump * 0.5, start + 0.10);
             og.gain.setValueAtTime(0.0, start);
-            og.gain.linearRampToValueAtTime(0.55, start + 0.005);
-            og.gain.exponentialRampToValueAtTime(0.001, start + 0.14);
+            og.gain.linearRampToValueAtTime(0.72, start + 0.005);
+            og.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
             o.connect(og).connect(this.sfxBus);
-            o.start(start); o.stop(start + 0.16);
+            o.start(start); o.stop(start + 0.18);
 
-            // Body: bandpass noise, longer tail than the beep version
-            const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * bodyDur) | 0, this.ctx.sampleRate);
+            // BODY — extended bandpass noise with sub-resonance for meat.
+            // Tail extended by 30% so the bark sustains instead of clipping.
+            const bodyDurFinal = bodyDur * 1.3;
+            const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * bodyDurFinal) | 0, this.ctx.sampleRate);
             const d = buf.getChannelData(0);
-            for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+            // Heavier noise envelope — start hot, decay
+            for (let i = 0; i < d.length; i++) {
+                const env = Math.pow(1 - i / d.length, 0.7);
+                d[i] = (Math.random() * 2 - 1) * env;
+            }
             const src = this.ctx.createBufferSource(); src.buffer = buf;
             const filt = this.ctx.createBiquadFilter();
             filt.type = 'bandpass';
             filt.frequency.setValueAtTime(body, start);
-            filt.frequency.exponentialRampToValueAtTime(body * 0.4, start + bodyDur);
-            filt.Q.value = 1.2;
+            filt.frequency.exponentialRampToValueAtTime(body * 0.35, start + bodyDurFinal);
+            filt.Q.value = 1.5;
             const g = this.ctx.createGain();
-            this._envOn(g, 0.42, start);
-            g.gain.exponentialRampToValueAtTime(0.001, start + bodyDur);
+            this._envOn(g, 0.62, start);     // was 0.42 — meatier
+            g.gain.exponentialRampToValueAtTime(0.001, start + bodyDurFinal);
             src.connect(filt).connect(g).connect(this.sfxBus);
-            src.start(start); src.stop(start + bodyDur + 0.02);
+            src.start(start); src.stop(start + bodyDurFinal + 0.02);
 
-            // High crack at attack
-            const crackBuf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.025) | 0, this.ctx.sampleRate);
+            // CRACK — sharper, brighter, slightly longer
+            const crackBuf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.035) | 0, this.ctx.sampleRate);
             const cd = crackBuf.getChannelData(0);
             for (let i = 0; i < cd.length; i++) cd[i] = Math.random() * 2 - 1;
             const csrc = this.ctx.createBufferSource(); csrc.buffer = crackBuf;
             const cfilt = this.ctx.createBiquadFilter();
             cfilt.type = 'highpass';
-            cfilt.frequency.value = crack;
+            cfilt.frequency.value = crack * 1.1;  // push brighter
             const cg = this.ctx.createGain();
-            this._envOn(cg, 0.32, start);
-            cg.gain.exponentialRampToValueAtTime(0.001, start + 0.025);
+            this._envOn(cg, 0.48, start);    // was 0.32 — brighter snap
+            cg.gain.exponentialRampToValueAtTime(0.001, start + 0.035);
             csrc.connect(cfilt).connect(cg).connect(this.sfxBus);
-            csrc.start(start); csrc.stop(start + 0.03);
+            csrc.start(start); csrc.stop(start + 0.04);
         }
     }
 
@@ -1268,35 +1358,284 @@ class Audio {
         o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.45);
     }
 
+    // R566h: enemy hurt — guttural demon snarl with throat-rasp.
+    // Original was a single saw whimper. Now: gravelly bandpass noise body
+    // + dual-detuned saw growl (220Hz + 165Hz for fifth interval = menacing
+    // dissonant feel) + throat-rasp noise burst. Reads as "thing in pain"
+    // not "synth complaint".
     _hurtGrunt(t) {
-        // Pitched-down growl noise + tonal whimper
-        this._noise(t, 0.18, 0.32, 800, 'bp', 1.8);
+        // Throat rasp — short bandpass noise burst at the attack
+        this._noise(t, 0.32, 0.10, 600, 'bp', 2.5);
+        this._noise(t, 0.18, 0.06, 1800, 'bp', 4);
+
+        // Primary growl — saw at 220Hz, pitching down to 95Hz (deeper end)
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'sawtooth';
         o.frequency.setValueAtTime(220, t);
-        o.frequency.exponentialRampToValueAtTime(110, t + 0.25);
-        this._envOn(g, 0.28, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        o.frequency.exponentialRampToValueAtTime(95, t + 0.28);   // deeper drop
+        this._envOn(g, 0.42, t);                                   // was 0.28
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
         const filt = this.ctx.createBiquadFilter();
-        filt.type = 'lowpass'; filt.frequency.value = 900;
+        filt.type = 'lowpass'; filt.frequency.value = 800;
         o.connect(filt).connect(g).connect(this.sfxBus);
-        o.start(t); o.stop(t + 0.3);
+        o.start(t); o.stop(t + 0.32);
+
+        // Detuned dissonant fifth below — adds menace
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sawtooth';
+        o2.frequency.setValueAtTime(165, t);
+        o2.frequency.exponentialRampToValueAtTime(70, t + 0.28);
+        this._envOn(g2, 0.24, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+        const filt2 = this.ctx.createBiquadFilter();
+        filt2.type = 'lowpass'; filt2.frequency.value = 700;
+        o2.connect(filt2).connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.32);
+
+        // Body-thud — sub-bass kick on impact so the hit lands physical
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(90, t);
+        sub.frequency.exponentialRampToValueAtTime(40, t + 0.08);
+        this._envOn(subG, 0.30, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.12);
     }
 
+    // R566h: enemy death — much meaner, with throat-gurgle layer and
+    // a death-rattle noise tail. Was just a saw decline + noise puff.
+    // Now: collapse-thud sub + dual-saw demon scream pitching down to 30Hz
+    // + bandpass throat gurgle + lowpass noise tail for the body falling.
     _deathStinger(t) {
-        // Long descending sub-saw with noise tail
+        // COLLAPSE THUMP — body hits ground at start
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(35, t + 0.14);
+        this._envOn(subG, 0.55, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.20);
+
+        // PRIMARY DEATH WAIL — saw pitching from 280→30Hz over 900ms
         const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
         o.type = 'sawtooth';
         o.frequency.setValueAtTime(280, t);
-        o.frequency.exponentialRampToValueAtTime(40, t + 0.8);
+        o.frequency.exponentialRampToValueAtTime(30, t + 0.85);    // was 40, now deeper
         const filt = this.ctx.createBiquadFilter();
         filt.type = 'lowpass';
-        filt.frequency.setValueAtTime(1200, t);
-        filt.frequency.exponentialRampToValueAtTime(220, t + 0.8);
-        this._envOn(g, 0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        filt.frequency.setValueAtTime(1400, t);
+        filt.frequency.exponentialRampToValueAtTime(180, t + 0.85);
+        this._envOn(g, 0.46, t);                                    // was 0.30
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
         o.connect(filt).connect(g).connect(this.sfxBus);
-        o.start(t); o.stop(t + 0.9);
-        this._noise(t + 0.1, 0.4, 0.18, 400, 'lp', 1.2);
+        o.start(t); o.stop(t + 0.95);
+
+        // DETUNED DEATH WAIL — adds the dissonant evil layer
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sawtooth';
+        o2.frequency.setValueAtTime(210, t);
+        o2.frequency.exponentialRampToValueAtTime(22, t + 0.85);
+        const filt2 = this.ctx.createBiquadFilter();
+        filt2.type = 'lowpass';
+        filt2.frequency.setValueAtTime(1000, t);
+        filt2.frequency.exponentialRampToValueAtTime(140, t + 0.85);
+        this._envOn(g2, 0.28, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+        o2.connect(filt2).connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.95);
+
+        // THROAT GURGLE — heavier bandpass noise body for the wet gurgle
+        this._noise(t + 0.05, 0.32, 0.45, 350, 'bp', 1.5);
+        // FINAL BODY TAIL — extended lowpass rumble
+        this._noise(t + 0.10, 0.50, 0.30, 350, 'lp', 1.2);
+    }
+
+    // R566h: ENEMY SPOT — Doom-style "they see you" aggressive snarl.
+    // Pitched DOWN saw + bandpass throat-rasp. Short, jolting, alerting.
+    // Used when a clone first sights the player (wake-up alert).
+    _enemySpot(t) {
+        // Throat rasp burst
+        this._noise(t, 0.35, 0.08, 700, 'bp', 3);
+        // Snarl — saw climbing from 180→260Hz (rising aggressive pitch)
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.linearRampToValueAtTime(260, t + 0.10);
+        o.frequency.exponentialRampToValueAtTime(140, t + 0.22);
+        this._envOn(g, 0.36, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass'; filt.frequency.value = 800; filt.Q.value = 1.2;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.26);
+        // Detuned octave-down for menace
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sawtooth';
+        o2.frequency.setValueAtTime(90, t);
+        o2.frequency.linearRampToValueAtTime(130, t + 0.10);
+        o2.frequency.exponentialRampToValueAtTime(70, t + 0.22);
+        this._envOn(g2, 0.22, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.26);
+    }
+
+    // R566h: ENEMY GROWL — distant ambient prowl. Quieter, longer than
+    // _enemySpot. Used for "something is in the corridor" atmosphere.
+    _enemyGrowl(t) {
+        // Long deep saw growl, slight pitch wobble
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(75, t);
+        o.frequency.linearRampToValueAtTime(95, t + 0.30);
+        o.frequency.linearRampToValueAtTime(70, t + 0.60);
+        this._envOn(g, 0.22, t);
+        g.gain.linearRampToValueAtTime(0.18, t + 0.30);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.62);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 600;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.64);
+        // Subtle throat-rasp noise mid-growl
+        this._noise(t + 0.20, 0.10, 0.30, 450, 'bp', 2);
+    }
+
+    // R566h: ENEMY ATTACK — melee swing/lunge shriek. Sharp rising
+    // shriek + air-cut whoosh. Used when a clone lunges within melee.
+    _enemyAttack(t) {
+        // Air whoosh — bandpass noise descending
+        this._noise(t, 0.20, 0.14, 2400, 'bp', 5);
+        // Shriek — saw rising fast 300→520Hz then snap-decay
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(300, t);
+        o.frequency.exponentialRampToValueAtTime(520, t + 0.08);
+        o.frequency.exponentialRampToValueAtTime(180, t + 0.18);
+        this._envOn(g, 0.32, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass'; filt.frequency.value = 1400; filt.Q.value = 2;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.22);
+    }
+
+    // R566h: ENEMY PAIN — short sharp yelp on damage. Brighter + shorter
+    // than _hurtGrunt so it reads as "stung, not dying."
+    _enemyPain(t) {
+        // Quick noise crack
+        this._noise(t, 0.20, 0.04, 1800, 'bp', 3);
+        // Short sharp saw yelp pitch DOWN
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(360, t);
+        o.frequency.exponentialRampToValueAtTime(160, t + 0.10);
+        this._envOn(g, 0.30, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1400;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.14);
+    }
+
+    // R566h: DOOR SLIDE — Doom-style "schhhhh" hydraulic open. Pure noise
+    // band-pass sweep + low sub rumble for the mechanism, no tonal beeps.
+    _doorSlide(t) {
+        // Hydraulic hiss — descending bandpass noise over 600ms
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.6) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(1800, t);
+        filt.frequency.exponentialRampToValueAtTime(600, t + 0.6);
+        filt.Q.value = 1.4;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.32, t);
+        g.gain.linearRampToValueAtTime(0.22, t + 0.45);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.62);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + 0.64);
+        // Low sub rumble — heavy mechanism
+        const o = this.ctx.createOscillator(); const og = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(55, t);
+        o.frequency.linearRampToValueAtTime(38, t + 0.55);
+        this._envOn(og, 0.28, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.60);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.62);
+        // Final mechanical clack
+        this._tonal(t + 0.55, 'square', 180, 90, 0.06, 0.10);
+    }
+
+    // R566h: HEALTH pickup — Doom-style absorbed-resource pulse, no chime.
+    // Low sine pulse + tiny noise whoosh, hints at organic absorption.
+    _pickupHealth(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(260, t);
+        o.frequency.linearRampToValueAtTime(440, t + 0.12);
+        this._envOn(g, 0.30, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.18);
+        // Sub-octave thicken
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sine';
+        o2.frequency.setValueAtTime(130, t);
+        o2.frequency.linearRampToValueAtTime(220, t + 0.12);
+        this._envOn(g2, 0.20, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.18);
+        // Tiny noise whoosh
+        this._noise(t, 0.10, 0.08, 2400, 'bp', 3);
+    }
+
+    // R566h: ARMOR pickup — metallic clink + low sine thud. Distinct from health.
+    _pickupArmor(t) {
+        // Metallic clink at attack — bright square
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(1200, t);
+        o.frequency.exponentialRampToValueAtTime(620, t + 0.10);
+        this._envOn(g, 0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'highpass'; filt.frequency.value = 800;
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.16);
+        // Sub thud
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(90, t);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.10);
+        this._envOn(subG, 0.30, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.14);
+        // Brief metallic shimmer noise
+        this._noise(t, 0.08, 0.10, 3200, 'hp', 2);
+    }
+
+    // R566h: AMMO pickup — mechanical click + magazine slap. No chime.
+    _pickupAmmo(t) {
+        // Click — short square
+        this._tonal(t, 'square', 480, 320, 0.04, 0.06);
+        // Magazine slap — quick noise thud
+        this._noise(t + 0.04, 0.18, 0.08, 600, 'lp', 1.5);
+        // Sub punch
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(75, t + 0.04);
+        sub.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+        this._envOn(subG, 0.22, t + 0.04);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.04); sub.stop(t + 0.16);
     }
 
     _explode(t) {
@@ -1310,10 +1649,23 @@ class Audio {
         o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.55);
     }
 
+    // R566h: replaced the square-wave "clang" with a meaty body-thud.
+    // Sub-bass kick + bandpass meat noise + a tight metallic shimmer
+    // (kept the metallic feel but via filtered noise, not a 880Hz beep).
     _bossHit(t) {
-        // Hi metallic clang + noise crunch
-        this._tonal(t, 'square', 880, 480, 0.10, 0.26);
-        this._noise(t, 0.10, 0.20, 1800, 'bp', 4);
+        // Sub kick — body thud at attack
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(150, t);
+        sub.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+        this._envOn(subG, 0.55, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.18);
+        // Meat noise — bandpass mid for the wet impact
+        this._noise(t, 0.32, 0.20, 600, 'bp', 1.8);
+        // Metallic shimmer — bright noise crackle, not a square clang
+        this._noise(t, 0.18, 0.10, 3200, 'hp', 2);
     }
 
     _pounceStab(t) {

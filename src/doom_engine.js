@@ -227,11 +227,13 @@ export class DoomEngine {
         if (this.t % 240 === 0) audio.sfx?.('fluorescent');
         const isSewer = this.data.theme === 'sewer';
         if (isSewer && this.t % 180 === 0) audio.sfx?.('splash');
-        // Distant clone snarl: pick a random alive clone every ~6s and play
-        // a low-volume hurt SFX as "ambient distant scream"
+        // R566h: distant clone prowl — was reusing the player's `hurt`
+        // grunt for this ambient, which read confusingly as "you took
+        // damage from nothing". Now uses the dedicated `enemyGrowl`
+        // synth (long lowpass saw, no high frequencies — sells distance).
         if (this.t % 360 === 100) {
             const alive = this.entities.filter(e => e.alive && e.kind === 'clone');
-            if (alive.length > 0) audio.sfx?.('hurt');
+            if (alive.length > 0) audio.sfx?.('enemyGrowl');
         }
     }
 
@@ -444,7 +446,9 @@ export class DoomEngine {
             this._keyPulseColor = e.color;
         } else if (e.kind === 'health') {
             p.hp = Math.min(p.maxHp, p.hp + (e.amount || 2));
-            audio.sfx?.('pickup');
+            // R566h: dedicated health pickup — organic sine pulse + whoosh,
+            // no chime. Reads as resource absorbed, not menu confirm.
+            audio.sfx?.('pickup_health');
             this._floatText(`+${e.amount || 2} HP`, p.x, p.y);
             // R448: green pulse flash on health pickup
             game?.triggerScreenFlash?.(6, '#50ff70', 0.25);
@@ -453,7 +457,8 @@ export class DoomEngine {
             const w = p.weapons[target];
             if (w) {
                 w.ammo = (w.ammo === Infinity ? Infinity : (w.ammo || 0) + (e.amount || 8));
-                audio.sfx?.('pickup');
+                // R566h: ammo gets click+magazine slap — mechanical, not chime.
+                audio.sfx?.('pickup_ammo');
                 this._floatText(`+${e.amount || 8} ${target.toUpperCase()}`, p.x, p.y);
                 // R448: yellow pulse flash on ammo pickup
                 game?.triggerScreenFlash?.(4, '#ffe070', 0.18);
@@ -507,7 +512,9 @@ export class DoomEngine {
                 e._alerted = true;
                 e._wakeT = 30;       // 30-frame stagger before they start chasing
                 this._floatText('!', e.x, e.y - 0.5);
-                audio.sfx?.('hurt');  // quick yelp as wake-up alert
+                // R566h: dedicated enemy-spot snarl, not the player's hurt grunt.
+                // Reads as "thing in the corridor saw you" not "you took damage."
+                audio.sfx?.('enemySpot');
             } else {
                 // Idle — light bob in place
                 return;
@@ -751,7 +758,12 @@ export class DoomEngine {
                                 this._killEnemy(e);
                             }
                         } else {
-                            audio.sfx?.('hurt');
+                            // R566h: dedicated enemy-pain yelp (shorter, sharper
+                            // than the player's hurt grunt — reads as "the thing
+                            // is stung" not "you're hurt"). enemyPain also has
+                            // an attack-noise crack so it doesn't blur with the
+                            // gunshot that caused it.
+                            audio.sfx?.('enemyPain');
                             e.fireCD = Math.max(e.fireCD || 0, 24);
                             // R444: any hit alerts the enemy (if not already)
                             e._alerted = true;
@@ -1133,11 +1145,14 @@ export class DoomEngine {
         if (!info) return;
         if (info.kind === 'door') {
             this.doorsOpened.add(`${mx},${my}`);
-            audio.sfx?.('select');
+            // R566h: was `select` (UI menu blip). Now `doorSlide` —
+            // hydraulic-hiss + sub rumble + mechanical clack, no tonal beeps.
+            audio.sfx?.('doorSlide');
         } else if (info.kind === 'doorKey') {
             if (this.keys.has(info.key)) {
                 this.doorsOpened.add(`${mx},${my}`);
-                audio.sfx?.('powerup');
+                // R566h: same swap — keyed doors slide too, not chime.
+                audio.sfx?.('doorSlide');
                 this._floatText(`${info.key.toUpperCase()} DOOR UNLOCKED`, p.x, p.y);
             } else {
                 // R427: denial click for locked doors
