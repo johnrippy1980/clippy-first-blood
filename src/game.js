@@ -112,6 +112,12 @@ const BOSS_DISPLAY_NAME = {
     HELICOPTER:    'MECHA CHOPPER',
     // R335: Mecha-Gates final
     MECHA_GATES:   'MECHA-GATES',
+    // R554: humanized display names for the Doom-mode Spindler variants
+    // and the new CRTRON boss. The internal codes (with underscores)
+    // were leaking into the boss-intro card + Doom intro screen.
+    SPINDLER_UZIS:       'DR. SPINDLER',          // Block 11
+    SPINDLER_WHEELCHAIR: 'DR. SPINDLER',          // Floor 11
+    SERVER_TOWER:        'CRTRON',                // HOLD THE LINE
 };
 
 // Per-boss villain bark — two short lines spoken in the cinematic slide

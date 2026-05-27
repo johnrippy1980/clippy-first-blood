@@ -1261,7 +1261,10 @@ export class DoomEngine {
             const stg = (typeof window !== 'undefined' && window.__game?.constructor)
                 ? window.__game.constructor.STAGES?.[window.__game.currentStage]
                 : null;
-            drawTextOutlined(ctx, this.bossKind || '', W / 2, VIEW_H - 22, '#ffe070', '#000000', 1, 'center');
+            // R554: humanize the boss-kind label — underscores were
+            // reading literally on the intro screen (SPINDLER_WHEELCHAIR).
+            const bossLabel = (this.bossKind || '').replace(/_/g, ' ');
+            drawTextOutlined(ctx, bossLabel, W / 2, VIEW_H - 22, '#ffe070', '#000000', 1, 'center');
             // Skip hint
             const skipAlpha = (this.t % 60 < 30) ? 1 : 0.4;
             ctx.globalAlpha = skipAlpha;
