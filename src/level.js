@@ -2101,7 +2101,10 @@ function makeTurretStage() {
     return {
         turretMode: true,
         theme: THEME.SERVERROOM,
-        music: 'arenaBoss',
+        // R545: 'steelTongues' is the dedicated HOLD THE LINE track —
+        // industrial siege metal that matches the turret-defense vs CRTRON
+        // narrative. Was previously reusing 'arenaBoss'.
+        music: 'steelTongues',
         // No bgKey — engine draws a procedural warehouse interior.
         // (When a painted bg lands later, set bgKey: 'bg_turret_arena')
         // R535: chain forward to The Pipeline (stage 4) after CRTRON falls.

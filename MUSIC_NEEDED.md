@@ -1,6 +1,17 @@
-# MUSIC NEEDED — R542 audit, 2026-05-26
+# MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-All 21 currently-shipped tracks are wired and present on disk. The
+## R545 UPDATE — TWO NEW TRACKS LANDED
+
+- **STEEL TONGUES** → assigned to stage 25 HOLD THE LINE (was the
+  Tier-1 critical gap). Industrial siege metal pairing perfectly
+  with the turret-defense vs CRTRON beat.
+- **METRO** → assigned to stage 9 KEYNOTE CORRIDOR, splitting it
+  off from the shared `backstage.mp3` (Tier-2 desirable variety).
+
+Stage 25 (Tier 1) and stage 9 (Tier 2 item 2) are now both crossed
+off. 23 shipped tracks total. Outstanding wishlist items below.
+
+All 23 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -43,14 +54,10 @@ want to compose more.
 
 ### TIER 1 — strongest case for a unique track
 
-1. **HOLD THE LINE** (stage 25, NEW turret-defense stage)
-   - Mood: relentless industrial siege metal, machine-gun drum work
-   - Should ramp into a third act when CRTRON spawns
-   - Filename: `hold-the-line.mp3` (or similar)
-   - Currently reuses `arena.mp3` — works but feels generic
+1. ~~**HOLD THE LINE** (stage 25)~~ — **LANDED R545 (steel-tongues.mp3)**
 
 2. **CRTRON BOSS** (CRTRON-specific layer or whole new track)
-   - Could be a layered stem that overlays HOLD THE LINE during the
+   - Could be a layered stem that overlays STEEL TONGUES during the
      boss fight, intensifying at phase 2
    - Mood: glitchy synthwave + dial-up modem + 90s computing
      bootscreen sample
@@ -65,10 +72,7 @@ want to compose more.
    - Filenames: `mecha-approach.mp3`, `mecha-chase.mp3`,
      `mecha-final.mp3` (or 3 variants of one base composition)
 
-4. **KEYNOTE CORRIDOR** (stage 9, currently shares `backstage.mp3` with 6)
-   - Stage 6 and 9 both have BACKSTAGE FPS — different theme
-     (office vs keynote)
-   - Filename: `keynote-corridor.mp3`
+4. ~~**KEYNOTE CORRIDOR** (stage 9)~~ — **LANDED R545 (metro.mp3)**
 
 5. **MECHA CORRIDOR** (stage 21 chopper chase, currently shares
    `1.26x.mp3` which is the Recycle Bin secret track)
@@ -87,10 +91,11 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY
+## SUMMARY (POST-R545)
 
-- **0 tracks broken or missing** (all 21 declared files exist)
-- **1 critical gap** (HOLD THE LINE needs own track — Tier 1)
-- **6 desirable additions** to break up reuse patterns
-- Best ROI: composing **CRTRON BOSS layer** + **HOLD THE LINE base**
-  as a paired set
+- **0 tracks broken or missing** (all 23 declared files exist)
+- **0 critical gaps** (R545 landed STEEL TONGUES for stage 25)
+- **5 desirable additions** still outstanding (was 6 — METRO took
+  the KEYNOTE CORRIDOR slot)
+- Best remaining ROI: CRTRON BOSS layer (Tier 1 item 2) to overlay
+  on STEEL TONGUES during the boss phase

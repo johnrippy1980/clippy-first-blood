@@ -54,6 +54,12 @@ export const TRACK_MANIFEST = [
     { track: 'bossRushMode', title: 'EVOLUTION',              mood: 'POST-GAME P1',  author: 'R_I_P' },
     { track: 'timeTrial',    title: 'NEVER THE SAME',         mood: 'POST-GAME P2',  author: 'R_I_P' },
     { track: 'bonus2',       title: 'BONUS',                  mood: 'BONUS TRACK',   author: 'R_I_P' },
+    // R545: new tracks land. Steel Tongues = the industrial siege of
+    // HOLD THE LINE (stage 25 turret defense vs CRTRON). Metro = the
+    // dedicated KEYNOTE CORRIDOR theme (stage 9), splitting it off from
+    // the shared 'backstage' track previously used for both 6 + 9.
+    { track: 'steelTongues', title: 'STEEL TONGUES',          mood: 'STAGE 25 (3B)', author: 'R_I_P' },
+    { track: 'metro',        title: 'METRO',                  mood: 'STAGE 9',       author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
@@ -156,7 +162,7 @@ export const STAGES = [
     { id: 7, name: 'BALLMER ARENA',          category: 'campaign', displayId: '07', theme: THEME.BOARDROOM,   boss: 'BALLMER',       music: 'arenaBoss',  tagline: 'CHAIRS WILL FLY.' },
     { id: 8, name: 'KEYNOTE HALL',           category: 'campaign', displayId: '08', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'keynote',    tagline: 'YOU HAD ONE JOB', bossEscapes: true },
     // R302: Gates FPS chase + arena get the same new tracks as Ballmer's pair.
-    { id: 9, name: 'KEYNOTE CORRIDOR',       category: 'campaign', displayId: '09', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'backstage',  tagline: 'BACKSTAGE PASS REQUIRED.' },
+    { id: 9, name: 'KEYNOTE CORRIDOR',       category: 'campaign', displayId: '09', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'metro',  tagline: 'BACKSTAGE PASS REQUIRED.' },
     { id: 10, name: 'GATES ARENA',           category: 'campaign', displayId: '10', theme: THEME.KEYNOTE,     boss: 'GATES',         music: 'arenaBoss',  tagline: 'DEVELOPERS. DEVELOPERS.' },
     { id: 11, name: "FOUNDER'S LAIR",        category: 'campaign', displayId: '11', theme: THEME.FOUNDER,     boss: 'CLIPPY_2',      music: 'founder',    tagline: 'THE REPLACEMENT MODEL' },
     { id: 12, name: 'BOSS RUSH',             category: 'campaign', displayId: '12', theme: THEME.SERVERROOM,  boss: 'GAUNTLET',      music: 'bossBattle', tagline: 'EVERYTHING YOU KILLED. AGAIN.' },
@@ -185,7 +191,7 @@ export const STAGES = [
     // R523/R535: mounted-turret stage — Clippy mans an emplaced MG against
     // CRT-monster waves crawling out of the broken server racks. Mid-
     // campaign breather between Server Room (3) and Pipeline (4).
-    { id: 25, name: 'HOLD THE LINE',            category: 'campaign', displayId: '3B', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'arenaBoss',     tagline: 'THE RACKS ARE BLEEDING.', },
+    { id: 25, name: 'HOLD THE LINE',            category: 'campaign', displayId: '3B', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'steelTongues',  tagline: 'THE RACKS ARE BLEEDING.', },
 ];
 
 // Damage flash colors per source.

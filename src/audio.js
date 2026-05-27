@@ -68,6 +68,12 @@ const FILE_TRACKS = {
     // Stage 4 PIPELINE track. Having it listed as BOTH made the soundtrack
     // gallery misleading. Now bonus2 (different file) is the only bonus.
     bonus2:      'assets/audio/bonus-2.mp3',                   // soundtrack-only bonus
+    // R545: two new tracks land. Steel Tongues = HOLD THE LINE (stage 25
+    // turret-defense vs CRTRON — industrial siege siegework). Metro =
+    // dedicated KEYNOTE CORRIDOR (stage 9), splitting from the shared
+    // backstage.mp3 previously used for both stage 6 + 9.
+    steelTongues: 'assets/audio/steel-tongues.mp3',            // stage 25 HOLD THE LINE
+    metro:        'assets/audio/metro.mp3',                    // stage 9 KEYNOTE CORRIDOR
 };
 
 class Audio {
