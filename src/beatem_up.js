@@ -1107,6 +1107,17 @@ export class BeatEmUp {
         if (hitAny) {
             audio.sfx(kind === 'hook' || kind === 'roundhouse' ? 'bossHit' : 'hit');
             this._hitstop = (kind === 'hook' || kind === 'roundhouse') ? 4 : 2;
+            // R563: combo readout above the player — players couldn't see
+            // they were chaining a 3-hit jab→cross→hook combo. Now: floating
+            // text shows the punch kind on each connect, color-matched to
+            // the impact burst.
+            this._meleeFloater = {
+                text: kind.toUpperCase(),
+                age: 0,
+                maxAge: kind === 'hook' ? 60 : 36,
+                color: hitColor,
+                big: kind === 'hook' || kind === 'roundhouse',
+            };
         } else {
             audio.sfx('jump'); // whiff — quick whoosh
         }
@@ -1848,6 +1859,24 @@ export class BeatEmUp {
         // the final bark + lingering impacts complete before disappearing.
         if (!this.meleeMode && !this._meleeBarkT && (!this._meleeImpacts || !this._meleeImpacts.length)) return;
         const ctx = this.ctx;
+        // R563: combo readout floater above player
+        if (this._meleeFloater) {
+            const f = this._meleeFloater;
+            f.age++;
+            if (f.age >= f.maxAge) {
+                this._meleeFloater = null;
+            } else {
+                const t = f.age / f.maxAge;
+                const drawX = this.player.x - this.scroll + this.player.w / 2;
+                const drawY = this.player.y - (this.player.airY || 0) - 8 - t * 14;
+                const alpha = 1 - t * 0.7;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                const scale = f.big ? 2 : 1;
+                drawTextOutlined(ctx, f.text, drawX, drawY, f.color, '#1a0a14', scale, 'center');
+                ctx.restore();
+            }
+        }
         // Impact bursts — radial yellow-white starbursts that fade in 12f
         if (this._meleeImpacts && this._meleeImpacts.length) {
             for (let i = this._meleeImpacts.length - 1; i >= 0; i--) {
