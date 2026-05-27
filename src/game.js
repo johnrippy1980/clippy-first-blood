@@ -4486,7 +4486,12 @@ export class Game {
             // their player objects don't have all the platformer fields.
             // Pull from the active engine's player when the platformer's
             // is unavailable.
-            const altPlayer = this._doomEngine?.player || this._beatEmUp?.player || this._fpsArena?.player;
+            // R563b: extended to include _turretArena (R523 HOLD THE LINE
+            // turret stage). Kills earned in stage 25 were not crediting
+            // the achievement system because turret was missing from the
+            // fallback chain.
+            const altPlayer = this._doomEngine?.player || this._beatEmUp?.player
+                           || this._fpsArena?.player || this._turretArena?.player;
             const ap = this.player || altPlayer || {};
             const newlyUnlocked = achievements.update({
                 totalKills: ap.kills || 0,
