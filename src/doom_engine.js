@@ -2028,26 +2028,28 @@ export class DoomEngine {
             // doom_wall_N.png; if loaded, sample the column from it.
             // Doors (10,12,13,14) and switches/exit fall back to flat color.
             let tex = null;
-            if (cell >= 1 && cell <= 9) {
+            if (cell >= 1 && cell <= 11) {
                 // R537/R538b: procedural wall-texture variation. Map data
                 // uses mostly tile id 1 (cubicle). Hash (mapX,mapY) and
-                // substitute textures 2-9 so corridors mix wood doors,
-                // glass+racks, bathroom tile, vending machines, water
-                // coolers, copiers, fire extinguishers, and open server
-                // racks with cable spaghetti into the cubicle baseline.
+                // substitute textures 2-11. Floor 11 corridors now have
+                // 11 distinct wall faces mixed by deterministic hash so
+                // the same tile always looks the same but adjacent walls
+                // vary — eliminating the "TEAMWORK on repeat" feel.
                 let effectiveCell = cell;
                 if (cell === 1) {
                     const phash = ((mapX * 2654435761) ^ (mapY * 40503) ^ 0xDEADBEEF) >>> 0;
                     const r = phash % 100;
-                    if (r < 9)       effectiveCell = 2;  // wood door (9%)
-                    else if (r < 16) effectiveCell = 3;  // glass+racks (7%)
-                    else if (r < 22) effectiveCell = 4;  // bathroom tile (6%)
-                    else if (r < 25) effectiveCell = 5;  // vending machine (3%)
-                    else if (r < 32) effectiveCell = 6;  // water cooler (7%)
-                    else if (r < 37) effectiveCell = 7;  // copier (5%)
-                    else if (r < 41) effectiveCell = 8;  // fire extinguisher (4%)
-                    else if (r < 46) effectiveCell = 9;  // open server rack (5%)
-                    // else stays as 1 (cubicle baseline ~54%)
+                    if (r < 8)       effectiveCell = 2;  // wood door (8%)
+                    else if (r < 14) effectiveCell = 3;  // glass+racks (6%)
+                    else if (r < 19) effectiveCell = 4;  // bathroom tile (5%)
+                    else if (r < 22) effectiveCell = 5;  // vending machine (3%)
+                    else if (r < 28) effectiveCell = 6;  // water cooler (6%)
+                    else if (r < 33) effectiveCell = 7;  // copier (5%)
+                    else if (r < 37) effectiveCell = 8;  // fire extinguisher (4%)
+                    else if (r < 42) effectiveCell = 9;  // open server rack (5%)
+                    else if (r < 48) effectiveCell = 10; // PERSISTENCE poster (6%)
+                    else if (r < 53) effectiveCell = 11; // sticky-note chaos (5%)
+                    // else stays as 1 (cubicle baseline ~47%)
                 }
                 tex = sprites.images?.get(`doom_wall_${effectiveCell}`);
                 if (tex && (!tex.complete || tex.naturalWidth === 0)) tex = null;

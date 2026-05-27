@@ -600,6 +600,8 @@ export const ENEMY_MANIFEST = {
     'doom_wall_7': 'doom_wall_7.png',   // boxy late-90s office copier
     'doom_wall_8': 'doom_wall_8.png',   // red fire extinguisher in recessed cradle
     'doom_wall_9': 'doom_wall_9.png',   // open server rack with cable spaghetti
+    'doom_wall_10': 'doom_wall_10.png', // cheesy PERSISTENCE eagle poster
+    'doom_wall_11': 'doom_wall_11.png', // chaotic sticky-note wall (FIX BUG, etc)
     // Enemy + boss billboards
     'doom_clone': 'doom_clone.png',
     'doom_boss_spindler_uzis': 'doom_boss_spindler_uzis.png',
