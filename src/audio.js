@@ -88,6 +88,9 @@ const FILE_TRACKS = {
     // R550: stage 22 MECHA-GATES true-final beat-em-up climax. 169s of
     // payback vengeance theme — fits the super-secret arc's climax.
     payback:      'assets/audio/payback.mp3',                  // stage 22 MECHA-GATES
+    // R551: stage 24 BOSS RUSH MODE post-game gauntlet. Splits evolution
+    // off stage 24 — now exclusive to stage 23 BLOCK 11.
+    indirect:     'assets/audio/indirect.mp3',                 // stage 24 BOSS RUSH MODE
 };
 
 class Audio {

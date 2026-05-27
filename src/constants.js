@@ -78,6 +78,11 @@ export const TRACK_MANIFEST = [
     // stage 16 FLOOR 11. Mecha trilogy musical arc complete:
     // DIRECT → CONDUIT → PAYBACK.
     { track: 'payback',      title: 'PAYBACK',                mood: 'STAGE 22 (P7)', author: 'R_I_P' },
+    // R551: stage 24 BOSS RUSH MODE — title-screen-unlocked post-game
+    // mode. Was sharing evolution.mp3 with stage 23 BLOCK 11. INDIRECT
+    // is the natural pair to DIRECT (R548) — completes the conceptual
+    // counterpoint set.
+    { track: 'indirect',     title: 'INDIRECT',               mood: 'STAGE 24 BOSS RUSH MODE', author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
@@ -205,7 +210,7 @@ export const STAGES = [
     // R426: BOSS RUSH MODE — relocated from old slot 16 (now FLOOR 11). Title-
     // screen unlocked mode only; no stage-select tile. category 'mode' so the
     // stage-select grid filter ignores it.
-    { id: 24, name: 'BOSS RUSH MODE',           category: 'mode',     displayId: '—',  theme: THEME.SERVERROOM, boss: 'GAUNTLET_FULL', music: 'bossRushMode', tagline: 'EVERY BOSS. NO BREAKS.' },
+    { id: 24, name: 'BOSS RUSH MODE',           category: 'mode',     displayId: '—',  theme: THEME.SERVERROOM, boss: 'GAUNTLET_FULL', music: 'indirect', tagline: 'EVERY BOSS. NO BREAKS.' },
     // R523/R535: mounted-turret stage — Clippy mans an emplaced MG against
     // CRT-monster waves crawling out of the broken server racks. Mid-
     // campaign breather between Server Room (3) and Pipeline (4).

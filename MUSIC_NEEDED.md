@@ -1,6 +1,6 @@
 # MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-## R545 → R550 UPDATE — SIX NEW TRACKS LANDED (wishlist closed)
+## R545 → R551 UPDATE — SEVEN NEW TRACKS LANDED (zero shares remain)
 
 - **STEEL TONGUES** → stage 25 HOLD THE LINE (Tier-1 #1 closed).
   Industrial siege metal for the turret-defense wave phase.
@@ -19,11 +19,14 @@
 - **PAYBACK** → stage 22 MECHA-GATES finale (R550). Closes the
   mecha trilogy arc: DIRECT → CONDUIT → PAYBACK. apocalypse.mp3
   is now exclusively stage 16 FLOOR 11.
+- **INDIRECT** → stage 24 BOSS RUSH MODE (R551). Eliminates the
+  final track-share (evolution was on 23+24). Now evolution
+  exclusive to stage 23. Pairs conceptually with DIRECT.
 
-Both Tier-1 + 4 Tier-2 wishlist items now closed. 27 shipped
-tracks total. **No remaining critical or desirable gaps.**
+All wishlist items + ALL track shares now closed. 28 shipped
+tracks total. **Every stage has its own unique track.**
 
-All 27 currently-shipped tracks are wired and present on disk. The
+All 28 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -95,18 +98,15 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R550 — FINAL ARRANGEMENT)
+## SUMMARY (POST-R551 — FULLY UNIQUE ARRANGEMENT)
 
-- **27 tracks total, all wired** across 25 stages + title + credits
+- **28 tracks total, all wired** across 25 stages + title + credits
   + CRTRON boss auto-swap
 - **0 broken or missing**
 - **0 critical gaps**
 - **0 desirable gaps**
+- **0 track shares** — every stage has its own unique track
 
-REMAINING SHARES (1 by design, intentional):
-- `evolution.mp3` → stages 23 + 24 (both gauntlet/boss-rush stages,
-  thematically consistent)
-
-NO SOUNDTRACK-GALLERY-ONLY TRACKS REMAIN. If you want a dedicated
-bonus-only slot for the soundtrack gallery, the next composition
-could fill that — otherwise the wishlist is fully closed.
+This is the cleanest possible arrangement. Any future composition
+becomes either a true bonus-gallery slot or a replacement for an
+existing track the composer wants to swap out.
