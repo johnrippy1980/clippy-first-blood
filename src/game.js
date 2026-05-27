@@ -4512,7 +4512,14 @@ export class Game {
                 maxCombo: this.runStats.maxCombo,
                 weaponDamage: this.runStats.weaponDamage,
                 totalTime: this.totalTime,
-                secretStageDiscovered: this.runStats.stagesCleared.has(10),
+                // R565b: secret stage is 14 (RECYCLE BIN), not 10. Stage 10 is
+                // GATES ARENA — a normal main-campaign stage. This line was
+                // stale from a pre-R226/R291 numbering. Also prefer the
+                // persisted achievements.stats flag (set by the discovery path
+                // in _tickStageClear) over inferring from stagesCleared, since
+                // re-clearing 14 via stage-select shouldn't re-fire discovery.
+                secretStageDiscovered: achievements.stats.secretStageDiscovered === true
+                    || this.runStats.stagesCleared.has(14),
                 bulletTimeUses: this.runStats.bulletTimeUses,
                 bestScore: ap.score || 0,
                 enemiesLost: this.runStats.enemiesLost,
