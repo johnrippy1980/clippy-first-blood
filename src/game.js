@@ -2652,25 +2652,23 @@ export class Game {
         }
 
         // R208: controls reference — Milos playtest #6 asked for a way to
-        // check key bindings without leaving the run. R214: was a 5-row
-        // dense block; trimmed to a single-line keymap strip that sits
-        // cleanly between the last option (QUIT TO TITLE at y=146) and
-        // the footer (panelY+panelH-8 = 198). The READY card before each
-        // stage already shows the full keymap — this strip is just a
-        // mid-run reminder, not the discovery surface.
-        const ctrlY = startY + PAUSE_OPTIONS.length * pauseRowH + 6;
-        drawText(ctx, 'CONTROLS', GAME.W / 2, ctrlY, '#a0c0e0', 1, 'center');
+        // check key bindings without leaving the run. R554: previously
+        // rendered a 'CONTROLS' header + 2 rows + footer, where the last
+        // row (JUMP/SPACE/GRENADE/V) overlapped the footer at panelY +
+        // panelH - 8 across all modes (worst in Doom mode where startY
+        // is bumped to leave room for the inventory inline). Now:
+        //  - dropped the 'CONTROLS' header line (rows are self-labeled)
+        //  - reduced spacing above first row from 16 → 8
+        //  - layout: row 0 → row 1 → footer with 8px gaps
+        const ctrlY = startY + PAUSE_OPTIONS.length * pauseRowH + 4;
         const colL = panelX + 16, colR = panelX + panelW - 16;
         const rowH = 8;
-        // Each row is [leftLabel, leftKey, rightLabel, rightKey]. Right
-        // column is drawn with align='right' so the key sits flush with
-        // the panel's inner edge.
         const rows = [
             ['MOVE', 'ARROWS', 'SHOOT',   'X'],
             ['JUMP', 'SPACE',  'GRENADE', 'V'],
         ];
         for (let i = 0; i < rows.length; i++) {
-            const y = ctrlY + 10 + i * rowH;
+            const y = ctrlY + i * rowH;
             // Left side: "LABEL KEY" — label dim, key bright
             drawText(ctx, rows[i][0],     colL,      y, '#a890b0', 1, 'left');
             drawText(ctx, rows[i][1],     colL + 26, y, '#ffe070', 1, 'left');
