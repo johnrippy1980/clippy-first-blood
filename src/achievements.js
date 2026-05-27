@@ -159,6 +159,8 @@ class Achievements {
                 // R279: konami unlock persists across sessions so the
                 // user doesn't have to re-enter the code every time.
                 this.stats.konamiUnlocked = data.stats.konamiUnlocked === true;
+                // R565d: lifetime high-water tag count for FULL SET (R223).
+                this.stats.tagsFound = Math.max(0, data.stats.tagsFound | 0);
             }
             // Persist with the new schema version on next _save() so we don't
             // re-run the migration. _load doesn't write directly.
@@ -171,7 +173,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 301,
+                schemaVersion: 302,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -180,6 +182,12 @@ class Achievements {
                     bestBossRushTime: this.stats.bestBossRushTime,
                     bestTimeTrialTime: this.stats.bestTimeTrialTime,
                     konamiUnlocked: this.stats.konamiUnlocked || false,
+                    // R565d: tagsFound is a high-water-mark per R223 (paperclip
+                    // dog tags). Was being set in memory by _onStageClear and
+                    // immediately lost on page reload because _save didn't
+                    // persist it. Now schemaVersion bumped 301→302 so the
+                    // _load migration can pick it up cleanly.
+                    tagsFound: this.stats.tagsFound || 0,
                 },
             }));
         } catch (e) {}
