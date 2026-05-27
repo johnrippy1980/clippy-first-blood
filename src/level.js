@@ -2495,11 +2495,12 @@ function makeBeatEmUpBallmer() {
         // until the final wave drops a new MG pickup.
         meleeMode: true,
         theme: THEME.BOARDROOM,
-        // R549: dedicated brawl track. Was sharing arena.mp3 with stage 10
-        // (Gates platformer arena) which felt redundant. bonus2.mp3 is a
-        // shorter, punchier 54s loop that fits the wave-based brawler beat
-        // better than the long-form arena.mp3.
-        music: 'bonus2',
+        // R549/R553: dedicated brawl track. R549 freed arena.mp3 to stage
+        // 10 by giving stage 7 bonus2.mp3. R553 swaps in SWEAT — the
+        // narratively-perfect fit (Ballmer is famous for sweating through
+        // his shirts at keynotes; CHAIRS WILL FLY tagline matches the
+        // panic-energy of the track). bonus2 returns to gallery-only.
+        music: 'sweat',
         bgKey: 'bg_boardroom',
         bossKind: 'BALLMER',
         spriteKeys: {

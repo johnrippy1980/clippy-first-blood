@@ -1,6 +1,6 @@
 # MUSIC NEEDED — R542 audit (R545 update), 2026-05-26
 
-## R545 → R552 UPDATE — EIGHT NEW TRACKS LANDED
+## R545 → R553 UPDATE — NINE NEW TRACKS LANDED
 
 - **STEEL TONGUES** → stage 25 HOLD THE LINE (Tier-1 #1 closed).
   Industrial siege metal for the turret-defense wave phase.
@@ -23,15 +23,17 @@
   final track-share (evolution was on 23+24). Now evolution
   exclusive to stage 23. Pairs conceptually with DIRECT.
 - **NO** → pure soundtrack-gallery bonus slot (R552). No stage
-  routing — discoverable only via the soundtrack screen. Restores
-  the gallery-only slot vacated when bonus2 was promoted to
-  stage 7 in R549.
+  routing — discoverable only via the soundtrack screen.
+- **SWEAT** → stage 7 BALLMER ARENA (R553). Narratively-perfect
+  fit (Ballmer's famously sweat-soaked keynote performances).
+  Displaced bonus2 back to gallery-only. Now TWO gallery bonus
+  tracks (NO + BONUS).
 
-All wishlist items + ALL track shares now closed. 29 shipped
-tracks total. **Every stage has its own unique track + a true
-bonus-gallery slot.**
+All wishlist items + ALL track shares closed. 30 tracks total.
+**Every stage has its own thematically-optimized track + 2
+gallery bonus slots.**
 
-All 29 currently-shipped tracks are wired and present on disk. The
+All 30 currently-shipped tracks are wired and present on disk. The
 list below identifies **NEW tracks** that today's content would
 benefit from. These are NOT bugs — every stage HAS a track today
 (reusing existing ones). These are the **upgrade slots** if you
@@ -103,15 +105,16 @@ want to compose more.
    - Filename: `mecha-gates-final.mp3` (or layered re-mix of
      `the-light-bleeds-through.mp3`)
 
-## SUMMARY (POST-R552)
+## SUMMARY (POST-R553)
 
-- **29 tracks total, all wired** across 25 stages + title + credits
-  + CRTRON boss auto-swap + 1 pure gallery bonus
+- **30 tracks total, all wired** across 25 stages + title + credits
+  + CRTRON boss auto-swap + 2 pure gallery bonuses
 - **0 broken or missing**
 - **0 critical gaps**
 - **0 desirable gaps**
 - **0 track shares** — every stage has its own unique track
-- **1 pure soundtrack-gallery bonus** (NO)
+- **2 pure soundtrack-gallery bonuses** (NO + BONUS)
 
-Any future composition becomes a second gallery bonus, or a swap
-replacement for an existing track.
+Stage 7 BALLMER ARENA's track got upgraded from generic bonus2
+to the narratively-perfect SWEAT (Ballmer's famously sweat-soaked
+keynote performances). bonus2 returned to gallery-only status.

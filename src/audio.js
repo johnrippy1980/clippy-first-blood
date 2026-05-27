@@ -94,6 +94,10 @@ const FILE_TRACKS = {
     // R552: pure soundtrack-gallery bonus. No stage routing — discoverable
     // only via the soundtrack screen.
     no:           'assets/audio/no.mp3',                       // bonus-gallery only
+    // R553: stage 7 BALLMER ARENA brawl. Replaces bonus2 (demoted back
+    // to gallery-only). Naming reflects Ballmer's famously sweat-soaked
+    // keynote performances.
+    sweat:        'assets/audio/sweat.mp3',                    // stage 7 BALLMER ARENA
 };
 
 class Audio {
