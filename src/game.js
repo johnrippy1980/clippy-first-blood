@@ -3040,13 +3040,23 @@ export class Game {
             // R377: tighter clamp — 18 still touched STAGE col, 16 leaves
             // visible gap. Pixel-font is wider than character count
             // suggests so we under-count conservatively.
-            const titleMax = 16;
+            // R554: 13-char title 'STEEL TONGUES' still touched 'STAGE 25'
+            // because the visual width per char varies. Clamp to 11 so
+            // even the widest letters keep a visible gap.
+            const titleMax = 11;
             const titleClip = t.title.length > titleMax
                 ? t.title.slice(0, titleMax - 1) + '.'
                 : t.title;
             drawText(ctx, titleClip, 48, y + 2, '#fff', 1, 'left');
-            // Stage label (was "mood") + artist on the right
-            drawText(ctx, t.mood,   GAME.W - 60, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
+            // Stage label (was "mood") + artist on the right.
+            // R554: clamp mood column to 13 chars — long labels like
+            // 'STAGE 24 BOSS RUSH MODE' or 'STAGE 7 BALLMER ARENA' would
+            // overlap the title column.
+            const moodMax = 13;
+            const moodClip = (t.mood || '').length > moodMax
+                ? t.mood.slice(0, moodMax - 1) + '.'
+                : (t.mood || '');
+            drawText(ctx, moodClip, GAME.W - 60, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
             drawText(ctx, t.author, GAME.W - 12, y + 2,  selected ? '#ffe070' : '#a0c0e0', 1, 'right');
 
             if (playing) {

@@ -58,8 +58,8 @@ export const TRACK_MANIFEST = [
     // HOLD THE LINE (stage 25 turret defense vs CRTRON). Metro = the
     // dedicated KEYNOTE CORRIDOR theme (stage 9), splitting it off from
     // the shared 'backstage' track previously used for both 6 + 9.
-    { track: 'steelTongues', title: 'STEEL TONGUES',          mood: 'STAGE 25 (3B)', author: 'R_I_P' },
-    { track: 'metro',        title: 'METRO',                  mood: 'STAGE 9',       author: 'R_I_P' },
+    { track: 'steelTongues', title: 'STEEL TONGUES',          mood: 'STAGE 25 (3B)',     author: 'R_I_P' },
+    { track: 'metro',        title: 'METRO',                  mood: 'STAGE 9',           author: 'R_I_P' },
     // R546: CRTRON boss-phase track. Swaps in when the Voltron-CRT boss
     // spawns in stage 25; the wave music (steelTongues) ramps out as
     // GEARS ramps in. Mechanical-horror grind matches the giant bipedal
@@ -82,7 +82,7 @@ export const TRACK_MANIFEST = [
     // mode. Was sharing evolution.mp3 with stage 23 BLOCK 11. INDIRECT
     // is the natural pair to DIRECT (R548) — completes the conceptual
     // counterpoint set.
-    { track: 'indirect',     title: 'INDIRECT',               mood: 'STAGE 24 BOSS RUSH MODE', author: 'R_I_P' },
+    { track: 'indirect',     title: 'INDIRECT',               mood: 'STAGE 24',           author: 'R_I_P' },
     // R552: pure soundtrack-gallery bonus track. No stage routing —
     // appears only in the gallery for the player to discover.
     { track: 'no',           title: 'NO',                     mood: 'BONUS TRACK',   author: 'R_I_P' },
@@ -91,7 +91,7 @@ export const TRACK_MANIFEST = [
     // performances — naming the brawler-fight track 'SWEAT' is exactly
     // right. bonus2 returns to gallery-only status (was promoted to
     // stage 7 in R549, now displaced by the better fit).
-    { track: 'sweat',        title: 'SWEAT',                  mood: 'STAGE 7 BALLMER ARENA', author: 'R_I_P' },
+    { track: 'sweat',        title: 'SWEAT',                  mood: 'STAGE 7',            author: 'R_I_P' },
 ];
 
 // Player state machine. State transitions live in player.js.
