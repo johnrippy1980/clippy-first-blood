@@ -2484,10 +2484,12 @@ const BOSS_TEMPLATES = {
         w: 36, h: 56, hp: 36, contactDmg: 2, score: 12000,
         grounded: true,
         movement: 'pursue', moveSpeed: 0.6,
-        // Custom draw: try the painted bonzi_idle sprite; on miss fall back
-        // to a simple purple silhouette so the fight is still readable.
+        // R568k: painted boss Bonzi sprite. boss_bonzi_idle for default
+        // stance; boss_bonzi_windup briefly displayed during attack frames
+        // (every 80-90f). Phase 2 increases aura intensity. Procedural aura
+        // glow stays as a backdrop layer behind the sprite.
         draw: (ctx, x, y, w, h, t, p) => {
-            // Purple aura behind him — pulses brighter in phase 2 (low HP).
+            // Purple aura backdrop — pulses brighter in phase 2 (low HP).
             const aura = p === 2 ? 0.65 : 0.35;
             const auraR = (p === 2 ? 6 : 4) + Math.sin(t * 0.15) * 2;
             ctx.save();
@@ -2498,22 +2500,28 @@ const BOSS_TEMPLATES = {
             ctx.fillStyle = '#d090ff';
             ctx.fillRect(x - auraR + 2, y - auraR + 2, w + auraR * 2 - 4, h + auraR * 2 - 4);
             ctx.restore();
-            // Body sprite — use bonzi_idle for the boss form
-            if (sprites.has('bonzi_idle')) {
-                sprites.draw(ctx, 'bonzi_idle', x - 4, y - 4, false, 0.7);
+            // Sprite select: windup frame during the 12-frame window before
+            // each attack tick, otherwise idle. _atkT cycles modulo the
+            // attack period (90f normal, 50f phase 2).
+            const period = p === 2 ? 50 : 90;
+            const phaseInCycle = (t || 0) % period;
+            const isWindup = phaseInCycle >= (period - 12) && phaseInCycle < period;
+            const key = isWindup && sprites.has('boss_bonzi_windup')
+                ? 'boss_bonzi_windup' : 'boss_bonzi_idle';
+            if (sprites.has(key)) {
+                // Draw sprite at boss bounds (sprites are ~64px wide; boss
+                // box is 36px so scale to fit). Centered around the boss AABB.
+                const img = sprites.images.get(key);
+                const dw = w + 8;
+                const dh = h + 4;
+                ctx.drawImage(img, x - 4, y - 2, dw, dh);
             } else {
-                // Fallback silhouette
+                // Fallback procedural silhouette
                 ctx.fillStyle = '#7030c0';
                 ctx.fillRect(x, y, w, h);
                 ctx.fillStyle = '#a050ff';
                 ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(x + 8, y + 14, 4, 4);
-                ctx.fillRect(x + w - 12, y + 14, 4, 4);
-            }
-            // Phase 2 — red glowing eyes overlay (CRYING TANTRUM tell)
-            if (p === 2) {
-                ctx.fillStyle = '#ff5050';
+                ctx.fillStyle = '#ff3030';
                 ctx.fillRect(x + 9, y + 15, 3, 3);
                 ctx.fillRect(x + w - 12, y + 15, 3, 3);
             }

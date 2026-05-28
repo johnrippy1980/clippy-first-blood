@@ -573,6 +573,29 @@ export const BONZI_MANIFEST = {
     'bonzi_back_run_2':  'bonzi_back_run_2.png',
     'bonzi_portrait':    'bonzi_portrait.png',
     'bonzi_boss_plate':  'bonzi_boss_plate.png',
+    // R568k: painted FX assets that replace procedural canvas-drawn effects.
+    // 19 sprites covering banana goo states, GAZE reticule, POPUP STORM
+    // window variants, DIAL-UP SCREAM expanding rings, CRYING TANTRUM tear
+    // animation, and the boss-form Bonzi sprite (red-eyed antagonist pose).
+    'banana_flight':     'banana_flight.png',
+    'banana_stuck':      'banana_stuck.png',
+    'banana_pulse':      'banana_pulse.png',
+    'banana_detonate':   'banana_detonate.png',
+    'gaze_reticule':     'gaze_reticule.png',
+    'popup_warning':     'popup_warning.png',
+    'popup_visitor':     'popup_visitor.png',
+    'popup_virus':       'popup_virus.png',
+    'popup_singles':     'popup_singles.png',
+    'scream_ring_1':     'scream_ring_1.png',
+    'scream_ring_2':     'scream_ring_2.png',
+    'scream_ring_3':     'scream_ring_3.png',
+    'scream_ring_4':     'scream_ring_4.png',
+    'tear_1':            'tear_1.png',
+    'tear_2':            'tear_2.png',
+    'tear_3':            'tear_3.png',
+    'tear_4':            'tear_4.png',
+    'boss_bonzi_idle':   'boss_bonzi_idle.png',
+    'boss_bonzi_windup': 'boss_bonzi_windup.png',
 };
 
 export const ENEMY_MANIFEST = {

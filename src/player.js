@@ -2097,8 +2097,13 @@ export class Player {
                 e._stunTimer = Math.max(e._stunTimer || 0, 120);   // 2s stun
             }
         }
-        // FX: expanding magenta shock ring, screaming SFX, light shake.
-        particles.shockRing(cx, cy, R, 22, '#ff60ff');
+        // R568k: painted shock-ring animation. Each call starts a new
+        // 32-frame animation tracked in _screamRings; ring sprite cycles
+        // 1 → 2 → 3 → 4 over the lifetime so the ring visibly expands.
+        this._screamRings = this._screamRings || [];
+        this._screamRings.push({ x: cx, y: cy, age: 0 });
+        // Procedural shockRing kept as a faint accent under the painted ring
+        // for extra heft — particles ride over the painted edge softly.
         particles.shockRing(cx, cy, R - 12, 18, '#ffa0ff');
         this.requestShake = Math.max(this.requestShake || 0, 1.6);
         this._screamCooldown = 720;  // 12s
@@ -2135,7 +2140,7 @@ export class Player {
 
     // Draw Bonzi's specials FX overlay. Called from his main draw().
     _drawBonziSpecials(ctx, camera) {
-        // GAZE — purple line from Bonzi to locked target. Visible through walls.
+        // R568k: GAZE — painted purple targeting line + reticule overlay.
         if (this._gazeTimer > 0 && this._gazeTarget?.alive) {
             const sx = Math.round((this.x + this.w / 2) - camera.viewX);
             const sy = Math.round((this.y + 4) - camera.viewY);
@@ -2144,48 +2149,105 @@ export class Player {
             const a = Math.min(1, this._gazeTimer / 30);
             ctx.save();
             ctx.globalAlpha = a * 0.85;
+            // Connecting line stays canvas-drawn since it stretches dynamically
             ctx.strokeStyle = '#c060ff';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(sx, sy);
             ctx.lineTo(tx, ty);
             ctx.stroke();
-            // Reticule on target
-            const ringR = 8 + (Math.sin(performance.now() * 0.012) * 1.5);
-            ctx.strokeStyle = '#ff80ff';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
-            ctx.stroke();
+            // Painted reticule sprite on the locked target, with a subtle
+            // breathing scale so it reads as "actively tracking".
+            if (sprites.has('gaze_reticule')) {
+                const img = sprites.images.get('gaze_reticule');
+                const breathe = 1.0 + Math.sin(performance.now() * 0.008) * 0.08;
+                const dw = (img.width * breathe) | 0;
+                const dh = (img.height * breathe) | 0;
+                ctx.globalAlpha = a;
+                ctx.drawImage(img, tx - (dw >> 1), ty - (dh >> 1), dw, dh);
+            }
             ctx.restore();
         }
-        // POPUP STORM windows — tiny IE-window sprites
+        // R568k: POPUP STORM — painted IE-window sprites with variant cycling
+        // by hash of window object so each popup keeps its identity across
+        // frames. Variants: warning / visitor / virus / singles.
         if (this._popups && this._popups.length) {
+            const variants = ['popup_warning', 'popup_visitor', 'popup_virus', 'popup_singles'];
             for (const p of this._popups) {
                 const px = Math.round(p.x - camera.viewX);
                 const py = Math.round(p.y - camera.viewY);
-                // Title bar
-                ctx.fillStyle = '#5050a0';
-                ctx.fillRect(px, py, p.w, 4);
-                // Window body
-                ctx.fillStyle = '#e0e0f0';
-                ctx.fillRect(px, py + 4, p.w, p.h - 4);
-                // Close button (red X)
-                ctx.fillStyle = '#ff5050';
-                ctx.fillRect(px + p.w - 4, py + 1, 3, 2);
-                // Inner content blink
-                if ((performance.now() % 200) < 100) {
-                    ctx.fillStyle = '#3070ff';
-                    ctx.fillRect(px + 2, py + 6, p.w - 4, p.h - 8);
+                if (!p._variantKey) {
+                    p._variantKey = variants[Math.floor(Math.random() * variants.length)];
+                }
+                if (sprites.has(p._variantKey)) {
+                    const img = sprites.images.get(p._variantKey);
+                    ctx.drawImage(img, px, py);
+                } else {
+                    // Fallback procedural window
+                    ctx.fillStyle = '#5050a0';
+                    ctx.fillRect(px, py, p.w, 4);
+                    ctx.fillStyle = '#e0e0f0';
+                    ctx.fillRect(px, py + 4, p.w, p.h - 4);
                 }
             }
         }
-        // CRYING TANTRUM tears — when active, small tear particles fall from face
-        if (this._tantrum && (performance.now() % 80) < 8) {
-            const cx = this.x + this.w / 2;
-            particles.spawn(cx - 4 + Math.random() * 8, this.y + 12,
-                (Math.random() - 0.5) * 0.4, 0.6,
-                18, '#80b0ff', 0.8, 0.04);
+        // R568k: CRYING TANTRUM — painted tear sprites streaming from face.
+        // Maintain a tear queue so each tear has its own life/position.
+        if (this._tantrum) {
+            this._tears = this._tears || [];
+            // Spawn at metered rate while tantrum active
+            if ((this._tearSpawnT = (this._tearSpawnT || 0) + 1) >= 8) {
+                this._tearSpawnT = 0;
+                this._tears.push({
+                    x: this.x + this.w / 2 - 4 + (Math.random() * 8 - 4),
+                    y: this.y + 14,
+                    vy: 0.6 + Math.random() * 0.3,
+                    age: 0,
+                });
+            }
+        }
+        // Always tick + draw existing tears, even after tantrum ends (let
+        // them fall out of view naturally).
+        if (this._tears && this._tears.length) {
+            for (let i = this._tears.length - 1; i >= 0; i--) {
+                const t = this._tears[i];
+                t.y += t.vy;
+                t.vy += 0.03;       // gravity
+                t.age++;
+                if (t.age > 24) { this._tears.splice(i, 1); continue; }
+                // Frame select: 1 (forming) → 2 (falling) → 3 (near impact) → 4 (splash)
+                const fIdx = Math.min(3, Math.floor(t.age / 6));
+                const key = 'tear_' + (fIdx + 1);
+                if (sprites.has(key)) {
+                    const img = sprites.images.get(key);
+                    const tx = Math.round(t.x - camera.viewX);
+                    const ty = Math.round(t.y - camera.viewY);
+                    ctx.drawImage(img, tx - (img.width >> 1), ty - (img.height >> 1));
+                }
+            }
+        }
+        // R568k: DIAL-UP SCREAM expanding-ring animation. Each ring entry
+        // ticks its age and renders one of 4 progressively larger sprites.
+        if (this._screamRings && this._screamRings.length) {
+            for (let i = this._screamRings.length - 1; i >= 0; i--) {
+                const r = this._screamRings[i];
+                r.age++;
+                if (r.age > 32) { this._screamRings.splice(i, 1); continue; }
+                // 4 painted frames across 32f: 0-7 → ring_1, 8-15 → ring_2,
+                // 16-23 → ring_3, 24-31 → ring_4 (with progressive fade).
+                const fIdx = Math.min(3, (r.age / 8) | 0);
+                const key = 'scream_ring_' + (fIdx + 1);
+                if (sprites.has(key)) {
+                    const img = sprites.images.get(key);
+                    const fade = 1 - (r.age / 32);
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, fade);
+                    const tx = Math.round(r.x - camera.viewX);
+                    const ty = Math.round(r.y - camera.viewY);
+                    ctx.drawImage(img, tx - (img.width >> 1), ty - (img.height >> 1));
+                    ctx.restore();
+                }
+            }
         }
     }
 
@@ -3325,29 +3387,31 @@ export class Player {
             // no hot center. Adds a beat of "you hit the wall, here's the divot"
             // before vanishing, rather than the bullet disappearing on contact.
             if (b.stuck) {
-                // R568d: banana goo gets a custom wet-blob render with a
-                // pre-detonate pulse in the last 30 frames so the player can
-                // see "it's about to pop". Other weapons get the small divot.
+                // R568d/R568k: banana goo uses painted sprites. Pre-detonate
+                // pulse alternates between banana_stuck and banana_pulse as
+                // the fuse runs; final 30 frames flip to banana_detonate for
+                // the warning beat. Other weapons get the small divot below.
                 if (b.banana) {
-                    const fade = Math.min(1, b.stuckLife / 60);
                     const urgent = b.stuckLife < 30;
-                    // Pulse rate accelerates as fuse runs down
-                    const pulseSpeed = urgent ? 0.45 : 0.18;
-                    const pulse = 0.6 + 0.4 * Math.sin(performance.now() * pulseSpeed * 0.01);
-                    const r = urgent ? 4 + pulse * 2 : 4;
-                    ctx.globalAlpha = 0.85;
-                    ctx.fillStyle = '#7030c0';
-                    ctx.fillRect(bx - r, by - r, r * 2, r * 2);
-                    ctx.fillStyle = '#b860ff';
-                    ctx.fillRect(bx - r + 1, by - r + 1, r * 2 - 2, r * 2 - 2);
-                    ctx.fillStyle = '#e0a0ff';
-                    ctx.fillRect(bx - 1, by - 1, 2, 2);
-                    // Brief white sparkle when in the urgency window
-                    if (urgent && (performance.now() % 200) < 80) {
-                        ctx.fillStyle = '#fff';
-                        ctx.fillRect(bx - 1, by - 1, 2, 2);
+                    let key;
+                    if (urgent) {
+                        // Final 0.5s: about-to-pop, fastest flash
+                        key = (performance.now() % 140) < 70 ? 'banana_detonate' : 'banana_pulse';
+                    } else if (b.stuckLife < 60) {
+                        // Mid fuse: slower pulse
+                        key = (performance.now() % 240) < 120 ? 'banana_pulse' : 'banana_stuck';
+                    } else {
+                        // Early fuse: settled
+                        key = 'banana_stuck';
                     }
-                    ctx.globalAlpha = 1;
+                    if (sprites.has(key)) {
+                        const img = sprites.images.get(key);
+                        ctx.drawImage(img, bx - (img.width >> 1), by - (img.height >> 1));
+                    } else {
+                        // Fallback to procedural blob if asset missing
+                        ctx.fillStyle = '#b860ff';
+                        ctx.fillRect(bx - 4, by - 4, 8, 8);
+                    }
                     continue;
                 }
                 const fade = b.stuckLife / b.stuckLifeMax;
@@ -3423,25 +3487,33 @@ export class Player {
                 ctx.fillStyle = '#ffe070';
                 ctx.fillRect(bx - 1, by - 1, 3, 3);
             } else if (b.banana) {
-                // Wet purple goo blob mid-flight, with a trailing droplet so
-                // the arc reads cleanly. Outer dark purple, mid bright purple,
-                // bright pink hot-center.
-                ctx.fillStyle = '#502080';
-                ctx.fillRect(bx - 3, by - 3, 7, 7);
-                ctx.fillStyle = '#a050ff';
-                ctx.fillRect(bx - 2, by - 2, 5, 5);
-                ctx.fillStyle = '#d090ff';
-                ctx.fillRect(bx - 1, by - 1, 3, 3);
-                ctx.fillStyle = '#ffe0ff';
-                ctx.fillRect(bx, by, 1, 1);
-                // Trailing droplet
-                if (b.prevX != null) {
-                    const tx = Math.round(b.prevX - camera.viewX);
-                    const ty = Math.round(b.prevY - camera.viewY);
-                    ctx.globalAlpha = 0.45;
+                // R568k: painted banana flight sprite. Flip horizontally if
+                // travelling left so the teardrop point leads the motion.
+                if (sprites.has('banana_flight')) {
+                    const img = sprites.images.get('banana_flight');
+                    const flipH = b.vx < 0;
+                    ctx.save();
+                    if (flipH) {
+                        ctx.translate(bx + (img.width >> 1), by - (img.height >> 1));
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(img, 0, 0);
+                    } else {
+                        ctx.drawImage(img, bx - (img.width >> 1), by - (img.height >> 1));
+                    }
+                    ctx.restore();
+                    // Faded trailing droplet for arc readability
+                    if (b.prevX != null) {
+                        const tx = Math.round(b.prevX - camera.viewX);
+                        const ty = Math.round(b.prevY - camera.viewY);
+                        ctx.globalAlpha = 0.4;
+                        ctx.fillStyle = '#a050ff';
+                        ctx.fillRect(tx - 1, ty - 1, 2, 2);
+                        ctx.globalAlpha = 1;
+                    }
+                } else {
+                    // Fallback procedural blob
                     ctx.fillStyle = '#a050ff';
-                    ctx.fillRect(tx - 1, ty - 1, 2, 2);
-                    ctx.globalAlpha = 1;
+                    ctx.fillRect(bx - 2, by - 2, 5, 5);
                 }
             } else {
                 // HOMING gets a curve-revealing trail — its path is non-linear so the trail adds info.
