@@ -135,6 +135,9 @@ export const SCENE_MANIFEST = {
     'story_hill':   'scene_story_3_hill.png',
     'story_list':   'scene_story_4_list.png',
     'ending':       'scene_ending.png',
+    // R568m: post-Bonzi-defeat forced-alliance cinematic backdrops.
+    'story_bonzi_realize': 'scene_bonzi_realize.png',
+    'story_bonzi_teamup':  'scene_bonzi_teamup.png',
     // Per-stage entrance cinematic cards — displayed between stage clear and
     // the next stage intro. Each shows Clippy arriving at the next location.
     // R226: card filenames retain their pre-renumber number-prefix for git

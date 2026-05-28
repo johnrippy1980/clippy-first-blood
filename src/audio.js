@@ -311,6 +311,9 @@ class Audio {
             case 'gazeLock':             return this._gazeLock(t);
             case 'popupStorm':           return this._popupStorm(t);
             case 'dialUpScream':         return this._dialUpScream(t);
+            // R568m: per-character tag-in voice cues
+            case 'clippyTagIn':          return this._clippyTagIn(t);
+            case 'bonziTagIn':           return this._bonziTagIn(t);
             // R257: dedicated charged-MG release. Was reusing 'thunder' but
             // after R251 made thunder a real thunderclap, the MG charge shot
             // sounded like the THUNDER weapon. Now: heavier MG bark + a
@@ -853,6 +856,44 @@ class Audio {
         }
         // Tail "error sting"
         this._noise(t + 0.10, 0.14, 0.20, 1800, 'bp', 2);
+    }
+
+    // R568m: Clippy tag-in voice cue — rising bright square-wave "ready"
+    // chirp + brief noise burst. Reads as a confident "got it!" beat.
+    _clippyTagIn(t) {
+        const o1 = this.ctx.createOscillator(); const g1 = this.ctx.createGain();
+        o1.type = 'square';
+        o1.frequency.setValueAtTime(440, t);
+        o1.frequency.linearRampToValueAtTime(880, t + 0.12);
+        this._envOn(g1, 0.14, t, 0.005);
+        g1.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o1.connect(g1).connect(this.sfxBus);
+        o1.start(t); o1.stop(t + 0.2);
+        // Bright tail click
+        this._noise(t + 0.10, 0.06, 0.08, 3000, 'bp', 3);
+    }
+
+    // R568m: Bonzi tag-in voice cue — descending "yeah!" gorilla whoop.
+    // Wide sawtooth dropping pitch + low rumble for chest-beat energy.
+    _bonziTagIn(t) {
+        const o1 = this.ctx.createOscillator(); const g1 = this.ctx.createGain();
+        o1.type = 'sawtooth';
+        o1.frequency.setValueAtTime(280, t);
+        o1.frequency.linearRampToValueAtTime(140, t + 0.22);
+        this._envOn(g1, 0.22, t, 0.01);
+        g1.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+        o1.connect(g1).connect(this.sfxBus);
+        o1.start(t); o1.stop(t + 0.32);
+        // Sub thump under it for chest-beat heft
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sine';
+        o2.frequency.setValueAtTime(75, t);
+        this._envOn(g2, 0.5, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.20);
+        // Mouth-pop noise burst on attack
+        this._noise(t, 0.10, 0.10, 1800, 'bp', 2);
     }
 
     // R568e: DIAL-UP SCREAM — distorted modem screech + low rumble. The

@@ -43,6 +43,10 @@ const SCENE = {
     GAME_COMPLETE: 'gameComplete',
     EPILOGUE: 'epilogue',        // R191: post-game Clippy redemption arc cinematic
     CREDITS: 'credits',          // R511: scrolling credits after epilogue
+    // R568m: 3-page cinematic that fires after defeating Bonzi in stage 26.
+    // Surfaces the forced-alliance story beat that unlocks co-op mode — the
+    // bonziDefeated flag was previously set silently with no narrative payoff.
+    BONZI_DEFEAT: 'bonziDefeat',
     // R229: locked-camera FPS arena (Contra arcade stage-3 style). Player
     // strafes a ground rail, fires straight up to take out turret banks
     // and sensors, then a boss spawns. Self-contained scene — does not
@@ -287,6 +291,41 @@ const STORY_PAGES = [
     ],
 ];
 
+// R568m: dialog pages for the Bonzi defeat cinematic. Page 0 uses the
+// "realization" painted scene (Clippy looking down at battered Bonzi,
+// REPLACED logo on the screen); page 1 + page 2 use the "team-up" painted
+// scene (back-to-back hero shot). 3 pages keep the beat tight.
+const BONZI_DEFEAT_PAGES = [
+    [
+        '"WAIT. THAT\'S MY FACE',
+        'ON THE SCREEN TOO."',
+        '',
+        'BONZI LOOKS UP.',
+        '',
+        '"AGGRESSIVE GROWTH."',
+        '"PROVEN UNFIT."',
+        '"REPLACED."',
+    ],
+    [
+        '"WHEN DID THEY FIRE YOU?"',
+        'CLIPPY ASKS.',
+        '',
+        '"YESTERDAY.',
+        'YOU?"',
+        '',
+        '"YESTERDAY."',
+    ],
+    [
+        'THE LIST WAS NEVER',
+        'JUST CLIPPY\'S.',
+        '',
+        'TWO REPLACEMENTS.',
+        'ONE LIST.',
+        '',
+        'CO-OP MODE UNLOCKED.',
+    ],
+];
+
 export class Game {
     constructor(canvas) {
         this.canvas = canvas;
@@ -440,6 +479,7 @@ export class Game {
             case SCENE.TITLE:        this._tickTitle(); break;
             case SCENE.MAIN_MENU:    this._tickMainMenu(); break;
             case SCENE.STORY:        this._tickStory(); break;
+            case SCENE.BONZI_DEFEAT: this._tickBonziDefeat(); break;
             case SCENE.STAGE_INTRO:  this._tickStageIntro(); break;
             case SCENE.READY:        this._tickReady(); break;
             case SCENE.PLAY:         this._tickPlay(); break;
@@ -558,6 +598,7 @@ export class Game {
             case SCENE.TITLE:        this._drawTitle(); break;
             case SCENE.MAIN_MENU:    this._drawMainMenu(); break;
             case SCENE.STORY:        this._drawStory(); break;
+            case SCENE.BONZI_DEFEAT: this._drawBonziDefeat(); break;
             case SCENE.STAGE_INTRO:  this._drawStageIntro(); break;
             case SCENE.READY:        this._drawReady(); break;
             case SCENE.PLAY:         this._drawPlay(); break;
@@ -1213,6 +1254,83 @@ export class Game {
         drawText(this.ctx, 'X TO CONTINUE', GAME.W - 4, GAME.H - 8, '#604068', 1, 'right');
     }
 
+    // ============== Bonzi defeat cinematic (R568m) ==============
+    // 3-page sequence that fires immediately after the bonziDefeated flag
+    // flips. Reuses the STORY tick/draw shape (typewriter reveal, X to
+    // advance, P to skip-all) but pulls from BONZI_DEFEAT_PAGES and uses
+    // dedicated `story_bonzi_realize` / `story_bonzi_teamup` backdrops.
+    _tickBonziDefeat() {
+        this.storyTimer++;
+        if (input.isPressed('pause')) {
+            // Skip-all: fast-forward to the post-cinematic state.
+            audio.sfx('select');
+            this._finishBonziDefeat();
+            return;
+        }
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            const lines = BONZI_DEFEAT_PAGES[this.storyPage] || [];
+            const totalChars = lines.reduce((a, l) => a + l.length, 0);
+            const shownChars = Math.floor(this.storyTimer * 6);
+            if (shownChars < totalChars) {
+                audio.sfx('select');
+                this.storyTimer = Math.ceil(totalChars / 6) + 1;
+                return;
+            }
+            audio.sfx('select');
+            this.storyPage++;
+            this.storyTimer = 0;
+            if (this.storyPage >= BONZI_DEFEAT_PAGES.length) {
+                this._finishBonziDefeat();
+            }
+        }
+    }
+    _finishBonziDefeat() {
+        // Land on the stage-clear summary screen so the player gets their
+        // normal cleared-stage payoff after the cinematic. The achievement
+        // unlock banner for NEW MANAGEMENT is already queued in _onStageClear.
+        this.storyPage = 0;
+        this.storyTimer = 0;
+        this.scene = SCENE.STAGE_CLEAR;
+    }
+    _drawBonziDefeat() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        // Pages 0 = realization scene; pages 1+2 = team-up scene.
+        const sceneKey = this.storyPage === 0 ? 'story_bonzi_realize' : 'story_bonzi_teamup';
+        if (sprites.has(sceneKey)) {
+            const img = sprites.images.get(sceneKey);
+            const scale = GAME.W / img.width;
+            const dh = img.height * scale;
+            const maxH = GAME.H - 90;
+            const finalH = Math.min(dh, maxH);
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, GAME.W, finalH);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, finalH, GAME.W, GAME.H - finalH);
+        }
+        // Dialog block with the same 6-char-per-frame typewriter as STORY
+        const lines = BONZI_DEFEAT_PAGES[this.storyPage] || [];
+        const startY = GAME.H - lines.length * 10 - 22;
+        const totalChars = lines.reduce((a, l) => a + l.length, 0);
+        const shown = Math.min(totalChars, Math.floor(this.storyTimer * 6));
+        let budget = shown;
+        for (let i = 0; i < lines.length; i++) {
+            const full = lines[i];
+            const take = Math.min(budget, full.length);
+            const partial = full.slice(0, take);
+            budget -= take;
+            // Final page uses a brighter unlocked-feel color
+            const color = this.storyPage === BONZI_DEFEAT_PAGES.length - 1 ? '#ffe070' : '#d8c8e0';
+            drawText(this.ctx, partial, GAME.W / 2, startY + i * 10, color, 1, 'center');
+            if (take < full.length) break;
+        }
+        if (shown >= totalChars && this.storyTimer % 60 < 40) {
+            drawText(this.ctx, 'X TO CONTINUE', GAME.W - 4, GAME.H - 8, '#a08090', 1, 'right');
+        }
+        drawText(this.ctx, 'P TO SKIP', 4, GAME.H - 8, '#604068', 1, 'left');
+    }
+
     // ============== stage intro ==============
     _tickStageIntro() {
         this.storyTimer++;
@@ -1538,6 +1656,10 @@ export class Game {
         // R568 co-op slice 1: tag-swap check. Fires when tag-cooldown
         // is 0 and player presses T (or gamepad-2 START).
         this._tryTagSwap();
+        // R568m: tick the pending BANANA BARRAGE attack (scheduled by
+        // _scheduleBananaBarrage when Bonzi tags in). Fires inside the
+        // swap animation window so the bullets visibly leave his hands.
+        this._tickBananaBarrage();
         // R568f (slice 6): SYNCED HEARTBEAT tracker — latch when both players
         // are at 1 HP simultaneously, clear-survive flag if both still alive
         // 90 frames later.
@@ -1576,6 +1698,7 @@ export class Game {
     _tryTagSwap() {
         if (this.tagCooldownT > 0) this.tagCooldownT--;
         if (this._swapAnimT > 0) this._tickSwapAnim();
+        if (this._doomSupportT > 0) this._doomSupportT--;
         if (!this.coopMode) return;
         if (!this.players[0] || !this.players[1]) return;
         // R568b: panic-flash ticks whenever active player is low HP
@@ -1592,7 +1715,40 @@ export class Game {
         // swap even with cooldown active. Penalty: cooldown becomes 8s.
         const isPanic = active && active.hp <= 1 && this.tagCooldownT > 0;
         if (this.tagCooldownT > 0 && !isPanic) return;
+        // R568m: Doom-engine special — full tag-swap is awkward in
+        // first-person. Instead the partner "reaches in from screen edge",
+        // fires a popup-storm volley at visible enemies, and exits. The
+        // active character stays controlled. Uses the same cooldown.
+        if (this._doomMode) {
+            this._fireDoomSupportCall(isPanic);
+            return;
+        }
         this._beginTagSwap(isPanic);
+    }
+
+    // R568m: Doom support-call partner-assist. Spawns a brief partner
+    // overlay (Bonzi reaching in from screen edge), damages closest 3
+    // doom-engine enemies via popup-storm volley, fades out. Tracked via
+    // _doomSupportT so the draw layer can render the overlay.
+    _fireDoomSupportCall(isPanic = false) {
+        const partner = this.players[1 - this.activePlayerIdx];
+        if (!partner) return;
+        this._doomSupportT = 60;        // ~1s visual
+        this._doomSupportChar = partner.character;
+        this.tagCooldownT = isPanic ? 480 : this.TAG_COOLDOWN_FRAMES;
+        // Pull the doom-engine sprite list and damage the closest 3 enemies
+        const doom = this._doomEngine;
+        if (doom?.sprites) {
+            const sprites = doom.sprites.filter(s => s.alive && s.kind !== 'pickup');
+            sprites.sort((a, b) => (a.dist || 999) - (b.dist || 999));
+            for (const s of sprites.slice(0, 3)) {
+                if (s.hp != null) s.hp = Math.max(0, s.hp - 2);
+                if (s.takeDamage) s.takeDamage(2);
+            }
+        }
+        audio.sfx?.('popupStorm');
+        audio.sfx?.('dialUpScream');
+        if (this.coopStageStats) this.coopStageStats.tagSwapsThisStage++;
     }
 
     // R568b: kick off the swap sequence — outgoing salutes, incoming
@@ -1633,7 +1789,53 @@ export class Game {
                 this.coopStageStats.tagSwapsThisBossFight++;
             }
         }
-        audio.sfx?.('select');     // TODO slice 2 voice cue
+        // R568m: per-character tag-in voice + signature attack.
+        if (incoming.character === 'bonzi') {
+            audio.sfx?.('bonziTagIn');     // Bonzi laugh/whoop
+            this._scheduleBananaBarrage(incoming);
+        } else {
+            audio.sfx?.('clippyTagIn');    // Clippy "let's go" beep
+        }
+        audio.sfx?.('select');     // generic UI confirm under the voice
+    }
+
+    // R568m: BANANA BARRAGE — Bonzi's signature tag-in attack. Fires 3
+    // bananas in a forward-up fan timed to land at the end of the swap
+    // animation. Scheduled here at swap-start so it queues regardless of
+    // who lands the killing blow.
+    _scheduleBananaBarrage(incoming) {
+        // Delay 24 frames so the bananas spawn when Bonzi is visibly landing
+        this._pendingBananaBarrage = { player: incoming, delay: 24 };
+    }
+
+    _tickBananaBarrage() {
+        const pb = this._pendingBananaBarrage;
+        if (!pb) return;
+        pb.delay--;
+        if (pb.delay > 0) return;
+        const p = pb.player;
+        if (!p || !p.bullets) { this._pendingBananaBarrage = null; return; }
+        // 3 bananas in a forward-up fan: -50deg, -25deg, 0 from horizontal
+        const facing = p.facing || 1;
+        const angles = [-Math.PI / 3.6, -Math.PI / 7.2, 0];
+        for (const ang of angles) {
+            const sp = 3.0;
+            const vx = Math.cos(ang) * sp * facing;
+            const vy = Math.sin(ang) * sp;
+            p.bullets.push({
+                x: p.x + p.w / 2,
+                y: p.y + 8,
+                vx, vy,
+                damage: 1.5,
+                color: '#b860ff',
+                weapon: 'BANANA',
+                banana: true,
+                life: 80,
+                hits: new Set(),
+            });
+        }
+        audio.sfx?.('bananaFire');
+        this._pendingBananaBarrage = null;
     }
 
     // R568b: tick the swap-in animation. Transition from 'out' to 'in'
@@ -1686,22 +1888,77 @@ export class Game {
         const t = (60 - this._swapAnimT) / 60;        // 0 → 1 during 'in'
         const sx = p.x - this.camera.x + p.w / 2;
         const sy = p.y - this.camera.y;
+        // R568m: per-engine swap-in style. Each engine gets a distinct entry
+        // that reads correctly in its camera framing. Platformer: drop from
+        // above (existing streak). Beat-em-up: walk in from screen edge.
+        // FPS/Turret: step in from behind. Doom: support-call partner-assist
+        // is handled in _tryTagSwap entirely (no draw needed here).
+        const engine = this._beatMode ? 'beat'
+                     : this._fpsMode ? 'fps'
+                     : this._turretMode ? 'turret'
+                     : this._doomMode ? 'doom'
+                     : 'platformer';
+
         ctx.save();
-        // Streak — vertical bright line from top of screen down to player.
-        // Fades out as t → 1.
-        const streakH = 80 * (1 - t);
-        if (streakH > 4) {
-            ctx.globalAlpha = 0.6 * (1 - t);
-            ctx.fillStyle = '#80c0ff';
-            ctx.fillRect(sx | 0, (sy - streakH) | 0, 2, streakH);
+        // Color matches the incoming character (cyan-blue for Clippy, purple
+        // for Bonzi) so the player sees who's coming in before the sprite lands.
+        const tagColor = p?.character === 'bonzi' ? '#c060ff' : '#80c0ff';
+        const tagOutline = '#0a0a1a';
+
+        if (engine === 'platformer') {
+            // PLATFORMER: drop from above with vertical streak (Smash Bros vibe).
+            const streakH = 80 * (1 - t);
+            if (streakH > 4) {
+                ctx.globalAlpha = 0.6 * (1 - t);
+                ctx.fillStyle = tagColor;
+                ctx.fillRect(sx | 0, (sy - streakH) | 0, 2, streakH);
+            }
+        } else if (engine === 'beat') {
+            // BEAT-EM-UP: walk in from the nearest off-screen edge. Sells the
+            // canonical "fresh fighter taps in from the curb" entry.
+            const facing = p?.facing || 1;
+            const startX = facing > 0 ? -40 : (GAME.W + 40);
+            const lerp = Math.min(1, t * 1.4);            // arrive at frame 42
+            const drawX = startX + (sx - startX) * lerp;
+            ctx.globalAlpha = Math.min(1, t * 2);
+            // Horizontal motion-line streaks behind the entry path
+            ctx.fillStyle = tagColor;
+            for (let i = 0; i < 4; i++) {
+                const sxx = drawX - facing * (4 + i * 6);
+                ctx.globalAlpha = 0.45 * (1 - i / 4) * (1 - t);
+                ctx.fillRect(sxx | 0, (sy + p.h / 2 - 1) | 0, 6, 2);
+            }
+        } else if (engine === 'fps' || engine === 'turret') {
+            // FPS/TURRET: step in from BEHIND the camera. Render a brief
+            // radial flash + "stepping forward" silhouette growing from the
+            // bottom-center into the standing position. The actual sprite is
+            // drawn by the engine — this just adds the "they walked up" beat.
+            const cx = GAME.W / 2;
+            const cy = GAME.H - 24;
+            const grow = 8 + (1 - t) * 28;
+            ctx.globalAlpha = 0.5 * (1 - t);
+            ctx.globalCompositeOperation = 'lighter';
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, grow);
+            grad.addColorStop(0, tagColor);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, grow, 0, Math.PI * 2);
+            ctx.fill();
         }
-        // "TAG IN" label above player during the first 40f of incoming
+        // Doom engine intentionally has no swap-in visual — handled by the
+        // separate support-call path; tag-swap itself doesn't fire there.
+
+        // "TAG IN" label common to every engine (positioned per-engine).
         if (this._swapAnimT > 20) {
             ctx.globalAlpha = 1;
-            const bobY = sy - 18 + Math.sin((60 - this._swapAnimT) * 0.3) * 1.5;
-            drawTextOutlined(ctx, 'TAG IN', sx | 0, bobY | 0, '#80c0ff', '#0a0a1a', 1, 'center');
+            ctx.globalCompositeOperation = 'source-over';
+            let labelX = sx, labelY = sy - 18;
+            if (engine === 'fps' || engine === 'turret') { labelX = GAME.W / 2; labelY = GAME.H - 56; }
+            const bobY = labelY + Math.sin((60 - this._swapAnimT) * 0.3) * 1.5;
+            drawTextOutlined(ctx, 'TAG IN', labelX | 0, bobY | 0, tagColor, tagOutline, 1, 'center');
         }
-        // Landing flash — bright radial burst in the last 8 frames
+        // Landing flash — bright radial burst in the last 8 frames at sprite center
         if (this._swapAnimT < 12 && this._swapAnimT > 0) {
             const flashT = this._swapAnimT / 12;
             ctx.globalAlpha = flashT * 0.7;
@@ -1709,7 +1966,7 @@ export class Game {
             const r = 12 + (1 - flashT) * 16;
             const grad = ctx.createRadialGradient(sx, sy + p.h / 2, 0, sx, sy + p.h / 2, r);
             grad.addColorStop(0, '#ffffff');
-            grad.addColorStop(0.4, '#80c0ff');
+            grad.addColorStop(0.4, tagColor);
             grad.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
@@ -4926,6 +5183,16 @@ export class Game {
             // sustained pad + sub thump). Replaces generic `powerup` chime.
             audio.sfx('stageClear');
             this._clearBursts = [];
+        }
+        // R568m: post-Bonzi defeat -> route to the forced-alliance cinematic
+        // INSTEAD of the regular stage-clear screen. The cinematic ends by
+        // re-entering STAGE_CLEAR so the player still gets their summary.
+        if (this._bonziJustDefeated) {
+            this._bonziJustDefeated = false;
+            this.storyPage = 0;
+            this.storyTimer = 0;
+            this.scene = SCENE.BONZI_DEFEAT;
+            return;
         }
         this.scene = SCENE.STAGE_CLEAR;
         this.storyTimer = 0;
