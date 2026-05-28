@@ -1315,6 +1315,23 @@ class Boss extends Enemy {
             return { cx, cy, shots: out };
         };
 
+        // R566k: per-boss attack sounds. Was silent — bosses fired projectiles
+        // with no audio cue. Each boss now has a distinct firing voice that
+        // matches their attack flavor (paper expulsion for COPIER, grinding
+        // teeth for SHREDDER, glitch tone for BSOD, etc).
+        const BOSS_FIRE_SFX = {
+            COPIER_3000:  'boss_copier_fire',
+            SHREDDER:     'boss_shredder_fire',
+            CTRL_ALT_DEL: 'boss_bsod_fire',
+            BALLMER:      'boss_ballmer_fire',
+            GATES:        'boss_gates_fire',
+            ALGORITHM:    'boss_algorithm_fire',
+            CLIPPY_2:     'boss_clippy2_fire',
+            SPINDLER:     'boss_spindler_fire',
+        };
+        const fireSfx = BOSS_FIRE_SFX[this.kind];
+        if (fireSfx) audio.sfx?.(fireSfx);
+
         switch (this.kind) {
             case 'COPIER_3000':
                 // R325: 3-variant cycle in phase 1, 4-variant in phase 2 (adds

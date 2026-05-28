@@ -944,7 +944,9 @@ export class Player {
                 this.dashAtkTimer = DASH_ATK_FRAMES;
                 this.dashAtkHits = new Set();
                 this.iFrames = Math.max(this.iFrames, DASH_ATK_FRAMES - 4);
-                audio.sfx('slide');
+                // R566k: dedicated knife-strike sound — air-cut whoosh +
+                // impact crack + sub punch. Was reusing the slide rush.
+                audio.sfx('dashAttack');
                 particles.dust(this.x + this.w / 2, this.y + this.h);
             }
             return;
@@ -3437,6 +3439,9 @@ export class Player {
         this.state = STATE.POUNCE;
         this.iFrames = Math.max(this.iFrames, 30);
         this.onCover = false;
+        // R566k: leap whoosh + body-weight sub-thump on takeoff. Pairs
+        // with the existing pounceStab on contact for the strike-arrival.
+        audio.sfx?.('pounceLaunch');
         // If we came from COVER state, releasing input would normally drop us
         // back to IDLE next tick — but state is now POUNCE so that branch
         // skips. Just clear the visual cover flag.

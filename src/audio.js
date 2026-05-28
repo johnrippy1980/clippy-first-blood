@@ -344,6 +344,20 @@ class Audio {
             case 'stepWet':     return this._footstepWet(t);     // sewer slosh
             case 'stepCarpet':  return this._footstepCarpet(t);  // muted thud
             case 'stepGrass':   return this._footstepGrass(t);   // leafy crunch
+            // R566k: player special-move sounds. dashAttack = knife strike
+            // (air-cut + impact crack), pounceLaunch = rising leap whoosh.
+            case 'dashAttack':  return this._dashAttackStrike(t);
+            case 'pounceLaunch': return this._pounceLaunch(t);
+            // R566k: boss-specific firing voices. Each major boss now has
+            // its own attack sound matching their attack flavor.
+            case 'boss_copier_fire':    return this._bossCopierFire(t);     // paper expulsion
+            case 'boss_shredder_fire':  return this._bossShredderFire(t);   // grinding teeth + spray
+            case 'boss_bsod_fire':      return this._bossBsodFire(t);       // glitch error tone burst
+            case 'boss_ballmer_fire':   return this._bossBallmerFire(t);    // chair whoosh + shout
+            case 'boss_gates_fire':     return this._bossGatesFire(t);      // CD-ROM whir + launch
+            case 'boss_algorithm_fire': return this._bossAlgorithmFire(t);  // synth zap (cloud AI)
+            case 'boss_clippy2_fire':   return this._bossClippy2Fire(t);    // distorted clippy
+            case 'boss_spindler_fire':  return this._bossSpindlerFire(t);   // chemical hiss
         }
     }
 
@@ -1972,6 +1986,226 @@ class Audio {
         // Sparkle layer — high-freq triangle pings on the offbeats
         this._tonal(t + 0.06, 'triangle', 2093, 2349, 0.08, 0.10);
         this._tonal(t + 0.30, 'triangle', 2349, 2637, 0.10, 0.10);
+    }
+
+    // R566k: DASH ATTACK — knife strike. Was reusing `slide` (just a noise
+    // rush). Now: air-cut whoosh + sharp impact crack on arrival.
+    _dashAttackStrike(t) {
+        // Air-cut whoosh — descending bandpass noise sweep
+        this._noise(t, 0.18, 0.10, 3200, 'bp', 4);
+        this._noise(t + 0.03, 0.14, 0.10, 1800, 'bp', 4);
+        // Impact crack at end of dash — sharp HPF noise burst
+        this._noise(t + 0.10, 0.32, 0.05, 4200, 'hp', 1.5);
+        // Sub punch on impact — body weight behind the strike
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(140, t + 0.10);
+        sub.frequency.exponentialRampToValueAtTime(55, t + 0.18);
+        this._envOn(subG, 0.50, t + 0.10);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.10); sub.stop(t + 0.22);
+    }
+
+    // R566k: POUNCE LAUNCH — rising leap whoosh. Pairs with the existing
+    // _pounceStab strike on landing.
+    _pounceLaunch(t) {
+        // Rising whoosh — bandpass noise climbing 600→2400Hz
+        const dur = 0.22;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(600, t);
+        filt.frequency.exponentialRampToValueAtTime(2400, t + dur);
+        filt.Q.value = 3;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.24, t);
+        g.gain.linearRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        // Body-weight sub-thump on takeoff — the kick of pushing off
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(120, t);
+        sub.frequency.exponentialRampToValueAtTime(60, t + 0.10);
+        this._envOn(subG, 0.30, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.14);
+    }
+
+    // R566k: COPIER_3000 — paper expulsion: pneumatic puff + paper rustle.
+    _bossCopierFire(t) {
+        // Pneumatic puff — short lowpass noise burst
+        this._noise(t, 0.18, 0.08, 800, 'lp', 1.4);
+        // Paper rustle layer — bandpass higher freq for the dry sheets
+        this._noise(t + 0.02, 0.12, 0.12, 2400, 'bp', 2.5);
+        // Mechanism click — square pitch-down
+        this._tonal(t, 'square', 600, 380, 0.06, 0.06);
+    }
+
+    // R566k: SHREDDER — grinding teeth + paper-tear spray.
+    _bossShredderFire(t) {
+        // Grinding teeth — sawtooth growl pitched low
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.linearRampToValueAtTime(220, t + 0.08);
+        o.frequency.linearRampToValueAtTime(170, t + 0.16);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 900;
+        this._envOn(g, 0.32, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.20);
+        // Paper-tear noise — bright bandpass shred
+        this._noise(t, 0.20, 0.16, 2200, 'bp', 1.8);
+    }
+
+    // R566k: CTRL_ALT_DEL (BSOD) — glitch error tone burst.
+    _bossBsodFire(t) {
+        // Glitchy detuned square stab — error-beep but mean
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(440, t);
+        o.frequency.linearRampToValueAtTime(520, t + 0.05);
+        o.frequency.linearRampToValueAtTime(360, t + 0.10);
+        this._envOn(g, 0.25, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.16);
+        // Detuned dissonant layer for glitch feel
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'square';
+        o2.frequency.setValueAtTime(465, t);
+        o2.frequency.linearRampToValueAtTime(545, t + 0.05);
+        o2.frequency.linearRampToValueAtTime(380, t + 0.10);
+        this._envOn(g2, 0.18, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.16);
+        // Static noise burst — corrupted data
+        this._noise(t, 0.16, 0.10, 3200, 'bp', 2);
+    }
+
+    // R566k: BALLMER — chair whoosh + shouted "DEVELOPERS" stand-in.
+    // Uses the existing chair whoosh as a starting point but adds a
+    // shouted-voice formant layer for the iconic Ballmer rage.
+    _bossBallmerFire(t) {
+        // Chair whoosh — fast bandpass noise sweep
+        this._noise(t, 0.22, 0.14, 2800, 'bp', 3);
+        this._noise(t + 0.03, 0.18, 0.10, 1400, 'bp', 3);
+        // Shouted voice formant — saw + lowpass for vocal feel
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(220, t);
+        o.frequency.linearRampToValueAtTime(340, t + 0.10);
+        o.frequency.linearRampToValueAtTime(180, t + 0.22);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1100;
+        this._envOn(g, 0.34, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.26);
+    }
+
+    // R566k: GATES — CD-ROM whir + projectile launch.
+    _bossGatesFire(t) {
+        // CD-ROM spin-up whir — saw climbing fast
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(600, t);
+        o.frequency.exponentialRampToValueAtTime(2400, t + 0.10);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 2;
+        this._envOn(g, 0.18, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.14);
+        // Mechanical click of the launch
+        this._tonal(t + 0.10, 'square', 800, 400, 0.10, 0.06);
+        // Sub-thump on launch
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t + 0.10);
+        sub.frequency.exponentialRampToValueAtTime(50, t + 0.18);
+        this._envOn(subG, 0.32, t + 0.10);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.10); sub.stop(t + 0.22);
+    }
+
+    // R566k: ALGORITHM (cloud AI) — synth zap with FM wobble.
+    _bossAlgorithmFire(t) {
+        // FM zap — sine carrier modulated by a fast sine for the synthetic
+        // "AI energy weapon" texture.
+        const carrier = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        carrier.type = 'sine';
+        carrier.frequency.setValueAtTime(880, t);
+        carrier.frequency.exponentialRampToValueAtTime(340, t + 0.22);
+        // FM modulator
+        const mod = this.ctx.createOscillator(); const modGain = this.ctx.createGain();
+        mod.type = 'sine';
+        mod.frequency.setValueAtTime(40, t);
+        mod.frequency.linearRampToValueAtTime(120, t + 0.22);
+        modGain.gain.value = 120;
+        mod.connect(modGain).connect(carrier.frequency);
+        this._envOn(cg, 0.30, t);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        carrier.connect(cg).connect(this.sfxBus);
+        carrier.start(t); carrier.stop(t + 0.26);
+        mod.start(t); mod.stop(t + 0.26);
+        // Bright crack on release
+        this._noise(t, 0.12, 0.08, 3800, 'hp', 1.5);
+    }
+
+    // R566k: CLIPPY_2 — distorted clippy variant. Pitched-down ring
+    // modulator over a square — sounds like Clippy if Clippy was demonic.
+    _bossClippy2Fire(t) {
+        // Pitched-down saw with vibrato — demonic Clippy chime
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.linearRampToValueAtTime(220, t + 0.06);
+        o.frequency.linearRampToValueAtTime(180, t + 0.12);
+        o.frequency.linearRampToValueAtTime(140, t + 0.20);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1400;
+        this._envOn(g, 0.28, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.24);
+        // Detuned dissonant layer
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sawtooth';
+        o2.frequency.setValueAtTime(186, t);
+        o2.frequency.linearRampToValueAtTime(228, t + 0.06);
+        o2.frequency.linearRampToValueAtTime(186, t + 0.12);
+        o2.frequency.linearRampToValueAtTime(145, t + 0.20);
+        this._envOn(g2, 0.18, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o2.connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.24);
+    }
+
+    // R566k: SPINDLER — chemical hiss + flask launch.
+    _bossSpindlerFire(t) {
+        // Chemical hiss — bandpass noise tail
+        this._noise(t, 0.18, 0.20, 2400, 'bp', 1.4);
+        // Glass tinkle on launch — short square ping
+        this._tonal(t, 'square', 1800, 1200, 0.06, 0.08);
+        // Sub thud — flask launch impulse
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(95, t);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+        this._envOn(subG, 0.24, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.16);
     }
 
     _bossChargeTell(t) {
