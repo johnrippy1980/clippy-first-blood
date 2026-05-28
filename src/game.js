@@ -1700,6 +1700,16 @@ export class Game {
         if (this._swapAnimT > 0) this._tickSwapAnim();
         if (this._doomSupportT > 0) this._doomSupportT--;
         if (!this.coopMode) return;
+        // R568n: Doom-engine special path. Doom doesn't populate this.players
+        // (player+partner spawn is platformer-only) so the slot check below
+        // would always early-return in Doom stages. Handle the tag-input
+        // here BEFORE the player-slot gate.
+        if (this._doomMode) {
+            if (!input.isPressed('tag')) return;
+            if (this.tagCooldownT > 0) return;
+            this._fireDoomSupportCall(false);
+            return;
+        }
         if (!this.players[0] || !this.players[1]) return;
         // R568b: panic-flash ticks whenever active player is low HP
         const active = this.players[this.activePlayerIdx];
@@ -1730,20 +1740,46 @@ export class Game {
     // overlay (Bonzi reaching in from screen edge), damages closest 3
     // doom-engine enemies via popup-storm volley, fades out. Tracked via
     // _doomSupportT so the draw layer can render the overlay.
+    // R568n (bug-fix): Doom entities live in doom.entities (not .sprites)
+    // and use shape { x, y, kind, hp, alive, ... } — filter to enemy kinds
+    // (clone + boss) and decrement hp directly, calling _killEnemy if it
+    // drops to 0 so the regular kill payoff fires.
     _fireDoomSupportCall(isPanic = false) {
-        const partner = this.players[1 - this.activePlayerIdx];
-        if (!partner) return;
+        // R568n: Doom mode doesn't populate this.players[] (the platformer
+        // player+partner spawn block runs only in non-Doom branches of
+        // _startStage). Use the implied partner character — slot 0 is
+        // Clippy, slot 1 is Bonzi — so we still get the right voice/
+        // overlay even though no Player instance exists.
+        const partnerCharacter = this.activePlayerIdx === 0 ? 'bonzi' : 'clippy';
         this._doomSupportT = 60;        // ~1s visual
-        this._doomSupportChar = partner.character;
+        this._doomSupportChar = partnerCharacter;
         this.tagCooldownT = isPanic ? 480 : this.TAG_COOLDOWN_FRAMES;
-        // Pull the doom-engine sprite list and damage the closest 3 enemies
         const doom = this._doomEngine;
-        if (doom?.sprites) {
-            const sprites = doom.sprites.filter(s => s.alive && s.kind !== 'pickup');
-            sprites.sort((a, b) => (a.dist || 999) - (b.dist || 999));
-            for (const s of sprites.slice(0, 3)) {
-                if (s.hp != null) s.hp = Math.max(0, s.hp - 2);
-                if (s.takeDamage) s.takeDamage(2);
+        if (doom?.entities) {
+            // Doom enemies are kind 'clone' or 'boss'. Player at doom.player.
+            const px = doom.player?.x ?? 0;
+            const py = doom.player?.y ?? 0;
+            const enemies = doom.entities.filter(e =>
+                e.alive && (e.kind === 'clone' || e.kind === 'boss')
+            );
+            // Sort by distance to player so closest 3 take damage
+            enemies.sort((a, b) => {
+                const da = Math.hypot((a.x ?? 0) - px, (a.y ?? 0) - py);
+                const db = Math.hypot((b.x ?? 0) - px, (b.y ?? 0) - py);
+                return da - db;
+            });
+            for (const e of enemies.slice(0, 3)) {
+                // Doom enemies lazy-init hp on first hit (default 4 for
+                // clones, 40-70 for bosses); match that default here so the
+                // support-call isn't a no-op against a fresh-spawned enemy.
+                if (e.hp == null) e.hp = e.kind === 'boss' ? 40 : 4;
+                e.hp -= 2;
+                e.hitFlash = 6;
+                if (e.hp <= 0) {
+                    // Use the engine's own kill path so death payoff fires
+                    if (typeof doom._killEnemy === 'function') doom._killEnemy(e);
+                    else e.alive = false;
+                }
             }
         }
         audio.sfx?.('popupStorm');
@@ -5187,13 +5223,11 @@ export class Game {
         // R568m: post-Bonzi defeat -> route to the forced-alliance cinematic
         // INSTEAD of the regular stage-clear screen. The cinematic ends by
         // re-entering STAGE_CLEAR so the player still gets their summary.
-        if (this._bonziJustDefeated) {
-            this._bonziJustDefeated = false;
-            this.storyPage = 0;
-            this.storyTimer = 0;
-            this.scene = SCENE.BONZI_DEFEAT;
-            return;
-        }
+        // R568m-fix: do NOT early-return here — the achievement snapshot +
+        // medal roll-up below MUST run so NEW MANAGEMENT (and any RIDE OR
+        // DIE / coop-stat updates) fire on the same _onStageClear cycle.
+        // Just override the scene at the end.
+        const goToBonziDefeat = !!this._bonziJustDefeated;
         this.scene = SCENE.STAGE_CLEAR;
         this.storyTimer = 0;
         this._stageClearTallyDone = false;
@@ -5380,6 +5414,16 @@ export class Game {
                 achievements._save();
                 this._modeNewBest = true;
             }
+        }
+        // R568m-fix: after achievement roll-up has run, override the scene
+        // for stage 26 so the forced-alliance cinematic plays instead of
+        // the regular stage-clear panel. The cinematic returns to
+        // STAGE_CLEAR at its end so the summary still shows.
+        if (goToBonziDefeat) {
+            this._bonziJustDefeated = false;
+            this.storyPage = 0;
+            this.storyTimer = 0;
+            this.scene = SCENE.BONZI_DEFEAT;
         }
     }
     _tickStageClear() {
