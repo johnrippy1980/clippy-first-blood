@@ -779,13 +779,47 @@ export class TurretArena {
         this.player.score += m.isBoss ? 1000 : 100;
         audio.sfx?.('enemyDie');
         const ms = depthScale(m.t);
+        const cx = depthX(m.lane, m.t);
+        const cy = depthY(m.t) - (m.h * ms) / 2;
+        // R567f: bigger death payoff — primary blue-white explosion +
+        // 3 secondary chained explosions in different colors for chaos,
+        // 4-6 CRT-glass shrapnel shards (reuse casing physics — they
+        // tumble + gravity), white flash via screen shake intensifies.
         this.explosions.push({
-            x: depthX(m.lane, m.t),
-            y: depthY(m.t) - (m.h * ms) / 2,
-            t: m.t,
-            age: 0, maxAge: 18, color: '#a0d0ff',
+            x: cx, y: cy, t: m.t,
+            age: 0, maxAge: 22, color: '#a0d0ff',
         });
-        this.screenShake = Math.max(this.screenShake, 3);
+        // Secondary chained bursts — different colors + offsets
+        const secondaries = [
+            { dx: -4 * ms, dy:  2 * ms, age: -3, color: '#ffe070' },
+            { dx:  3 * ms, dy: -4 * ms, age: -6, color: '#ff80c0' },
+            { dx:  1 * ms, dy:  4 * ms, age: -9, color: '#80ff80' },
+        ];
+        for (const s of secondaries) {
+            this.explosions.push({
+                x: cx + s.dx, y: cy + s.dy, t: m.t,
+                age: s.age, maxAge: 14, color: s.color, small: true,
+            });
+        }
+        // CRT-glass shrapnel — 5 shards fly outward, tumble + gravity.
+        // Reuse the casing array (same physics, just colored grey-blue).
+        const shardCount = m.isBoss ? 8 : 5;
+        for (let i = 0; i < shardCount; i++) {
+            const ang = (i / shardCount) * Math.PI * 2 + Math.random() * 0.4;
+            const speed = 1.5 + Math.random() * 1.5;
+            this.casings.push({
+                x: cx + (Math.random() - 0.5) * 3,
+                y: cy + (Math.random() - 0.5) * 3,
+                vx: Math.cos(ang) * speed,
+                vy: Math.sin(ang) * speed - 1.2,
+                rot: Math.random() * Math.PI,
+                rotSpeed: 0.2 + Math.random() * 0.4,
+                life: 55,
+                gravity: 0.20,
+                shard: true,           // mark so the draw can recolor
+            });
+        }
+        this.screenShake = Math.max(this.screenShake, m.isBoss ? 8 : 5);
     }
 
     _tickMonsters() {
@@ -1211,28 +1245,78 @@ export class TurretArena {
             ctx.restore();
         }
 
-        // R567: muzzle flash + bullet origin marker at the barrel tip,
-        // computed from the rotated barrel angle so it reads as bullets
-        // emerging from the front of the gun (not from inside Clippy).
+        // R567f: directional muzzle flash. Was a single radial gradient
+        // at the barrel tip (read OK but felt static — like a glow lamp).
+        // Now: cone of gas+flame venting forward along the barrel axis,
+        // plus a tighter white-hot core at the tip. Reads as actual gas
+        // expansion + light spread. 3 components:
+        //   1. Radial glow at the muzzle (white→amber, was the original)
+        //   2. Forward flame cone — bright triangle pointing along aim
+        //   3. Side-blow puff perpendicular to barrel — gases venting laterally
         if (this.muzzleFlashT > 0) {
             const fT = this.muzzleFlashT / 4;
-            const aimDX = p.aimX - TURRET_PIVOT_X;
-            const aimDY = p.aimY - TURRET_PIVOT_Y;
-            const aimAng = Math.atan2(aimDY, aimDX);
             const muzzleX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
             const muzzleY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
+
+            // Component 1: tight white-hot core at the muzzle
             ctx.globalAlpha = fT * 0.95;
-            const r = 8 + fT * 12;
-            const grad = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, r);
-            grad.addColorStop(0, '#ffffff');
-            grad.addColorStop(0.4, '#ffd060');
-            grad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = grad;
+            const coreR = 4 + fT * 5;
+            const coreGrad = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, coreR);
+            coreGrad.addColorStop(0, '#ffffff');
+            coreGrad.addColorStop(0.4, '#ffe080');
+            coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = coreGrad;
             ctx.beginPath();
-            ctx.arc(muzzleX, muzzleY, r, 0, Math.PI * 2);
+            ctx.arc(muzzleX, muzzleY, coreR, 0, Math.PI * 2);
             ctx.fill();
+
+            // Component 2: forward flame cone. Triangle pointing along
+            // aim direction, length ~12-18px depending on flash age, base
+            // 8px wide at the muzzle, tip 14-18px further along.
+            const coneLen = 12 + fT * 8;
+            const coneWidth = 7 + fT * 2;
+            const fx = Math.cos(aimAng);
+            const fy = Math.sin(aimAng);
+            // Perpendicular for cone base width
+            const px = -fy;
+            const py = fx;
+            const tipX = muzzleX + fx * coneLen;
+            const tipY = muzzleY + fy * coneLen;
+            const baseLX = muzzleX + px * coneWidth / 2;
+            const baseLY = muzzleY + py * coneWidth / 2;
+            const baseRX = muzzleX - px * coneWidth / 2;
+            const baseRY = muzzleY - py * coneWidth / 2;
+            // Build the cone with a gradient from white-hot at the base
+            // to translucent amber at the tip.
+            const coneGrad = ctx.createLinearGradient(muzzleX, muzzleY, tipX, tipY);
+            coneGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            coneGrad.addColorStop(0.3, 'rgba(255, 220, 100, 0.85)');
+            coneGrad.addColorStop(0.7, 'rgba(255, 160, 60, 0.45)');
+            coneGrad.addColorStop(1, 'rgba(255, 100, 40, 0)');
+            ctx.globalAlpha = fT * 0.9;
+            ctx.fillStyle = coneGrad;
+            ctx.beginPath();
+            ctx.moveTo(baseLX, baseLY);
+            ctx.lineTo(tipX, tipY);
+            ctx.lineTo(baseRX, baseRY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Component 3: side-blow puff. Small soft puff perpendicular
+            // to the barrel — gases venting from the sides of the muzzle
+            // brake. Tiny but adds the "explosion" feel.
+            ctx.globalAlpha = fT * 0.55;
+            const puffR = 2 + fT * 3;
+            const puffLX = muzzleX + px * 5;
+            const puffLY = muzzleY + py * 5;
+            const puffRX = muzzleX - px * 5;
+            const puffRY = muzzleY - py * 5;
+            ctx.fillStyle = '#ffc060';
+            ctx.beginPath(); ctx.arc(puffLX, puffLY, puffR, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(puffRX, puffRY, puffR, 0, Math.PI * 2); ctx.fill();
+
             ctx.restore();
         }
 
@@ -1273,12 +1357,23 @@ export class TurretArena {
         const x = cx - w / 2;
         const y = baseY - h;
         // Death animation
-        let alpha = 1, tilt = 0, dropY = 0;
+        // R567f: more brutal death — first 5 frames flash white (the
+        // "explosion overlay"), then tilt + fade + drop (existing), with
+        // an extra scaleX shrink at the end so the chassis collapses.
+        let alpha = 1, tilt = 0, dropY = 0, whiteFlash = 0, scaleX = 1;
         if (!m.alive && m.deathT != null) {
             const dT = Math.min(40, m.deathT) / 40;
             alpha = 1 - dT * 0.85;
             tilt = dT * 1.2;       // tips forward (toward camera)
             dropY = dT * dT * 8 * scale;
+            // White-flash overlay during first 5 frames of death
+            if (m.deathT < 5) {
+                whiteFlash = 1 - (m.deathT / 5);
+            }
+            // Chassis collapse — scale X squeeze in last 15 frames
+            if (m.deathT > 25) {
+                scaleX = 1 - ((m.deathT - 25) / 15) * 0.5;
+            }
         }
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -1309,8 +1404,20 @@ export class TurretArena {
                      || sprites.images.get('turret_crt_walk_1');
         if (walkImg) {
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(walkImg, 0, 0, walkImg.width, walkImg.height,
-                          spriteX, spriteY, spriteW, spriteH);
+            // R567f: scaleX shrink during death-collapse. Translate to
+            // sprite center, scale, draw, restore.
+            if (scaleX < 1) {
+                ctx.save();
+                ctx.translate(cx, spriteY + spriteH / 2);
+                ctx.scale(scaleX, 1);
+                ctx.translate(-cx, -(spriteY + spriteH / 2));
+                ctx.drawImage(walkImg, 0, 0, walkImg.width, walkImg.height,
+                              spriteX, spriteY, spriteW, spriteH);
+                ctx.restore();
+            } else {
+                ctx.drawImage(walkImg, 0, 0, walkImg.width, walkImg.height,
+                              spriteX, spriteY, spriteW, spriteH);
+            }
         }
 
         // R567: Compute screen-content rect from sprite frame. The walk-
@@ -1346,6 +1453,18 @@ export class TurretArena {
             ctx.globalAlpha = 0.7;
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(x, y, w, h * 0.65);
+            ctx.restore();
+        }
+
+        // R567f: death white-flash overlay (5 frames at decreasing alpha).
+        // Sells the kill moment as a bright explosion before the corpse
+        // fades + tilts. Painted over the entire sprite extent.
+        if (whiteFlash > 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = whiteFlash * 0.9;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(spriteX, spriteY, spriteW, spriteH);
             ctx.restore();
         }
 
@@ -2073,13 +2192,25 @@ export class TurretArena {
             ctx.save();
             ctx.translate(c.x, c.y);
             ctx.rotate(c.rot);
-            // Brass casing — 4x2 with bright top + dark base
-            ctx.fillStyle = '#a07020';
-            ctx.fillRect(-2, -1, 4, 2);
-            ctx.fillStyle = '#ffd060';
-            ctx.fillRect(-2, -1, 4, 1);
-            ctx.fillStyle = '#604020';
-            ctx.fillRect(-2, 0, 1, 1);
+            if (c.shard) {
+                // R567f: CRT glass shard — angular blue-white shape with
+                // bright edge highlight. Pure pixel-art, no gradient.
+                ctx.fillStyle = '#6090c0';
+                ctx.fillRect(-2, -1, 4, 3);
+                ctx.fillStyle = '#a0d0ff';
+                ctx.fillRect(-2, -1, 4, 1);
+                ctx.fillRect(-2, -1, 1, 3);   // left edge highlight
+                ctx.fillStyle = '#1a3050';
+                ctx.fillRect(1, 1, 1, 1);     // dark corner
+            } else {
+                // Brass casing — 4x2 with bright top + dark base
+                ctx.fillStyle = '#a07020';
+                ctx.fillRect(-2, -1, 4, 2);
+                ctx.fillStyle = '#ffd060';
+                ctx.fillRect(-2, -1, 4, 1);
+                ctx.fillStyle = '#604020';
+                ctx.fillRect(-2, 0, 1, 1);
+            }
             ctx.restore();
         }
     }
