@@ -5174,6 +5174,28 @@ export class Game {
         const titleY = Math.min(28, 16 + this.storyTimer * 0.6);
         drawTextOutlined(ctx, 'GAME OVER', GAME.W / 2, titleY, '#ff5050', '#1a0000', 3, 'center');
 
+        // R567k: dead Clippy sprite anchored to the LEFT of the stat panel.
+        // Fades in + slumps down as the storytimer progresses. Gives the
+        // screen a character anchor.
+        if (this.storyTimer > 30) {
+            const clippyImg = sprites.images.get('clippy_dying_dead');
+            if (clippyImg) {
+                const slideT = Math.min(1, (this.storyTimer - 30) / 40);
+                const clippyW = 30;       // 2x native 15
+                const clippyH = 16;       // 2x native 8
+                // Position bottom-left of the screen, below the panel
+                const clippyX = 12;
+                const baseY = GAME.H - 32;
+                const slumpY = -10 * (1 - slideT);  // start higher, slump down
+                ctx.save();
+                ctx.globalAlpha = slideT;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(clippyImg, 0, 0, clippyImg.width, clippyImg.height,
+                              clippyX, baseY + slumpY, clippyW, clippyH);
+                ctx.restore();
+            }
+        }
+
         // Reveal stats only after the title settles (storyTimer > 40)
         if (this.storyTimer > 40) {
             // Framed stats panel
