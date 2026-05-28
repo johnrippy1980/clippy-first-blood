@@ -1503,7 +1503,12 @@ export class DoomEngine {
         const halfFov = FOV / 2;
         const camPlane = Math.tan(halfFov);
         const screenX = (W / 2) * (1 + (ty / tx) / camPlane);
-        const spriteH = Math.min(VIEW_H * 4, VIEW_H / tx);
+        // R567e: was VIEW_H * 4 (sprite could fill 4× the viewport height
+        // when player stood within 0.25 tiles of a pickup — Floor 11 spawn
+        // ends the intro spin facing a health pack 1 tile away, the green
+        // plus filled the entire screen). Clamp to 1.4× viewport so a
+        // close sprite is still chunky but stays in-frame.
+        const spriteH = Math.min(VIEW_H * 1.4, VIEW_H / tx);
         // R445: bullet sprites get distinct sizes by type
         let bulletScale = 1;
         if (e.kind === 'bullet') {

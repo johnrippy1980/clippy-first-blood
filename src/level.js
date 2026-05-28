@@ -1994,9 +1994,13 @@ function makeDoomFloor11() {
         // R429: ~40 entities across the floor
         doomEntities: [
             // ---- LOBBY SPAWN ROW (row 30) ----
-            { kind: 'health', x: 21.5, y: 30.5, amount: 2 },
+            // R567e: was a health pack at (21.5, 30.5) — 1 tile from the
+            // (20.5, 30.5) spawn, which caused the intro spin to end with a
+            // giant green health-plus sprite filling the screen. Moved
+            // farther away so the spin can complete cleanly.
+            { kind: 'health', x: 25.5, y: 30.5, amount: 2 },
             { kind: 'ammo', x: 18.5, y: 30.5, weapon: 'mg', amount: 30 },
-            { kind: 'ammo', x: 24.5, y: 30.5, weapon: 'mg', amount: 20 },
+            { kind: 'ammo', x: 28.5, y: 30.5, weapon: 'mg', amount: 20 },
             { kind: 'clone', x: 12.5, y: 29.5 },
             { kind: 'clone', x: 28.5, y: 29.5 },
             // ---- CUBICLE FARM (rows 21-28) — full of patrolling clones ----
