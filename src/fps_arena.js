@@ -110,6 +110,10 @@ export class FpsArena {
         this.shields = [];
         this.core = null;
 
+        // R567j: BOSS APPROACHING nameplate countdown + label
+        this._bossNameplateT = 0;
+        this._bossNameplateLabel = '';
+
         this.bullets = [];
         this.enemyBullets = [];
         this.particles = [];
@@ -257,6 +261,11 @@ export class FpsArena {
                     hp: CORE_HP, maxHp: CORE_HP, alive: true,
                     fireT: 0, hitFlash: 0,
                 };
+                // R567j: boss-approach telegraph — same pattern as turret
+                // CRTRON intro (R567i).
+                audio.sfx?.('bossSpotted');
+                this._bossNameplateT = 90;
+                this._bossNameplateLabel = (this.data.bossName || 'CORE').toUpperCase();
                 const radius = 28;
                 for (let i = 0; i < 3; i++) {
                     this.shields.push({
@@ -364,6 +373,8 @@ export class FpsArena {
             if (this._slowMoSkip) return;
         }
         this.t++;
+        // R567j: BOSS APPROACHING nameplate countdown
+        if (this._bossNameplateT > 0) this._bossNameplateT--;
         // R307: ambient embers + lightning. Always tick — visual depth on
         // every frame regardless of phase.
         this._tickAmbientEmbers();
@@ -1052,6 +1063,10 @@ export class FpsArena {
         // Smaller, faster Gates-on-foot. Reuse the core slot so the
         // existing hit-detection block above continues to work; flag it
         // with isPhase2 so a second 0-hp event ends the fight.
+        // R567j: phase-2 reveal also gets a nameplate.
+        audio.sfx?.('bossSpotted');
+        this._bossNameplateT = 90;
+        this._bossNameplateLabel = 'GATES';
         this.core = {
             x: GAME.W / 2,
             y: BACK_WALL_Y + 22,
@@ -1402,6 +1417,33 @@ export class FpsArena {
                 drawTextOutlined(ctx, txt, GAME.W - 6, 30, col, '#000000', 2, 'right');
                 ctx.restore();
             }
+        }
+        // R567j: BOSS APPROACHING nameplate (mirrors turret CRTRON intro
+        // from R567i and brawler boss intro from earlier in this commit).
+        if (this._bossNameplateT > 0) {
+            const npT = this._bossNameplateT;
+            let npAlpha = 1;
+            let npSlideY = 0;
+            if (npT > 75) {
+                const tt = (90 - npT) / 15;
+                npAlpha = tt;
+                npSlideY = -12 * (1 - tt);
+            } else if (npT < 15) {
+                npAlpha = npT / 15;
+            }
+            ctx.save();
+            ctx.globalAlpha = npAlpha;
+            const bx = GAME.W / 2 - 60, by = 38 + npSlideY, bw = 120, bh = 24;
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.fillStyle = '#a02020';
+            ctx.fillRect(bx, by, bw, 2);
+            ctx.fillRect(bx, by + bh - 2, bw, 2);
+            drawText(ctx, 'BOSS APPROACHING', GAME.W / 2, by + 4, '#a02020', 1, 'center');
+            const pulse = 0.7 + Math.sin(this.t * 0.18) * 0.3;
+            ctx.globalAlpha = npAlpha * pulse;
+            drawTextOutlined(ctx, this._bossNameplateLabel || 'BOSS', GAME.W / 2, by + 13, '#ffe070', '#1a0000', 1, 'center');
+            ctx.restore();
         }
         // Stage-clear overlay
         if (this.phase === 'clear') {

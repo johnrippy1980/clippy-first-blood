@@ -130,6 +130,10 @@ export class BeatEmUp {
         this.scroll = 0;
         this.targetScroll = 0;
 
+        // R567j: BOSS APPROACHING nameplate countdown + label
+        this._bossNameplateT = 0;
+        this._bossNameplateLabel = '';
+
         this.bgImg = sprites.images.get(stageData.bgKey) || null;
         // R362: cross-fade companion. If a `<bgKey>_dark` variant exists
         // we layer it on top with per-frame alpha to make the windows
@@ -748,7 +752,16 @@ export class BeatEmUp {
             isMechaPhase2,
         };
         this.enemies.push(e);
-        if (isBoss) this._boss = e;
+        if (isBoss) {
+            this._boss = e;
+            // R567j: boss approach telegraph — fire the bossSpotted sting +
+            // start the nameplate countdown. Same pattern as the turret-stage
+            // CRTRON intro (R567i). Reads as a real "BOSS APPROACHING" beat
+            // instead of a silent enemy spawn.
+            audio.sfx?.('bossSpotted');
+            this._bossNameplateT = 90;
+            this._bossNameplateLabel = (name || (type || '').toUpperCase()).toUpperCase();
+        }
     }
 
     _waveCleared() {
@@ -774,6 +787,8 @@ export class BeatEmUp {
             if (this._slowMoSkip) return;
         }
         this.t++;
+        // R567j: BOSS APPROACHING nameplate countdown
+        if (this._bossNameplateT > 0) this._bossNameplateT--;
         // R307: ambient particles/lights tick every frame regardless of phase
         this._tickAmbience();
         // R386: data-driven ambient props (drips, embers, lightning, fog).
@@ -1843,6 +1858,33 @@ export class BeatEmUp {
                 drawTextOutlined(ctx, txt, GAME.W - 6, 30, col, '#000000', 2, 'right');
                 ctx.restore();
             }
+        }
+        // R567j: BOSS APPROACHING nameplate (same animation as the turret
+        // stage CRTRON intro from R567i). Slide-in 15f + hold 60f + fade 15f.
+        if (this._bossNameplateT > 0) {
+            const npT = this._bossNameplateT;
+            let npAlpha = 1;
+            let npSlideY = 0;
+            if (npT > 75) {
+                const tt = (90 - npT) / 15;
+                npAlpha = tt;
+                npSlideY = -12 * (1 - tt);
+            } else if (npT < 15) {
+                npAlpha = npT / 15;
+            }
+            ctx.save();
+            ctx.globalAlpha = npAlpha;
+            const bx = GAME.W / 2 - 60, by = 38 + npSlideY, bw = 120, bh = 24;
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.fillStyle = '#a02020';
+            ctx.fillRect(bx, by, bw, 2);
+            ctx.fillRect(bx, by + bh - 2, bw, 2);
+            drawText(ctx, 'BOSS APPROACHING', GAME.W / 2, by + 4, '#a02020', 1, 'center');
+            const pulse = 0.7 + Math.sin(this.t * 0.18) * 0.3;
+            ctx.globalAlpha = npAlpha * pulse;
+            drawTextOutlined(ctx, this._bossNameplateLabel || 'BOSS', GAME.W / 2, by + 13, '#ffe070', '#1a0000', 1, 'center');
+            ctx.restore();
         }
         // Stage-clear overlay
         if (this.phase === 'clear') {
