@@ -502,7 +502,10 @@ export class DoomEngine {
                 // Auto-switch to new weapon
                 const keys = ['mg', 'shotgun', 'chainsaw', 'bfg'];
                 p.weaponIdx = keys.indexOf(target);
-                audio.sfx?.('powerup');
+                // R566o: per-weapon pickup voice. Each weapon's pickup
+                // hints at its character (MG=chunk, shotgun=shell-rack,
+                // chainsaw=sputter, BFG=hum-charge). Was generic powerup.
+                audio.sfx?.('pickup_' + target);
                 this._floatText(`GOT ${w.name}!`, p.x, p.y);
                 // Big screen flash for weapon pickup
                 const game = (typeof window !== 'undefined') ? window.__game : null;

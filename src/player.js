@@ -2231,7 +2231,10 @@ export class Player {
             } else {
                 this.weapon = type;
                 this.weaponLevel = 1;
-                audio.sfx('powerup');
+                // R566o: per-weapon pickup voice — each type has its own
+                // synth flavor that hints at the weapon's character. Was
+                // generic `powerup` chime for every weapon class.
+                audio.sfx('pickup_' + type.toLowerCase());
                 burstBurst(w.color, 14);
                 // New-weapon swap is the showy beat — double ring in weapon color
                 particles.shockRing(cx, cy, 22, 14, w.color);

@@ -4548,7 +4548,10 @@ export class Game {
             this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
             // Fanfare when at least one achievement unlocks this clear. Single
             // ding regardless of count — the banner queue handles per-entry display.
-            if (newlyUnlocked.length > 0) audio.sfx('unlock');
+            // R566o: was `unlock` (simple 3-note triangle arpeggio). Now
+            // `achievement` — rising 4-note climb + bell shimmer + light
+            // music duck. Celebrates the achievement properly.
+            if (newlyUnlocked.length > 0) audio.sfx('achievement');
 
             // Save high score (R470: null-safe — ap was resolved above)
             const apScore = ap.score || 0;

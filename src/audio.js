@@ -373,6 +373,24 @@ class Audio {
             case 'stageClear':  return this._stageClearFanfare(t);
             case 'bossDefeated': return this._bossDefeatedSting(t);
             case 'bossSpotted':  return this._bossSpottedSting(t);
+            // R566o: achievement-unlock sting (replaces the simple
+            // _unlockDing). Triumphant 3-note climb + bell shimmer
+            // + light music duck.
+            case 'achievement':  return this._achievementUnlock(t);
+            // R566o: per-weapon-class pickup voices. Each hints at the
+            // weapon's character: MG=mechanical chunk, shotgun=shell-rack,
+            // chainsaw=engine sputter, BFG=hum-charge, laser=sci-fi zap,
+            // flame=hiss-ignite, thunder=spark-pop, homing=lock chime,
+            // spread=triple-burst tease.
+            case 'pickup_mg':       return this._pickupWeaponMg(t);
+            case 'pickup_shotgun':  return this._pickupWeaponShotgun(t);
+            case 'pickup_chainsaw': return this._pickupWeaponChainsaw(t);
+            case 'pickup_bfg':      return this._pickupWeaponBfg(t);
+            case 'pickup_laser':    return this._pickupWeaponLaser(t);
+            case 'pickup_flame':    return this._pickupWeaponFlame(t);
+            case 'pickup_thunder':  return this._pickupWeaponThunder(t);
+            case 'pickup_homing':   return this._pickupWeaponHoming(t);
+            case 'pickup_spread':   return this._pickupWeaponSpread(t);
             // R566l: ambient environmental SFX. Triggered by stage tick
             // loops at low frequency for atmosphere. NOT replacing
             // existing owlHoot/batChitter/fluorescent/splash — these add
@@ -2546,6 +2564,287 @@ class Audio {
         // Cymbal crash — bright noise burst at attack
         this._noise(t, 0.40, 0.10, 4800, 'hp', 1);
         this._noise(t, 0.22, 0.20, 2400, 'bp', 1.5);
+    }
+
+    // R566o: ACHIEVEMENT UNLOCK — was a simple 3-note triangle arpeggio
+    // (E5→G#5→B5). Now: rising 4-note climb (C5→E5→G5→C6) with bell
+    // shimmer + light music duck so the celebratory sting cuts through.
+    _achievementUnlock(t) {
+        this.duck(0.04, 0.45, 0.55, 0.5);
+        // Rising 4-note climb — square + triangle layered
+        const notes = [
+            { f: 523, off: 0.00, dur: 0.10 },  // C5
+            { f: 659, off: 0.07, dur: 0.10 },  // E5
+            { f: 784, off: 0.14, dur: 0.10 },  // G5
+            { f: 1047, off: 0.22, dur: 0.30 }, // C6 held
+        ];
+        for (const n of notes) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(n.f, t + n.off);
+            this._envOn(g, 0.20, t + n.off);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.off + n.dur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + n.off); o.stop(t + n.off + n.dur + 0.02);
+        }
+        // Bell shimmer — higher sine pings on top of the final note
+        const shimmerFreqs = [1568, 2093, 2637];  // G6 C7 E7
+        for (let i = 0; i < shimmerFreqs.length; i++) {
+            const sh = this.ctx.createOscillator(); const shG = this.ctx.createGain();
+            sh.type = 'sine';
+            sh.frequency.setValueAtTime(shimmerFreqs[i], t + 0.22 + i * 0.04);
+            this._envOn(shG, 0.08, t + 0.22 + i * 0.04);
+            shG.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+            sh.connect(shG).connect(this.sfxBus);
+            sh.start(t + 0.22 + i * 0.04); sh.stop(t + 0.57);
+        }
+        // Sub-thump at start for impact
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(55, t + 0.10);
+        this._envOn(subG, 0.22, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.16);
+    }
+
+    // R566o: per-weapon pickup voices. Each is ~0.4-0.6s.
+
+    // MG pickup — mechanical chunk + cocking-bolt rack
+    _pickupWeaponMg(t) {
+        // Magazine slap — quick lowpass thud
+        this._noise(t, 0.30, 0.06, 600, 'lp', 1.5);
+        // Bolt rack — square click sequence
+        this._tonal(t + 0.08, 'square', 380, 220, 0.10, 0.06);
+        this._tonal(t + 0.18, 'square', 280, 180, 0.12, 0.08);
+        // Confirm chime — single bright note
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(880, t + 0.24);
+        this._envOn(g, 0.18, t + 0.24);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.44);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t + 0.24); o.stop(t + 0.46);
+    }
+
+    // Shotgun pickup — shell-eject + pump rack
+    _pickupWeaponShotgun(t) {
+        // Sub thud
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(95, t);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+        this._envOn(subG, 0.35, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.18);
+        // Shell slide — bandpass noise hiss
+        this._noise(t + 0.08, 0.18, 0.10, 2400, 'bp', 2);
+        // Pump rack — heavy square clack
+        this._tonal(t + 0.20, 'square', 240, 130, 0.14, 0.10);
+        // Confirm chime — low triangle note (matches shotgun's weight)
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(523, t + 0.30);
+        this._envOn(g, 0.18, t + 0.30);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t + 0.30); o.stop(t + 0.57);
+    }
+
+    // Chainsaw pickup — brief engine sputter
+    _pickupWeaponChainsaw(t) {
+        // Sputter — sawtooth growl with quick wobble
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(120, t);
+        o.frequency.linearRampToValueAtTime(180, t + 0.06);
+        o.frequency.linearRampToValueAtTime(100, t + 0.12);
+        o.frequency.linearRampToValueAtTime(160, t + 0.18);
+        o.frequency.linearRampToValueAtTime(110, t + 0.30);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 1200;
+        this._envOn(g, 0.28, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.36);
+        // Confirm chime — bright triangle
+        const c = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        c.type = 'triangle';
+        c.frequency.setValueAtTime(987, t + 0.36);
+        this._envOn(cg, 0.18, t + 0.36);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+        c.connect(cg).connect(this.sfxBus);
+        c.start(t + 0.36); c.stop(t + 0.57);
+    }
+
+    // BFG pickup — ominous hum-charge + bright confirm
+    _pickupWeaponBfg(t) {
+        // Light music duck — BFG pickup is a big moment
+        this.duck(0.05, 0.35, 0.5, 0.5);
+        // Low ominous hum — sine pitching UP slowly (charging up)
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(55, t);
+        o.frequency.exponentialRampToValueAtTime(220, t + 0.40);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 800;
+        this._envOn(g, 0.35, t);
+        g.gain.linearRampToValueAtTime(0.35, t + 0.30);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.52);
+        // Detuned partner for ominous dissonance
+        const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+        o2.type = 'sawtooth';
+        o2.frequency.setValueAtTime(58, t);
+        o2.frequency.exponentialRampToValueAtTime(233, t + 0.40);
+        const filt2 = this.ctx.createBiquadFilter();
+        filt2.type = 'lowpass'; filt2.frequency.value = 800;
+        this._envOn(g2, 0.20, t);
+        g2.gain.linearRampToValueAtTime(0.20, t + 0.30);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+        o2.connect(filt2).connect(g2).connect(this.sfxBus);
+        o2.start(t); o2.stop(t + 0.52);
+        // Bright confirm chime at the top — triangle pad
+        const c = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        c.type = 'triangle';
+        c.frequency.setValueAtTime(1047, t + 0.42);  // C6
+        this._envOn(cg, 0.25, t + 0.42);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.80);
+        c.connect(cg).connect(this.sfxBus);
+        c.start(t + 0.42); c.stop(t + 0.82);
+    }
+
+    // LASER pickup — sci-fi zap + crystal ping
+    _pickupWeaponLaser(t) {
+        // Quick zap chirp — saw climbing fast
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(800, t);
+        o.frequency.exponentialRampToValueAtTime(2400, t + 0.08);
+        this._envOn(g, 0.18, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.12);
+        // Crystal ping — bright sine
+        const c = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        c.type = 'sine';
+        c.frequency.setValueAtTime(2349, t + 0.10);  // D7
+        this._envOn(cg, 0.20, t + 0.10);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.40);
+        c.connect(cg).connect(this.sfxBus);
+        c.start(t + 0.10); c.stop(t + 0.42);
+        // Fifth above for sci-fi feel
+        const c2 = this.ctx.createOscillator(); const cg2 = this.ctx.createGain();
+        c2.type = 'sine';
+        c2.frequency.setValueAtTime(3520, t + 0.14);  // A7
+        this._envOn(cg2, 0.10, t + 0.14);
+        cg2.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
+        c2.connect(cg2).connect(this.sfxBus);
+        c2.start(t + 0.14); c2.stop(t + 0.44);
+    }
+
+    // FLAME pickup — gas hiss + ignite WHOOMP
+    _pickupWeaponFlame(t) {
+        // Gas hiss — sustained bandpass noise
+        this._noise(t, 0.22, 0.18, 1800, 'bp', 2.5);
+        // WHOOMP ignite — sub thump + bright noise crack
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(120, t + 0.16);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.30);
+        this._envOn(subG, 0.45, t + 0.16);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.16); sub.stop(t + 0.36);
+        this._noise(t + 0.16, 0.30, 0.10, 3800, 'hp', 1.5);
+        this._noise(t + 0.18, 0.20, 0.20, 600, 'lp', 1.4);
+        // Confirm — warm low triangle (flame is orange/warm)
+        const c = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        c.type = 'triangle';
+        c.frequency.setValueAtTime(440, t + 0.32);
+        this._envOn(cg, 0.18, t + 0.32);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+        c.connect(cg).connect(this.sfxBus);
+        c.start(t + 0.32); c.stop(t + 0.57);
+    }
+
+    // THUNDER pickup — capacitor charge + spark pop
+    _pickupWeaponThunder(t) {
+        // Capacitor whine — saw climbing
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(1800, t + 0.18);
+        this._envOn(g, 0.15, t);
+        g.gain.linearRampToValueAtTime(0.20, t + 0.16);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.24);
+        // Spark POP — bright HPF crack
+        this._noise(t + 0.18, 0.30, 0.06, 5200, 'hp', 1.5);
+        // Crackle tail
+        this._noise(t + 0.22, 0.12, 0.10, 3200, 'bp', 3);
+        // Confirm — bright triangle ping
+        const c = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        c.type = 'triangle';
+        c.frequency.setValueAtTime(1320, t + 0.28);  // E6
+        this._envOn(cg, 0.18, t + 0.28);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+        c.connect(cg).connect(this.sfxBus);
+        c.start(t + 0.28); c.stop(t + 0.52);
+    }
+
+    // HOMING pickup — radar-lock chime
+    _pickupWeaponHoming(t) {
+        // Lock-on chirp — square pitching up in steps
+        this._tonal(t,        'square', 600, 600, 0.04, 0.05);
+        this._tonal(t + 0.08, 'square', 800, 800, 0.04, 0.05);
+        this._tonal(t + 0.16, 'square', 1100, 1100, 0.06, 0.05);
+        // Lock confirm — sustained higher note
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(1568, t + 0.24);  // G6
+        this._envOn(g, 0.22, t + 0.24);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t + 0.24); o.stop(t + 0.57);
+        // Sub thump on lock for satisfaction
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t + 0.24);
+        sub.frequency.exponentialRampToValueAtTime(50, t + 0.34);
+        this._envOn(subG, 0.20, t + 0.24);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.36);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.24); sub.stop(t + 0.38);
+    }
+
+    // SPREAD pickup — triple-burst tease (preview of the spread fire)
+    _pickupWeaponSpread(t) {
+        // Three quick light gunshot-style ticks
+        for (let i = 0; i < 3; i++) {
+            const st = t + i * 0.06;
+            this._noise(st, 0.18, 0.04, 1400, 'bp', 2);
+            const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+            sub.type = 'sine';
+            sub.frequency.setValueAtTime(90, st);
+            sub.frequency.exponentialRampToValueAtTime(40, st + 0.06);
+            this._envOn(subG, 0.18, st);
+            subG.gain.exponentialRampToValueAtTime(0.001, st + 0.08);
+            sub.connect(subG).connect(this.sfxBus);
+            sub.start(st); sub.stop(st + 0.10);
+        }
+        // Confirm chime
+        const c = this.ctx.createOscillator(); const cg = this.ctx.createGain();
+        c.type = 'triangle';
+        c.frequency.setValueAtTime(784, t + 0.22);
+        this._envOn(cg, 0.18, t + 0.22);
+        cg.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        c.connect(cg).connect(this.sfxBus);
+        c.start(t + 0.22); c.stop(t + 0.47);
     }
 
     // R566l: DISTANT GUNFIRE — far-off bullet cracks (heavily lowpassed,
