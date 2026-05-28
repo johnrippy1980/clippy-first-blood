@@ -19,6 +19,10 @@ const KEYMAP = {
     'Escape': 'pause',     'p': 'pause', 'P': 'pause',
     'm': 'mute',           'M': 'mute',
     'Tab': 'cycle',        'q': 'cycle', 'Q': 'cycle',
+    // R568 (co-op slice 1): tag-team swap. T key for keyboard, gamepad-2
+    // START button handled separately in the input.tag() poll. Reserved
+    // here so input.isPressed('tag') works.
+    't': 'tag',            'T': 'tag',
 };
 
 class Input {

@@ -284,6 +284,22 @@ export class Game {
 
         this.scene = SCENE.BOOT;
         this.player = null;
+        // R568 (co-op slice 1): tag-team co-op state. `coopMode` flag
+        // toggled from the title menu CO-OP option. `players` holds both
+        // character state snapshots (slot 0 = CLIPPY, slot 1 = BONZI —
+        // currently stubbed as another Clippy until slice 3 sprites land).
+        // `activePlayerIdx` tracks who is on-screen; `this.player` is
+        // always = players[activePlayerIdx] (back-compat with all existing
+        // code that touches `this.player` directly).
+        // `tagCooldownT` ticks down each frame; tag input only fires when 0.
+        // `sharedLives` is the pool that drains on EITHER character's death
+        // (doubled from 3→6 per the plan when coopMode === true).
+        this.coopMode = false;
+        this.players = [null, null];
+        this.activePlayerIdx = 0;
+        this.tagCooldownT = 0;
+        this.TAG_COOLDOWN_FRAMES = 300;   // 5s @ 60fps per the plan
+        this.sharedLives = 3;             // gets bumped to 6 on coopMode entry
         this.level = null;
         this.enemies = new EnemyManager();
         this.pickups = new PickupManager();
@@ -892,6 +908,12 @@ export class Game {
         // in stage-select like every other stage.
         const all = [
             { label: 'START GAME',     action: 'start' },
+            // R568 co-op slice 1: CO-OP option. Label shows current state
+            // so the player knows ON/OFF without entering. Per the plan,
+            // this option will eventually be unlock-gated by defeating
+            // Bonzi as boss (slice 7) — for slice 1 it's directly visible
+            // so the pipeline can be validated.
+            { label: this.coopMode ? 'CO-OP: ON' : 'CO-OP: OFF', action: 'toggleCoop' },
             { label: 'STAGE SELECT',   action: 'stageSelect',  gate: () => stageSelectAvail },
             { label: 'TRAINING',       action: 'training' },
             { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
@@ -920,6 +942,22 @@ export class Game {
                     this.storyTimer = 0;
                     this._fadeTo(SCENE.STORY);
                     break;
+                // R568 co-op slice 1: toggle coopMode + bump shared lives
+                // pool. Doesn't leave the menu — the player sees the label
+                // update ("CO-OP: ON" / "CO-OP: OFF") and stays here so they
+                // can then START GAME with the flag set.
+                case 'toggleCoop':
+                    this.coopMode = !this.coopMode;
+                    this.sharedLives = this.coopMode ? 6 : 3;
+                    // Reset player 2 slot when toggling off so future single-
+                    // player runs don't carry a stale Bonzi reference.
+                    if (!this.coopMode) {
+                        this.players[1] = null;
+                        this.activePlayerIdx = 0;
+                    }
+                    // Don't break out of the menu — let the player see the
+                    // updated label and continue to START GAME if they want.
+                    return;
                 case 'stageSelect':
                     this.stageSelectIndex = 0;
                     this.scene = SCENE.STAGE_SELECT;
@@ -1453,6 +1491,9 @@ export class Game {
         // sub-tick. Caller's next _startStage will populate level + player.
         if (!this.level || !this.player) return;
         if (this._tickPlayHandlePause()) return;
+        // R568 co-op slice 1: tag-swap check. Fires when tag-cooldown
+        // is 0 and player presses T (or gamepad-2 START).
+        this._tryTagSwap();
         if (this.trainingMode) this._tickPlayTrainingUpkeep();
         const slowMoSkipEnemies = this._tickPlayAdvanceSlowMo();
         const snap = this._tickPlayCaptureSnapshot();
@@ -1471,6 +1512,37 @@ export class Game {
         if (this.scene !== SCENE.PLAY) return;
         this._tickPlayHandleStageClear();
         this._tickPlayHandleDeath();
+    }
+
+    // R568 co-op slice 1: tag-swap helper. Decrements the cooldown
+    // every frame, fires the swap when the T key (or future gamepad-2
+    // START) is pressed AND cooldown is 0 AND coopMode is on AND a
+    // second player slot is initialized. Swap is implemented as an
+    // atomic switch of `this.player` between players[0] and players[1];
+    // all per-character state (HP/ammo/weapons/grenades/combo/score/pos)
+    // lives on the Player object itself, so the switch preserves
+    // everything the inactive character had when they tagged out.
+    _tryTagSwap() {
+        if (this.tagCooldownT > 0) this.tagCooldownT--;
+        if (!this.coopMode) return;
+        if (!this.players[0] || !this.players[1]) return;
+        if (this.tagCooldownT > 0) return;
+        if (!input.isPressed('tag')) return;
+        // Swap the active slot index + repoint this.player.
+        const otherIdx = 1 - this.activePlayerIdx;
+        // Preserve the outgoing character's position on the way out;
+        // the incoming character spawns at the SAME spot.
+        const outgoing = this.players[this.activePlayerIdx];
+        const incoming = this.players[otherIdx];
+        if (outgoing && incoming) {
+            incoming.x = outgoing.x;
+            incoming.y = outgoing.y;
+            incoming.facing = outgoing.facing;
+        }
+        this.activePlayerIdx = otherIdx;
+        this.player = incoming;
+        this.tagCooldownT = this.TAG_COOLDOWN_FRAMES;
+        audio.sfx?.('select');     // placeholder swap-in sting; replace in slice 2
     }
 
     // Training-ground per-frame upkeep. Keeps the player armed and full
@@ -2029,6 +2101,26 @@ export class Game {
                 bestBossRushTime: achievements.stats?.bestBossRushTime || 0,
                 bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
             });
+            // R568 co-op slice 1: tag-cooldown indicator. Shows "TAG: READY"
+            // or "TAG: Ns" countdown in the upper-right under the score.
+            // Tiny — just so the player knows when they can tag. Slice 2
+            // upgrades to a full P2 portrait + HP bar.
+            if (this.coopMode) {
+                const x = GAME.W - 4;
+                const y = 24;
+                const ready = this.tagCooldownT === 0;
+                const seconds = Math.ceil(this.tagCooldownT / 60);
+                const label = ready ? 'TAG READY' : `TAG ${seconds}s`;
+                const color = ready ? '#80ff80' : '#a08090';
+                drawText(ctx, label, x, y, color, 1, 'right');
+                // Active player badge on the LEFT — separated row so it
+                // doesn't smear with the tag label.
+                drawText(ctx,
+                         this.activePlayerIdx === 0 ? '<P1>' : '<P2>',
+                         x, y + 10,
+                         this.activePlayerIdx === 0 ? '#ffe070' : '#80c0ff',
+                         1, 'right');
+            }
         }
         if (this._bossEntrance) this._drawBossEntrance();
         // R330: boss-lair name tag (banner at top of screen during lair entry)
@@ -4390,6 +4482,29 @@ export class Game {
             this.player.vx = 0; this.player.vy = 0;
             this.player.bullets.length = 0;
             this.player.resetForStage();
+        }
+        // R568 co-op slice 1: when coopMode is on, ensure BOTH slots are
+        // populated. Active slot = this.player (was set above). Inactive
+        // slot gets its own Player instance at the same spawn — the tag
+        // swap repoints this.player between them. Currently both characters
+        // are Clippy (slice 3 will spawn Bonzi for slot 1 with distinct
+        // movement profile + abilities + sprite).
+        this.players[this.activePlayerIdx] = this.player;
+        if (this.coopMode) {
+            const otherIdx = 1 - this.activePlayerIdx;
+            if (!this.players[otherIdx]) {
+                this.players[otherIdx] = new Player(safeStart.x, safeStart.y);
+                this.players[otherIdx]._coopSlot = otherIdx;
+            } else {
+                this.players[otherIdx].x = safeStart.x;
+                this.players[otherIdx].y = safeStart.y;
+                this.players[otherIdx].vx = 0;
+                this.players[otherIdx].vy = 0;
+                this.players[otherIdx].resetForStage();
+            }
+        } else {
+            this.players[1] = null;
+            this.activePlayerIdx = 0;
         }
         this.bossSpawned = false;
         this.miniBossSpawned = false;
