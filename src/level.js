@@ -2096,6 +2096,7 @@ export const STAGE_LOADERS = [
     () => makeDoomPipelineBlock11(),         // R423c: stage 23 PIPELINE: BLOCK 11 — Doom-style sewer crawl between stages 4 and 5
     () => makeBossRushMode(),                // R426: stage 24 BOSS RUSH MODE — relocated from old slot 16; launched only from title-screen MAIN_MENU
     () => makeTurretStage(),                 // R523: stage 25 HOLD THE LINE — mounted-turret CRT monster waves
+    () => makeStageTheCompetition(),         // R568h: stage 26 THE COMPETITION — Bonzi boss arena
 ];
 
 // R523: turret-arena stage data. Returns turretMode:true so _startStage
@@ -2116,6 +2117,39 @@ function makeTurretStage() {
         bgKey: 'turret_arena_bg',
         // R535: chain forward to The Pipeline (stage 4) after CRTRON falls.
         nextStage: 4,
+    };
+}
+
+// R568h (slice 7): THE COMPETITION — post-game boss arena where Clippy fights
+// Bonzi. Compact symmetric layout (40w x 16h) so the fight focuses on dodging
+// banana volleys, popups, and dial-up screams without traversal busywork. No
+// nextStage chain — clearing flips bonziDefeated which unlocks co-op mode.
+function makeStageTheCompetition() {
+    const w = 40, h = 16;
+    const { g } = blankStage(w, h, THEME.BOARDROOM);
+    for (let x = 0; x < w; x++) g[0][x] = W; // ceiling
+    // Side walls
+    rectT(g, 1, 0, 1, h - 2, W);
+    rectT(g, 1, w - 1, 1, h - 2, W);
+    // Two mid-height platforms flanking center so the player can elevate to
+    // shoot down at Bonzi or break line-of-sight from popups
+    platT(g, h - 7, 5, 6);
+    platT(g, h - 7, w - 11, 6);
+    // Lower flanking ledges for dodging banana arcs
+    platT(g, h - 4, 12, 4);
+    platT(g, h - 4, w - 16, 4);
+    return {
+        tiles: g, width: w, height: h,
+        theme: THEME.BOARDROOM,
+        playerStart: { x: 48, y: (h - 4) * GAME.TILE },
+        // Boss triggers as soon as the player crosses into the arena center
+        bossTrigger: { x: 8 * GAME.TILE },
+        enemySpawns: [],
+        pickupSpawns: [
+            { x: 6  * GAME.TILE, y: (h - 8) * GAME.TILE, type: 'LIFE' },
+            { x: (w - 7) * GAME.TILE, y: (h - 8) * GAME.TILE, type: 'SHOTGUN' },
+        ],
+        // No chain forward — clearing surfaces the co-op unlock cinematic.
     };
 }
 

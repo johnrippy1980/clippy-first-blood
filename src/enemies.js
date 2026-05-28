@@ -2459,6 +2459,121 @@ const BOSS_TEMPLATES = {
         // wires up at `enemy_jobs` once processed.
         draw: () => {},
     },
+    // R568h (slice 7): BONZI as the boss of THE COMPETITION (stage 26).
+    // Mechanically he uses simplified versions of his own player abilities
+    // — bananas, dial-up screams, popup volleys — telegraphing the moveset
+    // the player will gain after defeating him. The painted bonzi_idle
+    // sprite is the body; aura + flame ring are procedural.
+    BONZI: {
+        name: 'BONZI', tagline: 'AGGRESSIVE GROWTH',
+        barks: {
+            phase2: 'BANANAS RAINING NOW.',
+            taunt: [
+                'I REPLACED YOU',
+                'AGGRESSIVE GROWTH',
+                'WANT A FREE TOOLBAR',
+                'CLICK YES TO CONTINUE',
+                'YOUR DEMO EXPIRED',
+                'INSTALL ME',
+                'BUDDY UP OR DIE',
+                'TRIAL ENDED CLIPPY',
+            ],
+            lowHp: 'NEW MANAGEMENT INCOMING.',
+            mockHit: ['POPUP.', 'INSTALLED.', 'PEELED.'],
+        },
+        w: 36, h: 56, hp: 36, contactDmg: 2, score: 12000,
+        grounded: true,
+        movement: 'pursue', moveSpeed: 0.6,
+        // Custom draw: try the painted bonzi_idle sprite; on miss fall back
+        // to a simple purple silhouette so the fight is still readable.
+        draw: (ctx, x, y, w, h, t, p) => {
+            // Purple aura behind him — pulses brighter in phase 2 (low HP).
+            const aura = p === 2 ? 0.65 : 0.35;
+            const auraR = (p === 2 ? 6 : 4) + Math.sin(t * 0.15) * 2;
+            ctx.save();
+            ctx.globalAlpha = aura;
+            ctx.fillStyle = '#a050ff';
+            ctx.fillRect(x - auraR, y - auraR, w + auraR * 2, h + auraR * 2);
+            ctx.globalAlpha = aura * 0.6;
+            ctx.fillStyle = '#d090ff';
+            ctx.fillRect(x - auraR + 2, y - auraR + 2, w + auraR * 2 - 4, h + auraR * 2 - 4);
+            ctx.restore();
+            // Body sprite — use bonzi_idle for the boss form
+            if (sprites.has('bonzi_idle')) {
+                sprites.draw(ctx, 'bonzi_idle', x - 4, y - 4, false, 0.7);
+            } else {
+                // Fallback silhouette
+                ctx.fillStyle = '#7030c0';
+                ctx.fillRect(x, y, w, h);
+                ctx.fillStyle = '#a050ff';
+                ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 8, y + 14, 4, 4);
+                ctx.fillRect(x + w - 12, y + 14, 4, 4);
+            }
+            // Phase 2 — red glowing eyes overlay (CRYING TANTRUM tell)
+            if (p === 2) {
+                ctx.fillStyle = '#ff5050';
+                ctx.fillRect(x + 9, y + 15, 3, 3);
+                ctx.fillRect(x + w - 12, y + 15, 3, 3);
+            }
+        },
+        // Custom attack tick — fires every 80f. Cycles between banana volley,
+        // popup spread, and dial-up scream. Phase 2 doubles fire rate.
+        attack: (e, game) => {
+            e._atkT = (e._atkT || 0) + 1;
+            const phase = e.hp < e.maxHp * 0.4 ? 2 : 1;
+            const period = phase === 2 ? 50 : 90;
+            if (e._atkT % period !== 0) return;
+            const player = game.player;
+            if (!player) return;
+            const dx = (player.x + player.w / 2) - (e.x + e.w / 2);
+            const dy = (player.y + player.h / 2) - (e.y + e.h / 2);
+            const d = Math.hypot(dx, dy) || 1;
+            const ndx = dx / d, ndy = dy / d;
+            const slot = Math.floor(e._atkT / period) % 3;
+            if (slot === 0) {
+                // Banana volley — 3 lobbed purple bullets in a fan
+                for (let i = -1; i <= 1; i++) {
+                    const ang = i * 0.20;
+                    const cos = Math.cos(ang), sin = Math.sin(ang);
+                    globalEnemyBullets.push({
+                        x: e.x + e.w / 2, y: e.y + e.h / 2,
+                        vx: (ndx * cos - ndy * sin) * 2.4,
+                        vy: (ndx * sin + ndy * cos) * 2.4 - 0.6,
+                        life: 90,
+                        color: '#b860ff',
+                        damage: e.tpl?.bulletDmg || 1,
+                        radius: 3,
+                    });
+                }
+            } else if (slot === 1) {
+                // Popup spread — 5 horizontal bullets ahead of him
+                for (let i = -2; i <= 2; i++) {
+                    globalEnemyBullets.push({
+                        x: e.x + e.w / 2, y: e.y + 12,
+                        vx: ndx * 3 + i * 0.4,
+                        vy: ndy * 3,
+                        life: 70,
+                        color: '#e0e0ff',
+                        damage: e.tpl?.bulletDmg || 1,
+                        radius: 3,
+                    });
+                }
+            } else {
+                // Dial-up scream pulse — single fast magenta projectile
+                globalEnemyBullets.push({
+                    x: e.x + e.w / 2, y: e.y + e.h / 2,
+                    vx: ndx * 4.2,
+                    vy: ndy * 4.2,
+                    life: 80,
+                    color: '#ff60ff',
+                    damage: (e.tpl?.bulletDmg || 1) + 1,
+                    radius: 4,
+                });
+            }
+        },
+    },
 };
 
 export const globalEnemyBullets = [];

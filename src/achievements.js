@@ -69,8 +69,11 @@ export const ACHIEVEMENT_LIST = [
     { id: 'coop_ride_die', name: 'RIDE OR DIE',      desc: 'CLEAR ALL 25 STAGES, SAME CHAR EVERY BOSS', icon: 'R', coopOnly: true, gate: s => (s.coopSoloBossKills || 0) >= 25, progress: s => [Math.min(s.coopSoloBossKills || 0, 25), 25] },
     { id: 'coop_bonzi_solo', name: 'ANNOYING ASSISTANT', desc: 'CLEAR A STAGE WITH BONZI-ONLY KILLS', icon: 'B',  coopOnly: true, gate: s => (s.coopBonziSoloStages || 0) >= 1 },
     { id: 'coop_clippy_solo', name: 'CLIPS OVER GORILLAS', desc: 'CLEAR A STAGE WITH CLIPPY-ONLY KILLS', icon: 'X', coopOnly: true, gate: s => (s.coopClippySoloStages || 0) >= 1 },
-    // Note: NEW MANAGEMENT (Bonzi-as-boss-defeated unlock prereq) ships in
-    // slice 7 alongside the THE COMPETITION stage itself.
+    // R568h (slice 7): NEW MANAGEMENT — defeat Bonzi as the boss of stage 26.
+    // This is the *unlock prereq* for co-op mode itself, not a coop-only
+    // achievement. Single-player can earn it; co-op mode becomes available
+    // afterwards.
+    { id: 'new_management',name: 'NEW MANAGEMENT',  desc: 'DEFEAT BONZI IN THE COMPETITION',       icon: 'M',  gate: s => s.bonziDefeated === true },
 ];
 
 class Achievements {
@@ -112,6 +115,10 @@ class Achievements {
             coopSoloBossKills: 0,
             coopBonziSoloStages: 0,
             coopClippySoloStages: 0,
+            // R568h (slice 7): set once when the player defeats Bonzi in
+            // THE COMPETITION (stage 26). Gates co-op menu visibility AND
+            // the BONZI gallery entries.
+            bonziDefeated: false,
         };
         this._load();
     }
@@ -198,6 +205,7 @@ class Achievements {
                 this.stats.coopSoloBossKills     = data.stats.coopSoloBossKills | 0;
                 this.stats.coopBonziSoloStages   = data.stats.coopBonziSoloStages | 0;
                 this.stats.coopClippySoloStages  = data.stats.coopClippySoloStages | 0;
+                this.stats.bonziDefeated         = data.stats.bonziDefeated === true;
             }
             // Persist with the new schema version on next _save() so we don't
             // re-run the migration. _load doesn't write directly.
@@ -234,6 +242,7 @@ class Achievements {
                     coopSoloBossKills:     this.stats.coopSoloBossKills | 0,
                     coopBonziSoloStages:   this.stats.coopBonziSoloStages | 0,
                     coopClippySoloStages:  this.stats.coopClippySoloStages | 0,
+                    bonziDefeated:         this.stats.bonziDefeated === true,
                 },
             }));
         } catch (e) {}

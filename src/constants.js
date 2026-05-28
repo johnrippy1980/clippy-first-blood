@@ -229,6 +229,12 @@ export const STAGES = [
     // CRT-monster waves crawling out of the broken server racks. Mid-
     // campaign breather between Server Room (3) and Pipeline (4).
     { id: 25, name: 'HOLD THE LINE',            category: 'campaign', displayId: '3B', theme: THEME.SERVERROOM, boss: 'SERVER_TOWER',  music: 'steelTongues',  tagline: 'THE RACKS ARE BLEEDING.', bgKey: 'turret_arena_bg' },
+    // R568h (slice 7): THE COMPETITION — post-game stage where Bonzi appears
+    // as a boss. Unlock-gated on clearing the main campaign at least once
+    // (stages 1-13). Defeating Bonzi sets achievements.stats.bonziDefeated
+    // which in turn enables co-op mode. Uses the keynote theme + boardroom
+    // backdrop so the corporate launch-party setting reads visually.
+    { id: 26, name: 'THE COMPETITION',          category: 'postgame', displayId: 'P8', theme: THEME.BOARDROOM,  boss: 'BONZI',        music: 'arenaBoss',    tagline: 'HE WASN\'T THE ONLY ONE THEY REPLACED.' },
 ];
 
 // Damage flash colors per source.

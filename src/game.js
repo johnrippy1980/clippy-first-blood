@@ -952,12 +952,12 @@ export class Game {
         // in stage-select like every other stage.
         const all = [
             { label: 'START GAME',     action: 'start' },
-            // R568 co-op slice 1: CO-OP option. Label shows current state
-            // so the player knows ON/OFF without entering. Per the plan,
-            // this option will eventually be unlock-gated by defeating
-            // Bonzi as boss (slice 7) — for slice 1 it's directly visible
-            // so the pipeline can be validated.
-            { label: this.coopMode ? 'CO-OP: ON' : 'CO-OP: OFF', action: 'toggleCoop' },
+            // R568 co-op slice 1: CO-OP option. Label shows current state.
+            // R568h (slice 7): gated by bonziDefeated — beating Bonzi in
+            // THE COMPETITION (stage 26) unlocks the toggle. Konami also
+            // surfaces it pre-defeat for testing.
+            { label: this.coopMode ? 'CO-OP: ON' : 'CO-OP: OFF', action: 'toggleCoop',
+              gate: () => !!achievements.stats.bonziDefeated || !!this._konamiUnlocked },
             { label: 'STAGE SELECT',   action: 'stageSelect',  gate: () => stageSelectAvail },
             { label: 'TRAINING',       action: 'training' },
             { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
@@ -2570,7 +2570,9 @@ export class Game {
         if (bossKey === 'GAUNTLET' || bossKey === 'GAUNTLET_FULL') bgBoss = 'CTRL_ALT_DEL';
         // R566f: SERVER_TOWER now has its own bespoke CRTRON cinematic plate;
         // the temporary CTRL_ALT_DEL fallback from R523 is no longer needed.
-        const bgKey = 'boss_intro_' + bgBoss;
+        // R568h (slice 7): BONZI uses the bonzi_boss_plate asset directly
+        // rather than the boss_intro_ prefix pattern.
+        const bgKey = bossKey === 'BONZI' ? 'bonzi_boss_plate' : 'boss_intro_' + bgBoss;
         if (sprites.has(bgKey)) {
             const img = sprites.images.get(bgKey);
             // Push-in: 1.0 → 1.08 over 150f. Anchor center.
@@ -2724,7 +2726,7 @@ export class Game {
         // same scene, just framed on Clippy. Ken-Burns continues the push-in.
         const bgBoss = (stg.boss === 'GAUNTLET' || stg.boss === 'GAUNTLET_FULL')
             ? 'CTRL_ALT_DEL' : stg.boss;
-        const bgKey = 'boss_intro_' + bgBoss;
+        const bgKey = stg.boss === 'BONZI' ? 'bonzi_boss_plate' : 'boss_intro_' + bgBoss;
         if (sprites.has(bgKey)) {
             const img = sprites.images.get(bgKey);
             // Resume from where the villain slide left off (~1.08) and push
@@ -4080,7 +4082,10 @@ export class Game {
             const unlocked = this._konamiUnlocked
                 || stage <= this.unlockedStage
                 || (stage === 14 && hasSecret)
-                || (stage === 18 && achievements.unlocked.has('clear_game'));
+                || (stage === 18 && achievements.unlocked.has('clear_game'))
+                // R568h (slice 7): THE COMPETITION (stage 26) unlocks after
+                // clearing the main campaign at least once.
+                || (stage === 26 && achievements.unlocked.has('clear_game'));
             const selected = i === this.stageSelectIndex;
 
             // Tile backplate
@@ -4882,6 +4887,13 @@ export class Game {
             if (this.coopStageStats && this.player?.character) {
                 this.coopStageStats.bossKillCharacter = this.player.character;
             }
+            // R568h (slice 7): clearing THE COMPETITION sets the bonziDefeated
+            // gate which (a) reveals the gallery entries and (b) enables the
+            // co-op menu toggle in the main menu. Persisted via _save below.
+            if (this.currentStage === 26) {
+                achievements.stats.bonziDefeated = true;
+                this._bonziJustDefeated = true;
+            }
             // R566n: triumphant boss-defeated sting (1.6s F major arpeggio
             // + sustained pad + cymbal). Fires alongside the explosion so
             // the audio reads "boss IS dying, here's your victory."
@@ -5027,6 +5039,10 @@ export class Game {
                 enemiesLost: this.runStats.enemiesLost,
                 pounceKills: (ap.pounceKills || 0),
                 grenadeKills: this.runStats.grenadeKills,
+                // R568h (slice 7): bonziDefeated reaches gate predicates
+                // through the snapshot so NEW MANAGEMENT unlocks on the
+                // same stage-clear cycle that sets the flag.
+                bonziDefeated: achievements.stats.bonziDefeated === true,
             });
             this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
             // Fanfare when at least one achievement unlocks this clear. Single
