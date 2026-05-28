@@ -1105,8 +1105,13 @@ export class BeatEmUp {
         }
         // Audio + hitstop
         if (hitAny) {
-            audio.sfx(kind === 'hook' || kind === 'roundhouse' ? 'bossHit' : 'hit');
-            this._hitstop = (kind === 'hook' || kind === 'roundhouse') ? 4 : 2;
+            // R566i: dedicated melee impact synths. Jab/cross use the meaty
+            // `punch` thud; hook/roundhouse use the heavier `kick` (deeper
+            // sub + bone-crack snap). Was reusing `hit`/`bossHit` which
+            // were generic — heavy strikes now feel actually heavy.
+            const isHeavy = kind === 'hook' || kind === 'roundhouse';
+            audio.sfx(isHeavy ? 'kick' : 'punch');
+            this._hitstop = isHeavy ? 4 : 2;
             // R563: combo readout above the player — players couldn't see
             // they were chaining a 3-hit jab→cross→hook combo. Now: floating
             // text shows the punch kind on each connect, color-matched to
@@ -1209,6 +1214,10 @@ export class BeatEmUp {
                                 multiplier >= 4 ? '#ff80ff' : multiplier >= 3 ? '#ff8050' : '#ffe070',
                                 60, -0.6, 1);
                             audio.sfx?.('combo' + Math.min(4, multiplier - 1));
+                            // R566i: bone-crack finisher SFX on 4x combos —
+                            // wet body crunch + sharp bone snap. Sells the
+                            // brutality of a 5+ hit chain ending an enemy.
+                            if (multiplier >= 4) audio.sfx?.('bone_crack');
                         }
                         audio.sfx('enemyDie');
                         this._explosion(e.x + e.w / 2, e.y + e.h / 2,

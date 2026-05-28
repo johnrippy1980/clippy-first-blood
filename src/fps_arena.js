@@ -133,11 +133,18 @@ export class FpsArena {
             core:   'lab_core',
         }, stageData.spriteKeys || {});
         // R273: per-stage SFX overrides for enemy fire / boss attacks. Lab
-        // defaults to generic 'enemyShoot'; office stage uses themed sounds.
+        // defaults to differentiated weapon voices (R566i); office stage
+        // uses themed mechanical sounds (typewriter, faxRing, etc).
         this.sfxKeys = Object.assign({
-            turretFire: 'enemyShoot',
-            gruntFire:  'enemyShoot',
-            coreFire:   'enemyShoot',
+            // R566i: differentiated FPS enemy weapon voices. Was all
+            // 3 enemies sharing `enemyShoot` (a single thin gunshot
+            // variant), which made it impossible to tell what was
+            // shooting at you. Now: turret = mechanical pulse-cannon
+            // with capacitor whine, grunt = snappy small-caliber pistol,
+            // core (boss) = wall-shaking cannon with resonant tail.
+            turretFire: 'enemyTurret',
+            gruntFire:  'enemyGrunt',
+            coreFire:   'enemyCore',
         }, stageData.sfxKeys || {});
         // R273: ambient hum looper. Office stage sets a per-stage ambient
         // SFX key (e.g. 'fluorescent') that re-triggers every ~1.5s.

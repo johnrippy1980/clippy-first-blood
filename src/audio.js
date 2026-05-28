@@ -325,6 +325,18 @@ class Audio {
             case 'pickup_health': return this._pickupHealth(t);
             case 'pickup_armor':  return this._pickupArmor(t);
             case 'pickup_ammo':   return this._pickupAmmo(t);
+            // R566i: brutal melee sounds for beat-em-up brawler stages.
+            // Jab/cross = meaty thud, kick = heavier sub thud with bone-snap
+            // crack, bone_crack = special finisher with wet body impact.
+            case 'punch':       return this._punchImpact(t);
+            case 'kick':        return this._kickImpact(t);
+            case 'bone_crack':  return this._boneCrack(t);
+            // R566i: FPS-stage enemy weapons. Differentiated voices so the
+            // turret rattling isn't confused with a grunt's pistol burst or
+            // the core boss's heavy cannon. All have brutal sub-bass.
+            case 'enemyTurret': return this._enemyTurretFire(t);
+            case 'enemyGrunt':  return this._enemyGruntFire(t);
+            case 'enemyCore':   return this._enemyCoreFire(t);
         }
     }
 
@@ -1636,6 +1648,162 @@ class Audio {
         subG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
         sub.connect(subG).connect(this.sfxBus);
         sub.start(t + 0.04); sub.stop(t + 0.16);
+    }
+
+    // R566i: PUNCH IMPACT — meaty thud for jab/cross strikes.
+    // Sub-bass body kick + bandpass mid for the wet flesh contact +
+    // small bone-clack transient. Reads as fist-meets-meat.
+    _punchImpact(t) {
+        // Body thud — sub sine punch
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(140, t);
+        sub.frequency.exponentialRampToValueAtTime(50, t + 0.10);
+        this._envOn(subG, 0.62, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.16);
+        // Wet meat — bandpass noise body
+        this._noise(t, 0.36, 0.12, 550, 'bp', 1.6);
+        // Bone-clack transient — short bright noise crack
+        this._noise(t, 0.16, 0.04, 2800, 'hp', 2);
+    }
+
+    // R566i: KICK IMPACT — heavier than punch, longer body decay, with
+    // a snap-crack on impact for the boot-on-ribs feel.
+    _kickImpact(t) {
+        // Heavy sub-bass — kicks have more momentum than punches
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(38, t + 0.16);
+        this._envOn(subG, 0.78, t);                  // hotter than punch
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.22);
+        // Detuned sub-octave for chest punch — kick is a body blow
+        const sub2 = this.ctx.createOscillator(); const sub2G = this.ctx.createGain();
+        sub2.type = 'sine';
+        sub2.frequency.setValueAtTime(70, t);
+        sub2.frequency.exponentialRampToValueAtTime(28, t + 0.16);
+        this._envOn(sub2G, 0.42, t);
+        sub2G.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        sub2.connect(sub2G).connect(this.sfxBus);
+        sub2.start(t); sub2.stop(t + 0.22);
+        // Extended body — bigger lowpass noise tail
+        this._noise(t, 0.50, 0.18, 450, 'lp', 1.4);
+        // Snap-crack — sharp transient at attack
+        this._noise(t, 0.22, 0.05, 3200, 'hp', 2);
+    }
+
+    // R566i: BONE CRACK — special finisher impact. Wet crunch + sharp
+    // snap + extended decay. Reserved for combo finishers / specials.
+    _boneCrack(t) {
+        // Massive sub thump
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(160, t);
+        sub.frequency.exponentialRampToValueAtTime(35, t + 0.22);
+        this._envOn(subG, 0.85, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.28);
+        // Wet body crunch — bandpass noise sweeping down
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * 0.18) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(900, t);
+        filt.frequency.exponentialRampToValueAtTime(280, t + 0.18);
+        filt.Q.value = 1.8;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.45, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + 0.20);
+        // Sharp BONE-snap crack — bright noise burst at attack
+        this._noise(t, 0.30, 0.06, 4500, 'hp', 2);
+        // Stab tonal — quick square pitch-down for the "kssh" of breaking
+        this._tonal(t + 0.02, 'square', 1800, 600, 0.08, 0.10);
+    }
+
+    // R566i: ENEMY TURRET FIRE — mechanical pulse-cannon. Different from
+    // a gunshot: tighter attack, more "pew-thump" mechanical, with a
+    // capacitor whine pre-roll for the energy-weapon feel.
+    _enemyTurretFire(t) {
+        // Capacitor whine — quick sine sweep up before the discharge
+        const whine = this.ctx.createOscillator(); const whineG = this.ctx.createGain();
+        whine.type = 'sawtooth';
+        whine.frequency.setValueAtTime(800, t);
+        whine.frequency.exponentialRampToValueAtTime(2200, t + 0.04);
+        this._envOn(whineG, 0.10, t);
+        whineG.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        whine.connect(whineG).connect(this.sfxBus);
+        whine.start(t); whine.stop(t + 0.06);
+        // Discharge thump — sub kick on release
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(140, t + 0.04);
+        sub.frequency.exponentialRampToValueAtTime(55, t + 0.14);
+        this._envOn(subG, 0.50, t + 0.04);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.04); sub.stop(t + 0.18);
+        // Mid body — short bandpass noise for the energy-zap body
+        this._noise(t + 0.04, 0.28, 0.08, 1600, 'bp', 2);
+        // Bright zap crack
+        this._noise(t + 0.04, 0.16, 0.05, 4200, 'hp', 2);
+    }
+
+    // R566i: ENEMY GRUNT FIRE — small-caliber pistol burst. Snappier
+    // and lighter than the player's MG but still has chest-thump.
+    _enemyGruntFire(t) {
+        // Sub thump — quick light kick
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+        this._envOn(subG, 0.40, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.12);
+        // Bandpass body — tighter than MG (smaller caliber)
+        this._noise(t, 0.32, 0.08, 1100, 'bp', 1.8);
+        // Sharp crack — bright snap
+        this._noise(t, 0.26, 0.025, 5200, 'hp', 1.5);
+    }
+
+    // R566i: ENEMY CORE FIRE — huge boss cannon. Much bigger than a
+    // grunt's pistol; this is a wall-shaking discharge.
+    _enemyCoreFire(t) {
+        // Massive sub slam — boss cannon
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(70, t);
+        sub.frequency.exponentialRampToValueAtTime(22, t + 0.30);
+        this._envOn(subG, 1.0, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.36);
+        // Mid-low body rumble
+        this._noise(t, 0.62, 0.45, 380, 'lp', 1.2);
+        // Mid bark
+        this._noise(t + 0.01, 0.42, 0.28, 850, 'bp', 1.4);
+        // High crack
+        this._noise(t, 0.22, 0.16, 4600, 'hp', 1.2);
+        // Resonant cannon-tail — square pitch sweep mimicking a barrel echo
+        const tail = this.ctx.createOscillator(); const tailG = this.ctx.createGain();
+        tail.type = 'square';
+        tail.frequency.setValueAtTime(120, t + 0.05);
+        tail.frequency.exponentialRampToValueAtTime(45, t + 0.30);
+        const tailFilt = this.ctx.createBiquadFilter();
+        tailFilt.type = 'lowpass'; tailFilt.frequency.value = 500;
+        this._envOn(tailG, 0.30, t + 0.05);
+        tailG.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+        tail.connect(tailFilt).connect(tailG).connect(this.sfxBus);
+        tail.start(t + 0.05); tail.stop(t + 0.34);
     }
 
     _explode(t) {
