@@ -573,6 +573,26 @@ export const BONZI_MANIFEST = {
     'bonzi_back_run_2':  'bonzi_back_run_2.png',
     'bonzi_portrait':    'bonzi_portrait.png',
     'bonzi_boss_plate':  'bonzi_boss_plate.png',
+    // R568l: full animation parity with Clippy — 16 additional pose sprites
+    // covering aim variants, crouch/crouch-shoot, run-shoot cycle, spin-jump
+    // rotation, full death sequence, backdash, and ledge climb.
+    'bonzi_idle_alt':       'bonzi_idle_alt.png',
+    'bonzi_aim_up':         'bonzi_aim_up.png',
+    'bonzi_aim_diag':       'bonzi_aim_diag.png',
+    'bonzi_crouch':         'bonzi_crouch.png',
+    'bonzi_crouch_shoot':   'bonzi_crouch_shoot.png',
+    'bonzi_run_shoot_1':    'bonzi_run_shoot_1.png',
+    'bonzi_run_shoot_2':    'bonzi_run_shoot_2.png',
+    'bonzi_run_shoot_3':    'bonzi_run_shoot_3.png',
+    'bonzi_spin_1':         'bonzi_spin_1.png',
+    'bonzi_spin_2':         'bonzi_spin_2.png',
+    'bonzi_death_hit':      'bonzi_death_hit.png',
+    'bonzi_death_explode':  'bonzi_death_explode.png',
+    'bonzi_death_burning':  'bonzi_death_burning.png',
+    'bonzi_backdash':       'bonzi_backdash.png',
+    'bonzi_ledge_hang':     'bonzi_ledge_hang.png',
+    'bonzi_ledge_climb_1':  'bonzi_ledge_climb_1.png',
+    'bonzi_ledge_climb_2':  'bonzi_ledge_climb_2.png',
     // R568k: painted FX assets that replace procedural canvas-drawn effects.
     // 19 sprites covering banana goo states, GAZE reticule, POPUP STORM
     // window variants, DIAL-UP SCREAM expanding rings, CRYING TANTRUM tear

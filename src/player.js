@@ -4332,22 +4332,57 @@ export class Player {
     // we incrementally fill in Bonzi's frame set across slices 3-5.
     _maybeBonzifyFrame(frame) {
         if (this.character !== 'bonzi') return frame;
-        // Direct 1:1 mappings for the frames Bonzi has bespoke art for.
+        // R568l: full mapping for animation parity with Clippy. Bonzi has
+        // bespoke art for every Clippy animation state. Anything not mapped
+        // here (or whose asset isn't loaded) falls through to the Clippy
+        // sprite so missing-asset states stay readable.
         const map = {
-            'idle': 'bonzi_idle',
-            'idle_alt': 'bonzi_idle',
-            'run_1': 'bonzi_run_1',
-            'run_2': 'bonzi_run_2',
-            'run_3': 'bonzi_run_3',
-            'run_4': 'bonzi_run_4',
-            'run_5': 'bonzi_run_1',
-            'jump': 'bonzi_jump',
-            'fall': 'bonzi_fall',
-            'hurt': 'bonzi_hurt',
-            // Shoulder-charge replaces Clippy's slide.
-            'prone': 'bonzi_charge',
-            'crouch': 'bonzi_idle',
-            // Back-view (FPS/turret) uses the dedicated behind set when present.
+            // --- Idle / breathing ---
+            'idle':            'bonzi_idle',
+            'idle_alt':        'bonzi_idle_alt',
+            // --- Run cycle ---
+            'run_1':           'bonzi_run_1',
+            'run_2':           'bonzi_run_2',
+            'run_3':           'bonzi_run_3',
+            'run_4':           'bonzi_run_4',
+            'run_5':           'bonzi_run_1',
+            // --- Run-shoot (Bonzi has 3-frame variant) ---
+            'run_shoot_1':     'bonzi_run_shoot_1',
+            'run_shoot_2':     'bonzi_run_shoot_2',
+            'run_shoot_3':     'bonzi_run_shoot_3',
+            // --- Aim variants ---
+            'shoot':           'bonzi_aim_diag',
+            'shoot_alt':       'bonzi_aim_diag',
+            'aim_up':          'bonzi_aim_up',
+            'aim_diag':        'bonzi_aim_diag',
+            'aim_diag_down':   'bonzi_aim_diag',
+            // --- Jump / fall / spin ---
+            'jump':            'bonzi_jump',
+            'jump_aim':        'bonzi_aim_up',
+            'fall':            'bonzi_fall',
+            'spin_1':          'bonzi_spin_1',
+            'spin_2':          'bonzi_spin_2',
+            // --- Crouch + shoot ---
+            'crouch':          'bonzi_crouch',
+            'crouch_shoot':    'bonzi_crouch_shoot',
+            'crouch_shoot_2':  'bonzi_crouch_shoot',
+            'crouch_shoot_3':  'bonzi_crouch_shoot',
+            // --- Prone / shoulder-charge ---
+            'prone':           'bonzi_charge',
+            'prone_shoot':     'bonzi_charge',
+            'prone_heavy':     'bonzi_charge',
+            // --- Backdash ---
+            'backdash':        'bonzi_backdash',
+            // --- Hurt / death ---
+            'hurt':            'bonzi_hurt',
+            'death_hit':       'bonzi_death_hit',
+            'death_explode':   'bonzi_death_explode',
+            'death_burning':   'bonzi_death_burning',
+            // --- Ledge climb ---
+            'ledge_hang':      'bonzi_ledge_hang',
+            'ledge_climb_1':   'bonzi_ledge_climb_1',
+            'ledge_climb_2':   'bonzi_ledge_climb_2',
+            // --- Back-view (FPS/turret stages) ---
             'clippy_back_idle':  'bonzi_back_idle',
             'clippy_back_run_1': 'bonzi_back_run_1',
             'clippy_back_run_2': 'bonzi_back_run_2',
