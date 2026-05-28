@@ -4791,11 +4791,20 @@ export class Game {
             const activeCharacter = (this.coopMode && this.activePlayerIdx === 1) ? 'bonzi' : 'clippy';
             this.player = new Player(safeStart.x, safeStart.y, activeCharacter);
         } else {
-            this.player.x = safeStart.x;
-            this.player.y = safeStart.y;
-            this.player.vx = 0; this.player.vy = 0;
-            this.player.bullets.length = 0;
-            this.player.resetForStage();
+            // R568j (bug-fix): if the existing this.player is the wrong character
+            // for the current coop/active state, reconstruct it. Otherwise toggling
+            // coop off (or switching active slot) leaves the previous character in
+            // play — Bonzi running around with Clippy's MG, or vice versa.
+            const wantedCharacter = (this.coopMode && this.activePlayerIdx === 1) ? 'bonzi' : 'clippy';
+            if (this.player.character !== wantedCharacter) {
+                this.player = new Player(safeStart.x, safeStart.y, wantedCharacter);
+            } else {
+                this.player.x = safeStart.x;
+                this.player.y = safeStart.y;
+                this.player.vx = 0; this.player.vy = 0;
+                this.player.bullets.length = 0;
+                this.player.resetForStage();
+            }
         }
         // R568 co-op slice 1: when coopMode is on, ensure BOTH slots are
         // populated. Active slot = this.player (was set above). Inactive
@@ -4806,10 +4815,10 @@ export class Game {
         this.players[this.activePlayerIdx] = this.player;
         if (this.coopMode) {
             const otherIdx = 1 - this.activePlayerIdx;
-            if (!this.players[otherIdx]) {
-                // The non-active slot is the partner character. Slot 0 = Clippy,
-                // slot 1 = Bonzi — independent of who's currently leading.
-                const partnerCharacter = otherIdx === 1 ? 'bonzi' : 'clippy';
+            const partnerCharacter = otherIdx === 1 ? 'bonzi' : 'clippy';
+            if (!this.players[otherIdx] || this.players[otherIdx].character !== partnerCharacter) {
+                // Either no partner yet, OR a partner from a previous run
+                // with the wrong character — rebuild from scratch.
                 this.players[otherIdx] = new Player(safeStart.x, safeStart.y, partnerCharacter);
                 this.players[otherIdx]._coopSlot = otherIdx;
             } else {

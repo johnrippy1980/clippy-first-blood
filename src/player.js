@@ -318,10 +318,14 @@ export class Player {
 
     resetForStage() {
         this.hp = this.maxHp;
-        this.weapon = 'MG';
+        // R568j (bug-fix): character-aware default. Bonzi locks to BANANA
+        // across stage transitions; Clippy resets to MG. Without this both
+        // characters would lose their primary weapon on every stage start.
+        const isBonzi = this.character === 'bonzi';
+        this.weapon = isBonzi ? 'BANANA' : 'MG';
         this.weaponLevel = 1;
         this.weaponTimer = 0;
-        this.weaponInventory = ['MG'];
+        this.weaponInventory = isBonzi ? ['BANANA'] : ['MG'];
         this.secondChanceUsed = false;
         this.combo = 0;
         this.bullets.length = 0;
@@ -2698,7 +2702,11 @@ export class Player {
         // weapons back to MG. Player retains their MG inventory slot but
         // loses anything they'd picked up. weaponInventory is reset to
         // just MG so the cycle key (Q/Tab) won't surface a now-orphan slot.
-        if (this.weapon !== 'MG') {
+        // R568j (bug-fix): Bonzi is exempt — BANANA is his ONLY weapon, he
+        // can't pick up power weapons in the first place, so the Contra
+        // weapon-drop mechanic doesn't apply. Without this, a single hit
+        // permanently silences his banana weapon for the rest of the stage.
+        if (this.weapon !== 'MG' && this.character !== 'bonzi') {
             const lostWeapon = this.weapon;
             this.weapon = 'MG';
             this.weaponLevel = 1;
