@@ -301,6 +301,12 @@ class Audio {
             // explosion on impact. Old 'homing' was a single woosh.
             case 'rpgLaunch': return this._rpgLaunch(t);
             case 'rpgImpact': return this._rpgImpact(t);
+            // R568d (slice 4): Bonzi's banana — squelchy fire, sticky thud,
+            // wet detonation pop, and a chain-detonate stinger.
+            case 'bananaFire':           return this._bananaFire(t);
+            case 'bananaStick':          return this._bananaStick(t);
+            case 'bananaDetonate':       return this._bananaDetonate(t);
+            case 'bananaDetonateChain':  return this._bananaDetonateChain(t);
             // R257: dedicated charged-MG release. Was reusing 'thunder' but
             // after R251 made thunder a real thunderclap, the MG charge shot
             // sounded like the THUNDER weapon. Now: heavier MG bark + a
@@ -761,6 +767,58 @@ class Audio {
         this._noise(t + 0.02, 0.12, 0.20, 4400, 'hp', 1);
         // Bright debris crackle ~0.1s after the boom
         this._noise(t + 0.08, 0.10, 0.18, 5200, 'hp', 1);
+    }
+
+    // R568d: banana fire — wet squelch + descending whistle. Reads as goofy
+    // not as a gunshot. Pitched-down sine sweep does the work.
+    _bananaFire(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(620, t);
+        o.frequency.exponentialRampToValueAtTime(180, t + 0.18);
+        this._envOn(g, 0.18, t, 0.005);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.22);
+        // Mouth-pop layer — bright bandpass noise burst at attack
+        this._noise(t, 0.08, 0.12, 2400, 'bp', 4);
+    }
+
+    // R568d: banana stick — short wet thud. Single low filtered noise pop.
+    _bananaStick(t) {
+        this._noise(t, 0.10, 0.22, 320, 'lp', 1.5);
+        this._noise(t + 0.02, 0.04, 0.12, 1800, 'bp', 2);
+    }
+
+    // R568d: banana detonate — wet pop with mid-bass body. Short and snappy.
+    _bananaDetonate(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(170, t);
+        o.frequency.exponentialRampToValueAtTime(55, t + 0.18);
+        this._envOn(g, 0.36, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.25);
+        // Bright wet splash on top
+        this._noise(t,         0.20, 0.16, 1400, 'bp', 1.6);
+        this._noise(t + 0.04,  0.10, 0.14, 4000, 'hp', 1.2);
+    }
+
+    // R568d: chain-detonate — used when the player presses fire to mass-pop
+    // every stuck blob at once. Bigger, longer, more bass.
+    _bananaDetonateChain(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(140, t);
+        o.frequency.exponentialRampToValueAtTime(38, t + 0.32);
+        this._envOn(g, 0.5, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.40);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.42);
+        this._noise(t,         0.28, 0.30, 800,  'lp', 1.4);
+        this._noise(t + 0.02,  0.18, 0.22, 2200, 'bp', 1.8);
+        this._noise(t + 0.06,  0.12, 0.18, 5200, 'hp', 1.2);
     }
 
     // Chainsaw rev — short sawtooth burst layered with noise. Called every

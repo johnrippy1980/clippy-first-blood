@@ -187,15 +187,18 @@ export class Player {
         this.shieldBreakTimer = 0;   // shatter animation timer
         this.shieldUsedThisStage = false;
 
-        // Weapons
-        this.weapon = 'MG';
+        // Weapons. R568d (slice 4): Bonzi locks to BANANA; he can't pick up
+        // Clippy's weapons (no inventory swap). Clippy keeps the regular MG
+        // default + pickup inventory.
+        this.weapon = character === 'bonzi' ? 'BANANA' : 'MG';
         this.weaponTimer = 0;
         // Held weapon inventory — list of weapon codes the player can cycle
         // through with the quick-select key. MG is always in slot 0 as the
         // fallback default; pickups append (up to 3 slots beyond MG). Tab/Q
         // cycles to the next slot. weaponTimer applies only to the ACTIVE
-        // slot — inactive picked-up weapons sit indefinitely.
-        this.weaponInventory = ['MG'];
+        // slot — inactive picked-up weapons sit indefinitely. Bonzi's
+        // inventory is fixed to BANANA — pickups for him are no-ops.
+        this.weaponInventory = character === 'bonzi' ? ['BANANA'] : ['MG'];
         this.weaponLevel = 1;
         this.fireCooldown = 0;
         this.bullets = [];
@@ -1409,6 +1412,22 @@ export class Player {
             this.fireCooldown = 2; // small cooldown so we don't poll constantly
             return;
         }
+        // R568d (slice 4): BANANA pre-check. If Bonzi has any stuck goo and
+        // presses fire again, that 2nd shot mass-detonates EVERYTHING instead
+        // of firing a new projectile. This is the signature banana mechanic
+        // — players choose between "stack more goo for a bigger boom" and
+        // "trigger now". Returns early; cooldown gates the next fire.
+        if (this.weapon === 'BANANA') {
+            const stuckBananas = this.bullets.filter(b => b.banana && b.stuck);
+            if (stuckBananas.length > 0) {
+                for (const b of stuckBananas) this._detonateBanana(b);
+                // Remove every stuck banana that we just detonated.
+                this.bullets = this.bullets.filter(b => !(b.banana && b.stuck));
+                this.fireCooldown = WEAPON.BANANA.fireRate;
+                audio.sfx('bananaDetonateChain');
+                return;
+            }
+        }
         const w = WEAPON[this.weapon];
         let rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
         // R418: rage halves fire rate (minimum 2)
@@ -1486,6 +1505,14 @@ export class Player {
                 const cos = Math.cos(ang), sin = Math.sin(ang);
                 fire(ndx * sp * cos - ndy * sp * sin, ndx * sp * sin + ndy * sp * cos);
             }
+        } else if (this.weapon === 'BANANA') {
+            // Single goo blob, slight arc-up so it feels lobbed rather than
+            // hitscan. The blob marks itself as banana on creation; sticky
+            // behavior is handled by onBulletHit + _updateBullets.
+            fire(ndx * sp, ndy * sp - 0.6);
+            const b = this.bullets[this.bullets.length - 1];
+            b.banana = true;
+            b.life = 90;   // travel time before forced auto-detonate in air
         } else if (this.weapon === 'SHOTGUN') {
             // Tight cone — fire `shots` pellets within ±spread radians,
             // each with short life so range falls off naturally. Per-pellet
@@ -1806,6 +1833,22 @@ export class Player {
             const b = this.bullets[i];
             b.life--;
 
+            // R568d: banana goo stuck to enemy follows that enemy each frame
+            // so it doesn't drift off as the enemy moves. Auto-detonates when
+            // stuckLife reaches 0.
+            if (b.stuck && b.banana) {
+                if (b._stickTarget && b._stickTarget.alive) {
+                    b.x = b._stickTarget.x + b._stickTarget.w / 2 + (b._stickOffX || 0);
+                    b.y = b._stickTarget.y + b._stickTarget.h / 2 + (b._stickOffY || 0);
+                }
+                b.stuckLife--;
+                if (b.stuckLife <= 0) {
+                    this._detonateBanana(b);
+                    this.bullets.splice(i, 1);
+                }
+                continue;
+            }
+
             // Stuck-in-wall bullets just decay in place, fading out.
             if (b.stuck) {
                 b.stuckLife--;
@@ -1848,6 +1891,15 @@ export class Player {
                     b.stuck = true;
                     b.stuckLife = b.weapon === 'LASER' ? 8 : 14;
                     b.stuckLifeMax = b.stuckLife;
+                } else if (b.banana) {
+                    // R568d: banana sticks to walls. Plant flush against the
+                    // surface and start the 2s countdown.
+                    b.x = b.prevX; b.y = b.prevY;
+                    b.vx = 0; b.vy = 0;
+                    b.stuck = true;
+                    b.stuckLife = WEAPON.BANANA.stickLife;
+                    b.stuckLifeMax = b.stuckLife;
+                    audio.sfx('bananaStick');
                 } else {
                     this.bullets.splice(i, 1);
                 }
@@ -2011,8 +2063,65 @@ export class Player {
         game?.triggerScreenFlash?.(6, '#ffffff', 0.55);
     }
 
+    // R568d (slice 4): detonate one banana goo blob. AOE damages enemies in
+    // a small radius, sprays purple goo particles, and triggers a wet-pop
+    // SFX. Called from both manual mass-detonate (2nd fire) and the auto
+    // timer in _updateBullets. The bullet is removed by the caller — this
+    // helper only handles the damage + FX.
+    _detonateBanana(b) {
+        const bx = b.x, by = b.y;
+        const w = WEAPON.BANANA;
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        // AOE damage
+        const enemyMgr = game?.enemies;
+        if (enemyMgr && enemyMgr.enemies) {
+            const R = w.splashR;
+            for (const e of enemyMgr.enemies) {
+                if (!e.alive) continue;
+                const ecx = e.x + e.w / 2, ecy = e.y + e.h / 2;
+                const d = Math.hypot(ecx - bx, ecy - by);
+                if (d > R) continue;
+                const falloff = 0.4 + 0.6 * (1 - d / R);
+                e.hurt(w.damage * 2.2 * falloff, ecx < bx ? -1 : 1, { knockBack: 0.9 });
+            }
+        }
+        // Crates + breakable walls
+        const crates = game?.pickups?.crates || [];
+        const walls  = game?.pickups?.walls  || [];
+        for (const c of crates) {
+            if (!c.alive) continue;
+            const ccx = c.x + c.w / 2, ccy = c.y + c.h / 2;
+            if (Math.hypot(ccx - bx, ccy - by) <= w.splashR) c.hurt?.(w.damage * 1.5);
+        }
+        for (const wl of walls) {
+            if (!wl.alive) continue;
+            const wcx = wl.x + wl.w / 2, wcy = wl.y + wl.h / 2;
+            if (Math.hypot(wcx - bx, wcy - by) <= w.splashR) wl.hurt?.(w.damage * 1.5);
+        }
+        // FX: purple goo splash + shock ring
+        particles.explosion(bx, by, '#b860ff', 14);
+        particles.shockRing(bx, by, 10, 12, '#d090ff');
+        audio.sfx('bananaDetonate');
+        this.requestShake = Math.max(this.requestShake || 0, 1.4);
+    }
+
     // Called by EnemyManager when a bullet hits an enemy.
     onBulletHit(bullet, enemy, killed) {
+        // R568d: banana goo sticks to the enemy it hit instead of despawning.
+        // It will detonate on either Bonzi's next fire press or the auto-timer.
+        // If the hit killed the enemy outright, fall through to the splice
+        // path so the goo doesn't trail a dead body — the impact damage was
+        // enough; no detonation needed.
+        if (bullet.banana && !bullet.stuck && !killed) {
+            bullet.stuck = true;
+            bullet.stuckLife = WEAPON.BANANA.stickLife;
+            bullet.stuckLifeMax = bullet.stuckLife;
+            bullet._stickTarget = enemy;
+            bullet._stickOffX = bullet.x - (enemy.x + enemy.w / 2);
+            bullet._stickOffY = bullet.y - (enemy.y + enemy.h / 2);
+            audio.sfx('bananaStick');
+            return;
+        }
         if (!bullet.piercing) {
             const idx = this.bullets.indexOf(bullet);
             if (idx >= 0) this.bullets.splice(idx, 1);
@@ -2225,6 +2334,15 @@ export class Player {
             return;
         }
         if (WEAPON[type]) {
+            // R568d: Bonzi can't swap weapons. Weapon pickups for him just
+            // award score so they aren't dead-air on the screen.
+            if (this.character === 'bonzi') {
+                this.score += 250;
+                audio.sfx('pickup');
+                burstBurst('#ffe070', 10);
+                particles.floatingText(cx, this.y - 4, '+250', '#ffe070', 60, -0.7, 1);
+                return;
+            }
             const w = WEAPON[type];
             if (this.weapon === type) {
                 if (this.weaponLevel < 3) {
@@ -2978,6 +3096,31 @@ export class Player {
             // no hot center. Adds a beat of "you hit the wall, here's the divot"
             // before vanishing, rather than the bullet disappearing on contact.
             if (b.stuck) {
+                // R568d: banana goo gets a custom wet-blob render with a
+                // pre-detonate pulse in the last 30 frames so the player can
+                // see "it's about to pop". Other weapons get the small divot.
+                if (b.banana) {
+                    const fade = Math.min(1, b.stuckLife / 60);
+                    const urgent = b.stuckLife < 30;
+                    // Pulse rate accelerates as fuse runs down
+                    const pulseSpeed = urgent ? 0.45 : 0.18;
+                    const pulse = 0.6 + 0.4 * Math.sin(performance.now() * pulseSpeed * 0.01);
+                    const r = urgent ? 4 + pulse * 2 : 4;
+                    ctx.globalAlpha = 0.85;
+                    ctx.fillStyle = '#7030c0';
+                    ctx.fillRect(bx - r, by - r, r * 2, r * 2);
+                    ctx.fillStyle = '#b860ff';
+                    ctx.fillRect(bx - r + 1, by - r + 1, r * 2 - 2, r * 2 - 2);
+                    ctx.fillStyle = '#e0a0ff';
+                    ctx.fillRect(bx - 1, by - 1, 2, 2);
+                    // Brief white sparkle when in the urgency window
+                    if (urgent && (performance.now() % 200) < 80) {
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(bx - 1, by - 1, 2, 2);
+                    }
+                    ctx.globalAlpha = 1;
+                    continue;
+                }
                 const fade = b.stuckLife / b.stuckLifeMax;
                 ctx.globalAlpha = fade * 0.85;
                 ctx.fillStyle = b.color;
@@ -3050,6 +3193,27 @@ export class Player {
                 ctx.globalAlpha = 1;
                 ctx.fillStyle = '#ffe070';
                 ctx.fillRect(bx - 1, by - 1, 3, 3);
+            } else if (b.banana) {
+                // Wet purple goo blob mid-flight, with a trailing droplet so
+                // the arc reads cleanly. Outer dark purple, mid bright purple,
+                // bright pink hot-center.
+                ctx.fillStyle = '#502080';
+                ctx.fillRect(bx - 3, by - 3, 7, 7);
+                ctx.fillStyle = '#a050ff';
+                ctx.fillRect(bx - 2, by - 2, 5, 5);
+                ctx.fillStyle = '#d090ff';
+                ctx.fillRect(bx - 1, by - 1, 3, 3);
+                ctx.fillStyle = '#ffe0ff';
+                ctx.fillRect(bx, by, 1, 1);
+                // Trailing droplet
+                if (b.prevX != null) {
+                    const tx = Math.round(b.prevX - camera.viewX);
+                    const ty = Math.round(b.prevY - camera.viewY);
+                    ctx.globalAlpha = 0.45;
+                    ctx.fillStyle = '#a050ff';
+                    ctx.fillRect(tx - 1, ty - 1, 2, 2);
+                    ctx.globalAlpha = 1;
+                }
             } else {
                 // HOMING gets a curve-revealing trail — its path is non-linear so the trail adds info.
                 if (b.weapon === 'HOMING' && b.prevX != null) {

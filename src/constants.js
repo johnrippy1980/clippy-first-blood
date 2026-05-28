@@ -155,6 +155,11 @@ export const WEAPON = Object.freeze({
     // of Clippy chews any enemy in arc every `tickRate` frames while shoot
     // is held. range/dmg/arc tuned by _shoot dispatch + chainsaw tick code.
     CHAINSAW: { name: 'CHAINSAW', damage: 2.5, fireRate: 3,  bulletSpeed: 0, color: '#ff5050', melee: true, range: 38, arcDeg: 110, sound: 'chainsaw' },
+    // R568d (slice 4): Bonzi's banana — sticky purple goo that adheres to
+    // walls and enemies, then detonates on a 120-frame timer OR when Bonzi
+    // fires a second shot (mass-detonate). Lower DPS than MG but spammable
+    // + creates area control. Bonzi auto-equips this; Clippy never holds it.
+    BANANA:  { name: 'BANANA', damage: 1.5, fireRate: 14, bulletSpeed: 3.4, color: '#b860ff', sticky: true, splashR: 22, stickLife: 120, sound: 'bananaFire' },
 });
 
 // Themes per stage, used for tile palettes + parallax + music.
