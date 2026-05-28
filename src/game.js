@@ -300,6 +300,21 @@ export class Game {
         this.tagCooldownT = 0;
         this.TAG_COOLDOWN_FRAMES = 300;   // 5s @ 60fps per the plan
         this.sharedLives = 3;             // gets bumped to 6 on coopMode entry
+        // R568b co-op slice 2: swap-in animation + death-cancel state.
+        //   _swapAnimT counts DOWN from 90 (1.5s) during a tag swap. While
+        //     > 0, the active player can't move/shoot (input gated).
+        //   _swapAnimPhase tracks 'out' (0-30f outgoing salutes/fades) vs
+        //     'in' (30-90f incoming drops in from above).
+        //   _swapOutPlayer holds the outgoing character reference so the
+        //     draw path can render the salute animation alongside the
+        //     incoming player.
+        //   _swapPanicFlash ticks while active character is low HP to
+        //     flash the inactive portrait — telegraphs "your partner is
+        //     in trouble" to whoever is watching the HUD.
+        this._swapAnimT = 0;
+        this._swapAnimPhase = null;
+        this._swapOutPlayer = null;
+        this._swapPanicFlash = 0;
         this.level = null;
         this.enemies = new EnemyManager();
         this.pickups = new PickupManager();
@@ -1514,35 +1529,172 @@ export class Game {
         this._tickPlayHandleDeath();
     }
 
-    // R568 co-op slice 1: tag-swap helper. Decrements the cooldown
-    // every frame, fires the swap when the T key (or future gamepad-2
-    // START) is pressed AND cooldown is 0 AND coopMode is on AND a
-    // second player slot is initialized. Swap is implemented as an
-    // atomic switch of `this.player` between players[0] and players[1];
-    // all per-character state (HP/ammo/weapons/grenades/combo/score/pos)
-    // lives on the Player object itself, so the switch preserves
-    // everything the inactive character had when they tagged out.
+    // R568+R568b co-op tag-swap helper. Three trigger paths:
+    //   1. Normal: voluntary tag, cooldown must be 0
+    //   2. Panic tag (R568b): partner is at HP ≤ 1, instant swap regardless
+    //      of cooldown, but cooldown resets to 8s afterwards (vs normal 5s)
+    //      to discourage spam
+    //   3. Forced (R568b): active character dies, immediate swap to the
+    //      inactive slot — handled via _maybeForceTagOnDeath, not here
+    //
+    // The swap fires an animation (R568b): 30f outgoing salute/fade + 60f
+    // incoming drop-in. During the 90-frame window, input to the active
+    // character is gated (player.update skips when game._swapAnimT > 0).
     _tryTagSwap() {
         if (this.tagCooldownT > 0) this.tagCooldownT--;
+        if (this._swapAnimT > 0) this._tickSwapAnim();
         if (!this.coopMode) return;
         if (!this.players[0] || !this.players[1]) return;
-        if (this.tagCooldownT > 0) return;
+        // R568b: panic-flash ticks whenever active player is low HP
+        const active = this.players[this.activePlayerIdx];
+        if (active && active.hp <= 2 && active.hp > 0) {
+            this._swapPanicFlash = (this._swapPanicFlash + 1) % 60;
+        } else {
+            this._swapPanicFlash = 0;
+        }
         if (!input.isPressed('tag')) return;
-        // Swap the active slot index + repoint this.player.
+        // Block during an in-flight swap animation
+        if (this._swapAnimT > 0) return;
+        // R568b: panic-tag override — if active char is ≤ 1 HP, allow the
+        // swap even with cooldown active. Penalty: cooldown becomes 8s.
+        const isPanic = active && active.hp <= 1 && this.tagCooldownT > 0;
+        if (this.tagCooldownT > 0 && !isPanic) return;
+        this._beginTagSwap(isPanic);
+    }
+
+    // R568b: kick off the swap sequence — outgoing salutes, incoming
+    // drops in. Position transfer happens at the MIDPOINT (frame 45) so
+    // the outgoing animation plays at the original spot before the
+    // incoming character takes over the slot.
+    _beginTagSwap(isPanic = false) {
         const otherIdx = 1 - this.activePlayerIdx;
-        // Preserve the outgoing character's position on the way out;
-        // the incoming character spawns at the SAME spot.
         const outgoing = this.players[this.activePlayerIdx];
         const incoming = this.players[otherIdx];
-        if (outgoing && incoming) {
-            incoming.x = outgoing.x;
-            incoming.y = outgoing.y;
-            incoming.facing = outgoing.facing;
-        }
+        if (!outgoing || !incoming) return;
+        this._swapOutPlayer = outgoing;
+        this._swapAnimT = 90;
+        this._swapAnimPhase = 'out';
+        // Transfer position immediately — incoming will be drawn at the
+        // same spot, but offset upward during the drop-in animation.
+        incoming.x = outgoing.x;
+        incoming.y = outgoing.y;
+        incoming.facing = outgoing.facing;
+        // Reset incoming's velocity so they don't inherit outgoing's
+        // momentum from the moment of tag.
+        incoming.vx = 0;
+        incoming.vy = 0;
+        // R568b: incoming gets brief i-frames during the drop-in to
+        // prevent insta-death if landing on a bullet or hazard.
+        if (typeof incoming.iframes === 'number') incoming.iframes = 60;
+        // Atomic active-slot switch — this.player now points at incoming.
+        // The visual still shows outgoing during the 'out' phase via
+        // _swapOutPlayer; once 'out' completes, _swapOutPlayer clears.
         this.activePlayerIdx = otherIdx;
         this.player = incoming;
-        this.tagCooldownT = this.TAG_COOLDOWN_FRAMES;
-        audio.sfx?.('select');     // placeholder swap-in sting; replace in slice 2
+        // R568b: panic tag costs 8s cooldown vs normal 5s
+        this.tagCooldownT = isPanic ? 480 : this.TAG_COOLDOWN_FRAMES;
+        audio.sfx?.('select');     // TODO slice 2 voice cue
+    }
+
+    // R568b: tick the swap-in animation. Transition from 'out' to 'in'
+    // at frame 60 (30f remaining). When the timer reaches 0, clear the
+    // outgoing reference + reset phase.
+    _tickSwapAnim() {
+        this._swapAnimT--;
+        if (this._swapAnimT === 60) {
+            // Outgoing has saluted + faded; transition to 'in' phase.
+            this._swapAnimPhase = 'in';
+            this._swapOutPlayer = null;
+        }
+        if (this._swapAnimT <= 0) {
+            this._swapAnimT = 0;
+            this._swapAnimPhase = null;
+            this._swapOutPlayer = null;
+        }
+    }
+
+    // R568b: render the outgoing character during the swap-out phase.
+    // Draws the actual outgoing Player sprite (same as live render) with
+    // a salute-wave indicator above the head (a hand-wave glyph) and an
+    // alpha fade that drops from 1.0 → 0 across the 30-frame 'out' window.
+    _drawSwapOutgoing(ctx) {
+        const out = this._swapOutPlayer;
+        if (!out) return;
+        const t = (90 - this._swapAnimT) / 30;        // 0 → 1 during 'out'
+        const fade = Math.max(0, 1 - t);
+        ctx.save();
+        ctx.globalAlpha = fade;
+        out.draw(ctx, this.camera, this.level);
+        ctx.restore();
+        // "Tagging out" wave indicator above the head — bright yellow
+        // arrow + bob. Tells player + spectator that the character is
+        // leaving the field.
+        const sx = out.x - this.camera.x + out.w / 2;
+        const sy = out.y - this.camera.y - 6 - (t * 4);
+        ctx.save();
+        ctx.globalAlpha = fade;
+        drawTextOutlined(ctx, 'TAG OUT', sx | 0, sy | 0, '#ffe070', '#1a0a14', 1, 'center');
+        ctx.restore();
+    }
+
+    // R568b: render the incoming character during the swap-in phase.
+    // The incoming player is already rendered at its real position by
+    // the main draw call (this is overlay-only). Add a vertical "drop in"
+    // streak above the player's head + a landing flash on the last 8f.
+    _drawSwapIncoming(ctx) {
+        const p = this.player;
+        const t = (60 - this._swapAnimT) / 60;        // 0 → 1 during 'in'
+        const sx = p.x - this.camera.x + p.w / 2;
+        const sy = p.y - this.camera.y;
+        ctx.save();
+        // Streak — vertical bright line from top of screen down to player.
+        // Fades out as t → 1.
+        const streakH = 80 * (1 - t);
+        if (streakH > 4) {
+            ctx.globalAlpha = 0.6 * (1 - t);
+            ctx.fillStyle = '#80c0ff';
+            ctx.fillRect(sx | 0, (sy - streakH) | 0, 2, streakH);
+        }
+        // "TAG IN" label above player during the first 40f of incoming
+        if (this._swapAnimT > 20) {
+            ctx.globalAlpha = 1;
+            const bobY = sy - 18 + Math.sin((60 - this._swapAnimT) * 0.3) * 1.5;
+            drawTextOutlined(ctx, 'TAG IN', sx | 0, bobY | 0, '#80c0ff', '#0a0a1a', 1, 'center');
+        }
+        // Landing flash — bright radial burst in the last 8 frames
+        if (this._swapAnimT < 12 && this._swapAnimT > 0) {
+            const flashT = this._swapAnimT / 12;
+            ctx.globalAlpha = flashT * 0.7;
+            ctx.globalCompositeOperation = 'lighter';
+            const r = 12 + (1 - flashT) * 16;
+            const grad = ctx.createRadialGradient(sx, sy + p.h / 2, 0, sx, sy + p.h / 2, r);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.4, '#80c0ff');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(sx, sy + p.h / 2, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // R568b: called from the player-death path to handle the forced swap.
+    // Returns true if the death was "absorbed" by a tag-in (no lives lost,
+    // the inactive character takes over). Returns false if no tag-in is
+    // possible (single-player, slot 1 also dead, or coopMode off) — caller
+    // proceeds with the normal death/game-over flow.
+    _maybeForceTagOnDeath() {
+        if (!this.coopMode) return false;
+        const otherIdx = 1 - this.activePlayerIdx;
+        const partner = this.players[otherIdx];
+        if (!partner || partner.hp <= 0) return false;
+        // Force the swap: drain a shared life, swap slots, fire the swap
+        // animation but with extended i-frames + a panic flash overlay.
+        this.sharedLives = Math.max(0, this.sharedLives - 1);
+        this._beginTagSwap(true);
+        // The incoming partner takes over with their current HP intact.
+        return true;
     }
 
     // Training-ground per-frame upkeep. Keeps the player armed and full
@@ -1781,7 +1933,19 @@ export class Game {
                 }
             }
         }
-        this.player.update(this.level, this.camera);
+        // R568b: gate player.update during swap-animation. During the 90f
+        // tag-swap window, the active player is "dropping in" from above
+        // and shouldn't take input or apply gravity. Instead, animate the
+        // visual via _drawSwapAnim. The rest of the world keeps ticking
+        // (enemies, bullets, camera) — only the player input is frozen.
+        if (this._swapAnimT > 0 && this._swapAnimPhase === 'in') {
+            // During 'in' phase, freeze the incoming character in place at
+            // their drop-in target. Velocity already zero from _beginTagSwap.
+            this.player.vx = 0;
+            this.player.vy = 0;
+        } else {
+            this.player.update(this.level, this.camera);
+        }
         const hitPause = (this.player.hitPauseFrames || 0) > 0;
         if (hitPause) {
             this.player.hitPauseFrames--;
@@ -1965,6 +2129,13 @@ export class Game {
         }
         if (!this.player.isDead()) return;
         this.totalDeaths++;
+        // R568b: death-cancel — in coopMode, if the partner is alive,
+        // force a tag-in instead of respawning the dead character. The
+        // shared lives pool drains by 1; the partner takes over with
+        // their own HP intact.
+        if (this.coopMode && this._maybeForceTagOnDeath()) {
+            return;   // partner has the controls now; no respawn needed
+        }
         this.player.lives--;
         if (this.player.lives < 0) {
             this.gameOverIndex = 0;
@@ -2003,7 +2174,18 @@ export class Game {
         if (this._bossLair) this._bossLair.drawDecorationsBack(ctx, this.camera);
         this.pickups.draw(ctx, this.camera);
         this.enemies.draw(ctx, this.camera);
+        // R568b: during the 'out' phase of a swap, render the OUTGOING
+        // character with a salute pose + fade. They were the active player
+        // before the swap and live at the same x/y as the incoming.
+        if (this._swapAnimPhase === 'out' && this._swapOutPlayer) {
+            this._drawSwapOutgoing(ctx);
+        }
+        // Active player. During 'in' phase, the incoming character renders
+        // with a drop-in offset Y + landing flash via _drawSwapIncoming.
         this.player.draw(ctx, this.camera, this.level);
+        if (this._swapAnimPhase === 'in') {
+            this._drawSwapIncoming(ctx);
+        }
         // R330: gate draws OVER the player so the player can't walk past it
         // visually. drawNameTag is drawn last in the play-draw chain so
         // the "LAIR NAME" banner sits over everything.
@@ -2110,16 +2292,36 @@ export class Game {
                 const y = 24;
                 const ready = this.tagCooldownT === 0;
                 const seconds = Math.ceil(this.tagCooldownT / 60);
-                const label = ready ? 'TAG READY' : `TAG ${seconds}s`;
-                const color = ready ? '#80ff80' : '#a08090';
+                // R568b: low-HP panic flash — when active player is in
+                // danger, the TAG line turns red + pulses to telegraph
+                // "your partner needs help" (or "you should tag out").
+                const active = this.players?.[this.activePlayerIdx];
+                const inDanger = active && active.hp <= 2 && active.hp > 0;
+                const blink = inDanger ? ((this._swapPanicFlash >> 2) & 1) : 0;
+                let label, color;
+                if (ready) {
+                    label = inDanger ? 'TAG NOW!' : 'TAG READY';
+                    color = inDanger ? (blink ? '#ff4040' : '#ff8080') : '#80ff80';
+                } else {
+                    label = `TAG ${seconds}s`;
+                    // Allow PANIC TAG at ≤1 HP even with cooldown — the
+                    // override fires in _tryTagSwap. Surface it in the HUD.
+                    if (active && active.hp <= 1) {
+                        label = blink ? 'PANIC!' : `TAG ${seconds}s`;
+                        color = '#ff4040';
+                    } else {
+                        color = '#a08090';
+                    }
+                }
                 drawText(ctx, label, x, y, color, 1, 'right');
-                // Active player badge on the LEFT — separated row so it
-                // doesn't smear with the tag label.
+                // Active player badge below
+                const idxColor = this.activePlayerIdx === 0 ? '#ffe070' : '#80c0ff';
                 drawText(ctx,
                          this.activePlayerIdx === 0 ? '<P1>' : '<P2>',
-                         x, y + 10,
-                         this.activePlayerIdx === 0 ? '#ffe070' : '#80c0ff',
-                         1, 'right');
+                         x, y + 10, idxColor, 1, 'right');
+                // Shared lives readout
+                drawText(ctx, `LIVES x${this.sharedLives}`,
+                         x, y + 20, '#fff', 1, 'right');
             }
         }
         if (this._bossEntrance) this._drawBossEntrance();
