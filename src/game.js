@@ -3536,6 +3536,11 @@ export class Game {
             { key: 'story_home',  label: 'HOME',  unlock: true },
             { key: 'story_bomb',  label: 'PLAN',  unlock: true },
             { key: 'story_boardroom', label: 'BOARDROOM', unlock: true },
+            // R568i (slice 7.5): BONZI VARIANT — points at the same boardroom
+            // scene but only unlocks after the player defeats Bonzi in
+            // THE COMPETITION. Surfaces the name-drop foreshadowing (R568g)
+            // as a deliberate callback once the story payoff has landed.
+            { key: 'story_boardroom', label: 'BONZI VARIANT', unlock: !!achievements.stats.bonziDefeated, callbackNote: 'AGGRESSIVE GROWTH WAS A NAME.' },
             { key: 'story_hill',  label: 'HILL',  unlock: true },
             // R292: new TOWER slide — Microsoft campus overlook.
             { key: 'story_tower', label: 'TOWER', unlock: true },
@@ -3632,6 +3637,15 @@ export class Game {
             ctx.fillRect(0, 0, GAME.W, 18);
             ctx.fillRect(0, GAME.H - 14, GAME.W, 14);
             drawText(ctx, e.label, GAME.W / 2, 6, '#ffe070', 1, 'center');
+            // R568i (slice 7.5): callback note overlay — small purple line
+            // surfacing why this gallery entry exists. Only shown when an
+            // entry has the `callbackNote` field set (currently just the
+            // BONZI VARIANT entry).
+            if (e.callbackNote) {
+                ctx.fillStyle = 'rgba(80,30,140,0.65)';
+                ctx.fillRect(0, 18, GAME.W, 12);
+                drawText(ctx, e.callbackNote, GAME.W / 2, 20, '#e0a0ff', 1, 'center');
+            }
             if (this.bootTimer % 60 < 40) {
                 drawText(ctx, 'ANY KEY TO RETURN', GAME.W / 2, GAME.H - 10, '#fff', 1, 'center');
             }
