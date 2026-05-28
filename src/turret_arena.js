@@ -162,6 +162,7 @@ export class TurretArena {
         this.voltron = null;
         this.bossProjectiles = [];       // {x, y, vx, vy, kind, rot, rotSpeed, life}
         this.bossBark = null;            // {text, age, maxAge}
+        this._bossNameplateT = 0;        // R567h: BOSS APPROACHING / CRTRON name plate countdown
         // R528: floating damage numbers — {x, y, vy, age, maxAge, value, color}
         this.damageNumbers = [];
 
@@ -873,11 +874,23 @@ export class TurretArena {
     }
 
     _tickWave() {
+        // R567h: nameplate countdown ticks every frame regardless of wave
+        // state — once activated it ticks down whether Voltron has spawned
+        // or not. The slide-in + hold + fade-out animation must complete
+        // without being stuck if a Voltron spawn cuts the spawn-loop short.
+        if (this._bossNameplateT > 0) this._bossNameplateT--;
         if (this.waveIdx >= WAVES.length) return;
         const wave = WAVES[this.waveIdx];
         if (wave.isVoltron) {
             if (!this.voltron && !this._voltronSpawned) {
                 this.waveSpawnT++;
+                // R567h: fire bossSpotted sting + start the name-plate
+                // overlay on the FIRST frame of the build-up so the boss
+                // approach has impact before CRTRON renders.
+                if (this.waveSpawnT === 1) {
+                    audio.sfx?.('bossSpotted');
+                    this._bossNameplateT = 90;     // 90f hold for the name plate
+                }
                 if (this.waveSpawnT >= 60) {
                     this._spawnVoltron();
                     this._voltronSpawned = true;
@@ -2332,6 +2345,39 @@ export class TurretArena {
             if (blink) {
                 drawTextOutlined(ctx, 'OVERHEATED', GAME.W / 2, GAME.H - 36, '#ff4040', '#1a0a14', 1, 'center');
             }
+        }
+        // R567h: boss-name plate during the pre-Voltron build-up. Slide-in
+        // from top with red-glow + name reveal. Anchored at top-center,
+        // independent of the boss-bark bubble which renders later.
+        if (this._bossNameplateT > 0) {
+            const npT = this._bossNameplateT;
+            // Phases: first 15f slide-in + fade-in, next 60f hold, last 15f fade-out
+            let npAlpha = 1;
+            let npSlideY = 0;
+            if (npT > 75) {              // first 15 frames (slide in)
+                const t = (90 - npT) / 15;
+                npAlpha = t;
+                npSlideY = -12 * (1 - t);
+            } else if (npT < 15) {       // last 15 frames (fade out)
+                npAlpha = npT / 15;
+            }
+            ctx.save();
+            ctx.globalAlpha = npAlpha;
+            const bx = GAME.W / 2 - 60, by = 38 + npSlideY, bw = 120, bh = 24;
+            // Backdrop
+            ctx.fillStyle = '#0a0612';
+            ctx.fillRect(bx, by, bw, bh);
+            // Red top + bottom borders
+            ctx.fillStyle = '#a02020';
+            ctx.fillRect(bx, by, bw, 2);
+            ctx.fillRect(bx, by + bh - 2, bw, 2);
+            // "BOSS APPROACHING" header
+            drawText(ctx, 'BOSS APPROACHING', GAME.W / 2, by + 4, '#a02020', 1, 'center');
+            // Name with pulse
+            const pulse = 0.7 + Math.sin(this.t * 0.18) * 0.3;
+            ctx.globalAlpha = npAlpha * pulse;
+            drawTextOutlined(ctx, 'CRTRON', GAME.W / 2, by + 13, '#ffe070', '#1a0000', 1, 'center');
+            ctx.restore();
         }
     }
 
