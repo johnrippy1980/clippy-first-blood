@@ -1946,12 +1946,20 @@ export class TurretArena {
         const sW = w - 4;
         const sH = h - 6;
         if (sW > 1 && sH > 1) {
-            // R566e: painted CRT face replaces per-CRT procedural screen
-            // content. CRTRON is a creature made of angry monitors —
-            // covering each body segment in the same menacing face sells
-            // the "swarm consciousness" vibe better than mixed app screens.
+            // R566e+R567f: map each body-segment screenType to a painted
+            // variant so CRTRON's body shows actual corporate hostility
+            // (BSOD/error/virus/terminal) instead of one repeating face.
             // Head still gets the bespoke expression renderer below.
-            const faceImg = sprites.images.get('turret_crt_face');
+            const SCREEN_KEY_MAP = {
+                'bsod':   'turret_crt_face_bsod',
+                'word':   'turret_crt_face_error',
+                'excel':  'turret_crt_face_virus',
+                'boot':   'turret_crt_face_bsod',
+                'static': 'turret_crt_face_terminal',
+            };
+            const screenKey = SCREEN_KEY_MAP[screenType] || 'turret_crt_face_terminal';
+            const faceImg = sprites.images.get(screenKey)
+                         || sprites.images.get('turret_crt_face');
             if (faceImg) {
                 ctx.fillStyle = '#0a0a14';
                 ctx.fillRect(sX, sY, sW, sH);
