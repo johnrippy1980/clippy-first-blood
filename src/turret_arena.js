@@ -395,14 +395,19 @@ export class TurretArena {
             }
             // R526: bullet vs Voltron — boss lives in screen-coords, not
             // depth-receding. Check against its bounding box.
+            // R567c: dropped `b.t < 0.35` gate. That gate assumed Voltron
+            // sat at back-wall depth, but Voltron's screen position is
+            // BOTTOM of screen near the player. A bullet aimed at its
+            // center body never reached t<0.35 — collision never fired,
+            // boss was untouchable. Now: any bullet whose screen-XY hits
+            // Voltron's painted box counts.
             if (this.voltron && this.voltron.hp > 0) {
                 const v = this.voltron;
                 const vw = VOLTRON_W * v.scale;
                 const vh = VOLTRON_H * v.scale;
                 const vx = v.x - vw / 2;
                 const vy = v.y - vh;
-                // Bullet at t close to 0 (near the boss at the back wall)
-                if (b.t < 0.35 && b.x >= vx && b.x <= vx + vw &&
+                if (b.x >= vx && b.x <= vx + vw &&
                     b.y >= vy && b.y <= vy + vh) {
                     v.hp--;
                     v.hitFlash = 6;
