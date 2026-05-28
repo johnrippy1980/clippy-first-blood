@@ -738,6 +738,9 @@ export const ENEMY_MANIFEST = {
     'turret_arena_bg':   'turret_arena_bg.png',      // 256x96 datacenter backdrop
     // R567: mounted turret + per-monster screen variants + walk cycle.
     'turret_mount':      'turret_mount.png',          // 64x72 painted MG turret + sandbags + tripod
+    // R567b: split into base (static) + barrel (rotates to follow crosshair)
+    'turret_base':       'turret_base.png',           // 64x72 sandbags + tripod, barrel area transparent
+    'turret_barrel':     'turret_barrel.png',         // 16x32 painted barrel + receiver, rotates around pivot at bottom-center
     'turret_crt_face_bsod':     'turret_crt_face_bsod.png',     // 64x64 BSOD with angry eyes
     'turret_crt_face_error':    'turret_crt_face_error.png',    // 64x64 fatal error dialog + skull + teeth
     'turret_crt_face_terminal': 'turret_crt_face_terminal.png', // 64x64 green phosphor angry face

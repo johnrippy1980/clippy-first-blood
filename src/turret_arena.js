@@ -1154,16 +1154,47 @@ export class TurretArena {
                           PLAYER_W, PLAYER_H);
         }
 
-        // R567: painted mounted-MG turret rig in front of Clippy.
-        // Sandbags + tripod + receiver are static (drawn from sprite);
-        // the barrel rotates separately on top to follow the crosshair.
-        const mountImg = sprites.images.get('turret_mount');
-        if (mountImg) {
+        // R567b: split turret rig into BASE (static — sandbags + tripod)
+        // and BARREL (rotates to follow crosshair). Draw base first.
+        const baseImg = sprites.images.get('turret_base')
+                     || sprites.images.get('turret_mount');
+        if (baseImg) {
             ctx.imageSmoothingEnabled = false;
-            const mountRecoil = firing ? -(this.muzzleFlashT * 0.4 | 0) : 0;
-            ctx.drawImage(mountImg, 0, 0, mountImg.width, mountImg.height,
-                          TURRET_MOUNT_X, TURRET_MOUNT_Y + mountRecoil,
+            ctx.drawImage(baseImg, 0, 0, baseImg.width, baseImg.height,
+                          TURRET_MOUNT_X, TURRET_MOUNT_Y,
                           TURRET_MOUNT_W, TURRET_MOUNT_H);
+        }
+
+        // R567b: rotating barrel sprite. The barrel art is drawn with
+        // the muzzle UP and the pivot at the bottom-center of the sprite
+        // frame. Compute aim angle, add π/2 to convert from "pointing
+        // right (0 rad)" canvas convention to "pointing up" sprite
+        // convention. Recoil pushes the barrel slightly back along its
+        // OWN axis during firing.
+        const aimDX = p.aimX - TURRET_PIVOT_X;
+        const aimDY = p.aimY - TURRET_PIVOT_Y;
+        const aimAng = Math.atan2(aimDY, aimDX);
+        p.barrelAngle = aimAng;
+        const barrelImg = sprites.images.get('turret_barrel');
+        if (barrelImg) {
+            // Barrel sprite scaled to match turret rig — width tight to
+            // the receiver, height = BARREL_LEN + a bit extra for the
+            // receiver block at the base.
+            const BW = 16;
+            const BH = 32;
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            ctx.translate(TURRET_PIVOT_X, TURRET_PIVOT_Y);
+            // Sprite's natural orientation: muzzle up (-Y), pivot at
+            // bottom-center. Aim angle of 0 = pointing right; we want
+            // to align sprite-up with aim direction, so add π/2.
+            ctx.rotate(aimAng + Math.PI / 2);
+            // Recoil along sprite Y (negative = toward muzzle)
+            const recoil = firing ? (this.muzzleFlashT * 0.6 | 0) : 0;
+            // Draw with bottom-center at the pivot
+            ctx.drawImage(barrelImg, 0, 0, barrelImg.width, barrelImg.height,
+                          -BW / 2, -BH + recoil, BW, BH);
+            ctx.restore();
         }
 
         // R567: muzzle flash + bullet origin marker at the barrel tip,
