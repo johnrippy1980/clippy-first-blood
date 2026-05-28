@@ -203,9 +203,8 @@ const STAGE_CARD_KEYS = {
     22: 'card_mecha_reveal',
     23: 'card_doom_block11',
     24: 'card_bossrush_2026',
-    // R523: HOLD THE LINE turret stage — reuse server-room card until a
-    // bespoke 'card_holdtheline' painted thumbnail lands.
-    25: 'card_serverroom',
+    // R567l: bespoke HOLD THE LINE turret-emplacement painting.
+    25: 'card_holdtheline',
 };
 
 const STORY_PAGES = [

@@ -173,6 +173,9 @@ export const SCENE_MANIFEST = {
     // R424: Doom-stage cinematic cards. block11 = sewer clone-tank lab,
     // floor11 = burning corporate hallway with wheelchair silhouette.
     'card_doom_block11':      'card_doom_block11.png',
+    // R567l: bespoke HOLD THE LINE thumbnail — replaces the
+    // card_serverroom reuse from R523.
+    'card_holdtheline':       'card_holdtheline.png',
     'card_doom_floor11':      'card_doom_floor11.png',
     // R462: Doom arc bookends — intro before BLOCK 11, outro after FLOOR 11.
     'card_doom_arc_intro':    'card_doom_arc_intro.png',
