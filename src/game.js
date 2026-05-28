@@ -180,6 +180,10 @@ const CLIPPY_COUNTER_BARK = {
 // tile shows a tiny preview of its painted backdrop. Single source of
 // truth across both paths.
 const STAGE_CARD_KEYS = {
+    // R567m: bespoke jungle thumbnail — stage 1 had no entry before
+    // (rendered as empty backdrop), now shows the vine-covered
+    // abandoned office park.
+    1: 'card_jungle_2026',
     2: 'card_breakroom',
     3: 'card_serverroom',
     4: 'card_pipeline',
@@ -187,7 +191,9 @@ const STAGE_CARD_KEYS = {
     6: 'card_ballmer_office',
     7: 'card_ballmer_arena',
     8: 'card_keynote',
-    9: 'card_keynote',
+    // R567m: KEYNOTE CORRIDOR gets the backstage-corridor painting
+    // (was sharing card_keynote with stage 8 KEYNOTE HALL).
+    9: 'card_keynote_corridor',
     10: 'card_gates_arena_2026',
     11: 'card_founder_2026',
     12: 'card_bossrush_2026',
@@ -200,9 +206,13 @@ const STAGE_CARD_KEYS = {
     19: 'card_pipeline',
     20: 'card_mecha_approach',
     21: 'card_mecha_reveal',
-    22: 'card_mecha_reveal',
+    // R567m: MECHA-GATES FINAL gets the wrecked-mech painting
+    // (was sharing card_mecha_reveal with stage 21).
+    22: 'card_mecha_gates_final',
     23: 'card_doom_block11',
-    24: 'card_bossrush_2026',
+    // R567m: BOSS RUSH MODE gets the colored-boss-doors painting
+    // (was sharing card_bossrush_2026 with stage 12).
+    24: 'card_bossrush_arena',
     // R567l: bespoke HOLD THE LINE turret-emplacement painting.
     25: 'card_holdtheline',
 };

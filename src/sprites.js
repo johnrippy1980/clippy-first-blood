@@ -176,6 +176,13 @@ export const SCENE_MANIFEST = {
     // R567l: bespoke HOLD THE LINE thumbnail — replaces the
     // card_serverroom reuse from R523.
     'card_holdtheline':       'card_holdtheline.png',
+    // R567m: 4 more bespoke stage cards filling gaps that were
+    // either missing (stage 1) or sharing thumbnails with other stages
+    // (9 shared 8, 22 shared 21, 24 shared 12).
+    'card_jungle_2026':         'card_jungle_2026.png',
+    'card_keynote_corridor':    'card_keynote_corridor.png',
+    'card_mecha_gates_final':   'card_mecha_gates_final.png',
+    'card_bossrush_arena':      'card_bossrush_arena.png',
     'card_doom_floor11':      'card_doom_floor11.png',
     // R462: Doom arc bookends — intro before BLOCK 11, outro after FLOOR 11.
     'card_doom_arc_intro':    'card_doom_arc_intro.png',
