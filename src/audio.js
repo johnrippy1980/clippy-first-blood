@@ -337,6 +337,13 @@ class Audio {
             case 'enemyTurret': return this._enemyTurretFire(t);
             case 'enemyGrunt':  return this._enemyGruntFire(t);
             case 'enemyCore':   return this._enemyCoreFire(t);
+            // R566j: surface-aware footstep variants. player.js dispatches
+            // these based on stage theme. Generic 'step' remains the default
+            // fallback (concrete-on-rubber sneaker).
+            case 'stepMetal':   return this._footstepMetal(t);   // grate clank
+            case 'stepWet':     return this._footstepWet(t);     // sewer slosh
+            case 'stepCarpet':  return this._footstepCarpet(t);  // muted thud
+            case 'stepGrass':   return this._footstepGrass(t);   // leafy crunch
         }
     }
 
@@ -1028,6 +1035,91 @@ class Audio {
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.connect(filt).connect(g).connect(this.sfxBus);
         src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    // R566j: METAL footstep — sneaker on steel grating. Brighter bandpass
+    // tick + a faint metallic ring at the impact for the grate vibration.
+    // Sells server-room / cloud-floor environments.
+    _footstepMetal(t) {
+        // Sharp bright tick — bandpass at ~1800Hz with high Q
+        this._noise(t, 0.10, 0.04, 1800, 'bp', 4);
+        // Metallic ring — tiny sine ping at 2200Hz that decays fast.
+        // Pitch varies per step so the grate sings differently each footfall.
+        const ringF = 2000 + Math.random() * 400;
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(ringF, t);
+        this._envOn(g, 0.035, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.10);
+        // Small sub-thump under it — the grate flexes
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(140, t);
+        sub.frequency.exponentialRampToValueAtTime(70, t + 0.05);
+        this._envOn(subG, 0.06, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.08);
+    }
+
+    // R566j: WET footstep — sneaker on flooded concrete. Soft lowpass tick
+    // + a quick splat noise tail. Different from 'wade' (which is sustained
+    // wading); this is a single discrete footfall on shallow water/wet floor.
+    _footstepWet(t) {
+        // Soft body tick — lowpass noise, slightly muddier than dry concrete
+        const dur = 0.07;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 600;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.10, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        // Splat tail — bandpass mid noise for the water-spray decay
+        this._noise(t + 0.02, 0.08, 0.10, 1400, 'bp', 2);
+        // Tiny sub-pop — the puddle ripple
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(50, t + 0.06);
+        this._envOn(subG, 0.05, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.10);
+    }
+
+    // R566j: CARPET footstep — muted lowpass thud, no high frequencies.
+    // Reads as "Clippy is walking on plush boardroom carpet" — softer than
+    // concrete, no tick attack, just body.
+    _footstepCarpet(t) {
+        // Just sub-bass body — no tick, no crack
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(120 + Math.random() * 20, t);
+        sub.frequency.exponentialRampToValueAtTime(55, t + 0.08);
+        this._envOn(subG, 0.07, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.12);
+        // Tiny lowpass scuff — carpet fiber friction (very subtle)
+        this._noise(t, 0.025, 0.05, 350, 'lp', 1);
+    }
+
+    // R566j: GRASS/LEAVES footstep — bandpass noise crunch for outdoor
+    // jungle stages. Brighter than concrete, with a ruffling tail.
+    _footstepGrass(t) {
+        // Crunch — bandpass noise burst with broader Q for organic feel
+        this._noise(t, 0.10, 0.06, 1600, 'bp', 1.8);
+        // Higher rustle layer — bandpass at 2800Hz for the dry-leaf shimmer
+        this._noise(t + 0.01, 0.05, 0.05, 2800, 'bp', 2.5);
+        // Tiny ground-tap under it
+        this._noise(t, 0.04, 0.03, 400, 'lp', 1);
     }
 
     _landThump(t) {

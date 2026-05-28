@@ -1,7 +1,7 @@
 // Player. State machine, physics, weapons. The whole feel of the game
 // lives here, so we tune by hand.
 
-import { GAME, STATE, AIM, WEAPON, HURT_FLASH, AMBIENT } from './constants.js';
+import { GAME, STATE, AIM, WEAPON, HURT_FLASH, AMBIENT, STAGES } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
@@ -719,7 +719,11 @@ export class Player {
             this._footstepTick = (this._footstepTick || 0) + 1;
             if (this._footstepTick >= 14) {
                 this._footstepTick = 0;
-                audio.sfx(this.inWater ? 'wade' : 'step');
+                // R566j: surface-aware footstep variants. Look up the stage
+                // theme from the game scope; map to a synth flavor. Water
+                // beats theme (wade has its own sustained sound).
+                const stepKey = this.inWater ? 'wade' : this._footstepKeyForTheme();
+                audio.sfx(stepKey);
                 // Foot-plant dust at the trailing heel. Suppressed in water
                 // (the wade SFX + ripple already sell that beat) and grass
                 // (stealth — no telltale dust either).
@@ -768,6 +772,30 @@ export class Player {
         // Afterimage capture — sample sprite frame every other update during
         // speed states. Buffer drains over MAX_AGE frames.
         this._updateAfterimages();
+    }
+
+    // R566j: pick footstep flavor by current stage theme. Falls back to
+    // the generic concrete 'step' if no theme info / no override. Stays
+    // null-safe for early-boot ticks before currentStage is set.
+    _footstepKeyForTheme() {
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        const stage = game?.currentStage;
+        if (!stage || !Array.isArray(STAGES) || !STAGES[stage]) return 'step';
+        const theme = STAGES[stage].theme;
+        switch (theme) {
+            case 'serverroom':
+            case 'cloud':
+                return 'stepMetal';        // server-grate clank + faint ring
+            case 'sewer':
+                return 'stepWet';          // wet-concrete slosh
+            case 'boardroom':
+            case 'keynote':
+                return 'stepCarpet';       // muted plush carpet thud
+            case 'jungle':
+                return 'stepGrass';        // leafy crunch + rustle
+            default:
+                return 'step';             // breakroom, founder, reality
+        }
     }
 
     _updateAfterimages() {
