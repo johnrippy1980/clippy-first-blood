@@ -2390,7 +2390,11 @@ export class Player {
         this.vx = -this.facing * 1.6;
         // Lock the spin direction at death time so it doesn't oscillate.
         this._deathSpin = this.facing >= 0 ? -1 : 1;
-        audio.sfx('die');
+        // R566m: dramatic player-death sting (sub collapse + descending
+        // minor chord + heart-monitor flatline) replacing the generic
+        // enemy `die` deathStinger. Also ducks the music bus so the
+        // sting cuts through. YOU DIED moment finally has weight.
+        audio.sfx('playerDeath');
         const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
         // Triple-burst explosion — initial red blast, then orange + smoke
         particles.explosion(cx, cy,         '#a01020', 30);

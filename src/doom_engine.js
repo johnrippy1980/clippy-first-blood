@@ -859,8 +859,8 @@ export class DoomEngine {
         this._damageIndicatorT = 0;
         // Clear bullets in flight so player doesn't insta-die on respawn
         this.bullets.length = 0;
-        // Death sting
-        audio.sfx?.('die');
+        // R566m: dramatic player-death sting (replaces generic enemy `die`).
+        audio.sfx?.('playerDeath');
     }
 
     // R451: barrel detonation. Splash damage to all enemies + player in

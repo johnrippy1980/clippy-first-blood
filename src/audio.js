@@ -362,6 +362,11 @@ class Audio {
             // shatters, sub-bass collapse, electrical-discharge wail. Bigger
             // than the generic _bossExplode used elsewhere.
             case 'crtron_death':  return this._crtronDeath(t);
+            // R566m: dramatic player death sting. Distinct from enemy `die`
+            // (which is _deathStinger, reused for enemies). Player death
+            // gets sub-bass collapse + descending dissonant chord + heart-
+            // monitor flatline tone — sells the YOU DIED moment.
+            case 'playerDeath': return this._playerDeathSting(t);
             // R566l: ambient environmental SFX. Triggered by stage tick
             // loops at low frequency for atmosphere. NOT replacing
             // existing owlHoot/batChitter/fluorescent/splash — these add
@@ -1926,6 +1931,8 @@ class Audio {
     }
 
     _explode(t) {
+        // R566m: light music duck so the boom has clearance.
+        this.duck(0.03, 0.55, 0.15, 0.35);
         // Multi-layered: low rumble, mid noise burst, high crack
         this._noise(t, 0.5, 0.55, 200, 'lp', 1);
         this._noise(t, 0.25, 0.35, 900, 'bp', 1.2);
@@ -2232,6 +2239,8 @@ class Audio {
     }
 
     _bossExplode(t) {
+        // R566m: duck music briefly so the boss death cuts through
+        this.duck(0.05, 0.30, 0.5, 0.5);
         for (let i = 0; i < 6; i++) {
             this._noise(t + i * 0.08, 0.25, 0.40, 200 + i * 200, 'bp', 1.4);
         }
@@ -2249,6 +2258,10 @@ class Audio {
     //     across the whole duration, pitching down to demonic 25Hz
     //   - Final low rumble tail for the body falling apart
     _crtronDeath(t) {
+        // R566m: duck music for the 1.6s apocalyptic sequence so the
+        // implosions cut through. Attack fast, hold for the duration,
+        // release as the rumble tail fades.
+        this.duck(0.05, 0.20, 1.4, 0.6);
         // 12 chained CRT-implosion bursts
         for (let i = 0; i < 12; i++) {
             const bt = t + i * 0.10 + (Math.random() - 0.5) * 0.04;
@@ -2299,6 +2312,80 @@ class Audio {
         // Final low rumble tail — the body collapsing
         this._noise(t + 1.0, 0.45, 0.60, 220, 'lp', 1.0);
         this._noise(t + 1.1, 0.30, 0.50, 380, 'lp', 1.2);
+    }
+
+    // R566m: music ducking helper. Drops the music bus gain to `depth` over
+    // `attackS` seconds, holds for `holdS`, then ramps back to baseline
+    // over `releaseS`. Use for big events (death, boss spawn, big explosion)
+    // so the SFX can breathe without competing with the music bed.
+    // Stacks safely — last call wins on the gain curve.
+    duck(attackS = 0.05, depth = 0.25, holdS = 0.4, releaseS = 0.8) {
+        if (!this.musicBus) return;
+        const t = this.ctx.currentTime;
+        const base = this.sidechainBase || 1.0;
+        const target = base * depth;
+        try {
+            this.musicBus.gain.cancelScheduledValues(t);
+            this.musicBus.gain.setValueAtTime(this.musicBus.gain.value, t);
+            this.musicBus.gain.linearRampToValueAtTime(target, t + attackS);
+            this.musicBus.gain.setValueAtTime(target, t + attackS + holdS);
+            this.musicBus.gain.linearRampToValueAtTime(base, t + attackS + holdS + releaseS);
+        } catch (e) { /* defensive: cancelScheduledValues can throw on older WA */ }
+    }
+
+    // R566m: PLAYER DEATH STING — dramatic 1.4s sequence for the
+    // YOU DIED moment. Sub-bass collapse + descending dissonant minor
+    // chord (root + flat-3 + flat-5) + heart-monitor flatline tone.
+    // Ducks the music bus heavily so the sting cuts through.
+    _playerDeathSting(t) {
+        // Duck music bus hard for the sting duration
+        this.duck(0.03, 0.10, 1.0, 0.6);
+
+        // Sub-bass collapse — kick punch on impact
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(180, t);
+        sub.frequency.exponentialRampToValueAtTime(30, t + 0.40);
+        this._envOn(subG, 0.85, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.52);
+
+        // Descending dissonant minor chord — root + flat-3 + flat-5.
+        // Pitches down a fifth over 0.9s for the "everything fading"
+        // feel. Triangle waves so it sits behind without sounding harsh.
+        const chord = [
+            { f: 220, gain: 0.20 },  // root A3
+            { f: 261, gain: 0.16 },  // flat 3 (C4)
+            { f: 311, gain: 0.14 },  // flat 5 (D#4)
+        ];
+        for (const note of chord) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(note.f, t + 0.10);
+            o.frequency.exponentialRampToValueAtTime(note.f * 0.5, t + 1.0);
+            this._envOn(g, note.gain, t + 0.10);
+            g.gain.linearRampToValueAtTime(note.gain, t + 0.6);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + 0.10); o.stop(t + 1.12);
+        }
+
+        // Heart-monitor flatline tone — sustained sine at ~660Hz over
+        // the last 700ms. Comes in after the chord settles. Reads as
+        // "asystole" — universal "patient died" signal.
+        const flat = this.ctx.createOscillator(); const flatG = this.ctx.createGain();
+        flat.type = 'sine';
+        flat.frequency.setValueAtTime(660, t + 0.70);
+        this._envOn(flatG, 0.14, t + 0.70);
+        flatG.gain.linearRampToValueAtTime(0.14, t + 1.25);
+        flatG.gain.exponentialRampToValueAtTime(0.001, t + 1.40);
+        flat.connect(flatG).connect(this.sfxBus);
+        flat.start(t + 0.70); flat.stop(t + 1.42);
+
+        // Body-fall noise tail — body hits the ground in the first 200ms
+        this._noise(t, 0.45, 0.20, 280, 'lp', 1.2);
+        this._noise(t + 0.05, 0.28, 0.16, 600, 'bp', 1.5);
     }
 
     // R566l: DISTANT GUNFIRE — far-off bullet cracks (heavily lowpassed,

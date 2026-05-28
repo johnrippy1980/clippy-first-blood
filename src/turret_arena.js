@@ -721,7 +721,8 @@ export class TurretArena {
         this.screenShake = Math.max(this.screenShake, 5);
         audio.sfx?.('playerHit');
         if (p.hp <= 0) {
-            audio.sfx?.('die');
+            // R566m: dramatic player-death sting (replaces generic enemy `die`).
+            audio.sfx?.('playerDeath');
             if (this.game) this.game._fadeTo?.('gameOver');
         }
     }
@@ -785,7 +786,8 @@ export class TurretArena {
         this.screenShake = Math.max(this.screenShake, 6);
         audio.sfx?.('playerHit');
         if (p.hp <= 0) {
-            audio.sfx?.('die');
+            // R566m: dramatic player-death sting (replaces generic enemy `die`).
+            audio.sfx?.('playerDeath');
             if (this.game) this.game._fadeTo?.('gameOver');
         }
     }
