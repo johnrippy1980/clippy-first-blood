@@ -57,6 +57,20 @@ export const ACHIEVEMENT_LIST = [
     // R565c: HOLD THE LINE turret stage achievement (R523-introduced).
     // No achievement existed for clearing CRTRON — fixed here.
     { id: 'crtron_down',   name: 'CRT NIGHTMARES OVER',desc: 'DEFEAT CRTRON IN HOLD THE LINE',       icon: 'C',  gate: s => s.stagesCleared.has(25) },
+    // R568f (slice 6): co-op-only achievements. Each gates on a coop-mode
+    // stat counter so single-player progress never trips them. coopOnly:true
+    // tells the gallery to render them in the co-op sub-section.
+    { id: 'coop_stage_1',  name: 'TWO PAPERCLIPS',   desc: 'CLEAR STAGE 1 IN CO-OP',                icon: '2',  coopOnly: true, gate: s => s.coopStagesCleared?.has?.(1) },
+    { id: 'coop_campaign', name: 'PROFESSIONAL PARTNERSHIP', desc: 'CLEAR THE FULL CAMPAIGN IN CO-OP', icon: '#',  coopOnly: true, gate: s => s.coopStagesCleared?.has?.(13) },
+    { id: 'coop_sync_hp',  name: 'SYNCED HEARTBEAT', desc: 'BOTH PLAYERS AT 1 HP, BOTH SURVIVE',    icon: 'V',  coopOnly: true, gate: s => (s.coopSyncedSurvives || 0) >= 1 },
+    { id: 'coop_tag_boss', name: 'TAG TEAM CHAMPIONS', desc: 'CLEAR A BOSS WITH 4+ TAG SWAPS',      icon: 'T',  coopOnly: true, gate: s => (s.coopTagBossWins || 0) >= 1 },
+    { id: 'coop_carry',    name: 'CARRY ON',         desc: 'CLEAR A STAGE AFTER 5+ PARTNER DEATHS', icon: 'C',  coopOnly: true, gate: s => (s.coopCarryClears || 0) >= 1 },
+    { id: 'coop_perfect',  name: 'PERFECT HANDOFF',  desc: 'CHAIN 5 TAGS WITHOUT MISSING DAMAGE',   icon: 'P',  coopOnly: true, gate: s => (s.coopMaxHandoffChain || 0) >= 5, progress: s => [Math.min(s.coopMaxHandoffChain || 0, 5), 5] },
+    { id: 'coop_ride_die', name: 'RIDE OR DIE',      desc: 'CLEAR ALL 25 STAGES, SAME CHAR EVERY BOSS', icon: 'R', coopOnly: true, gate: s => (s.coopSoloBossKills || 0) >= 25, progress: s => [Math.min(s.coopSoloBossKills || 0, 25), 25] },
+    { id: 'coop_bonzi_solo', name: 'ANNOYING ASSISTANT', desc: 'CLEAR A STAGE WITH BONZI-ONLY KILLS', icon: 'B',  coopOnly: true, gate: s => (s.coopBonziSoloStages || 0) >= 1 },
+    { id: 'coop_clippy_solo', name: 'CLIPS OVER GORILLAS', desc: 'CLEAR A STAGE WITH CLIPPY-ONLY KILLS', icon: 'X', coopOnly: true, gate: s => (s.coopClippySoloStages || 0) >= 1 },
+    // Note: NEW MANAGEMENT (Bonzi-as-boss-defeated unlock prereq) ships in
+    // slice 7 alongside the THE COMPETITION stage itself.
 ];
 
 class Achievements {
@@ -87,6 +101,17 @@ class Achievements {
             // R279: persisted konami unlock — once entered, the secret
             // stages stay visible in stage select across sessions.
             konamiUnlocked: false,
+            // R568f (slice 6): co-op-only stat counters. Every value here is
+            // additive across runs except coopStagesCleared (Set of stage ids,
+            // persisted as an Array). coopMaxHandoffChain is a high-water mark.
+            coopStagesCleared: new Set(),
+            coopSyncedSurvives: 0,
+            coopTagBossWins: 0,
+            coopCarryClears: 0,
+            coopMaxHandoffChain: 0,
+            coopSoloBossKills: 0,
+            coopBonziSoloStages: 0,
+            coopClippySoloStages: 0,
         };
         this._load();
     }
@@ -161,6 +186,18 @@ class Achievements {
                 this.stats.konamiUnlocked = data.stats.konamiUnlocked === true;
                 // R565d: lifetime high-water tag count for FULL SET (R223).
                 this.stats.tagsFound = Math.max(0, data.stats.tagsFound | 0);
+                // R568f (slice 6): co-op stats. coopStagesCleared persists
+                // as an Array of stage ids; everything else is a counter.
+                if (Array.isArray(data.stats.coopStagesCleared)) {
+                    this.stats.coopStagesCleared = new Set(data.stats.coopStagesCleared);
+                }
+                this.stats.coopSyncedSurvives    = data.stats.coopSyncedSurvives | 0;
+                this.stats.coopTagBossWins       = data.stats.coopTagBossWins | 0;
+                this.stats.coopCarryClears       = data.stats.coopCarryClears | 0;
+                this.stats.coopMaxHandoffChain   = data.stats.coopMaxHandoffChain | 0;
+                this.stats.coopSoloBossKills     = data.stats.coopSoloBossKills | 0;
+                this.stats.coopBonziSoloStages   = data.stats.coopBonziSoloStages | 0;
+                this.stats.coopClippySoloStages  = data.stats.coopClippySoloStages | 0;
             }
             // Persist with the new schema version on next _save() so we don't
             // re-run the migration. _load doesn't write directly.
@@ -173,7 +210,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 302,
+                schemaVersion: 568,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -188,6 +225,15 @@ class Achievements {
                     // persist it. Now schemaVersion bumped 301→302 so the
                     // _load migration can pick it up cleanly.
                     tagsFound: this.stats.tagsFound || 0,
+                    // R568f (slice 6): co-op-only stat counters.
+                    coopStagesCleared: Array.from(this.stats.coopStagesCleared || []),
+                    coopSyncedSurvives:    this.stats.coopSyncedSurvives | 0,
+                    coopTagBossWins:       this.stats.coopTagBossWins | 0,
+                    coopCarryClears:       this.stats.coopCarryClears | 0,
+                    coopMaxHandoffChain:   this.stats.coopMaxHandoffChain | 0,
+                    coopSoloBossKills:     this.stats.coopSoloBossKills | 0,
+                    coopBonziSoloStages:   this.stats.coopBonziSoloStages | 0,
+                    coopClippySoloStages:  this.stats.coopClippySoloStages | 0,
                 },
             }));
         } catch (e) {}

@@ -354,6 +354,23 @@ export class Game {
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         // Run-level achievement progress (built up across stages)
         this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0, grenadeUses: 0, grenadeKills: 0 };
+        // R568f (slice 6): co-op stat trackers. Reset per stage in _startStage
+        // and rolled into achievements in _onStageClear when coopMode is true.
+        this.coopStageStats = {
+            clippyKills: 0,
+            bonziKills: 0,
+            tagSwapsThisStage: 0,
+            tagSwapsThisBossFight: 0,
+            partnerDeathsThisStage: 0,
+            handoffChainCurrent: 0,
+            handoffChainBest: 0,
+            // who delivered the killing blow on the boss (character string)
+            bossKillCharacter: null,
+            // SYNCED HEARTBEAT: latched once both players sit at 1 hp during a
+            // wave; cleared when either falls below or the wave ends safely.
+            syncedHeartbeatLatched: false,
+            syncedSurvivedThisStage: false,
+        };
         // Pause sub-state
         this.pauseIndex = 0;
         this.optionsIndex = 0;
@@ -1510,6 +1527,10 @@ export class Game {
         // R568 co-op slice 1: tag-swap check. Fires when tag-cooldown
         // is 0 and player presses T (or gamepad-2 START).
         this._tryTagSwap();
+        // R568f (slice 6): SYNCED HEARTBEAT tracker — latch when both players
+        // are at 1 HP simultaneously, clear-survive flag if both still alive
+        // 90 frames later.
+        this._tickCoopSyncedHeartbeat();
         if (this.trainingMode) this._tickPlayTrainingUpkeep();
         const slowMoSkipEnemies = this._tickPlayAdvanceSlowMo();
         const snap = this._tickPlayCaptureSnapshot();
@@ -1594,6 +1615,13 @@ export class Game {
         this.player = incoming;
         // R568b: panic tag costs 8s cooldown vs normal 5s
         this.tagCooldownT = isPanic ? 480 : this.TAG_COOLDOWN_FRAMES;
+        // R568f (slice 6): record the tag for co-op stats.
+        if (this.coopStageStats) {
+            this.coopStageStats.tagSwapsThisStage++;
+            if (this.bossSpawned && !this.bossDefeated) {
+                this.coopStageStats.tagSwapsThisBossFight++;
+            }
+        }
         audio.sfx?.('select');     // TODO slice 2 voice cue
     }
 
@@ -1685,6 +1713,33 @@ export class Game {
     // the inactive character takes over). Returns false if no tag-in is
     // possible (single-player, slot 1 also dead, or coopMode off) — caller
     // proceeds with the normal death/game-over flow.
+    // R568f: SYNCED HEARTBEAT — both at 1 HP simultaneously then both
+    // survive a brief window (~1.5s) to count. Re-armable: if either dies
+    // before the window expires, the latch clears without crediting.
+    _tickCoopSyncedHeartbeat() {
+        if (!this.coopMode || !this.coopStageStats) return;
+        const p0 = this.players?.[0], p1 = this.players?.[1];
+        if (!p0 || !p1) return;
+        if (!this.coopStageStats.syncedHeartbeatLatched) {
+            if (p0.hp === 1 && p1.hp === 1) {
+                this.coopStageStats.syncedHeartbeatLatched = true;
+                this.coopStageStats._syncedLatchT = 90;   // ~1.5s window
+            }
+        } else {
+            if (p0.hp <= 0 || p1.hp <= 0) {
+                this.coopStageStats.syncedHeartbeatLatched = false;
+                this.coopStageStats._syncedLatchT = 0;
+                return;
+            }
+            if (this.coopStageStats._syncedLatchT > 0) {
+                this.coopStageStats._syncedLatchT--;
+                if (this.coopStageStats._syncedLatchT === 0) {
+                    this.coopStageStats.syncedSurvivedThisStage = true;
+                }
+            }
+        }
+    }
+
     _maybeForceTagOnDeath() {
         if (!this.coopMode) return false;
         const otherIdx = 1 - this.activePlayerIdx;
@@ -1693,6 +1748,8 @@ export class Game {
         // Force the swap: drain a shared life, swap slots, fire the swap
         // animation but with extended i-frames + a panic flash overlay.
         this.sharedLives = Math.max(0, this.sharedLives - 1);
+        // R568f: forced-tag-on-death is a partner death; count it for CARRY ON.
+        if (this.coopStageStats) this.coopStageStats.partnerDeathsThisStage++;
         this._beginTagSwap(true);
         // The incoming partner takes over with their current HP intact.
         return true;
@@ -3453,6 +3510,11 @@ export class Game {
                 // R566f: CRTRON / SERVER_TOWER — stage 25 HOLD THE LINE boss.
                 // Asset key matches boss_intro_SERVER_TOWER painted plate.
                 { key: 'boss_intro_SERVER_TOWER', label: 'CRTRON', unlock: stageDone(25) || konami },
+                // R568f (slice 6): Bonzi portrait + boss plate. Gate on the
+                // bonziDefeated stat (set in slice 7) OR konami so the assets
+                // are surface-able pre-slice-7 for testing.
+                { key: 'bonzi_portrait',  label: 'BONZI BUDDY', unlock: achievements.stats.bonziDefeated || konami },
+                { key: 'bonzi_boss_plate', label: 'THE COMPETITION', unlock: achievements.stats.bonziDefeated || konami },
             ];
         }
         // Default: SCENES tab
@@ -4533,6 +4595,21 @@ export class Game {
         }
         // Reset per-stage counters
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
+        // R568f (slice 6): per-stage co-op stat trackers reset alongside stageStats.
+        // _killBaseline captures each slot's lifetime kill count at stage start
+        // so end-of-stage diffs give per-character per-stage kill totals.
+        this.coopStageStats = {
+            clippyKills: 0, bonziKills: 0,
+            tagSwapsThisStage: 0, tagSwapsThisBossFight: 0,
+            partnerDeathsThisStage: 0,
+            handoffChainCurrent: 0, handoffChainBest: 0,
+            bossKillCharacter: null,
+            syncedHeartbeatLatched: false, syncedSurvivedThisStage: false,
+            _killBaseline: [
+                this.players?.[0]?.kills || 0,
+                this.players?.[1]?.kills || 0,
+            ],
+        };
         // Defensive reset: stage-clear gate, in case the previous stage death-handled
         // the boss-clear path or the player was rescued in the middle of stage clear.
         this._clearScheduled = false;
@@ -4788,6 +4865,12 @@ export class Game {
             }
             this.camera.shake?.(8);
             this._lastBossPos = null;
+            // R568f: who delivered the killing blow? Whoever is currently
+            // active when the boss explodes. RIDE OR DIE rewards stages
+            // where one character carried every boss kill.
+            if (this.coopStageStats && this.player?.character) {
+                this.coopStageStats.bossKillCharacter = this.player.character;
+            }
             // R566n: triumphant boss-defeated sting (1.6s F major arpeggio
             // + sustained pad + cymbal). Fires alongside the explosion so
             // the audio reads "boss IS dying, here's your victory."
@@ -4870,6 +4953,48 @@ export class Game {
             const altPlayer = this._doomEngine?.player || this._beatEmUp?.player
                            || this._fpsArena?.player || this._turretArena?.player;
             const ap = this.player || altPlayer || {};
+            // R568f (slice 6): if this is a co-op run, derive per-character
+            // kills + the various end-of-stage triggers and merge them into
+            // the persistent achievement stats. Single-player runs skip
+            // this block entirely so coop counters never accidentally fire.
+            if (this.coopMode && this.coopStageStats) {
+                const css = this.coopStageStats;
+                const base = css._killBaseline || [0, 0];
+                const k0 = (this.players?.[0]?.kills || 0) - base[0];
+                const k1 = (this.players?.[1]?.kills || 0) - base[1];
+                css.clippyKills = Math.max(0, k0);
+                css.bonziKills = Math.max(0, k1);
+                achievements.stats.coopStagesCleared.add(this.currentStage);
+                // ANNOYING ASSISTANT — clear the stage with Bonzi doing all kills
+                if (css.bonziKills > 0 && css.clippyKills === 0) {
+                    achievements.stats.coopBonziSoloStages++;
+                }
+                // CLIPS OVER GORILLAS — vice versa
+                if (css.clippyKills > 0 && css.bonziKills === 0) {
+                    achievements.stats.coopClippySoloStages++;
+                }
+                // TAG TEAM CHAMPIONS — boss fight with 4+ tag swaps
+                if (css.tagSwapsThisBossFight >= 4) {
+                    achievements.stats.coopTagBossWins++;
+                }
+                // CARRY ON — clear after 5+ partner deaths
+                if (css.partnerDeathsThisStage >= 5) {
+                    achievements.stats.coopCarryClears++;
+                }
+                // SYNCED HEARTBEAT — both at 1 HP simultaneously, both survived
+                if (css.syncedSurvivedThisStage) {
+                    achievements.stats.coopSyncedSurvives++;
+                }
+                // RIDE OR DIE — boss kill belongs to same character every stage
+                if (css.bossKillCharacter) {
+                    achievements.stats.coopSoloBossKills++;
+                }
+                // PERFECT HANDOFF — high-water mark across the run
+                achievements.stats.coopMaxHandoffChain = Math.max(
+                    achievements.stats.coopMaxHandoffChain || 0,
+                    css.handoffChainBest || 0,
+                );
+            }
             const newlyUnlocked = achievements.update({
                 totalKills: ap.kills || 0,
                 stagesCleared: this.runStats.stagesCleared,
