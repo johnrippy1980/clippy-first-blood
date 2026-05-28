@@ -356,12 +356,21 @@ export class TurretArena {
             // Check monster collision — monsters live in depth space
             for (const m of this.monsters) {
                 if (!m.alive) continue;
-                if (Math.abs(b.t - m.t) > 0.06) continue;
+                // R567c: t window widened 0.06→0.10. With BULLET_SPEED 0.05/f
+                // a bullet only spends ~2 frames in a 0.06 window — hit rate
+                // was abysmal. 0.10 = ~4 frames of "hittable" time, matches
+                // how a tracer actually crosses the depth space visually.
+                if (Math.abs(b.t - m.t) > 0.10) continue;
                 const ms = depthScale(m.t);
+                // R567c: hitbox now matches the full painted walk-cycle
+                // sprite size (h * 1.5 — sprite includes legs that hang
+                // below the chassis). Was h-only which meant the bullet
+                // could pass through the visible legs without registering.
+                const visH = m.h * 1.5;
                 const mx = depthX(m.lane, m.t) - (m.w * ms) / 2;
-                const my = depthY(m.t) - (m.h * ms);
+                const my = depthY(m.t) - (visH * ms);
                 const mw = m.w * ms;
-                const mh = m.h * ms;
+                const mh = visH * ms;
                 if (b.x >= mx && b.x <= mx + mw &&
                     b.y >= my && b.y <= my + mh) {
                     m.hp--;
