@@ -1604,7 +1604,9 @@ export class Game {
     // scene is captured so the draw side renders the right backdrop and
     // RESUME knows where to send the player.
     _enterPauseFrom(fromScene) {
-        audio.sfx('pause');
+        // R566p: dedicated pauseEnter whoosh (descending bandpass + sub
+        // thump) replacing the generic UI 'pause' click. "World receding."
+        audio.sfx('pauseEnter');
         this.pauseIndex = 0;
         this._pauseAnim = 0;
         this._pauseReturnScene = fromScene;
@@ -2692,7 +2694,9 @@ export class Game {
 
     _tickPause() {
         if (input.isPressed('pause')) {
-            audio.sfx('pause');
+            // R566p: dedicated pauseExit whoosh (rising bandpass + sub
+            // kick) replacing the generic UI 'pause' click. "World resuming."
+            audio.sfx('pauseExit');
             // R489: respect the origin scene so unpausing on FPS/BEAT/DOOM
             // returns to the correct engine instead of dropping into the
             // platformer's PLAY scene (which has no level for those stages
@@ -2706,6 +2710,9 @@ export class Game {
             audio.sfx('menu');
             const sel = PAUSE_OPTIONS[this.pauseIndex];
             if (sel === 'RESUME') {
+                // R566p: pauseExit whoosh on resume too — matches the
+                // tactile beat of unpausing via the menu.
+                audio.sfx('pauseExit');
                 // R351: return to whichever play scene we paused from
                 // (PLAY / FPS_PLAY / BEAT_PLAY), not blindly to PLAY.
                 this.scene = this._pauseReturnScene || SCENE.PLAY;
@@ -3980,6 +3987,10 @@ export class Game {
         // frame 20 inside the cinematic — this hits at frame 0 so the
         // scene transition itself has audio impact.
         audio.sfx('bossSpotted');
+        // R566p: boss fight = high-intensity mix. Music pulls back, comp
+        // threshold drops + ratio bumps so the SFX layer hits harder.
+        // Restored to normal in _onStageClear.
+        audio.setMusicIntensity?.('high');
     }
 
     // Actual boss spawn + entrance flourish — called at the end of the
@@ -4417,6 +4428,8 @@ export class Game {
         const stray = this.enemies.activeMiniBoss();
         if (stray) { stray.alive = false; stray.hp = 0; }
         audio.stopTrack();
+        // R566p: reset music intensity to normal (boss fight ended).
+        audio.setMusicIntensity?.('normal');
         // R281: bossEscapes stages (e.g. Board Room — Ballmer flees) skip
         // the explosion burst payoff. Boss "escaping" shouldn't read as
         // "boss exploding into chunks." Play a softer thump + small camera

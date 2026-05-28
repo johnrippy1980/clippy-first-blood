@@ -143,7 +143,29 @@ class Audio {
 
         // Sidechain envelope on music bus (modulated by kick)
         this.sidechainBase = 1.0;                // R288: matches default 100%
-        this.musicBus.connect(this.master);
+
+        // R566p: post-process the music bus before it hits master. User
+        // shipped tracks without mastering — they have headroom and lack
+        // bass weight. Chain: musicBus → bassBoost → makeupGain → compressor
+        // → master. The compressor catches peaks softly so we can push
+        // makeupGain confidently without clipping; the low-shelf restores
+        // the chest weight that consumer playback eats.
+        this._musicBassBoost = this.ctx.createBiquadFilter();
+        this._musicBassBoost.type = 'lowshelf';
+        this._musicBassBoost.frequency.value = 110;   // boost below ~110Hz
+        this._musicBassBoost.gain.value = 4.5;        // +4.5dB chest weight
+        this._musicMakeup = this.ctx.createGain();
+        this._musicMakeup.gain.value = 1.35;          // ~+2.6dB makeup
+        this._musicComp = this.ctx.createDynamicsCompressor();
+        this._musicComp.threshold.value = -10;        // start catching peaks at -10dB
+        this._musicComp.knee.value = 6;               // soft knee for transparency
+        this._musicComp.ratio.value = 3;              // gentle 3:1
+        this._musicComp.attack.value = 0.012;         // 12ms — let transients through
+        this._musicComp.release.value = 0.18;         // 180ms — musical release
+        this.musicBus.connect(this._musicBassBoost);
+        this._musicBassBoost.connect(this._musicMakeup);
+        this._musicMakeup.connect(this._musicComp);
+        this._musicComp.connect(this.master);
         this.sfxBus.connect(this.master);
 
         // Soft limiter via WaveShaper
@@ -391,6 +413,14 @@ class Audio {
             case 'pickup_thunder':  return this._pickupWeaponThunder(t);
             case 'pickup_homing':   return this._pickupWeaponHoming(t);
             case 'pickup_spread':   return this._pickupWeaponSpread(t);
+            // R566p: pause/unpause swooshes — descending whoosh for enter
+            // (world receding), rising whoosh for exit (world resuming).
+            case 'pauseEnter':  return this._pauseEnter(t);
+            case 'pauseExit':   return this._pauseExit(t);
+            // R566p: HUD beat sounds — low-ammo warning click, weapon-cycle
+            // mechanical ratchet. Heartbeat for low-HP already exists.
+            case 'hudLowAmmo':     return this._hudLowAmmo(t);
+            case 'hudWeaponCycle': return this._hudWeaponCycle(t);
             // R566l: ambient environmental SFX. Triggered by stage tick
             // loops at low frequency for atmosphere. NOT replacing
             // existing owlHoot/batChitter/fluorescent/splash — these add
@@ -2845,6 +2875,124 @@ class Audio {
         cg.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
         c.connect(cg).connect(this.sfxBus);
         c.start(t + 0.22); c.stop(t + 0.47);
+    }
+
+    // R566p: PAUSE ENTER — descending whoosh + low sub thump. "World
+    // receding" — fast attack, lowpass sweep down, brief sub at the end
+    // as time stops. 0.25s. Distinct from the generic UI 'pause' click.
+    _pauseEnter(t) {
+        // Whoosh — bandpass noise descending 3000→400Hz
+        const dur = 0.22;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(3000, t);
+        filt.frequency.exponentialRampToValueAtTime(400, t + dur);
+        filt.Q.value = 2;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        // Sub thump at the end — time stops
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t + 0.10);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.22);
+        this._envOn(subG, 0.25, t + 0.10);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t + 0.10); sub.stop(t + 0.28);
+    }
+
+    // R566p: PAUSE EXIT — rising whoosh, sub-thump at start. "World
+    // resuming" — sub kick first, then noise sweep up. Mirror of enter.
+    _pauseExit(t) {
+        // Sub kick at start — time restarts
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(45, t);
+        sub.frequency.exponentialRampToValueAtTime(110, t + 0.10);
+        this._envOn(subG, 0.30, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.16);
+        // Rising whoosh — bandpass noise climbing 400→3000Hz
+        const dur = 0.22;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(400, t + 0.04);
+        filt.frequency.exponentialRampToValueAtTime(3000, t + 0.04 + dur);
+        filt.Q.value = 2;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.22, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.04 + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t + 0.04); src.stop(t + 0.04 + dur + 0.02);
+    }
+
+    // R566p: HUD LOW AMMO — sharp warning click. Fires once when ammo
+    // crosses below a threshold. Mechanical empty-ish click + brief
+    // bright tone so it cuts through gunfire.
+    _hudLowAmmo(t) {
+        // Mechanical click
+        this._tonal(t, 'square', 480, 280, 0.10, 0.06);
+        // Warning bell — brief bright triangle
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(1318, t + 0.04);  // E6
+        this._envOn(g, 0.14, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t + 0.04); o.stop(t + 0.22);
+    }
+
+    // R566p: HUD WEAPON CYCLE — mechanical ratchet for weapon switch.
+    // Tab/Q in Doom-mode or 1/2/3/4 number keys. Was reusing 'select'
+    // (UI menu blip) — now sounds like an actual weapon-wheel rotation.
+    _hudWeaponCycle(t) {
+        // Short metallic ratchet — square click + bright noise tick
+        this._tonal(t, 'square', 380, 260, 0.08, 0.05);
+        this._noise(t, 0.10, 0.04, 2400, 'bp', 3);
+        // Confirm — small sub pulse
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(60, t + 0.05);
+        this._envOn(subG, 0.10, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.09);
+    }
+
+    // R566p: dynamic music-intensity helper. Boss fights = action peaks,
+    // so we want the music to recede slightly to make room for SFX. Set
+    // intensity 'high' during boss fights, 'normal' otherwise. The
+    // existing duck() depth is multiplied by this factor.
+    setMusicIntensity(level) {
+        // 'normal' = baseline, 'high' = music pushed down 30% relative to
+        // baseline (so SFX hits feel bigger during action). Also tightens
+        // the master compressor for more pumping feel.
+        if (!this._musicMakeup || !this._musicComp) return;
+        const t = this.ctx.currentTime;
+        if (level === 'high') {
+            // Pull music down, push comp harder
+            this._musicMakeup.gain.linearRampToValueAtTime(0.95, t + 0.5);
+            this._musicComp.threshold.linearRampToValueAtTime(-16, t + 0.5);
+            this._musicComp.ratio.linearRampToValueAtTime(5, t + 0.5);
+        } else {
+            // Restore baseline
+            this._musicMakeup.gain.linearRampToValueAtTime(1.35, t + 0.5);
+            this._musicComp.threshold.linearRampToValueAtTime(-10, t + 0.5);
+            this._musicComp.ratio.linearRampToValueAtTime(3, t + 0.5);
+        }
     }
 
     // R566l: DISTANT GUNFIRE — far-off bullet cracks (heavily lowpassed,

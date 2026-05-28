@@ -1058,7 +1058,9 @@ export class DoomEngine {
                 this._pendingSwitch !== this.player.weaponIdx) {
                 this._weaponSwapTarget = this._pendingSwitch;
                 this._weaponSwapT = 12;
-                audio.sfx?.('select');
+                // R566p: mechanical ratchet for weapon swap. Was UI 'select'
+                // (menu blip) — now reads as weapon-wheel rotation.
+                audio.sfx?.('hudWeaponCycle');
             }
             this._pendingSwitch = null;
         }
@@ -1073,7 +1075,14 @@ export class DoomEngine {
         const p = this.player;
         const w = this._activeWeapon();
         w.cooldown = w.rate;
-        if (w.ammo !== Infinity) w.ammo--;
+        if (w.ammo !== Infinity) {
+            const prev = w.ammo;
+            w.ammo--;
+            // R566p: low-ammo warning click — fires once when ammo crosses
+            // below the 5-round threshold. Players watching the screen
+            // hear the warning before they look down at the HUD.
+            if (prev === 6 && w.ammo === 5) audio.sfx?.('hudLowAmmo');
+        }
         // R463: extended to 12f so 3-frame cycle (fire/recover/rest) reads.
         // muzzleFlash > 6 → fire pose (6f), 1-6 → recover pose (6f), 0 → rest
         p.muzzleFlash = 12;
