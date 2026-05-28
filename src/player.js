@@ -32,6 +32,15 @@ const MAX_SPEED = 2.0;
 const RUN_ACCEL = 0.36;
 const TURN_SNAP = 0.55;      // when reversing direction, instantly kill this fraction of opposing momentum
 const JUMP_V = -7.5;         // ~3 tiles of vertical clearance; reaches platforms reliably
+
+// R568c (slice 3): per-character movement profile. Bonzi is slower + heavier +
+// commits to jumps harder (worse air control). Multipliers stack on the base
+// constants so the existing tuning stays as the reference point. Clippy
+// resolves to 1.0 across the board — no change to single-player feel.
+export const CHARACTER_PROFILE = {
+    clippy: { speedMul: 1.0, accelMul: 1.0, jumpMul: 1.0, airFricMul: 1.0 },
+    bonzi:  { speedMul: 0.8, accelMul: 0.85, jumpMul: 1.1, airFricMul: 0.95 },
+};
 const JUMP_CUT = 0.42;       // velocity * this when jump released early
 const SLIDE_V = 3.2;
 const SLIDE_FRAMES = 22;
@@ -126,11 +135,13 @@ export const RAGE_BARKS = [
 ];
 
 export class Player {
-    constructor(x, y) {
+    constructor(x, y, character = 'clippy') {
         this.x = x; this.y = y;
         this.w = PLAYER_W; this.h = STAND_HEIGHT;
         this.vx = 0; this.vy = 0;
         this.facing = 1;
+        this.character = character;
+        this._profile = CHARACTER_PROFILE[character] || CHARACTER_PROFILE.clippy;
         this.state = STATE.IDLE;
         this.onGround = false;
         this.coyote = 0;
@@ -807,7 +818,7 @@ export class Player {
         const interval = this.state === STATE.POUNCE ? 1 : 2;
         if (speedState && (this._afterimageTick = (this._afterimageTick || 0) + 1) % interval === 0) {
             this._afterimages.push({
-                frame: this._frameForState(),
+                frame: this._maybeBonzifyFrame(this._frameForState()),
                 x: this.x, y: this.y,
                 facing: this.facing,
                 age: 0,
@@ -976,8 +987,10 @@ export class Player {
             this.facing = lookX;
             // R418: rage boosts ground speed +50% — Clippy SPRINTS through enemies
             const rageMul = this.rageFrames > 0 ? 1.5 : 1;
-            const accel = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL) * rageMul;
-            const cap = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED) * rageMul;
+            const charAccelMul = this._profile.accelMul;
+            const charSpeedMul = this._profile.speedMul;
+            const accel = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL) * rageMul * charAccelMul;
+            const cap = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED) * rageMul * charSpeedMul;
             // Turn-snap: when input reverses against current momentum, kill a
             // chunk of the opposing velocity so the player doesn't ice-skate
             // through their own turnaround. Only applies on ground — keeps
@@ -989,7 +1002,8 @@ export class Player {
             this.vx += lookX * accel;
             this.vx = Math.max(-cap, Math.min(cap, this.vx));
         } else {
-            this.vx *= this.onGround ? GAME.FRICTION : GAME.AIR_FRICTION;
+            const airFric = GAME.AIR_FRICTION * this._profile.airFricMul;
+            this.vx *= this.onGround ? GAME.FRICTION : airFric;
             if (Math.abs(this.vx) < 0.05) this.vx = 0;
         }
 
@@ -1010,7 +1024,7 @@ export class Player {
         // Jump (with buffer + coyote). Super Contra style: ALWAYS spin in air.
         if ((input.isPressed('jump') || input.isBuffered('jump')) && this.coyote > 0 && this.state !== STATE.SLIDE) {
             input.consume('jump');
-            this.vy = JUMP_V;
+            this.vy = JUMP_V * this._profile.jumpMul;
             this.onGround = false;
             this.coyote = 0;
             this.state = STATE.SPIN_JUMP;
@@ -2616,7 +2630,7 @@ export class Player {
             ctx.restore();
         }
 
-        const frame = this._frameForState();
+        const frame = this._maybeBonzifyFrame(this._frameForState());
         const dims = spriteDims(frame);
         // Bump recoil for readable kickback: 3-2-1px back, 1px upward at the peak.
         // Sells the "feels punchy" feedback that was missing from the static fire pose.
@@ -3840,6 +3854,43 @@ export class Player {
             if (e2 > -dy) { err -= dy; x += sx; }
             if (e2 < dx)  { err += dx; y += sy; }
         }
+    }
+
+    // R568c (slice 3): translate a Clippy frame name into the matching Bonzi
+    // sprite when this is the Bonzi character. Falls through to the original
+    // name if no Bonzi-specific variant exists — the renderer's missing-sprite
+    // path (procedural silhouette) takes over so the game stays playable while
+    // we incrementally fill in Bonzi's frame set across slices 3-5.
+    _maybeBonzifyFrame(frame) {
+        if (this.character !== 'bonzi') return frame;
+        // Direct 1:1 mappings for the frames Bonzi has bespoke art for.
+        const map = {
+            'idle': 'bonzi_idle',
+            'idle_alt': 'bonzi_idle',
+            'run_1': 'bonzi_run_1',
+            'run_2': 'bonzi_run_2',
+            'run_3': 'bonzi_run_3',
+            'run_4': 'bonzi_run_4',
+            'run_5': 'bonzi_run_1',
+            'jump': 'bonzi_jump',
+            'fall': 'bonzi_fall',
+            'hurt': 'bonzi_hurt',
+            // Shoulder-charge replaces Clippy's slide.
+            'prone': 'bonzi_charge',
+            'crouch': 'bonzi_idle',
+            // Back-view (FPS/turret) uses the dedicated behind set when present.
+            'clippy_back_idle':  'bonzi_back_idle',
+            'clippy_back_run_1': 'bonzi_back_run_1',
+            'clippy_back_run_2': 'bonzi_back_run_2',
+            'clippy_back_run_3': 'bonzi_back_run_1',
+            'clippy_back_run_4': 'bonzi_back_run_2',
+        };
+        const bonziKey = map[frame];
+        // Only swap if the bonzi asset actually loaded. Otherwise keep the
+        // Clippy frame so the player still sees SOMETHING — placeholder is
+        // better than missing during in-progress slices.
+        if (bonziKey && sprites.has(bonziKey)) return bonziKey;
+        return frame;
     }
 
     _frameForState() {

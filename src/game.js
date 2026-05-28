@@ -18,7 +18,7 @@ import { PickupManager } from './pickups.js';
 import { Parallax } from './parallax.js';
 import { drawHUD } from './hud.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
-import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST } from './sprites.js';
+import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST, BONZI_MANIFEST } from './sprites.js';
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { options } from './options.js';
 
@@ -391,6 +391,7 @@ export class Game {
         await sprites.loadAll(CLIPPY_MANIFEST, 'assets/sprites');
         await sprites.loadAll(ENEMY_MANIFEST, 'assets/sprites');
         await sprites.loadAll(WEAPON_MANIFEST, 'assets/sprites');
+        await sprites.loadAll(BONZI_MANIFEST, 'assets/sprites');
         await sprites.loadAll(SCENE_MANIFEST, 'assets/scenes');
         await sprites.loadAll(BG_MANIFEST, 'assets/bg');
         this.assetsReady = true;
@@ -4677,7 +4678,11 @@ export class Game {
             data.playerStart.x, data.playerStart.y, pw, ph
         );
         if (!this.player) {
-            this.player = new Player(safeStart.x, safeStart.y);
+            // Active slot character: slot 0 is always Clippy. Slot 1 (if active
+            // at spawn) is Bonzi. Caller toggling coopMode + activePlayerIdx
+            // before _startStage controls who lands as the lead character.
+            const activeCharacter = (this.coopMode && this.activePlayerIdx === 1) ? 'bonzi' : 'clippy';
+            this.player = new Player(safeStart.x, safeStart.y, activeCharacter);
         } else {
             this.player.x = safeStart.x;
             this.player.y = safeStart.y;
@@ -4695,7 +4700,10 @@ export class Game {
         if (this.coopMode) {
             const otherIdx = 1 - this.activePlayerIdx;
             if (!this.players[otherIdx]) {
-                this.players[otherIdx] = new Player(safeStart.x, safeStart.y);
+                // The non-active slot is the partner character. Slot 0 = Clippy,
+                // slot 1 = Bonzi — independent of who's currently leading.
+                const partnerCharacter = otherIdx === 1 ? 'bonzi' : 'clippy';
+                this.players[otherIdx] = new Player(safeStart.x, safeStart.y, partnerCharacter);
                 this.players[otherIdx]._coopSlot = otherIdx;
             } else {
                 this.players[otherIdx].x = safeStart.x;

@@ -551,6 +551,30 @@ export const WEAPON_MANIFEST = {
     'weapon_chainsaw':  'weapon_chainsaw.png',
 };
 
+// R568c (slice 3): Bonzi Buddy sprites for co-op P2. Generated via Local Howl
+// gemini-pro and processed through the standard chroma-knockout pipeline.
+// All Bonzi keys are prefixed `bonzi_` to keep them isolated from CLIPPY_MANIFEST
+// (the renderer picks one set or the other based on `activePlayerIdx`).
+// Missing assets fall through to a procedural purple-gorilla silhouette so the
+// game stays playable even mid-asset-gen.
+export const BONZI_MANIFEST = {
+    'bonzi_idle':        'bonzi_idle.png',
+    'bonzi_run_1':       'bonzi_run_1.png',
+    'bonzi_run_2':       'bonzi_run_2.png',
+    'bonzi_run_3':       'bonzi_run_3.png',
+    'bonzi_run_4':       'bonzi_run_4.png',
+    'bonzi_run_5':       'bonzi_run_1.png',
+    'bonzi_jump':        'bonzi_jump.png',
+    'bonzi_fall':        'bonzi_fall.png',
+    'bonzi_hurt':        'bonzi_hurt.png',
+    'bonzi_charge':      'bonzi_charge.png',
+    'bonzi_back_idle':   'bonzi_back_idle.png',
+    'bonzi_back_run_1':  'bonzi_back_run_1.png',
+    'bonzi_back_run_2':  'bonzi_back_run_2.png',
+    'bonzi_portrait':    'bonzi_portrait.png',
+    'bonzi_boss_plate':  'bonzi_boss_plate.png',
+};
+
 export const ENEMY_MANIFEST = {
     // v2 painted enemies — prefer these; fall through to procedural if 404.
     // The r96 swap to *_painted.png 64x64 was reverted: visual review showed
