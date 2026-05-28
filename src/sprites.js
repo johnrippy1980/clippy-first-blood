@@ -734,8 +734,18 @@ export const ENEMY_MANIFEST = {
     // R566b: stage 25 HOLD THE LINE (turret arena) painted assets.
     // Generated via Local Howl image-gen, downscaled to native pixel size.
     'turret_crosshair':  'turret_crosshair.png',     // 32x32 tactical bracket reticle
-    'turret_crt_face':   'turret_crt_face.png',      // 64x64 enemy screen content
+    'turret_crt_face':   'turret_crt_face.png',      // 64x64 enemy screen content (legacy angry green face)
     'turret_arena_bg':   'turret_arena_bg.png',      // 256x96 datacenter backdrop
+    // R567: mounted turret + per-monster screen variants + walk cycle.
+    'turret_mount':      'turret_mount.png',          // 64x72 painted MG turret + sandbags + tripod
+    'turret_crt_face_bsod':     'turret_crt_face_bsod.png',     // 64x64 BSOD with angry eyes
+    'turret_crt_face_error':    'turret_crt_face_error.png',    // 64x64 fatal error dialog + skull + teeth
+    'turret_crt_face_terminal': 'turret_crt_face_terminal.png', // 64x64 green phosphor angry face
+    'turret_crt_face_virus':    'turret_crt_face_virus.png',    // 64x64 biohazard virus warning
+    'turret_crt_walk_1': 'turret_crt_walk_1.png',     // 32x48 monster walk cycle frame 1
+    'turret_crt_walk_2': 'turret_crt_walk_2.png',     // 32x48 monster walk cycle frame 2
+    'turret_crt_walk_3': 'turret_crt_walk_3.png',     // 32x48 monster walk cycle frame 3
+    'turret_crt_walk_4': 'turret_crt_walk_4.png',     // 32x48 monster walk cycle frame 4
 };
 
 // ============================================================

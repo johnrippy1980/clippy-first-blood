@@ -27,15 +27,27 @@ import { drawText, drawTextOutlined } from './pixelfont.js';
 const VANISH_X    = GAME.W / 2;
 const VANISH_Y    = 64;
 const RAIL_Y      = GAME.H - 28;     // ground rail at bottom
-// R566: Clippy IS the player — no separate "turret" sprite. Sized to fill
-// the lower portion of the viewport so he reads as the foreground actor.
-// The clippy_back_* sprite is 19×40 native; scale to ~2.4x for presence
-// while keeping pixelart crispness (integer-ish scale, smoothing off).
-const PLAYER_W    = 46;     // ~2.4x of native 19
-const PLAYER_H    = 96;     // ~2.4x of native 40
+// R567: turret rig restored as the foreground mounted weapon. Clippy is
+// the operator BEHIND the turret — shoulders + head visible only, not the
+// full-body sprite. Cleaner read of "mounted gunner" and frees the upper
+// 70% of the viewport for the perspective-receding floor + spawning
+// enemies (R566 had Clippy 96px tall, occupying y=108..204, which put
+// far-depth enemies that spawn near y=64 directly on top of his face).
+const PLAYER_W    = 32;     // ~1.7× native 19 — operator-scale, not hero
+const PLAYER_H    = 56;     // ~1.4× native 40 — only torso+head shows
 const PLAYER_X    = GAME.W / 2 - PLAYER_W / 2;
-const PLAYER_Y    = RAIL_Y - PLAYER_H + 8;       // overlap rail slightly
-const TURRET_BASE_Y = RAIL_Y - 16;               // legacy ref, kept for muzzle anchor
+const PLAYER_Y    = RAIL_Y - PLAYER_H + 18;      // most of body below rail
+// Turret mount sprite anchors here. Bottom-center of the screen.
+const TURRET_MOUNT_W = 64;
+const TURRET_MOUNT_H = 72;
+const TURRET_MOUNT_X = GAME.W / 2 - TURRET_MOUNT_W / 2;
+const TURRET_MOUNT_Y = RAIL_Y - TURRET_MOUNT_H + 14; // slightly past rail
+// Barrel pivot — where bullets emerge from. Center-x, near the top of the
+// mount sprite (where the receiver/barrel base sits).
+const TURRET_PIVOT_X = GAME.W / 2;
+const TURRET_PIVOT_Y = TURRET_MOUNT_Y + 18;
+const BARREL_LEN     = 22;   // pixels from pivot to muzzle tip
+const TURRET_BASE_Y  = TURRET_PIVOT_Y;            // legacy ref kept for muzzle anchor
 const BACK_WALL_Y = 56;
 
 // Crosshair / aim
@@ -44,7 +56,10 @@ const CROSSHAIR_MAX_X = GAME.W - 24;
 const CROSSHAIR_MIN_Y = 40;
 const CROSSHAIR_MAX_Y = RAIL_Y - 36;
 
-const BULLET_SPEED = 0.18;            // depth speed (per frame, normalized)
+// R567: was 0.18/frame which made bullets cross full depth in 92ms — visually
+// instant, player saw only casings. Now 0.05/frame = 18-frame travel, plenty
+// of time for the tracer to read as "shot fired" with visible motion.
+const BULLET_SPEED = 0.05;
 const FIRE_RATE = 4;
 const OVERHEAT_RATE = 1.4;
 const OVERHEAT_COOLDOWN = 0.8;
@@ -52,8 +67,11 @@ const OVERHEAT_MAX = 100;
 
 const MONSTER_HP_BASE = 3;
 const MONSTER_BASE_SPEED = 0.0035;    // depth advance per frame (t goes 0→1)
-const MONSTER_W = 16;                 // hitbox width at t=1 (closest)
-const MONSTER_H = 24;
+// R567: bumped monster size so they're readable at all distances.
+// Hitbox + draw size at t=1 (closest). depthScale() min was 0.18,
+// raised to 0.32 so far-spawn enemies don't shrink to specks.
+const MONSTER_W = 22;
+const MONSTER_H = 32;
 const SCREEN_TYPES = ['boot', 'bsod', 'word', 'excel', 'static'];
 
 const WAVES = [
@@ -89,8 +107,10 @@ const VOLTRON_BARKS = [
 // Depth helpers — t in 0..1 (0 = vanishing point, 1 = at camera)
 function depthScale(t) {
     // Quadratic ease so far-away enemies are tiny and close enemies are full-size.
-    // Min scale 0.18 at t=0, max 1.0 at t=1.
-    return 0.18 + 0.82 * t * t;
+    // R567: min raised 0.18 → 0.32 so far-spawn enemies don't shrink to
+    // unreadable specks. Combined with MONSTER_W/H 16,24 → 22,32 bump,
+    // a t=0 spawn now reads as a recognizable monster instead of a pixel.
+    return 0.32 + 0.68 * t * t;
 }
 function depthX(originX, t) {
     // originX is the lane (0..1) the monster spawned in.
@@ -242,19 +262,23 @@ export class TurretArena {
 
     _fire() {
         const p = this.player;
-        // Bullet travels from the turret barrel (mid-screen-bottom) toward
-        // the crosshair, in DEPTH (t=0..1 → t=1..0). At t=0 the bullet is
-        // at the crosshair screen position. We simulate it receding toward
-        // the vanishing point with slight overheat-jitter.
+        // R567: bullet origin is the BARREL TIP, computed from the
+        // pivot + barrel angle. Previously bullets spawned from inside
+        // Clippy's sprite (TURRET_BASE_Y), making them invisible until
+        // they cleared his head ~70% through travel.
+        const aimDX = p.aimX - TURRET_PIVOT_X;
+        const aimDY = p.aimY - TURRET_PIVOT_Y;
+        const aimAng = Math.atan2(aimDY, aimDX);
+        p.barrelAngle = aimAng;
+        const startX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
+        const startY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
         const jitter = (p.heat / OVERHEAT_MAX) * 8;
-        const startX = GAME.W / 2 + (Math.random() - 0.5) * 4;
-        const startY = TURRET_BASE_Y;
         // Bullet aim point (slightly jittered when overheating)
         const aimX = p.aimX + (Math.random() - 0.5) * jitter;
         const aimY = p.aimY + (Math.random() - 0.5) * jitter;
         this.bullets.push({
-            x: startX,
-            y: startY,
+            x: startX + (Math.random() - 0.5) * 2,
+            y: startY + (Math.random() - 0.5) * 2,
             t: 1.0,                       // starts at "camera" depth
             // Direction is encoded in screen-coords: dx/dy per frame
             ax: aimX, ay: aimY,
@@ -265,8 +289,8 @@ export class TurretArena {
         this.screenShake = Math.max(this.screenShake, 1);
         audio.sfx?.('mg');
         // R525: eject a brass shell casing — flies up + right + tumbles + falls
-        const turretCX = GAME.W / 2 + 8;
-        const turretCY = startY - 4;
+        const turretCX = TURRET_PIVOT_X + 8;
+        const turretCY = TURRET_PIVOT_Y - 4;
         this.casings.push({
             x: turretCX,
             y: turretCY,
@@ -867,6 +891,16 @@ export class TurretArena {
             _stride: Math.random() * Math.PI * 2,
             _screenIdx: Math.floor(Math.random() * SCREEN_TYPES.length),
             _screenT: 0,
+            // R567: per-monster painted screen variant. Pick a random face
+            // type at spawn so each wave has 4 distinct enemies, not 10
+            // copies of one. Variants: BSOD, ERROR dialog, green terminal,
+            // VIRUS warning.
+            _screenKey: [
+                'turret_crt_face_bsod',
+                'turret_crt_face_error',
+                'turret_crt_face_terminal',
+                'turret_crt_face_virus',
+            ][Math.floor(Math.random() * 4)],
         };
         this.monsters.push(m);
     }
@@ -1098,14 +1132,14 @@ export class TurretArena {
     _drawTurret() {
         const ctx = this.ctx;
         const p = this.player;
-        // R566: Clippy IS the player. The clippy_back_* sprite already
-        // depicts him holding a gun; no separate turret/sandbag/tripod
-        // rig is drawn. Cycle between idle and the 4-frame run-fire
-        // animation while shooting to convey recoil.
-        const firing = this.muzzleFlashT > 0 || (this._fireRecoverT && this._fireRecoverT > 0);
+        // R567: Clippy stands BEHIND a painted mounted MG turret rig.
+        // Render order: (1) Clippy small + behind, (2) turret mount sprite
+        // covering his torso/hips, (3) rotating barrel layer on top, (4)
+        // muzzle flash at barrel tip. Free's the upper viewport for
+        // enemies + makes the bullet origin visible at the gun tip.
+        const firing = this.muzzleFlashT > 0;
         let spriteKey = 'clippy_back_idle';
         if (firing) {
-            // 4-frame fire cycle — pick by tick
             const idx = ((this.t / 3) | 0) % 4 + 1;
             spriteKey = `clippy_back_run_${idx}`;
         }
@@ -1113,28 +1147,39 @@ export class TurretArena {
                        || sprites.images.get('clippy_back_idle');
         if (clippyImg) {
             ctx.imageSmoothingEnabled = false;
-            // Slight horizontal sway from aim direction — Clippy's body
-            // leans toward where the crosshair is, selling that he's
-            // tracking the target.
-            const aimSwayX = ((p.aimX - GAME.W / 2) / GAME.W) * 6 | 0;
+            const aimSwayX = ((p.aimX - GAME.W / 2) / GAME.W) * 4 | 0;
             const recoilY = firing ? -((this.muzzleFlashT || 0) * 0.5 | 0) : 0;
             ctx.drawImage(clippyImg, 0, 0, clippyImg.width, clippyImg.height,
                           PLAYER_X + aimSwayX, PLAYER_Y + recoilY,
                           PLAYER_W, PLAYER_H);
         }
 
-        // Muzzle flash at Clippy's weapon position (the gun-tip sits
-        // roughly at his upper-right when viewed from behind, ~70% up
-        // and ~65% across the sprite). Rendered in screen space, not
-        // rotated — Clippy's hands hold the gun, not a mounted turret.
+        // R567: painted mounted-MG turret rig in front of Clippy.
+        // Sandbags + tripod + receiver are static (drawn from sprite);
+        // the barrel rotates separately on top to follow the crosshair.
+        const mountImg = sprites.images.get('turret_mount');
+        if (mountImg) {
+            ctx.imageSmoothingEnabled = false;
+            const mountRecoil = firing ? -(this.muzzleFlashT * 0.4 | 0) : 0;
+            ctx.drawImage(mountImg, 0, 0, mountImg.width, mountImg.height,
+                          TURRET_MOUNT_X, TURRET_MOUNT_Y + mountRecoil,
+                          TURRET_MOUNT_W, TURRET_MOUNT_H);
+        }
+
+        // R567: muzzle flash + bullet origin marker at the barrel tip,
+        // computed from the rotated barrel angle so it reads as bullets
+        // emerging from the front of the gun (not from inside Clippy).
         if (this.muzzleFlashT > 0) {
             const fT = this.muzzleFlashT / 4;
-            const muzzleX = PLAYER_X + PLAYER_W * 0.65;
-            const muzzleY = PLAYER_Y + PLAYER_H * 0.30;
+            const aimDX = p.aimX - TURRET_PIVOT_X;
+            const aimDY = p.aimY - TURRET_PIVOT_Y;
+            const aimAng = Math.atan2(aimDY, aimDX);
+            const muzzleX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
+            const muzzleY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.globalAlpha = fT * 0.95;
-            const r = 6 + fT * 9;
+            const r = 8 + fT * 12;
             const grad = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, r);
             grad.addColorStop(0, '#ffffff');
             grad.addColorStop(0.4, '#ffd060');
@@ -1146,21 +1191,20 @@ export class TurretArena {
             ctx.restore();
         }
 
-        // Heat gauge — anchored upper-right corner of player sprite
-        // (was anchored to the now-removed turret head).
-        const hx = PLAYER_X + PLAYER_W + 4;
-        const hy = PLAYER_Y + 8;
+        // Heat gauge — anchored to right side of turret mount.
+        const hx = TURRET_MOUNT_X + TURRET_MOUNT_W + 2;
+        const hy = TURRET_MOUNT_Y + 16;
         ctx.fillStyle = '#0a0a14';
-        ctx.fillRect(hx, hy, 3, 10);
-        const fillH = Math.round((p.heat / OVERHEAT_MAX) * 10);
+        ctx.fillRect(hx, hy, 3, 14);
+        const fillH = Math.round((p.heat / OVERHEAT_MAX) * 14);
         ctx.fillStyle = p.overheated ? '#ff4040' :
                         p.heat > OVERHEAT_MAX * 0.7 ? '#ffa030' : '#ffe070';
-        ctx.fillRect(hx, hy + 10 - fillH, 3, fillH);
-        // Steam vent when overheated — anchored to upper area of player
-        // sprite so the steam reads as Clippy's gun overheating.
+        ctx.fillRect(hx, hy + 14 - fillH, 3, fillH);
+        // Steam vent when overheated — rises from the turret receiver,
+        // not from Clippy's face (that was the black-face bug from R566).
         if (p.overheated) {
-            const ventX = PLAYER_X + PLAYER_W * 0.65;
-            const ventY = PLAYER_Y + PLAYER_H * 0.25;
+            const ventX = TURRET_PIVOT_X;
+            const ventY = TURRET_PIVOT_Y - 4;
             for (let i = 0; i < 3; i++) {
                 const sx = ventX + (Math.random() - 0.5) * 12;
                 const sy = ventY - ((this.t + i * 17) % 20);
@@ -1197,102 +1241,58 @@ export class TurretArena {
         ctx.rotate(tilt);
         ctx.translate(-cx, -baseY);
 
-        // R524: body sway with walk — shifts the whole sprite left/right
-        // on the stride cadence. Subtle, but sells "lurching toward you".
+        // R567: painted walk-cycle sprite replaces the procedural legs +
+        // arms + chassis. 4-frame cycle driven by m._stride. Each frame
+        // is 32×48 native; rendered at the monster's depth-scaled size.
+        // The sprite includes chassis + body + skinny arms + legs all in
+        // one frame — much cleaner read than the procedural composite.
         const swayX = Math.sin(m._stride || 0) * scale * 0.6;
-        // Stride drives leg bob
-        const strideA = Math.sin(m._stride || 0);
-        const strideB = Math.sin((m._stride || 0) + Math.PI);
         ctx.translate(swayX, 0);
-        const legW = Math.max(2, 3 * scale);
-        const legH = h * 0.35;
-        const legY = y + h * 0.65;
-        // Legs
-        ctx.fillStyle = '#1a1a20';
-        const leftLegX  = cx - w * 0.18 + strideA * (2 * scale);
-        const rightLegX = cx + w * 0.10 + strideB * (2 * scale);
-        ctx.fillRect(leftLegX,  legY, legW, legH);
-        ctx.fillRect(rightLegX, legY, legW, legH);
-        ctx.fillStyle = '#0a0a14';
-        const footW = Math.max(3, 4 * scale);
-        ctx.fillRect(leftLegX  - 1, legY + legH - 2, footW, 2);
-        ctx.fillRect(rightLegX - 1, legY + legH - 2, footW, 2);
 
-        // R524: arms — outstretched zombie arms reaching forward toward
-        // camera. As monsters approach (m.t > 0.6) the arms lunge forward
-        // and the bob accelerates — they're trying to grab the camera.
-        const lungeT = Math.max(0, (m.t - 0.6) / 0.4);   // 0 at t=0.6, 1 at t=1
-        const lungeReach = lungeT * 4 * scale;
-        const bobRate = 0.12 + lungeT * 0.18;
-        const armBob = Math.sin(this.t * bobRate) * scale * (1 + lungeT * 1.5);
-        ctx.fillStyle = '#1a1a20';
-        const armY = y + h * 0.4;
-        const armW = Math.max(3, 6 * scale) + lungeReach;
-        const armH = Math.max(2, 3 * scale);
-        ctx.fillRect(cx - w / 2 - armW + 2, armY + armBob, armW, armH);
-        ctx.fillRect(cx + w / 2 - 2, armY - armBob, armW, armH);
-        // Hands with finger detail
-        ctx.fillStyle = '#a0a0a8';
-        const handW = Math.max(2, 2 * scale);
-        const lHandX = cx - w / 2 - armW;
-        const rHandX = cx + w / 2 + armW - handW - 2;
-        ctx.fillRect(lHandX, armY + armBob - 1, handW, armH + 2);
-        ctx.fillRect(rHandX, armY - armBob - 1, handW, armH + 2);
-        // Fingers — 3 angular tips per hand. Only visible at close depth.
-        if (scale > 0.4) {
-            ctx.fillStyle = '#6a6a70';
-            for (let f = 0; f < 3; f++) {
-                ctx.fillRect(lHandX - 1, armY + armBob - 1 + f, 1, 1);
-                ctx.fillRect(rHandX + handW, armY - armBob - 1 + f, 1, 1);
-            }
+        // Frame selection — stride drives the walk-cycle index 0..3.
+        // Stride is in radians; map to 4 phases.
+        const phase = ((m._stride || 0) / (Math.PI * 2)) % 1;
+        const frameIdx = Math.floor(phase * 4) + 1;
+        // Body bounds: full sprite width, full sprite height (the painted
+        // sprite includes everything — chassis + arms + legs).
+        const spriteW = w;
+        const spriteH = h * 1.5;     // sprite is taller than the chassis-only h
+        const spriteX = cx - spriteW / 2;
+        const spriteY = baseY - spriteH;
+
+        const walkImg = sprites.images.get(`turret_crt_walk_${frameIdx}`)
+                     || sprites.images.get('turret_crt_walk_1');
+        if (walkImg) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(walkImg, 0, 0, walkImg.width, walkImg.height,
+                          spriteX, spriteY, spriteW, spriteH);
         }
 
-        // CRT chassis — beige plastic box
-        ctx.fillStyle = '#a89c80';
-        ctx.fillRect(x, y, w, h * 0.65);
-        ctx.fillStyle = '#c8b898';
-        ctx.fillRect(x, y, w, Math.max(1, scale));
-        ctx.fillRect(x, y, Math.max(1, scale), h * 0.65);
-        ctx.fillStyle = '#604838';
-        ctx.fillRect(x, y + h * 0.65 - 1, w, Math.max(1, scale));
-        ctx.fillRect(x + w - Math.max(1, scale), y, Math.max(1, scale), h * 0.65);
+        // R567: Compute screen-content rect from sprite frame. The walk-
+        // cycle sprite has the screen face occupying roughly y=0.10..0.50
+        // and x=0.16..0.84 of the chassis area. Use those ratios so the
+        // CRT face plate composites cleanly over the black screen void.
+        const sX = spriteX + spriteW * 0.16;
+        const sY = spriteY + spriteH * 0.08;
+        const sW = spriteW * 0.68;
+        const sH = spriteH * 0.32;
 
-        // Screen content
-        const sX = x + Math.max(1, 2 * scale);
-        const sY = y + Math.max(1, 2 * scale);
-        const sW = w - Math.max(2, 4 * scale);
-        const sH = h * 0.45;
-        // R566c: painted CRT face sprite replaces the procedural screen
-        // content (was 12 generated face variants drawn with fillRect).
-        // Sprite has built-in scanlines + glow; we skip the post-overlay.
-        const faceImg = sprites.images.get('turret_crt_face');
-        if (faceImg) {
+        // R567: per-monster painted screen variant. Each monster picks
+        // a screen flavor at spawn time (BSOD / ERROR / TERMINAL / VIRUS)
+        // via m._screenKey. Variety so the wave doesn't look like 10
+        // copies of one monster.
+        const screenKey = m._screenKey || 'turret_crt_face_terminal';
+        const faceImg = sprites.images.get(screenKey)
+                     || sprites.images.get('turret_crt_face');
+        if (faceImg && sW > 1 && sH > 1) {
             ctx.imageSmoothingEnabled = false;
-            ctx.fillStyle = '#0a0a14';
-            ctx.fillRect(sX, sY, sW, sH);
             ctx.drawImage(faceImg, 0, 0, faceImg.width, faceImg.height,
                           sX, sY, sW, sH);
-        } else {
-            ctx.fillStyle = '#1a1a20';
-            ctx.fillRect(sX, sY, sW, sH);
-            this._drawScreenContent(m, sX, sY, sW, sH);
-            ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.sin(this.t * 0.5) * 0.05})`;
-            for (let yy = sY; yy < sY + sH; yy += Math.max(2, 2 * scale | 0)) {
-                ctx.fillRect(sX, yy, sW, 1);
-            }
         }
-        // CRT bezel highlight (top + left thin) — kept on both paths for
-        // chassis depth.
-        ctx.save();
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(sX, sY, sW, 1);
-        ctx.fillRect(sX, sY, 1, sH);
-        ctx.restore();
-        // Power LED (green when on)
+        // Power LED (green when on) — on the chassis side
         if ((this.t >> 4) & 1) {
             ctx.fillStyle = '#40ff60';
-            ctx.fillRect(x + w - 3 * scale, y + h * 0.55, scale, scale);
+            ctx.fillRect(spriteX + spriteW - 3 * scale, spriteY + spriteH * 0.45, Math.max(1, scale), Math.max(1, scale));
         }
         // Hit flash
         if (m.hitFlash > 0 && m.hitFlash % 2 === 0) {
@@ -1511,17 +1511,38 @@ export class TurretArena {
     _drawBullet(b) {
         const ctx = this.ctx;
         const scale = depthScale(b.t);
+        // R567: tracer trail from the barrel tip toward the bullet's
+        // current screen position. Reads as a streak of motion, not a
+        // single dot. Length scales inversely with depth so close bullets
+        // have shorter trails (less smear) and far bullets have long
+        // tracers receding into the distance.
+        const trailEnd = Math.max(0.85, b.t - 0.15);
+        const tx = b.startX + (b.ax - b.startX) * (1 - trailEnd);
+        const ty = b.startY + (b.ay - b.startY) * (1 - trailEnd);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.5 + scale * 0.4;
-        ctx.fillStyle = '#ffa030';
-        const r = 1 + scale * 3;
+        // Outer wide trail
+        ctx.strokeStyle = 'rgba(255, 200, 60, 0.5)';
+        ctx.lineWidth = Math.max(1, scale * 2);
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        // Inner bright core
+        ctx.strokeStyle = '#fff8c0';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        // Glowing tip
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = '#ffe070';
+        const r = 1.5 + scale * 2.5;
         ctx.beginPath();
         ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
-        ctx.fillStyle = '#ffe070';
-        ctx.fillRect(b.x - scale, b.y - scale * 0.4, scale * 2, Math.max(1, scale));
     }
 
     _drawGrenades() {
