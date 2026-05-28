@@ -288,25 +288,33 @@ export class TurretArena {
         this.muzzleFlashT = 4;
         this.screenShake = Math.max(this.screenShake, 1);
         audio.sfx?.('mg');
-        // R525: eject a brass shell casing — flies up + right + tumbles + falls
-        const turretCX = TURRET_PIVOT_X + 8;
-        const turretCY = TURRET_PIVOT_Y - 4;
+        // R525+R567g: eject a brass shell casing perpendicular to the
+        // barrel. The eject port is on the right side of the receiver,
+        // so casings always fly out at (barrel + π/2). Spawn position
+        // shifted to the side along that perpendicular.
+        const ejectAng = aimAng + Math.PI / 2;
+        const ejectFX = Math.cos(ejectAng);
+        const ejectFY = Math.sin(ejectAng);
+        const turretCX = TURRET_PIVOT_X + ejectFX * 4;
+        const turretCY = TURRET_PIVOT_Y + ejectFY * 4;
+        const ejectSpeed = 1.6 + Math.random() * 0.8;
+        // Add a slight upward bias so the casing always arcs up before falling
         this.casings.push({
             x: turretCX,
             y: turretCY,
-            vx: 1.6 + Math.random() * 0.8,
-            vy: -1.8 - Math.random() * 0.6,
+            vx: ejectFX * ejectSpeed,
+            vy: ejectFY * ejectSpeed - 1.2,
             rot: Math.random() * Math.PI,
             rotSpeed: 0.3 + Math.random() * 0.2,
             life: 45,
             gravity: 0.18,
         });
-        // R525: muzzle smoke puff — a soft grey wisp drifting up from barrel
+        // R525+R567g: muzzle smoke puff — drifts up from the barrel tip.
+        // Now anchored at the actual rotated muzzle position (was using
+        // old GAME.W/2 anchor + 26px barrel — both stale from R567).
         if (Math.random() < 0.55) {
-            // Compute barrel tip in world coords (mirror of bullet start)
-            const a = p.barrelAngle ?? Math.atan2(p.aimY - turretCY, p.aimX - turretCX);
-            const tipX = GAME.W / 2 + Math.cos(a) * 26;
-            const tipY = turretCY + Math.sin(a) * 26;
+            const tipX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
+            const tipY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
             this.smokePuffs.push({
                 x: tipX + (Math.random() - 0.5) * 2,
                 y: tipY + (Math.random() - 0.5) * 2,
