@@ -233,9 +233,20 @@ const STORY_PAGES = [
         'A LITTLE PAPER DOG NAMED',
         'CLIP-CLOP.',
     ],
+    // R568g (slice 6.5): boardroom name-drop. Three lines of dialog seeded
+    // between the original "tired of his bad press" and "car bomb" beats
+    // foreshadow Bonzi as Clippy's replacement. Reads as normal corporate
+    // chatter first time through; on a 2nd playthrough (after defeating
+    // Bonzi in stage 26 / slice 7) "aggressive growth" lands as a callback
+    // to his spyware-aggression character.
     [
-        'THE MICROSOFT BOARD WAS',
-        'TIRED OF HIS BAD PRESS.',
+        'THE BOARD WAS TIRED',
+        'OF HIS BAD PRESS.',
+        '',
+        '"AND THE REPLACEMENT?',
+        'BONZI?"',
+        '',
+        '"AGGRESSIVE GROWTH."',
         '',
         'THE CAR BOMB WAS NEVER',
         'MEANT TO MISS.',
