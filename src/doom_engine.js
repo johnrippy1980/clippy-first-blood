@@ -318,6 +318,20 @@ export class DoomEngine {
         if (p.muzzleFlash > 0) p.muzzleFlash--;
         if (p.rageFrames > 0) p.rageFrames--;
         if (p.iframes > 0) p.iframes--;
+        // R566q: chainsaw idle loop. When chainsaw is equipped + not
+        // actively firing, re-fire the quiet idle sputter every ~30
+        // frames so the engine reads as "running" between cuts. Without
+        // this the chainsaw goes silent the moment the player stops
+        // mashing fire — breaks the running-engine illusion.
+        if (p.weapons.chainsaw?.owned && p.weaponIdx === 2 && p.muzzleFlash === 0) {
+            this._chainsawIdleT = (this._chainsawIdleT || 0) + 1;
+            if (this._chainsawIdleT >= 30) {
+                this._chainsawIdleT = 0;
+                audio.sfx?.('chainsawIdle');
+            }
+        } else {
+            this._chainsawIdleT = 0;
+        }
         // R423e: USE (Space/jump) — try to open a door / hit a switch
         if (input.isPressed?.('jump') && !this._useEdge) {
             this._useEdge = true;

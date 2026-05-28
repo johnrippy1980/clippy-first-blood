@@ -421,6 +421,10 @@ class Audio {
             // mechanical ratchet. Heartbeat for low-HP already exists.
             case 'hudLowAmmo':     return this._hudLowAmmo(t);
             case 'hudWeaponCycle': return this._hudWeaponCycle(t);
+            // R566q: looping chainsaw idle sputter. Plays at low volume
+            // when chainsaw is equipped but not actively cutting. Each call
+            // is a single ~0.4s tick — engine loop fires it on cadence.
+            case 'chainsawIdle':   return this._chainsawIdle(t);
             // R566l: ambient environmental SFX. Triggered by stage tick
             // loops at low frequency for atmosphere. NOT replacing
             // existing owlHoot/batChitter/fluorescent/splash — these add
@@ -2972,6 +2976,47 @@ class Audio {
         sub.start(t); sub.stop(t + 0.09);
     }
 
+    // R566q: CHAINSAW IDLE — quiet sustained sputter played when chainsaw
+    // is equipped but not actively cutting. Lower-gain version of the rev
+    // synth, designed to be re-fired every ~30 frames for a continuous
+    // running-engine feel. Without this, the chainsaw is silent between
+    // cuts which breaks the "engine running" illusion.
+    _chainsawIdle(t) {
+        // Quiet sawtooth growl at idle frequency (lower than active rev)
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        const baseF = 75 + Math.random() * 20;     // idle is deeper than rev
+        o.frequency.setValueAtTime(baseF, t);
+        o.frequency.linearRampToValueAtTime(baseF * 1.15, t + 0.18);
+        o.frequency.linearRampToValueAtTime(baseF * 0.95, t + 0.36);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 700;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);   // much quieter
+        g.gain.linearRampToValueAtTime(0.10, t + 0.32);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.40);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.42);
+        // Faint grinding noise layer
+        const n = this.ctx.createBufferSource();
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.36, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.3;
+        n.buffer = buf;
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1200;
+        bp.Q.value = 2;
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        ng.gain.exponentialRampToValueAtTime(0.06, t + 0.02);
+        ng.gain.linearRampToValueAtTime(0.05, t + 0.32);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
+        n.connect(bp).connect(ng).connect(this.sfxBus);
+        n.start(t); n.stop(t + 0.38);
+    }
+
     // R566p: dynamic music-intensity helper. Boss fights = action peaks,
     // so we want the music to recede slightly to make room for SFX. Set
     // intensity 'high' during boss fights, 'normal' otherwise. The
@@ -3147,9 +3192,14 @@ class Audio {
             }
             return;
         }
-        // Cross-fade: ramp outgoing track down while new one ramps up.
-        // Falls back to instant cut if Web Audio is unavailable.
-        const FADE_S = 0.35;
+        // R566q: equal-power crossfade — perceived loudness stays constant
+        // across the transition. Default 600ms (was linear 350ms which felt
+        // abrupt and could dip in the middle when both tracks were ramping).
+        // Equal-power uses sine-in / cosine-out curves: gain follows
+        // sin(t·π/2) for the new track and cos(t·π/2) for the old, so
+        // (sin² + cos²) = 1 holds across the transition. Sounds smoother
+        // than linear especially for stems with sustained content.
+        const FADE_S = 0.6;
         if (this._timer) { clearTimeout(this._timer); this._timer = null; }
         if (this.ctx && this._fileEl && this._fileGainNode) {
             const now = this.ctx.currentTime;
@@ -3158,12 +3208,21 @@ class Audio {
             try {
                 node.gain.cancelScheduledValues(now);
                 node.gain.setValueAtTime(node.gain.value, now);
-                node.gain.linearRampToValueAtTime(0.0001, now + FADE_S);
+                // Build a cosine curve (1→0) for equal-power fade-out.
+                // Web Audio doesn't have setValueCurveAtTime everywhere
+                // reliably, so we sample the curve with linear ramps.
+                const STEPS = 24;
+                const startVal = node.gain.value;
+                for (let i = 1; i <= STEPS; i++) {
+                    const f = i / STEPS;
+                    const v = startVal * Math.cos(f * Math.PI / 2);
+                    node.gain.linearRampToValueAtTime(Math.max(0.0001, v), now + FADE_S * f);
+                }
             } catch (e) {}
             setTimeout(() => {
                 try { el.pause(); } catch (e) {}
                 try { node.disconnect(); } catch (e) {}
-            }, FADE_S * 1000 + 30);
+            }, FADE_S * 1000 + 50);
             // Drop refs so the next _playFile creates a fresh chain
             this._fileEl = null;
             this._fileGainNode = null;
@@ -3237,7 +3296,16 @@ class Audio {
             const src = this.ctx.createMediaElementSource(el);
             src.connect(node);
             if (fadeIn > 0) {
-                node.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + fadeIn);
+                // R566q: equal-power sine-in curve (was linear). Pairs with
+                // the cosine-out fade-out in playTrack so the perceived
+                // loudness stays constant across the crossfade.
+                const STEPS = 24;
+                const now = this.ctx.currentTime;
+                for (let i = 1; i <= STEPS; i++) {
+                    const f = i / STEPS;
+                    const v = targetGain * Math.sin(f * Math.PI / 2);
+                    node.gain.linearRampToValueAtTime(v, now + fadeIn * f);
+                }
             }
             this._fileGainNode = node;
             this._fileSource = src;
