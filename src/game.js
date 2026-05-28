@@ -3975,6 +3975,11 @@ export class Game {
         // players can mash through on repeat runs.
         this.scene = SCENE.BOSS_INTRO;
         this._bossIntro = { age: 0, done: false };
+        // R566n: sharp "OH SHIT" sting at scene entry (sub stab + dissonant
+        // tritone + cymbal). Different from _bossEntrance which fires at
+        // frame 20 inside the cinematic — this hits at frame 0 so the
+        // scene transition itself has audio impact.
+        audio.sfx('bossSpotted');
     }
 
     // Actual boss spawn + entrance flourish — called at the end of the
@@ -4436,8 +4441,14 @@ export class Game {
             }
             this.camera.shake?.(8);
             this._lastBossPos = null;
+            // R566n: triumphant boss-defeated sting (1.6s F major arpeggio
+            // + sustained pad + cymbal). Fires alongside the explosion so
+            // the audio reads "boss IS dying, here's your victory."
+            audio.sfx('bossDefeated');
         } else {
-            audio.sfx('powerup');
+            // R566n: stageClear fanfare (1.0s rising C major arpeggio +
+            // sustained pad + sub thump). Replaces generic `powerup` chime.
+            audio.sfx('stageClear');
             this._clearBursts = [];
         }
         this.scene = SCENE.STAGE_CLEAR;

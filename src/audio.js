@@ -367,6 +367,12 @@ class Audio {
             // gets sub-bass collapse + descending dissonant chord + heart-
             // monitor flatline tone — sells the YOU DIED moment.
             case 'playerDeath': return this._playerDeathSting(t);
+            // R566n: triumphant stings for stage clear + boss kill +
+            // boss spotted moments. Currently those use generic chimes
+            // (powerup/explode) that don't punctuate the beat properly.
+            case 'stageClear':  return this._stageClearFanfare(t);
+            case 'bossDefeated': return this._bossDefeatedSting(t);
+            case 'bossSpotted':  return this._bossSpottedSting(t);
             // R566l: ambient environmental SFX. Triggered by stage tick
             // loops at low frequency for atmosphere. NOT replacing
             // existing owlHoot/batChitter/fluorescent/splash — these add
@@ -2386,6 +2392,160 @@ class Audio {
         // Body-fall noise tail — body hits the ground in the first 200ms
         this._noise(t, 0.45, 0.20, 280, 'lp', 1.2);
         this._noise(t + 0.05, 0.28, 0.16, 600, 'bp', 1.5);
+    }
+
+    // R566n: STAGE CLEAR FANFARE — short triumphant 4-note arpeggio
+    // (rising major chord: C4 → E4 → G4 → C5) layered over a sustained
+    // pad. ~1.0s total. Used for non-boss stage clears (training, time
+    // trial, post-game returns). Was using `powerup` (generic chime).
+    _stageClearFanfare(t) {
+        this.duck(0.05, 0.30, 0.9, 0.5);
+        // Rising arpeggio — square + triangle layered for body
+        const notes = [
+            { f: 523, off: 0.00, dur: 0.20 },  // C5
+            { f: 659, off: 0.10, dur: 0.20 },  // E5
+            { f: 784, off: 0.20, dur: 0.20 },  // G5
+            { f: 1047, off: 0.30, dur: 0.50 }, // C6 (held)
+        ];
+        for (const n of notes) {
+            // Square for definition
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(n.f, t + n.off);
+            this._envOn(g, 0.18, t + n.off);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.off + n.dur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + n.off); o.stop(t + n.off + n.dur + 0.02);
+            // Triangle sub-octave for body
+            const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+            o2.type = 'triangle';
+            o2.frequency.setValueAtTime(n.f * 0.5, t + n.off);
+            this._envOn(g2, 0.14, t + n.off);
+            g2.gain.exponentialRampToValueAtTime(0.001, t + n.off + n.dur);
+            o2.connect(g2).connect(this.sfxBus);
+            o2.start(t + n.off); o2.stop(t + n.off + n.dur + 0.02);
+        }
+        // Sustained pad — root C chord underneath the whole thing
+        const padFreqs = [262, 330, 392];  // C4 E4 G4
+        for (const f of padFreqs) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(f, t);
+            this._envOn(g, 0.06, t);
+            g.gain.linearRampToValueAtTime(0.06, t + 0.7);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t); o.stop(t + 1.02);
+        }
+        // Sub thump at the start for impact
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t);
+        sub.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+        this._envOn(subG, 0.35, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.18);
+    }
+
+    // R566n: BOSS DEFEATED — bigger triumphant sting for boss-kill
+    // stage clears. ~1.6s. Builds on stageClear with a longer pad +
+    // an extra octave-up arpeggio for the final climactic note.
+    _bossDefeatedSting(t) {
+        this.duck(0.05, 0.20, 1.4, 0.7);
+        // Sub slam at start — boss falls
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(150, t);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.25);
+        this._envOn(subG, 0.65, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.32);
+        // Big rising fanfare — 5-note arpeggio (root, third, fifth,
+        // root-up, fifth-up) in F major for the heroic "you did it" feel
+        const notes = [
+            { f: 349, off: 0.15, dur: 0.18 },  // F4
+            { f: 440, off: 0.25, dur: 0.18 },  // A4
+            { f: 523, off: 0.35, dur: 0.18 },  // C5
+            { f: 698, off: 0.50, dur: 0.20 },  // F5
+            { f: 1047, off: 0.70, dur: 0.80 }, // C6 — held final
+        ];
+        for (const n of notes) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(n.f, t + n.off);
+            this._envOn(g, 0.20, t + n.off);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.off + n.dur);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + n.off); o.stop(t + n.off + n.dur + 0.02);
+            // Triangle body
+            const o2 = this.ctx.createOscillator(); const g2 = this.ctx.createGain();
+            o2.type = 'triangle';
+            o2.frequency.setValueAtTime(n.f * 0.5, t + n.off);
+            this._envOn(g2, 0.16, t + n.off);
+            g2.gain.exponentialRampToValueAtTime(0.001, t + n.off + n.dur);
+            o2.connect(g2).connect(this.sfxBus);
+            o2.start(t + n.off); o2.stop(t + n.off + n.dur + 0.02);
+        }
+        // Sustained F major pad through the whole sting
+        const padFreqs = [175, 220, 262, 349];  // F3 A3 C4 F4
+        for (const f of padFreqs) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(f, t + 0.1);
+            this._envOn(g, 0.07, t + 0.1);
+            g.gain.linearRampToValueAtTime(0.07, t + 1.2);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 1.55);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t + 0.1); o.stop(t + 1.58);
+        }
+        // Cymbal-crash bandpass noise at start
+        this._noise(t, 0.32, 0.18, 4200, 'hp', 1);
+        this._noise(t, 0.20, 0.30, 1800, 'bp', 1.5);
+    }
+
+    // R566n: BOSS SPOTTED — sharp dramatic sting for boss-intro cinematic
+    // start. Distinct from _bossEntrance (which is the heavy 1.2s arrival
+    // at frame 20). This is a sharp 0.5s "OH SHIT" sting fired at scene
+    // entry — sub stab + descending dissonant tritone + cymbal crash.
+    _bossSpottedSting(t) {
+        this.duck(0.03, 0.25, 0.4, 0.4);
+        // Sub stab — sharp downward kick
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(220, t);
+        sub.frequency.exponentialRampToValueAtTime(40, t + 0.20);
+        this._envOn(subG, 0.70, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.26);
+        // Dissonant tritone — root + flat-5 (the "devil's interval")
+        // Pitches down to convey looming threat
+        const root = this.ctx.createOscillator(); const rootG = this.ctx.createGain();
+        root.type = 'sawtooth';
+        root.frequency.setValueAtTime(440, t + 0.02);
+        root.frequency.exponentialRampToValueAtTime(220, t + 0.45);
+        const rootFilt = this.ctx.createBiquadFilter();
+        rootFilt.type = 'lowpass'; rootFilt.frequency.value = 1200;
+        this._envOn(rootG, 0.30, t + 0.02);
+        rootG.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+        root.connect(rootFilt).connect(rootG).connect(this.sfxBus);
+        root.start(t + 0.02); root.stop(t + 0.52);
+        // Tritone partner (flat-5 above) — 622Hz (D#5) for the dissonance
+        const trit = this.ctx.createOscillator(); const tritG = this.ctx.createGain();
+        trit.type = 'sawtooth';
+        trit.frequency.setValueAtTime(622, t + 0.02);
+        trit.frequency.exponentialRampToValueAtTime(311, t + 0.45);
+        const tritFilt = this.ctx.createBiquadFilter();
+        tritFilt.type = 'lowpass'; tritFilt.frequency.value = 1400;
+        this._envOn(tritG, 0.22, t + 0.02);
+        tritG.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+        trit.connect(tritFilt).connect(tritG).connect(this.sfxBus);
+        trit.start(t + 0.02); trit.stop(t + 0.52);
+        // Cymbal crash — bright noise burst at attack
+        this._noise(t, 0.40, 0.10, 4800, 'hp', 1);
+        this._noise(t, 0.22, 0.20, 2400, 'bp', 1.5);
     }
 
     // R566l: DISTANT GUNFIRE — far-off bullet cracks (heavily lowpassed,

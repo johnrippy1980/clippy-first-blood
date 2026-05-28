@@ -352,6 +352,10 @@ export class DoomEngine {
                         // Both Doom stages get 'arenaBoss' (heavier than the
                         // corridor track). audio.playTrack handles crossfade.
                         audio.playTrack?.('arenaBoss');
+                        // R566n: dramatic "OH SHIT" sting at scene entry —
+                        // sub stab + dissonant tritone + cymbal. Sells the
+                        // moment-of-encounter beat.
+                        audio.sfx?.('bossSpotted');
                     }
                 }
             }
