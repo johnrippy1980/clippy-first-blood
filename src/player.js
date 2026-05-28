@@ -774,6 +774,8 @@ export class Player {
         this._updateBullets(level);
         // Update thrown grenades (arc + collision + detonation)
         this._updateGrenades(level);
+        // R568e: Bonzi's popup-storm windows tick alongside grenades
+        if (this.character === 'bonzi') this._updateBonziPopups(level);
         // Grenade throw input — gated on cooldown to prevent dump-spam.
         this._handleGrenadeInput();
 
@@ -1258,6 +1260,9 @@ export class Player {
         this.iFrames = Math.max(this.iFrames, SLIDE_FRAMES); // brief invincibility
         audio.sfx('slide');
         particles.dust(this.x + this.w / 2, this.y + this.h);
+        // R568e: Bonzi's shoulder-charge tracks hit enemies per charge so a
+        // single charge can chain through a crowd but not double-hit one enemy.
+        if (this.character === 'bonzi') this._chargeHits = new Set();
     }
     _endSlide() {
         this.state = STATE.IDLE;
@@ -1494,7 +1499,20 @@ export class Player {
             this.bullets.push(b);
         };
 
-        const dx = this.aim.x, dy = this.aim.y;
+        let dx = this.aim.x, dy = this.aim.y;
+        // R568e: GAZE soft autoaim — when Bonzi has a locked target alive,
+        // bend his aim 30% toward it. Doesn't replace player aim entirely;
+        // just gives a helping hand so the lock visibly pays off.
+        if (this._gazeTimer > 0 && this._gazeTarget?.alive) {
+            const tcx = this._gazeTarget.x + this._gazeTarget.w / 2;
+            const tcy = this._gazeTarget.y + this._gazeTarget.h / 2;
+            const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+            const tdx = tcx - cx, tdy = tcy - cy;
+            const tn = Math.hypot(tdx, tdy) || 1;
+            const lerp = 0.30;
+            dx = dx * (1 - lerp) + (tdx / tn) * lerp;
+            dy = dy * (1 - lerp) + (tdy / tn) * lerp;
+        }
         const sp = w.bulletSpeed;
         const norm = Math.hypot(dx, dy) || 1;
         const ndx = dx / norm, ndy = dy / norm;
@@ -1956,11 +1974,214 @@ export class Player {
 
     _handleGrenadeInput() {
         if (this._grenadeCooldown > 0) this._grenadeCooldown--;
+        // R568e (slice 5): Bonzi routes the grenade input through his
+        // special-ability dispatcher instead of throwing grenades. Tap-aimed
+        // = GAZE, tap-unaimed = DIAL-UP SCREAM, hold + release = POPUP STORM.
+        if (this.character === 'bonzi') {
+            this._handleBonziSpecials();
+            return;
+        }
         if (input.isPressed('grenade') && this._grenadeCooldown <= 0) {
             // Block during death / cinematic states
             if (this.state === STATE.DIE || this.state === STATE.POUNCE
                 || this.state === STATE.GRAPPLE) return;
             this._throwGrenade();
+        }
+    }
+
+    // R568e: Bonzi's special dispatcher. State-machine over the grenade key:
+    //   - press starts a hold timer
+    //   - release before _BONZI_HOLD_THRESHOLD frames -> tap action
+    //   - release after threshold -> POPUP STORM
+    //   - CRYING TANTRUM is passive; it doesn't consume the key.
+    // Cooldowns are tracked separately per ability so spamming one doesn't
+    // disarm the others. CRYING TANTRUM toggles automatically below 2 HP and
+    // gives shoulder-charge a 2× damage modifier (read elsewhere).
+    _handleBonziSpecials() {
+        if (this.state === STATE.DIE || this.state === STATE.POUNCE) return;
+        // Tick all the per-ability cooldowns down
+        if (this._gazeCooldown > 0) this._gazeCooldown--;
+        if (this._screamCooldown > 0) this._screamCooldown--;
+        if (this._popupCooldown > 0) this._popupCooldown--;
+        if (this._gazeTimer > 0) this._gazeTimer--;
+        // Passive: CRYING TANTRUM lights up at HP <= 2. Stage exit clears it.
+        this._tantrum = this.hp <= 2 && this.hp > 0;
+
+        const HOLD_THRESHOLD = 22;   // ~370ms feels deliberate but not laggy
+        // Detect press / hold / release
+        if (input.isPressed('grenade')) {
+            this._bonziHoldStart = this._bonziHoldFrames || 0;
+            this._bonziHoldFrames = 0;
+            this._bonziKeyHeld = true;
+        }
+        if (this._bonziKeyHeld) this._bonziHoldFrames++;
+        // Release detected: key was held last frame, not pressed/held now
+        const released = this._bonziKeyHeld && !input.isHeld('grenade');
+        if (released) {
+            this._bonziKeyHeld = false;
+            const held = this._bonziHoldFrames || 0;
+            this._bonziHoldFrames = 0;
+            if (held >= HOLD_THRESHOLD) {
+                if (this._popupCooldown <= 0) this._popupStorm();
+            } else {
+                // Tap. Aimed = GAZE; otherwise = DIAL-UP SCREAM.
+                const aiming = input.aimActive || input.isHeld('shoot');
+                if (aiming) {
+                    if (this._gazeCooldown <= 0) this._gaze();
+                } else {
+                    if (this._screamCooldown <= 0) this._dialUpScream();
+                }
+            }
+        }
+    }
+
+    // GAZE — purple targeting line locks onto nearest enemy through walls.
+    // Active for 2s. While active, bullets autoaim slightly toward the locked
+    // target (read elsewhere in _shoot). Cooldown 8s.
+    _gaze() {
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        const enemyMgr = game?.enemies;
+        if (!enemyMgr || !enemyMgr.enemies?.length) return;
+        // Find nearest alive enemy ignoring walls (signature ability)
+        const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+        let best = null, bestD = Infinity;
+        for (const e of enemyMgr.enemies) {
+            if (!e.alive) continue;
+            const d = Math.hypot((e.x + e.w / 2) - cx, (e.y + e.h / 2) - cy);
+            if (d < bestD) { bestD = d; best = e; }
+        }
+        if (!best) return;
+        this._gazeTarget = best;
+        this._gazeTimer = 120;   // 2s
+        this._gazeCooldown = 480; // 8s
+        audio.sfx('gazeLock');
+    }
+
+    // POPUP STORM — swarm of fake IE-window sprites fly outward in a fan.
+    // Each window does light damage on contact + brief stun. Replaces grenade.
+    _popupStorm() {
+        const N = 8;
+        const cx = this.x + this.w / 2, cy = this.y + 4;
+        for (let i = 0; i < N; i++) {
+            const angle = -Math.PI / 2 + (i - (N - 1) / 2) * 0.35;
+            const sp = 2.4 + Math.random() * 0.8;
+            this._popups = this._popups || [];
+            this._popups.push({
+                x: cx, y: cy,
+                vx: Math.cos(angle) * sp,
+                vy: Math.sin(angle) * sp - 0.4,
+                life: 70,
+                w: 16, h: 12,
+                hits: new Set(),
+            });
+        }
+        this._popupCooldown = 360;   // 6s
+        audio.sfx('popupStorm');
+    }
+
+    // DIAL-UP SCREAM — 3-tile radius (48px) enemy stun for 2s. Cooldown 12s.
+    _dialUpScream() {
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        const enemyMgr = game?.enemies;
+        const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+        const R = 48;
+        if (enemyMgr && enemyMgr.enemies) {
+            for (const e of enemyMgr.enemies) {
+                if (!e.alive) continue;
+                const d = Math.hypot((e.x + e.w / 2) - cx, (e.y + e.h / 2) - cy);
+                if (d > R) continue;
+                e._stunTimer = Math.max(e._stunTimer || 0, 120);   // 2s stun
+            }
+        }
+        // FX: expanding magenta shock ring, screaming SFX, light shake.
+        particles.shockRing(cx, cy, R, 22, '#ff60ff');
+        particles.shockRing(cx, cy, R - 12, 18, '#ffa0ff');
+        this.requestShake = Math.max(this.requestShake || 0, 1.6);
+        this._screamCooldown = 720;  // 12s
+        audio.sfx('dialUpScream');
+    }
+
+    // Tick Bonzi's popup-storm projectiles (called from main update).
+    _updateBonziPopups(level) {
+        if (!this._popups || !this._popups.length) return;
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        const enemies = game?.enemies?.enemies || [];
+        for (let i = this._popups.length - 1; i >= 0; i--) {
+            const p = this._popups[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.08;       // gravity — they arc gently
+            p.life--;
+            if (p.life <= 0) { this._popups.splice(i, 1); continue; }
+            // Hit enemies in range (AABB overlap)
+            for (const e of enemies) {
+                if (!e.alive || p.hits.has(e)) continue;
+                if (p.x + p.w >= e.x && p.x <= e.x + e.w &&
+                    p.y + p.h >= e.y && p.y <= e.y + e.h) {
+                    p.hits.add(e);
+                    e.hurt(1.5, p.vx > 0 ? 1 : -1, { knockBack: 0.6 });
+                    e._stunTimer = Math.max(e._stunTimer || 0, 30);
+                    // Window pops out of existence after one hit
+                    this._popups.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Draw Bonzi's specials FX overlay. Called from his main draw().
+    _drawBonziSpecials(ctx, camera) {
+        // GAZE — purple line from Bonzi to locked target. Visible through walls.
+        if (this._gazeTimer > 0 && this._gazeTarget?.alive) {
+            const sx = Math.round((this.x + this.w / 2) - camera.viewX);
+            const sy = Math.round((this.y + 4) - camera.viewY);
+            const tx = Math.round((this._gazeTarget.x + this._gazeTarget.w / 2) - camera.viewX);
+            const ty = Math.round((this._gazeTarget.y + this._gazeTarget.h / 2) - camera.viewY);
+            const a = Math.min(1, this._gazeTimer / 30);
+            ctx.save();
+            ctx.globalAlpha = a * 0.85;
+            ctx.strokeStyle = '#c060ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(tx, ty);
+            ctx.stroke();
+            // Reticule on target
+            const ringR = 8 + (Math.sin(performance.now() * 0.012) * 1.5);
+            ctx.strokeStyle = '#ff80ff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+        // POPUP STORM windows — tiny IE-window sprites
+        if (this._popups && this._popups.length) {
+            for (const p of this._popups) {
+                const px = Math.round(p.x - camera.viewX);
+                const py = Math.round(p.y - camera.viewY);
+                // Title bar
+                ctx.fillStyle = '#5050a0';
+                ctx.fillRect(px, py, p.w, 4);
+                // Window body
+                ctx.fillStyle = '#e0e0f0';
+                ctx.fillRect(px, py + 4, p.w, p.h - 4);
+                // Close button (red X)
+                ctx.fillStyle = '#ff5050';
+                ctx.fillRect(px + p.w - 4, py + 1, 3, 2);
+                // Inner content blink
+                if ((performance.now() % 200) < 100) {
+                    ctx.fillStyle = '#3070ff';
+                    ctx.fillRect(px + 2, py + 6, p.w - 4, p.h - 8);
+                }
+            }
+        }
+        // CRYING TANTRUM tears — when active, small tear particles fall from face
+        if (this._tantrum && (performance.now() % 80) < 8) {
+            const cx = this.x + this.w / 2;
+            particles.spawn(cx - 4 + Math.random() * 8, this.y + 12,
+                (Math.random() - 0.5) * 0.4, 0.6,
+                18, '#80b0ff', 0.8, 0.04);
         }
     }
 
@@ -3386,6 +3607,10 @@ export class Player {
             }
             ctx.restore();
         }
+
+        // R568e: Bonzi's special-ability FX layer — GAZE line, popup
+        // windows, tantrum tears. Drawn last so they sit above body+bullets.
+        if (this.character === 'bonzi') this._drawBonziSpecials(ctx, camera);
     }
 
     // Grapple fire — line-traces from Clippy's body center along the aim

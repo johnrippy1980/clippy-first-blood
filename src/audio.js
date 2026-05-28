@@ -307,6 +307,10 @@ class Audio {
             case 'bananaStick':          return this._bananaStick(t);
             case 'bananaDetonate':       return this._bananaDetonate(t);
             case 'bananaDetonateChain':  return this._bananaDetonateChain(t);
+            // R568e (slice 5): Bonzi's specials
+            case 'gazeLock':             return this._gazeLock(t);
+            case 'popupStorm':           return this._popupStorm(t);
+            case 'dialUpScream':         return this._dialUpScream(t);
             // R257: dedicated charged-MG release. Was reusing 'thunder' but
             // after R251 made thunder a real thunderclap, the MG charge shot
             // sounded like the THUNDER weapon. Now: heavier MG bark + a
@@ -819,6 +823,63 @@ class Audio {
         this._noise(t,         0.28, 0.30, 800,  'lp', 1.4);
         this._noise(t + 0.02,  0.18, 0.22, 2200, 'bp', 1.8);
         this._noise(t + 0.06,  0.12, 0.18, 5200, 'hp', 1.2);
+    }
+
+    // R568e: GAZE — sci-fi target lock blip. Rising sine + brief bandpass tick.
+    _gazeLock(t) {
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(880, t);
+        o.frequency.exponentialRampToValueAtTime(1760, t + 0.10);
+        this._envOn(g, 0.18, t, 0.005);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.18);
+        this._noise(t, 0.08, 0.08, 4200, 'bp', 4);
+    }
+
+    // R568e: POPUP STORM — rapid-fire window-popup chirps stacked, plus a
+    // bright "system error" sting.
+    _popupStorm(t) {
+        for (let i = 0; i < 6; i++) {
+            const dt = t + i * 0.04;
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(420 + Math.random() * 240, dt);
+            this._envOn(g, 0.06, dt, 0.002);
+            g.gain.exponentialRampToValueAtTime(0.001, dt + 0.05);
+            o.connect(g).connect(this.sfxBus);
+            o.start(dt); o.stop(dt + 0.06);
+        }
+        // Tail "error sting"
+        this._noise(t + 0.10, 0.14, 0.20, 1800, 'bp', 2);
+    }
+
+    // R568e: DIAL-UP SCREAM — distorted modem screech + low rumble. The
+    // signature internet-of-yore sound, distilled.
+    _dialUpScream(t) {
+        // High pitched dual-osc warble
+        for (let i = 0; i < 2; i++) {
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = 'sawtooth';
+            o.frequency.setValueAtTime(1200 + i * 80, t);
+            o.frequency.linearRampToValueAtTime(2400 - i * 60, t + 0.25);
+            o.frequency.linearRampToValueAtTime(900, t + 0.55);
+            this._envOn(g, 0.18, t, 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+            o.connect(g).connect(this.sfxBus);
+            o.start(t); o.stop(t + 0.62);
+        }
+        // Bandpass-filtered noise for the static texture
+        this._noise(t, 0.55, 0.35, 1600, 'bp', 1.4);
+        // Low rumble underneath
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(110, t);
+        this._envOn(g, 0.5, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.5);
     }
 
     // Chainsaw rev — short sawtooth burst layered with noise. Called every

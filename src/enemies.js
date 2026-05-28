@@ -2663,6 +2663,34 @@ export class EnemyManager {
             // R220: decrement mock-bark cooldown each tick on boss enemies.
             if (e.behavior === 'boss' && (e._mockBarkCD || 0) > 0) e._mockBarkCD--;
 
+            // R568e: Bonzi's shoulder-charge (= slide for him) does contact
+            // damage with i-frames, replacing Clippy's purely-defensive slide.
+            // CRYING TANTRUM (hp <= 2) doubles the damage.
+            if (player.character === 'bonzi'
+                && (player.state === STATE.SLIDE || player.state === STATE.ROLL)
+                && e.intersects(player)) {
+                if (!player._chargeHits) player._chargeHits = new Set();
+                if (!player._chargeHits.has(e)) {
+                    player._chargeHits.add(e);
+                    const baseDmg = 3;
+                    const dmg = player._tantrum ? baseDmg * 2 : baseDmg;
+                    const knockDir = (e.x + e.w / 2) < (player.x + player.w / 2) ? -1 : 1;
+                    const killed = e.hurt(dmg, knockDir, { knockBack: 2.0 });
+                    if (player._tantrum) {
+                        particles.floatingText(
+                            e.x + e.w / 2, e.y - 6, 'RAGE!', '#ff5050', 30, -0.5, 1
+                        );
+                    }
+                    if (killed) {
+                        player.kills++;
+                        player.combo++;
+                        player.maxCombo = Math.max(player.maxCombo, player.combo);
+                        const points = 150 + player.combo * 10;
+                        player.score += points;
+                    }
+                }
+            }
+
             // Player bullets vs enemy
             for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
                 const b = player.bullets[bi];
