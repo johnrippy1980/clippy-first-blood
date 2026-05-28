@@ -358,6 +358,19 @@ class Audio {
             case 'boss_algorithm_fire': return this._bossAlgorithmFire(t);  // synth zap (cloud AI)
             case 'boss_clippy2_fire':   return this._bossClippy2Fire(t);    // distorted clippy
             case 'boss_spindler_fire':  return this._bossSpindlerFire(t);   // chemical hiss
+            // R566l: CRTRON apocalyptic death — chained CRT-implosion glass
+            // shatters, sub-bass collapse, electrical-discharge wail. Bigger
+            // than the generic _bossExplode used elsewhere.
+            case 'crtron_death':  return this._crtronDeath(t);
+            // R566l: ambient environmental SFX. Triggered by stage tick
+            // loops at low frequency for atmosphere. NOT replacing
+            // existing owlHoot/batChitter/fluorescent/splash — these add
+            // to the palette so Doom-mode corridors don't feel sterile.
+            case 'distantGunfire': return this._distantGunfire(t);
+            case 'waterDrip':      return this._waterDrip(t);
+            case 'windHowl':       return this._windHowl(t);
+            case 'electricalSpark': return this._electricalSpark(t);
+            case 'metalCreak':     return this._metalCreak(t);
         }
     }
 
@@ -2226,6 +2239,179 @@ class Audio {
         o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.8);
         this._envOn(g, 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
         o.connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.95);
+    }
+
+    // R566l: CRTRON apocalyptic death. ~1.6 seconds, bigger than generic
+    // _bossExplode. Composed of:
+    //   - 12 chained CRT-implosion bursts staggered over 1.2s (each = sub
+    //     thump + glass-shatter HPF noise crack + bright bp tail)
+    //   - Continuous electrical-discharge wail (sawtooth + bandpass) layered
+    //     across the whole duration, pitching down to demonic 25Hz
+    //   - Final low rumble tail for the body falling apart
+    _crtronDeath(t) {
+        // 12 chained CRT-implosion bursts
+        for (let i = 0; i < 12; i++) {
+            const bt = t + i * 0.10 + (Math.random() - 0.5) * 0.04;
+            // Sub thump for each implosion
+            const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+            sub.type = 'sine';
+            const f = 120 + Math.random() * 60;
+            sub.frequency.setValueAtTime(f, bt);
+            sub.frequency.exponentialRampToValueAtTime(f * 0.35, bt + 0.08);
+            this._envOn(subG, 0.55, bt);
+            subG.gain.exponentialRampToValueAtTime(0.001, bt + 0.12);
+            sub.connect(subG).connect(this.sfxBus);
+            sub.start(bt); sub.stop(bt + 0.14);
+            // Glass shatter — bright HPF noise crack
+            this._noise(bt, 0.30, 0.10, 4200 + Math.random() * 800, 'hp', 1.5);
+            // Mid noise tail — the wet implosion body
+            this._noise(bt + 0.02, 0.20, 0.18, 900, 'bp', 1.8);
+        }
+
+        // Continuous electrical-discharge wail across the whole sequence
+        const wail = this.ctx.createOscillator(); const wailG = this.ctx.createGain();
+        wail.type = 'sawtooth';
+        wail.frequency.setValueAtTime(440, t);
+        wail.frequency.exponentialRampToValueAtTime(25, t + 1.4);
+        const wailFilt = this.ctx.createBiquadFilter();
+        wailFilt.type = 'lowpass';
+        wailFilt.frequency.setValueAtTime(1800, t);
+        wailFilt.frequency.exponentialRampToValueAtTime(200, t + 1.4);
+        this._envOn(wailG, 0.40, t);
+        wailG.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+        wail.connect(wailFilt).connect(wailG).connect(this.sfxBus);
+        wail.start(t); wail.stop(t + 1.5);
+
+        // Detuned dissonant wail layer — adds the evil
+        const wail2 = this.ctx.createOscillator(); const wail2G = this.ctx.createGain();
+        wail2.type = 'sawtooth';
+        wail2.frequency.setValueAtTime(330, t);
+        wail2.frequency.exponentialRampToValueAtTime(18, t + 1.4);
+        const wail2Filt = this.ctx.createBiquadFilter();
+        wail2Filt.type = 'lowpass';
+        wail2Filt.frequency.setValueAtTime(1400, t);
+        wail2Filt.frequency.exponentialRampToValueAtTime(150, t + 1.4);
+        this._envOn(wail2G, 0.26, t);
+        wail2G.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+        wail2.connect(wail2Filt).connect(wail2G).connect(this.sfxBus);
+        wail2.start(t); wail2.stop(t + 1.5);
+
+        // Final low rumble tail — the body collapsing
+        this._noise(t + 1.0, 0.45, 0.60, 220, 'lp', 1.0);
+        this._noise(t + 1.1, 0.30, 0.50, 380, 'lp', 1.2);
+    }
+
+    // R566l: DISTANT GUNFIRE — far-off bullet cracks (heavily lowpassed,
+    // softer than enemyShoot). Adds the "fight happening elsewhere"
+    // atmospheric layer to corridor levels.
+    _distantGunfire(t) {
+        // 2-3 staggered shots
+        const shots = 2 + (Math.random() < 0.5 ? 1 : 0);
+        for (let i = 0; i < shots; i++) {
+            const st = t + i * (0.08 + Math.random() * 0.06);
+            // Lowpassed gunshot — far away
+            this._noise(st, 0.14, 0.08, 600, 'lp', 1.4);
+            // Faint sub thump
+            const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+            sub.type = 'sine';
+            sub.frequency.setValueAtTime(70, st);
+            sub.frequency.exponentialRampToValueAtTime(35, st + 0.05);
+            this._envOn(subG, 0.10, st);
+            subG.gain.exponentialRampToValueAtTime(0.001, st + 0.07);
+            sub.connect(subG).connect(this.sfxBus);
+            sub.start(st); sub.stop(st + 0.09);
+        }
+    }
+
+    // R566l: WATER DRIP — single drop. Tiny lowpass body + bright tonal
+    // ping for the surface tension break.
+    _waterDrip(t) {
+        // Body — short lowpass noise
+        this._noise(t, 0.06, 0.04, 800, 'lp', 1.5);
+        // Surface tension ping — bright sine pitch-up then down
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(1800, t);
+        o.frequency.exponentialRampToValueAtTime(2400, t + 0.02);
+        o.frequency.exponentialRampToValueAtTime(900, t + 0.10);
+        this._envOn(g, 0.10, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.14);
+    }
+
+    // R566l: WIND HOWL — sustained low whistle through ducts/cracks.
+    // Bandpass noise with slow filter sweep + sine moan underneath.
+    _windHowl(t) {
+        const dur = 1.4;
+        // Bandpass noise body — slow Q-modulated sweep
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'bandpass';
+        filt.frequency.setValueAtTime(350, t);
+        filt.frequency.linearRampToValueAtTime(600, t + 0.6);
+        filt.frequency.linearRampToValueAtTime(350, t + dur);
+        filt.Q.value = 8;
+        const g = this.ctx.createGain();
+        this._envOn(g, 0.18, t);
+        g.gain.linearRampToValueAtTime(0.18, t + dur - 0.4);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(g).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        // Low sine moan underneath
+        const o = this.ctx.createOscillator(); const og = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(110, t);
+        o.frequency.linearRampToValueAtTime(140, t + 0.6);
+        o.frequency.linearRampToValueAtTime(95, t + dur);
+        this._envOn(og, 0.08, t);
+        og.gain.linearRampToValueAtTime(0.08, t + dur - 0.4);
+        og.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + dur + 0.02);
+    }
+
+    // R566l: ELECTRICAL SPARK — quick zap-and-crackle. Short bright noise
+    // crack + a small tonal zap chirp. Good for server rooms, doom corridors.
+    _electricalSpark(t) {
+        // Bright crack — HPF noise burst
+        this._noise(t, 0.22, 0.04, 4400, 'hp', 2);
+        // Zap chirp — saw pitch-up tone
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(2400, t);
+        o.frequency.exponentialRampToValueAtTime(4800, t + 0.03);
+        this._envOn(g, 0.10, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.08);
+        // Tiny noise crackle tail
+        this._noise(t + 0.04, 0.08, 0.06, 2800, 'bp', 3);
+    }
+
+    // R566l: METAL CREAK — building/structure groaning under stress.
+    // Low slow saw with pitch wobble + bandpass noise scrape.
+    _metalCreak(t) {
+        const dur = 0.8;
+        // Low groan — sawtooth with slow pitch wobble
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(90, t);
+        o.frequency.linearRampToValueAtTime(120, t + 0.3);
+        o.frequency.linearRampToValueAtTime(80, t + 0.6);
+        o.frequency.linearRampToValueAtTime(95, t + dur);
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 500;
+        this._envOn(g, 0.16, t);
+        g.gain.linearRampToValueAtTime(0.16, t + dur - 0.2);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(filt).connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + dur + 0.02);
+        // Scrape noise — bandpass with high Q for metallic friction
+        this._noise(t + 0.1, 0.08, 0.50, 1800, 'bp', 5);
     }
 
     _pickupChime(t) {

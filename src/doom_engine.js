@@ -235,6 +235,32 @@ export class DoomEngine {
             const alive = this.entities.filter(e => e.alive && e.kind === 'clone');
             if (alive.length > 0) audio.sfx?.('enemyGrowl');
         }
+        // R566l: expanded ambient palette — drips, sparks, distant gunfire,
+        // creaking metal, wind howl. Cycle through them at random offset
+        // moments so the corridor doesn't feel like a single looping room.
+        // Probability-gated per tick so we don't flood the bus.
+        if (isSewer && this.t % 200 === 73 && Math.random() < 0.5) {
+            audio.sfx?.('waterDrip');
+        }
+        // Server-room / sewer-style decay: electrical sparks every ~8s
+        if (this.t % 480 === 213 && Math.random() < 0.6) {
+            audio.sfx?.('electricalSpark');
+        }
+        // Distant gunfire — sells "battle is happening elsewhere", every ~12s
+        if (this.t % 720 === 380 && Math.random() < 0.55) {
+            audio.sfx?.('distantGunfire');
+        }
+        // Wind howl — sustained whistle through ducts, every ~14s on
+        // post-game / "abandoned" stages (anything past stage 14).
+        const game = (typeof window !== 'undefined') ? window.__game : null;
+        const stageNum = game?.currentStage || 0;
+        if (stageNum > 14 && this.t % 840 === 200 && Math.random() < 0.5) {
+            audio.sfx?.('windHowl');
+        }
+        // Metal creak — structure groaning, every ~10s
+        if (this.t % 600 === 450 && Math.random() < 0.4) {
+            audio.sfx?.('metalCreak');
+        }
     }
 
     _tickPlayer() {

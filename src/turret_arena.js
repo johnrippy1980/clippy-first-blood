@@ -516,7 +516,11 @@ export class TurretArena {
                 color: s & 1 ? '#ffe070' : '#ff5040',
             });
         }
-        audio.sfx?.('bossDie');
+        // R566l: dedicated CRTRON apocalyptic death — 1.6s sequence with
+        // 12 chained CRT-implosion glass-shatters + electrical-discharge
+        // wail + low rumble tail. Was using the generic _bossExplode
+        // which was a brief 6-burst noise stack. CRTRON deserves more.
+        audio.sfx?.('crtron_death');
         this.bossBark = { text: 'CRITICAL ERROR', age: 0, maxAge: 180 };
         this._voltronDeathT = 180;
     }
