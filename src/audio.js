@@ -447,6 +447,22 @@ class Audio {
             case 'windHowl':       return this._windHowl(t);
             case 'electricalSpark': return this._electricalSpark(t);
             case 'metalCreak':     return this._metalCreak(t);
+            default:
+                // R593: the switch above has ~130 cases and historically grew
+                // with silent gaps — names referenced in gameplay code but
+                // never wired here just fell through and produced NO sound
+                // (see the R515 / R566o "aliases that were silently falling
+                // through" cleanups). A typo or a new event with no case is
+                // indistinguishable from silence at runtime, so it ships
+                // unnoticed. Surface it: warn ONCE per unknown name (deduped so
+                // a per-frame caller can't spam the console). Pure diagnostic —
+                // it changes no existing sound, only makes future gaps loud.
+                if (!this._unknownSfx) this._unknownSfx = new Set();
+                if (!this._unknownSfx.has(name)) {
+                    this._unknownSfx.add(name);
+                    console.warn(`[audio] sfx('${name}') has no synth case — silent no-op. Wire it in audio.js sfx() or fix the caller.`);
+                }
+                return;
         }
     }
 
