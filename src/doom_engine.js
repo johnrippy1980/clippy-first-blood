@@ -1785,6 +1785,12 @@ export class DoomEngine {
         else sprKey = `doom_weapon_${activeKey}`;
         const img = sprKey && sprites.images?.get(sprKey);
         const baseY = VIEW_H - 4;
+        // R586: lower-ready rest pose. The weapon sat too high (barrel tip
+        // dead-center, blocking the corridor). Push it down + bias right so it
+        // reads as a held weapon. These also shift the muzzle-flash anchor so
+        // the burst still lands at the (now lower) barrel tip.
+        const restY = 28;
+        const restX = 14;
         // R459/R463: BEEFIER RECOIL — bigger dip + horizontal shake on fire.
         // muzzleFlash now 12f (R463), so scale to 24px peak.
         const mf = p.muzzleFlash || 0;
@@ -1814,13 +1820,18 @@ export class DoomEngine {
             }
         }
         if (img && img.complete && img.naturalWidth > 0) {
-            const hudH = Math.min(128, VIEW_H);
+            // R586: hold the weapon at lower-ready so the barrel doesn't jut up
+            // dead-center and block the corridor. Smaller draw height + a rest
+            // push-down keep the muzzle in the lower third of the viewport, and
+            // a slight rightward bias reads as a held weapon rather than a
+            // centered periscope. recoil/bob still ride on top.
+            const hudH = Math.min(112, VIEW_H);
             const hudW = (img.width / img.height) * hudH;
             ctx.save();
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img,
-                ((W - hudW) / 2 + xShake + bobX) | 0,
-                (baseY - hudH + recoil + bobY + swapOffset) | 0,
+                ((W - hudW) / 2 + restX + xShake + bobX) | 0,
+                (baseY - hudH + restY + recoil + bobY + swapOffset) | 0,
                 hudW | 0, hudH | 0);
             ctx.restore();
         } else {
@@ -1906,14 +1917,16 @@ export class DoomEngine {
             ctx.fillRect(0, 0, W, VIEW_H);
             ctx.restore();
         }
-        // Muzzle flash — radial white-yellow burst at barrel tip
+        // Muzzle flash — radial white-yellow burst at barrel tip. R586: the
+        // gun now rests ~restY lower and ~restX right, so the flash follows
+        // (per-weapon offsets keep their relative tuning).
         if (p.muzzleFlash > 0) {
             const fT = p.muzzleFlash / 5;
-            const fx = W / 2;
-            const fy = (w === p.weapons.bfg) ? baseY - 36 :
+            const fx = W / 2 + restX;
+            const fy = restY + ((w === p.weapons.bfg) ? baseY - 36 :
                        (w === p.weapons.shotgun) ? baseY - 30 :
                        (w === p.weapons.chainsaw) ? baseY - 50 :
-                       baseY - 24;
+                       baseY - 24);
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.globalAlpha = 0.85 * fT;
