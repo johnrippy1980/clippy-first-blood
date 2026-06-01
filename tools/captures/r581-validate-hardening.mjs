@@ -98,6 +98,42 @@ eq('legit weekly verifies',
     eq('negative frame reason', r.reason, 'bad_frame');
 }
 
+{
+    // R582: an over-64 trail is rejected as trail_too_long BEFORE the hash
+    // check — even unsigned — so an oversized payload never surfaces as a
+    // confusing hash_mismatch. 80 entries on a 13-stage run (cpBudget 84, so
+    // the per-stage budget alone wouldn't catch it; the absolute cap does).
+    const cps = Array.from({ length: 80 }, (_, i) => ({ key: 'x', frame: i * 100 }));
+    const r = validateRun(makeRun({ checkpoints: cps }, { resign: false }));
+    eq('over-64 trail rejected', r.verified, false);
+    eq('over-64 trail reason (before hash)', r.reason, 'trail_too_long');
+}
+
+// --- Basic-shape guards (regression coverage) ---
+{
+    const r = validateRun(makeRun({ mode: 'nope' }));
+    eq('unknown mode rejected', r.verified, false);
+    eq('unknown mode reason', r.reason, 'unknown_mode');
+}
+{
+    const r = validateRun(makeRun({ timeFrames: 0 }));
+    eq('zero time rejected', r.verified, false);
+    eq('zero time reason', r.reason, 'bad_time');
+}
+{
+    const r = validateRun(makeRun({ checkpoints: [] }));
+    eq('empty trail rejected', r.verified, false);
+    eq('empty trail reason', r.reason, 'no_checkpoints');
+}
+{
+    // Last checkpoint nowhere near the reported run end → time_trail_mismatch.
+    const r = validateRun(makeRun({
+        checkpoints: [{ key: 's1', frame: 100 }, { key: 's2', frame: 200 }],
+    }));
+    eq('trail/time mismatch rejected', r.verified, false);
+    eq('trail/time mismatch reason', r.reason, 'time_trail_mismatch');
+}
+
 // --- Existing guards still fire ---
 {
     const r = validateRun(makeRun({}, { resign: false }));

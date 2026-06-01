@@ -3,7 +3,7 @@
 //   POST /api/runs   { runId, name, mode, score, timeFrames,
 //                      stagesCleared, checkpoints, hash }   → submit a run
 import { ensureSchema, getSql } from './_db.js';
-import { validateRun, MODES, PARTITIONED_MODES, partitionKey } from './_validate.js';
+import { validateRun, MODES, PARTITIONED_MODES, MAX_CHECKPOINTS, partitionKey } from './_validate.js';
 
 // Score-ranked boards sort high→low; time-ranked boards sort fast→slow.
 const TIME_RANKED = new Set(['timeTrial']);
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
                 score: Math.floor(Number(body.score) || 0),
                 timeFrames: Math.floor(Number(body.timeFrames) || 0),
                 stagesCleared: Math.floor(Number(body.stagesCleared) || 0),
-                checkpoints: Array.isArray(body.checkpoints) ? body.checkpoints.slice(0, 64) : [],
+                checkpoints: Array.isArray(body.checkpoints) ? body.checkpoints.slice(0, MAX_CHECKPOINTS) : [],
                 hash: String(body.hash || ''),
             };
             if (!run.runId) return res.status(400).json({ error: 'missing_run_id' });

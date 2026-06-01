@@ -46,6 +46,11 @@ const DEFAULT_MAX_STAGES = 30;              // covers side/post-game tiles
 // etc.). Cap relative to stages so a 1-stage run can't ship a 64-deep trail.
 const MAX_CHECKPOINTS_PER_STAGE = 6;
 const MIN_CHECKPOINT_BUDGET = 8;            // floor so short runs aren't over-tight
+// Absolute ceiling on trail length, independent of stage count. The API also
+// slices the array to this before hashing; rejecting here with a clear reason
+// (rather than letting a >cap trail slip through to a confusing hash_mismatch)
+// keeps the failure legible. A full 13-stage run is well under this.
+const MAX_CHECKPOINTS = 64;
 
 // Recompute the submission hash the same way the client does.
 export function computeHash({ runId, mode, score, timeFrames, stagesCleared, checkpoints }) {
@@ -76,10 +81,16 @@ export function validateRun(run) {
     const maxStages = MODE_MAX_STAGES[mode] ?? DEFAULT_MAX_STAGES;
     if (stagesCleared > maxStages) return { verified: false, reason: 'stages_too_high' };
 
+    // Absolute trail-length ceiling, checked BEFORE the hash. The API slices
+    // checkpoints to MAX_CHECKPOINTS before recomputing the hash, so an
+    // oversized trail would otherwise surface as a misleading hash_mismatch;
+    // reject it here with a clear reason instead.
+    const cps = Array.isArray(checkpoints) ? checkpoints : [];
+    if (cps.length > MAX_CHECKPOINTS) return { verified: false, reason: 'trail_too_long' };
+
     // Hash must match — proves the trail wasn't hand-edited after signing.
     if (hash !== computeHash(run)) return { verified: false, reason: 'hash_mismatch' };
 
-    const cps = Array.isArray(checkpoints) ? checkpoints : [];
     if (cps.length === 0) return { verified: false, reason: 'no_checkpoints' };
 
     // Checkpoint trail can't be deeper than a few entries per stage cleared —
@@ -139,4 +150,4 @@ function partitionKey(mode, raw) {
     return null;
 }
 
-export { MODES, PARTITIONED_MODES, partitionKey };
+export { MODES, PARTITIONED_MODES, MAX_CHECKPOINTS, partitionKey };
