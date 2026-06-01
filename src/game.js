@@ -4110,21 +4110,28 @@ export class Game {
     // leaderboard client's localStorage), and a top-20 list fetched on entry.
     _enterLeaderboard() {
         this.scene = SCENE.LEADERBOARD;
-        this._lbTab = 0;                 // 0 = Any%, 1 = Time Trial
+        this._lbTab = 0;                 // 0 = Any%, 1 = Time Trial, 2 = Daily
+        // Today's daily challenge supplies the DAILY board's day key (which
+        // partitions the board) and its name for the subtitle.
+        const today = dailyChallenge.todayChallenge();
         this._lbTabs = [
             { mode: 'any',       title: 'ANY %',      ranked: 'score' },
             { mode: 'timeTrial', title: 'TIME TRIAL', ranked: 'time'  },
+            { mode: 'daily',     title: 'DAILY: ' + today.name, ranked: 'score', day: today.day },
         ];
         // Name-entry state: 3 initials, edit cursor 0..2. Seed from saved name.
         const saved = (leaderboard.name || 'AAA').padEnd(3, 'A').slice(0, 3);
         this._lbInitials = saved.split('');
         this._lbNameCursor = 0;
-        this._lbFetch(this._lbTabs[0].mode);
+        this._lbFetch(this._lbTabs[0]);
     }
 
-    _lbFetch(mode) {
-        // Fire-and-forget; _drawLeaderboard reads leaderboard.cached(mode).
-        leaderboard.fetch(mode, 20);
+    _lbFetch(tab) {
+        // Fire-and-forget; _drawLeaderboard reads leaderboard.cached(...).
+        // The daily board is partitioned by day, so it needs opts.day to
+        // route the fetch (and cache) to today's board.
+        if (tab.mode === 'daily') leaderboard.fetch('daily', 20, { day: tab.day });
+        else leaderboard.fetch(tab.mode, 20);
     }
 
     _tickLeaderboard() {
@@ -4139,7 +4146,7 @@ export class Game {
         if (input.isPressed('aimlock') || input.isPressed('shield')) {
             this._lbTab = (this._lbTab + 1) % this._lbTabs.length;
             audio.sfx('select');
-            this._lbFetch(this._lbTabs[this._lbTab].mode);
+            this._lbFetch(this._lbTabs[this._lbTab]);
             return;
         }
         // LEFT/RIGHT move the name-entry cursor.
@@ -4174,7 +4181,9 @@ export class Game {
             if (((x + y) >> 3) & 1) ctx.fillRect(x, y, 4, 4);
         }
         const tab = this._lbTabs[this._lbTab];
-        const cache = leaderboard.cached(tab.mode);
+        const cache = tab.mode === 'daily'
+            ? leaderboard.cached('daily', tab.day)
+            : leaderboard.cached(tab.mode);
 
         drawTextOutlined(ctx, 'LEADERBOARD', GAME.W / 2, 14, '#ffe070', '#a82020', 1, 'center');
         drawText(ctx, tab.title, GAME.W / 2, 26, '#ffd0d0', 1, 'center');
