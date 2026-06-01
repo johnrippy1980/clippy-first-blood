@@ -5471,7 +5471,11 @@ export class Game {
                               || this._beatEmUp?.player || this._fpsArena?.player
                               || this._turretArena?.player || {};
             const _curScore = _scorePlayer.score || 0;
-            this._stageNewBest = _curScore > prevBest;
+            // Daily Challenge runs carry difficulty modifiers, so their score
+            // must not write per-stage bests (or any persistent campaign stat
+            // below). Show the in-panel NEW BEST tag only for clean campaign
+            // runs; daily runs still accumulate runStats for their own submit.
+            this._stageNewBest = !this.dailyMode && _curScore > prevBest;
             if (this._stageNewBest) {
                 sBest[this.currentStage] = _curScore;
                 achievements.stats.stageBestScores = sBest;
@@ -5568,52 +5572,63 @@ export class Game {
                     css.handoffChainBest || 0,
                 );
             }
-            const newlyUnlocked = achievements.update({
-                totalKills: ap.kills || 0,
-                stagesCleared: this.runStats.stagesCleared,
-                totalDeaths: this.totalDeaths,
-                noDamageStages: this.runStats.noDamageStages,
-                maxCombo: this.runStats.maxCombo,
-                weaponDamage: this.runStats.weaponDamage,
-                totalTime: this.totalTime,
-                // R565b: secret stage is 14 (RECYCLE BIN), not 10. Stage 10 is
-                // GATES ARENA — a normal main-campaign stage. This line was
-                // stale from a pre-R226/R291 numbering. Also prefer the
-                // persisted achievements.stats flag (set by the discovery path
-                // in _tickStageClear) over inferring from stagesCleared, since
-                // re-clearing 14 via stage-select shouldn't re-fire discovery.
-                secretStageDiscovered: achievements.stats.secretStageDiscovered === true
-                    || this.runStats.stagesCleared.has(14),
-                bulletTimeUses: this.runStats.bulletTimeUses,
-                bestScore: ap.score || 0,
-                enemiesLost: this.runStats.enemiesLost,
-                pounceKills: (ap.pounceKills || 0),
-                grenadeKills: this.runStats.grenadeKills,
-                // R568h (slice 7): bonziDefeated reaches gate predicates
-                // through the snapshot so NEW MANAGEMENT unlocks on the
-                // same stage-clear cycle that sets the flag.
-                bonziDefeated: achievements.stats.bonziDefeated === true,
-            });
-            this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
-            // Fanfare when at least one achievement unlocks this clear. Single
-            // ding regardless of count — the banner queue handles per-entry display.
-            // R566o: was `unlock` (simple 3-note triangle arpeggio). Now
-            // `achievement` — rising 4-note climb + bell shimmer + light
-            // music duck. Celebrates the achievement properly.
-            if (newlyUnlocked.length > 0) audio.sfx('achievement');
+            // Daily Challenge runs apply difficulty modifiers (double damage,
+            // one life, no pickups), so crediting their kills/score/combo to the
+            // persistent campaign achievement system would let players back-door
+            // campaign gates (e.g. TOP TIER) they couldn't earn cleanly — the
+            // same reasoning that excludes boss-rush/time-trial via isModeRun.
+            // The runStats accumulation above still runs so the daily submit
+            // reports the right stagesCleared / checkpoint trail.
+            if (this.dailyMode) {
+                this._newlyUnlocked = null;
+            } else {
+                const newlyUnlocked = achievements.update({
+                    totalKills: ap.kills || 0,
+                    stagesCleared: this.runStats.stagesCleared,
+                    totalDeaths: this.totalDeaths,
+                    noDamageStages: this.runStats.noDamageStages,
+                    maxCombo: this.runStats.maxCombo,
+                    weaponDamage: this.runStats.weaponDamage,
+                    totalTime: this.totalTime,
+                    // R565b: secret stage is 14 (RECYCLE BIN), not 10. Stage 10 is
+                    // GATES ARENA — a normal main-campaign stage. This line was
+                    // stale from a pre-R226/R291 numbering. Also prefer the
+                    // persisted achievements.stats flag (set by the discovery path
+                    // in _tickStageClear) over inferring from stagesCleared, since
+                    // re-clearing 14 via stage-select shouldn't re-fire discovery.
+                    secretStageDiscovered: achievements.stats.secretStageDiscovered === true
+                        || this.runStats.stagesCleared.has(14),
+                    bulletTimeUses: this.runStats.bulletTimeUses,
+                    bestScore: ap.score || 0,
+                    enemiesLost: this.runStats.enemiesLost,
+                    pounceKills: (ap.pounceKills || 0),
+                    grenadeKills: this.runStats.grenadeKills,
+                    // R568h (slice 7): bonziDefeated reaches gate predicates
+                    // through the snapshot so NEW MANAGEMENT unlocks on the
+                    // same stage-clear cycle that sets the flag.
+                    bonziDefeated: achievements.stats.bonziDefeated === true,
+                });
+                this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
+                // Fanfare when at least one achievement unlocks this clear. Single
+                // ding regardless of count — the banner queue handles per-entry display.
+                // R566o: was `unlock` (simple 3-note triangle arpeggio). Now
+                // `achievement` — rising 4-note climb + bell shimmer + light
+                // music duck. Celebrates the achievement properly.
+                if (newlyUnlocked.length > 0) audio.sfx('achievement');
 
-            // Save high score (R470: null-safe — ap was resolved above)
-            const apScore = ap.score || 0;
-            if (apScore > achievements.stats.bestScore) {
-                achievements.stats.bestScore = apScore;
-                achievements._save();
-            }
-            // R223: sync run-best clippy-tag count to persistent stats.
-            // High-water-mark so a worse run can't clear the achievement.
-            const tags = ap.tagsFound || 0;
-            if (tags > (achievements.stats.tagsFound || 0)) {
-                achievements.stats.tagsFound = tags;
-                achievements._save();
+                // Save high score (R470: null-safe — ap was resolved above)
+                const apScore = ap.score || 0;
+                if (apScore > achievements.stats.bestScore) {
+                    achievements.stats.bestScore = apScore;
+                    achievements._save();
+                }
+                // R223: sync run-best clippy-tag count to persistent stats.
+                // High-water-mark so a worse run can't clear the achievement.
+                const tags = ap.tagsFound || 0;
+                if (tags > (achievements.stats.tagsFound || 0)) {
+                    achievements.stats.tagsFound = tags;
+                    achievements._save();
+                }
             }
         } else {
             // Mode runs still need these set so the stage-clear panel doesn't
@@ -6608,7 +6623,10 @@ export class Game {
     // Warped (stage-select) runs don't qualify — they aren't full campaigns.
     _evalCampaignPB() {
         const flags = { score: false, time: false, rank: false };
-        if (this._runWarped) return flags;
+        // Daily Challenge runs carry modifiers (double damage, one life, etc.)
+        // so their score/time/rank aren't comparable to a clean any% run — they
+        // must never write the campaign PB store or flash a campaign PB banner.
+        if (this._runWarped || this.dailyMode) return flags;
         const s = achievements.stats;
         const score = this.player?.score || 0;
         const time = this.totalTime || 0;
