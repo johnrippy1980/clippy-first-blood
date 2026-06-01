@@ -686,6 +686,11 @@ export const ENEMY_MANIFEST = {
     'doom_wall_9': 'doom_wall_9.png',   // open server rack with cable spaghetti
     'doom_wall_10': 'doom_wall_10.png', // cheesy PERSISTENCE eagle poster
     'doom_wall_11': 'doom_wall_11.png', // chaotic sticky-note wall (FIX BUG, etc)
+    // R587: four more office faces for corridor variety.
+    'doom_wall_12': 'doom_wall_12.png', // dry-erase whiteboard (SHIP IT burndown)
+    'doom_wall_13': 'doom_wall_13.png', // window blinds w/ sickly dusk glow
+    'doom_wall_14': 'doom_wall_14.png', // cork bulletin board (memos + polaroid)
+    'doom_wall_15': 'doom_wall_15.png', // brushed-steel elevator doors (FLOOR 11)
     // Enemy + boss billboards
     'doom_clone': 'doom_clone.png',
     'doom_boss_spindler_uzis': 'doom_boss_spindler_uzis.png',

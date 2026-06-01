@@ -40,6 +40,12 @@ const WALL_LIGHT = {
     3: { ns: '#5090b0', ew: '#3a7090' },   // glass
     4: { ns: '#d0d0d8', ew: '#a8a8b0' },   // bathroom
     5: { ns: '#c04030', ew: '#902820' },   // vending
+    // R587: flat-color fallbacks for the four new office faces (only used if
+    // the texture fails to load — normally these render from their PNGs).
+    12: { ns: '#e0e2dc', ew: '#b4b6b0' },  // whiteboard
+    13: { ns: '#788078', ew: '#5a625a' },  // blinds
+    14: { ns: '#b08450', ew: '#86643c' },  // corkboard
+    15: { ns: '#969aa0', ew: '#74787e' },  // elevator
     // R423e: door tiles. 10 = plain door (opens on touch), 12 = red-key,
     // 13 = yellow-key, 14 = blue-key. Doors stay solid until opened; once
     // opened, the engine deletes them from the map. Switches (20) flip
@@ -2131,7 +2137,7 @@ export class DoomEngine {
             // doom_wall_N.png; if loaded, sample the column from it.
             // Doors (10,12,13,14) and switches/exit fall back to flat color.
             let tex = null;
-            if (cell >= 1 && cell <= 11) {
+            if (cell >= 1 && cell <= 15) {
                 // R537/R538b: procedural wall-texture variation. Map data
                 // uses mostly tile id 1 (cubicle). Hash (mapX,mapY) and
                 // substitute textures 2-11. Floor 11 corridors now have
@@ -2152,7 +2158,12 @@ export class DoomEngine {
                     else if (r < 42) effectiveCell = 9;  // open server rack (5%)
                     else if (r < 48) effectiveCell = 10; // PERSISTENCE poster (6%)
                     else if (r < 53) effectiveCell = 11; // sticky-note chaos (5%)
-                    // else stays as 1 (cubicle baseline ~47%)
+                    // R587: four more faces folded into the pool.
+                    else if (r < 58) effectiveCell = 12; // whiteboard (5%)
+                    else if (r < 63) effectiveCell = 13; // window blinds (5%)
+                    else if (r < 68) effectiveCell = 14; // corkboard (5%)
+                    else if (r < 72) effectiveCell = 15; // elevator doors (4%)
+                    // else stays as 1 (cubicle baseline ~28%)
                 }
                 tex = sprites.images?.get(`doom_wall_${effectiveCell}`);
                 if (tex && (!tex.complete || tex.naturalWidth === 0)) tex = null;
