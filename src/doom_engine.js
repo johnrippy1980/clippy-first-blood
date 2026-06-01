@@ -2164,6 +2164,23 @@ export class DoomEngine {
                     else if (r < 68) effectiveCell = 14; // corkboard (5%)
                     else if (r < 72) effectiveCell = 15; // elevator doors (4%)
                     // else stays as 1 (cubicle baseline ~28%)
+
+                    // R591: the substitution pool is all OFFICE art. In the
+                    // sewer theme (BLOCK 11) the recognizable framed posters
+                    // and the bright whiteboard read as out-of-place — a
+                    // "TEAMWORK" poster in a sewer breaks immersion. Remap just
+                    // those loud office faces to the neutral, industrial-reading
+                    // ones (glass+racks, server rack, tile, extinguisher) so the
+                    // sewer keeps wall variety without the office decor.
+                    if (this.data.theme === 'sewer') {
+                        if (effectiveCell === 1)  effectiveCell = 4;  // TEAMWORK poster → bathroom tile
+                        else if (effectiveCell === 10) effectiveCell = 9;  // PERSISTENCE → server rack
+                        else if (effectiveCell === 12) effectiveCell = 3;  // whiteboard → glass+racks
+                        else if (effectiveCell === 14) effectiveCell = 8;  // corkboard → extinguisher
+                        else if (effectiveCell === 11) effectiveCell = 9;  // sticky-notes → server rack
+                        else if (effectiveCell === 13) effectiveCell = 4;  // blinds → tile
+                        else if (effectiveCell === 15) effectiveCell = 3;  // elevator → glass+racks
+                    }
                 }
                 tex = sprites.images?.get(`doom_wall_${effectiveCell}`);
                 if (tex && (!tex.complete || tex.naturalWidth === 0)) tex = null;
