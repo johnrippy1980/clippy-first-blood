@@ -2626,6 +2626,34 @@ export class Game {
         ctx.restore();
     }
 
+    // Small top-center pace readout: how far ahead/behind your best run you
+    // are, by stage progress. Green = ahead, red = behind. Hidden once you've
+    // out-run the recording (paceDeltaFrames → null) so it doesn't flicker at
+    // the finish.
+    _drawGhostPace(ctx) {
+        if (!this.player) return;
+        const d = ghost.paceDeltaFrames(this.stageTime, this.player.x);
+        if (d === null) return;
+        // Smooth the readout so it doesn't jitter frame-to-frame as progress
+        // crosses sample boundaries.
+        if (this._ghostPaceShown === undefined) this._ghostPaceShown = d;
+        this._ghostPaceShown += (d - this._ghostPaceShown) * 0.15;
+        const secs = this._ghostPaceShown / 60;
+        const ahead = secs >= 0;
+        const mag = Math.abs(secs);
+        // Deadzone: within ~0.1s of pace reads as "EVEN" rather than a sign.
+        let label, color;
+        if (mag < 0.1) { label = 'EVEN'; color = '#c0d8e0'; }
+        else {
+            label = (ahead ? '+' : '-') + mag.toFixed(1) + 's';
+            color = ahead ? '#70ff90' : '#ff7070';
+        }
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        drawTextOutlined(ctx, 'GHOST ' + label, GAME.W / 2, 18, color, '#08141c', 1, 'center');
+        ctx.restore();
+    }
+
     _drawPlay() {
         const ctx = this.ctx;
         // Defensive: if scene was switched to PLAY before _startStage ran
@@ -2767,6 +2795,12 @@ export class Game {
                 bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
                 daily: this.dailyMode ? this.dailyChallenge : null,
             });
+            // Ghost pace delta — a tiny "+1.2s / −0.8s vs your best" readout so
+            // the ghost is useful even when it's off-screen. Only while the
+            // ghost is live and not in co-op (that corner holds the tag HUD).
+            if (this._ghostActive && ghost.playing && !this.coopMode && this.scene === SCENE.PLAY) {
+                this._drawGhostPace(ctx);
+            }
             // R568 co-op slice 1: tag-cooldown indicator. Shows "TAG: READY"
             // or "TAG: Ns" countdown in the upper-right under the score.
             // Tiny — just so the player knows when they can tag. Slice 2
@@ -5445,6 +5479,7 @@ export class Game {
         // runs (training/boss-rush/time-trial/daily), co-op, and stage-select
         // warps are excluded so a ghost is always a fair, comparable pace.
         this._ghostStage = this.currentStage;
+        this._ghostPaceShown = undefined;   // reset smoothed pace readout per stage
         this._ghostActive = !this.trainingMode && !this.bossRushMode
             && !this.timeTrialMode && !this.dailyMode && !this.coopMode
             && !this._runWarped && options.get('showGhost') !== false;

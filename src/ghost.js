@@ -106,10 +106,23 @@ class Ghost {
     startPlayback(stage) {
         const g = this._store.stages[stage];
         this._play = g ? { samples: g.samples, every: g.every } : null;
+        // Precompute a monotonic "furthest-X-reached" curve so pace deltas can
+        // be computed by progress rather than raw X. Stages backtrack and the
+        // raw path is not monotonic in X; the cumulative max is, which is what
+        // "how far into the stage" actually means for a left-to-right run.
+        this._progress = null;
+        if (this._play) {
+            const s = g.samples;
+            const maxX = new Array(s.length);
+            let m = -Infinity;
+            for (let i = 0; i < s.length; i++) { if (s[i][0] > m) m = s[i][0]; maxX[i] = m; }
+            this._progress = { maxX, every: g.every, time: g.time };
+        }
     }
 
     stopPlayback() {
         this._play = null;
+        this._progress = null;
     }
 
     get playing() { return !!this._play; }
@@ -131,6 +144,35 @@ class Ghost {
             y: a[1] + (b[1] - a[1]) * t,
             facing: a[2],
         };
+    }
+
+    // Pace delta in frames: how far ahead (+) or behind (−) your best run you
+    // are RIGHT NOW, measured by stage progress (furthest X reached), not by
+    // the ghost's on-screen position. Returns the difference between the frame
+    // the ghost first reached your current progress and the current frame.
+    //   +N  → you're N frames ahead of your best pace (you got here sooner)
+    //   −N  → you're N frames behind
+    // Returns null when there's no ghost or the comparison isn't meaningful
+    // yet (no forward progress, or you've already passed the ghost's furthest
+    // point — you're in record territory).
+    paceDeltaFrames(currentFrame, playerX) {
+        const pr = this._progress;
+        if (!pr) return null;
+        const maxX = pr.maxX;
+        const last = maxX[maxX.length - 1];
+        if (last === undefined) return null;
+        // Beyond the ghost's furthest progress: you've out-run the recording.
+        if (playerX >= last) return null;
+        // First sample index where the ghost's furthest-X reaches playerX.
+        // maxX is non-decreasing → binary search for the lower bound.
+        let lo = 0, hi = maxX.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (maxX[mid] < playerX) lo = mid + 1; else hi = mid;
+        }
+        // The frame the ghost was at when it first reached this progress.
+        const ghostFrame = lo * pr.every;
+        return ghostFrame - currentFrame;
     }
 }
 
