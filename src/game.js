@@ -4234,7 +4234,7 @@ export class Game {
         const today = dailyChallenge.todayChallenge();
         const week = dailyChallenge.weeklyKey();
         this._lbTabs = [
-            { mode: 'any',       title: 'ANY %',      ranked: 'score' },
+            { mode: 'any',       title: 'ANY%',       ranked: 'score' },
             { mode: 'timeTrial', title: 'TIME TRIAL', ranked: 'time'  },
             { mode: 'weekly',    title: 'WEEKLY: ' + week, ranked: 'score', day: week },
             { mode: 'daily',     title: 'DAILY: ' + today.name, ranked: 'score', day: today.day },
