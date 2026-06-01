@@ -4844,10 +4844,19 @@ export class Game {
                 || (sel === 14 && hasSecret)
                 || (sel === 18 && achievements.unlocked.has('clear_game'));
             // R278: pin detail strip to fixed bottom area regardless of scroll
-            const detY = GAME.H - 32;
+            // Pull the strip up a touch when a ghost-best line is present so it
+            // doesn't crowd the bottom controls hint.
+            const detY = GAME.H - (unlocked && ghost.hasGhost(sel) ? 38 : 32);
             drawTextOutlined(ctx, unlocked ? selData.name : '? ? ?', GAME.W / 2, detY, '#fff', '#1a0010', 1, 'center');
             if (unlocked) {
                 drawText(ctx, selData.tagline, GAME.W / 2, detY + 9, '#c0a0d0', 1, 'center');
+                // Ghost best time for this stage, if one's been recorded. Shows
+                // the pace you'd be racing — a tiny cyan "BEST mm:ss" so the
+                // stored ghost is discoverable from the select screen.
+                if (ghost.hasGhost(sel)) {
+                    drawText(ctx, 'GHOST BEST ' + _formatTime(ghost.bestTime(sel)),
+                             GAME.W / 2, detY + 18, '#70e0ff', 1, 'center');
+                }
             }
         }
         drawText(ctx, 'ARROWS SELECT   X START   P BACK', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
