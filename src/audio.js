@@ -2498,7 +2498,10 @@ class Audio {
         this.duck(0.05, 0.20, 1.4, 0.6);
         // 12 chained CRT-implosion bursts
         for (let i = 0; i < 12; i++) {
-            const bt = t + i * 0.10 + (Math.random() - 0.5) * 0.04;
+            // Clamp to t: the ±0.02 jitter can push the first burst before t,
+            // and when t≈0 (offline render) that yields a negative AudioParam
+            // time, which setValueAtTime rejects. Never schedule before t.
+            const bt = Math.max(t, t + i * 0.10 + (Math.random() - 0.5) * 0.04);
             // Sub thump for each implosion
             const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
             sub.type = 'sine';
