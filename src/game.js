@@ -2331,7 +2331,17 @@ export class Game {
         // pre-update stageTime so playback (keyed on the same counter) lines up.
         if (this._ghostActive && this.player) {
             ghost.record(this.stageTime, this.player.x, this.player.y, this.player.facing);
+            // Ghost-finished flash: the frame the ghost's recording runs out is
+            // the moment your best pace crossed the line. Fire a one-shot banner
+            // so falling behind your record registers. Only when the ghost was
+            // actually moving (bestTime>0) and you haven't cleared yet.
+            if (!this._ghostFinishFired && ghost.playing
+                && ghost.posAt(this.stageTime) === null) {
+                this._ghostFinishFired = true;
+                this._ghostFinishFlash = 90;   // ~1.5s banner
+            }
         }
+        if (this._ghostFinishFlash > 0) this._ghostFinishFlash--;
         this.level.update();
         if (this._ambientProps) {
             this._ambientProps.update();
@@ -2654,6 +2664,23 @@ export class Game {
         ctx.restore();
     }
 
+    // One-shot banner when the ghost crosses its recorded finish — i.e. your
+    // best run would have cleared the stage by now. Fades in fast, holds, fades
+    // out over the 90f window so the "you're off pace" moment lands.
+    _drawGhostFinishFlash(ctx) {
+        const t = this._ghostFinishFlash;   // counts 90 → 0
+        // Alpha envelope: fade in over the first 12f, hold, fade out last 24f.
+        const inA = Math.min(1, (90 - t) / 12);
+        const outA = Math.min(1, t / 24);
+        const a = Math.max(0, Math.min(inA, outA));
+        ctx.save();
+        ctx.globalAlpha = a;
+        drawTextOutlined(ctx, 'GHOST FINISHED', GAME.W / 2, 32, '#70e0ff', '#08141c', 1, 'center');
+        ctx.globalAlpha = a * 0.8;
+        drawText(ctx, 'BEHIND YOUR BEST', GAME.W / 2, 42, '#ff9090', 1, 'center');
+        ctx.restore();
+    }
+
     _drawPlay() {
         const ctx = this.ctx;
         // Defensive: if scene was switched to PLAY before _startStage ran
@@ -2800,6 +2827,9 @@ export class Game {
             // ghost is live and not in co-op (that corner holds the tag HUD).
             if (this._ghostActive && ghost.playing && !this.coopMode && this.scene === SCENE.PLAY) {
                 this._drawGhostPace(ctx);
+            }
+            if (this._ghostFinishFlash > 0 && !this.coopMode && this.scene === SCENE.PLAY) {
+                this._drawGhostFinishFlash(ctx);
             }
             // R568 co-op slice 1: tag-cooldown indicator. Shows "TAG: READY"
             // or "TAG: Ns" countdown in the upper-right under the score.
@@ -5489,6 +5519,8 @@ export class Game {
         // warps are excluded so a ghost is always a fair, comparable pace.
         this._ghostStage = this.currentStage;
         this._ghostPaceShown = undefined;   // reset smoothed pace readout per stage
+        this._ghostFinishFired = false;     // ghost-crossed-the-line flash, once per stage
+        this._ghostFinishFlash = 0;
         this._ghostActive = !this.trainingMode && !this.bossRushMode
             && !this.timeTrialMode && !this.dailyMode && !this.coopMode
             && !this._runWarped && options.get('showGhost') !== false;
