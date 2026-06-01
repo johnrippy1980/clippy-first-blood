@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 // secret (it ships in the bundle) — it only raises the bar past trivial.
 const SIGN_SALT = process.env.CFB_SIGN_SALT || 'clippy-bonzi-1997';
 
-const MODES = new Set(['any', 'hundred', 'bossRush', 'timeTrial']);
+const MODES = new Set(['any', 'hundred', 'bossRush', 'timeTrial', 'daily']);
 
 // Recompute the submission hash the same way the client does.
 export function computeHash({ runId, mode, score, timeFrames, stagesCleared, checkpoints }) {

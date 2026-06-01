@@ -159,6 +159,10 @@ export class Player {
         this.maxHp = 4;
         this.hp = this.maxHp;
         this.lives = 3;
+        // Daily Challenge incoming-damage scale. 1 = normal; the GLASS WORLD /
+        // IRON MAN challenges set 2. Applied in hurt() after the god-mode and
+        // rage guards so invincibility still fully negates.
+        this.damageTakenMult = 1;
         this.iFrames = 0;
         this.hurtTimer = 0;
         this.knockX = 0;
@@ -2694,6 +2698,12 @@ export class Player {
         // Training-ground god mode — show a brief deflect particle so the
         // player sees that an enemy *would* have hit them, but the run
         // continues uninterrupted. Critical for the tutorial flow.
+        // Daily Challenge: scale incoming damage (after invincibility checks
+        // above so god mode / rage still fully negate). Doubles the bite of
+        // every hit on the GLASS WORLD / GLASS CANNON challenges.
+        if (this.damageTakenMult && this.damageTakenMult !== 1) {
+            dmg = dmg * this.damageTakenMult;
+        }
         if (this.godMode) {
             this.iFrames = Math.max(this.iFrames, 12);
             particles.floatingText(this.x + this.w / 2, this.y - 4, 'NOPE', '#80e0ff', 30);

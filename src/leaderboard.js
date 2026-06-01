@@ -51,7 +51,10 @@ class Leaderboard {
     }
 
     // Submit a finished run. Returns { ok, verified?, reason?, error? }.
-    async submit({ runId, name, mode, score, timeFrames, stagesCleared, checkpoints }) {
+    // dailyKey (YYYYMMDD) is required only for mode 'daily' — it routes the
+    // run onto that day's board. It is NOT part of the signed hash (it's a
+    // routing key, not a scored value), so it's added after signing.
+    async submit({ runId, name, mode, score, timeFrames, stagesCleared, checkpoints, dailyKey }) {
         if (!runId) return { ok: false, error: 'no_run_id' };
         const playerName = this.setName(name || this._name || 'AAA');
         const body = {
@@ -62,6 +65,7 @@ class Leaderboard {
             checkpoints: checkpoints || [],
         };
         body.hash = await this._sign(body);
+        if (mode === 'daily' && dailyKey) body.dailyKey = String(dailyKey);
         try {
             const res = await fetch(API, {
                 method: 'POST',
@@ -76,24 +80,33 @@ class Leaderboard {
         }
     }
 
-    // Fetch a board's top entries. Caches the result by mode. Returns
-    // { entries, status }. status: 'ok' | 'error'.
-    async fetch(mode, limit = 20) {
+    // Fetch a board's top entries. Caches the result by cache key. Returns
+    // { entries, status }. status: 'ok' | 'error'. For the daily board pass
+    // opts.day (YYYYMMDD); the cache key becomes 'daily:<day>' so different
+    // days don't clobber each other.
+    async fetch(mode, limit = 20, opts = {}) {
+        const day = opts.day ? String(opts.day) : null;
+        const cacheKey = mode === 'daily' && day ? `daily:${day}` : mode;
+        let url = `${API}?mode=${encodeURIComponent(mode)}&limit=${limit}`;
+        if (mode === 'daily' && day) url += `&day=${encodeURIComponent(day)}`;
         try {
-            const res = await fetch(`${API}?mode=${encodeURIComponent(mode)}&limit=${limit}`);
+            const res = await fetch(url);
             if (!res.ok) throw new Error('http_' + res.status);
             const data = await res.json();
             const entry = { entries: data.entries || [], status: 'ok', fetchedAt: Date.now() };
-            this._cache.set(mode, entry);
+            this._cache.set(cacheKey, entry);
             return entry;
         } catch (err) {
             const entry = { entries: [], status: 'error', error: String(err?.message || err), fetchedAt: Date.now() };
-            this._cache.set(mode, entry);
+            this._cache.set(cacheKey, entry);
             return entry;
         }
     }
 
-    cached(mode) { return this._cache.get(mode) || null; }
+    cached(mode, day = null) {
+        const key = mode === 'daily' && day ? `daily:${day}` : mode;
+        return this._cache.get(key) || null;
+    }
 }
 
 export const leaderboard = new Leaderboard();

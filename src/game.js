@@ -22,6 +22,7 @@ import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, 
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { leaderboard } from './leaderboard.js';
 import { downloadShareCard } from './sharecard.js';
+import { dailyChallenge } from './daily.js';
 import { options } from './options.js';
 
 const SCENE = {
@@ -409,6 +410,10 @@ export class Game {
         this.trainingMode = false;
         this.bossRushMode = false;
         this.timeTrialMode = false;
+        // Daily Challenge: campaign run with date-derived modifiers + per-day
+        // board. dailyChallenge holds { id, name, desc, mods, day } when armed.
+        this.dailyMode = false;
+        this.dailyChallenge = null;
         this._modeNewBest = false;
         // Per-stage stats (resets on _startStage)
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
@@ -1015,6 +1020,7 @@ export class Game {
             { label: 'TRAINING',       action: 'training' },
             { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
             { label: 'TIME TRIAL',     action: 'timeTrial',    gate: () => cleared },
+            { label: 'DAILY CHALLENGE', action: 'daily',       gate: () => cleared },
             { label: 'LEADERBOARD',    action: 'leaderboard' },
             { label: 'OPTIONS',        action: 'options' },
             { label: 'ACHIEVEMENTS',   action: 'achievements' },
@@ -1048,6 +1054,25 @@ export class Game {
                     // roll-up bumps achievements.stats.bestScore mid-run, so by the
                     // time we reach game-complete the live value is already updated.
                     this._preRunBestScore = achievements.stats.bestScore || 0;
+                    this.dailyMode = false;
+                    this.dailyChallenge = null;
+                    this.storyPage = 0;
+                    this.storyTimer = 0;
+                    this._fadeTo(SCENE.STORY);
+                    break;
+                // Daily Challenge: a campaign run with today's date-derived
+                // modifiers, submitted to a per-day board. Starts like START
+                // GAME (stage 1, fresh run id) but with dailyMode armed so
+                // _startStage applies the modifiers and the clear submits to
+                // the 'daily' board partitioned by today's date.
+                case 'daily':
+                    this.runId = leaderboard.newRunId();
+                    this.runCheckpoints = [];
+                    this._runWarped = false;
+                    this._leaderboardSubmitted = false;
+                    this._preRunBestScore = achievements.stats.bestScore || 0;
+                    this.dailyMode = true;
+                    this.dailyChallenge = dailyChallenge.todayChallenge();
                     this.storyPage = 0;
                     this.storyTimer = 0;
                     this._fadeTo(SCENE.STORY);
@@ -1241,6 +1266,7 @@ export class Game {
             // Letterbox bars
             ctx.fillStyle = '#000';
             ctx.fillRect(0, finalH, GAME.W, GAME.H - finalH);
+            this._drawDailyStoryBanner();
 
             // Text block at bottom over the black panel. Typewriter reveal —
             // step 6 chars/frame so a 60-char line lands in ~10 frames (~170ms).
@@ -1281,6 +1307,22 @@ export class Game {
             drawText(this.ctx, lines[i], GAME.W / 2, startY + i * 12, '#d8c8e0', 1, 'center');
         }
         drawText(this.ctx, 'X TO CONTINUE', GAME.W - 4, GAME.H - 8, '#604068', 1, 'right');
+        this._drawDailyStoryBanner();
+    }
+
+    // Daily Challenge banner shown across the story intro so the player knows
+    // the modifiers before stage 1. No-op outside a daily run.
+    _drawDailyStoryBanner() {
+        if (!this.dailyMode || !this.dailyChallenge) return;
+        const ctx = this.ctx;
+        const c = this.dailyChallenge;
+        ctx.fillStyle = 'rgba(8,6,2,0.82)';
+        ctx.fillRect(0, 2, GAME.W, 22);
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(0, 2, GAME.W, 1);
+        ctx.fillRect(0, 23, GAME.W, 1);
+        drawTextOutlined(ctx, 'DAILY: ' + c.name, GAME.W / 2, 5, '#ffe070', '#1a0a00', 1, 'center');
+        drawText(ctx, c.desc, GAME.W / 2, 15, '#d8c8a0', 1, 'center');
     }
 
     // ============== Bonzi defeat cinematic (R568m) ==============
@@ -2673,6 +2715,7 @@ export class Game {
                 stageTime: this.stageTime,
                 bestBossRushTime: achievements.stats?.bestBossRushTime || 0,
                 bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
+                daily: this.dailyMode ? this.dailyChallenge : null,
             });
             // R568 co-op slice 1: tag-cooldown indicator. Shows "TAG: READY"
             // or "TAG: Ns" countdown in the upper-right under the score.
@@ -5218,6 +5261,10 @@ export class Game {
         this.enemies.clear();
         this.enemies.setStageDifficulty(n);
         this.pickups.clear();
+        // Daily Challenge BARE HANDS / AUSTERITY: suppress weapon/powerup drops
+        // for the whole run. Must be set BEFORE loadFromLevel below so stage
+        // pickup placements are skipped too, not just enemy drops.
+        this.pickups.suppressDrops = !!(this.dailyMode && this.dailyChallenge?.mods?.noPickups);
         // Mark initial spawn phase so pre-placed enemies get a 60-frame grace
         // before they can act. Gives the player a full second to read the stage.
         this.enemies._initialSpawnPhase = true;
@@ -5316,6 +5363,18 @@ export class Game {
         // prominently and compares against bestTimeTrialTime on stage clear.
         this.bossRushMode = !!data.bossRushMode;
         this.timeTrialMode = !!data.timeTrialMode;
+        // Daily Challenge modifiers — applied to the freshly-resolved player
+        // each stage so they survive respawns and stage transitions. dailyMode
+        // is a run-level flag (set at menu launch), not derived from stage data.
+        if (this.dailyMode && this.player) {
+            const mods = this.dailyChallenge?.mods || {};
+            // SUDDEN DEATH / BLITZ / AUSTERITY: a single life, no continues.
+            if (mods.oneLife) this.player.lives = 0;
+            // GLASS WORLD / IRON MAN: incoming damage doubled.
+            this.player.damageTakenMult = mods.doubleDamage ? 2 : 1;
+        } else if (this.player) {
+            this.player.damageTakenMult = 1;
+        }
         // Mode-best banner clears per stage entry; otherwise a NEW BEST from
         // a prior mode clear would survive into the next stage-clear panel.
         this._modeNewBest = false;
@@ -6275,23 +6334,28 @@ export class Game {
         // Leaderboard submit — fires once, on a clean (non-warped) campaign
         // clear that has a minted run id. Best-effort: never blocks the
         // cinematic. A verified toast appears if the server accepts the run.
+        // A Daily Challenge clear routes to the per-day 'daily' board instead
+        // of Any% — its modifiers make its score non-comparable to a normal run.
         if (this.storyTimer === 1 && !this._leaderboardSubmitted
             && this.runId && !this._runWarped) {
             this._leaderboardSubmitted = true;
             const stages = this.runStats.stagesCleared.size;
+            const isDaily = !!(this.dailyMode && this.dailyChallenge);
             leaderboard.submit({
                 runId: this.runId,
                 name: leaderboard.name || 'AAA',
-                mode: 'any',
+                mode: isDaily ? 'daily' : 'any',
                 score: this.player?.score || 0,
                 timeFrames: this.totalTime,
                 stagesCleared: stages,
                 checkpoints: this.runCheckpoints,
+                dailyKey: isDaily ? this.dailyChallenge.day : undefined,
             }).then((r) => {
                 if (r.ok && r.verified) {
-                    this._pushUnlockToast('SCORE SUBMITTED', 'LEADERBOARD UPDATED');
+                    this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED',
+                        isDaily ? "TODAY'S BOARD UPDATED" : 'LEADERBOARD UPDATED');
                 } else if (r.ok) {
-                    this._pushUnlockToast('SCORE SUBMITTED', 'PENDING VERIFICATION');
+                    this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED', 'PENDING VERIFICATION');
                 }
             });
         }
@@ -6745,6 +6809,8 @@ export class Game {
         // would inherit boss-rush / time-trial routing.
         this.bossRushMode = false;
         this.timeTrialMode = false;
+        this.dailyMode = false;
+        this.dailyChallenge = null;
         this._modeNewBest = false;
         // Defensive: gauntlet queue normally clears in _startStage, but
         // quit-from-pause skips that path. Drop it here so the queue can't

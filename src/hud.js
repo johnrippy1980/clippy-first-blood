@@ -9,7 +9,7 @@ import { achievements } from './achievements.js';
 export function drawHUD(ctx, state) {
     const { player, score, time, boss, camera, training,
             bossRush, timeTrial, stageTime,
-            bestBossRushTime, bestTimeTrialTime } = state;
+            bestBossRushTime, bestTimeTrialTime, daily } = state;
     // Lazy-build a single radial gradient cached on the function (geometry is constant)
     if (!drawHUD._vignetteGrad) {
         const g = ctx.createRadialGradient(GAME.W / 2, GAME.H / 2, 30, GAME.W / 2, GAME.H / 2, GAME.W * 0.7);
@@ -633,6 +633,24 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(tx, ty, 50, 1);
         ctx.fillRect(tx, ty + 8, 50, 1);
         drawText(ctx, 'TRAINING', tx + 25, ty + 2, '#7af0bf', 1, 'center');
+        ctx.restore();
+    }
+    // Daily Challenge badge — gold pulsing label in the same top-left slot,
+    // showing the active challenge name (e.g. "AUSTERITY") so the player is
+    // always reminded which modifiers are in effect this run.
+    if (daily && daily.name) {
+        const pulse = 0.65 + Math.sin(performance.now() * 0.005) * 0.25;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        const tx = 4;
+        const ty = 18;
+        const w = Math.max(50, daily.name.length * 6 + 8);
+        ctx.fillStyle = '#1a1408';
+        ctx.fillRect(tx, ty, w, 9);
+        ctx.fillStyle = '#ffe070';
+        ctx.fillRect(tx, ty, w, 1);
+        ctx.fillRect(tx, ty + 8, w, 1);
+        drawText(ctx, daily.name, tx + w / 2, ty + 2, '#ffe070', 1, 'center');
         ctx.restore();
     }
 }

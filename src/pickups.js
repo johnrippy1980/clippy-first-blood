@@ -528,9 +528,13 @@ export class PickupManager {
     // (queried by Level.isSolid each frame). Externally exposed list
     // so level.js can check intersection without a public accessor on
     // each manager method.
-    constructor() { this.pickups = []; this.crates = []; this.walls = []; }
+    constructor() { this.pickups = []; this.crates = []; this.walls = []; this.suppressDrops = false; }
     clear() { this.pickups.length = 0; this.crates.length = 0; this.walls.length = 0; }
-    spawn(x, y, type) { this.pickups.push(new Pickup(x, y, type)); }
+    // suppressDrops (Daily Challenge BARE HANDS / AUSTERITY) makes weapon and
+    // powerup pickups no-op so the player runs the whole campaign on the
+    // starting machine gun. Crates/walls still spawn as geometry — they just
+    // break into nothing.
+    spawn(x, y, type) { if (this.suppressDrops) return; this.pickups.push(new Pickup(x, y, type)); }
     spawnCrate(x, y, drop) { this.crates.push(new Crate(x, y, drop)); }
     spawnWall(x, y, w, h, drop, theme) { this.walls.push(new BreakableWall(x, y, w, h, drop, theme)); }
     // R219: returns true if (px, py) sits inside any live breakable
@@ -544,7 +548,10 @@ export class PickupManager {
         return false;
     }
     loadFromLevel(data, level) {
-        if (data?.pickupSpawns) for (const p of data.pickupSpawns) {
+        // suppressDrops (Daily noPickups) skips stage weapon placements wholesale
+        // — the ground-snap below assumes spawn() actually pushed a pickup, which
+        // it doesn't when suppressed, so guard the loop rather than each push.
+        if (data?.pickupSpawns && !this.suppressDrops) for (const p of data.pickupSpawns) {
             this.spawn(p.x, p.y, p.type);
             // Ground-snap: hand-placed pickup coords across stages used a
             // mix of "-8" and "-12" offsets, leaving some half-buried. Walk
@@ -554,7 +561,7 @@ export class PickupManager {
             if (level) {
                 const pk = this.pickups[this.pickups.length - 1];
                 let guard = 0;
-                while (level.isSolid(pk.x + pk.w / 2, pk.y + pk.h - 1) && guard < 4) {
+                while (pk && level.isSolid(pk.x + pk.w / 2, pk.y + pk.h - 1) && guard < 4) {
                     pk.y -= GAME.TILE;
                     guard++;
                 }

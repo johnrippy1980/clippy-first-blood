@@ -33,6 +33,20 @@ export default async function handler(req, res) {
             if (!Number.isFinite(limit) || limit < 1) limit = 20;
             if (limit > 100) limit = 100;
 
+            // Daily Challenge: one score-ranked board per calendar day. The
+            // client passes ?day=YYYYMMDD; runs are partitioned by daily_key.
+            if (mode === 'daily') {
+                const day = String(req.query.day || '').replace(/[^0-9]/g, '').slice(0, 8);
+                if (day.length !== 8) return res.status(400).json({ error: 'bad_day' });
+                const dailyRows = await sql`
+                    SELECT name, score, time_frames, stages_cleared, verified, created_at
+                    FROM cfb_runs
+                    WHERE mode = 'daily' AND daily_key = ${day} AND verified = true
+                    ORDER BY score DESC
+                    LIMIT ${limit}`;
+                return res.status(200).json({ mode, day, entries: dailyRows });
+            }
+
             const rows = TIME_RANKED.has(mode)
                 ? await sql`
                     SELECT name, score, time_frames, stages_cleared, verified, created_at
@@ -64,24 +78,35 @@ export default async function handler(req, res) {
             };
             if (!run.runId) return res.status(400).json({ error: 'missing_run_id' });
 
+            // Daily Challenge partition key (YYYYMMDD). Only meaningful for
+            // mode='daily'; stored NULL otherwise. Not part of the signed hash
+            // — it's a routing key, not a scored value.
+            const dailyKey = run.mode === 'daily'
+                ? String(body.dailyKey || '').replace(/[^0-9]/g, '').slice(0, 8) || null
+                : null;
+            if (run.mode === 'daily' && !dailyKey) {
+                return res.status(400).json({ error: 'missing_daily_key' });
+            }
+
             const { verified, reason } = validateRun(run);
 
             // Upsert on run_id so a retry from a flaky connection doesn't
             // create duplicate board entries.
             const [saved] = await sql`
                 INSERT INTO cfb_runs
-                    (run_id, name, mode, score, time_frames, stages_cleared, checkpoints, verified)
+                    (run_id, name, mode, score, time_frames, stages_cleared, checkpoints, verified, daily_key)
                 VALUES
                     (${run.runId}, ${run.name}, ${run.mode}, ${run.score},
                      ${run.timeFrames}, ${run.stagesCleared},
-                     ${JSON.stringify(run.checkpoints)}::jsonb, ${verified})
+                     ${JSON.stringify(run.checkpoints)}::jsonb, ${verified}, ${dailyKey})
                 ON CONFLICT (run_id) DO UPDATE SET
                     name = EXCLUDED.name,
                     score = EXCLUDED.score,
                     time_frames = EXCLUDED.time_frames,
                     stages_cleared = EXCLUDED.stages_cleared,
                     checkpoints = EXCLUDED.checkpoints,
-                    verified = EXCLUDED.verified
+                    verified = EXCLUDED.verified,
+                    daily_key = EXCLUDED.daily_key
                 RETURNING id, verified`;
 
             return res.status(200).json({ ok: true, verified: saved.verified, reason });

@@ -35,6 +35,13 @@ export function ensureSchema() {
                 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             )
         `;
+        // Daily Challenge runs share mode='daily' but partition by date
+        // (YYYYMMDD) so each day's board is independent. Added idempotently
+        // for tables created before the daily feature existed. NULL for all
+        // non-daily modes.
+        await sql`
+            ALTER TABLE cfb_runs ADD COLUMN IF NOT EXISTS daily_key TEXT
+        `;
         // Score boards (Any%, 100%, boss-rush) read by score DESC.
         await sql`
             CREATE INDEX IF NOT EXISTS cfb_runs_mode_score_idx
@@ -44,6 +51,11 @@ export function ensureSchema() {
         await sql`
             CREATE INDEX IF NOT EXISTS cfb_runs_mode_time_idx
             ON cfb_runs (mode, time_frames ASC)
+        `;
+        // Daily boards read by (day, score DESC) — one leaderboard per date.
+        await sql`
+            CREATE INDEX IF NOT EXISTS cfb_runs_daily_idx
+            ON cfb_runs (daily_key, score DESC)
         `;
     })();
     return _ready;
