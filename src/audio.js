@@ -548,7 +548,7 @@ class Audio {
         o.type = 'sine';
         o.frequency.setValueAtTime(95, t);
         o.frequency.exponentialRampToValueAtTime(22, t + 0.20);
-        this._envOn(g, 0.95, t);                    // was 0.65 — way louder
+        this._envOn(g, 0.74, t);                    // R595: was 0.95 — summed peak clipped
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
         o.connect(g).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.26);
@@ -565,8 +565,8 @@ class Audio {
         o2.start(t + 0.03); o2.stop(t + 0.34);
 
         // MID BODY — beefier noise tail. Bumped gains, extended duration.
-        this._noise(t,         0.62, 0.38, 700,  'lp', 1.2);    // was 0.45/0.30
-        this._noise(t + 0.005, 0.48, 0.34, 1200, 'bp', 1.6);    // was 0.30/0.28
+        this._noise(t,         0.50, 0.38, 700,  'lp', 1.2);    // R595: was 0.62
+        this._noise(t + 0.005, 0.40, 0.34, 1200, 'bp', 1.6);    // R595: was 0.48
         // Sub-spread layer for pellet thickness
         this._noise(t + 0.01,  0.32, 0.22, 450,  'lp', 0.8);
 
@@ -1287,9 +1287,13 @@ class Audio {
         // Short low-pass noise tick. Vary cutoff + gain per step so successive
         // footsteps don't sound robotically identical — alternating timbre
         // reads as left/right foot, not a metronome.
-        const dur = 0.05;
-        const cutoff = 500 + Math.random() * 250;   // 500-750 Hz
-        const vol = 0.06 + Math.random() * 0.04;    // 0.06-0.10
+        // R595: was 0.05s @ 500-750Hz, vol 0.06-0.10 — measured ~-61 dBFS RMS,
+        // ~30 dB under the SFX median and effectively inaudible over music. A
+        // footfall needs a little low-mid body, not just a faint hiss tick.
+        // Lengthen slightly, open the cutoff, and roughly triple the gain.
+        const dur = 0.06;
+        const cutoff = 700 + Math.random() * 300;   // 700-1000 Hz
+        const vol = 0.18 + Math.random() * 0.08;    // 0.18-0.26
         const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
@@ -1381,11 +1385,11 @@ class Audio {
     // jungle stages. Brighter than concrete, with a ruffling tail.
     _footstepGrass(t) {
         // Crunch — bandpass noise burst with broader Q for organic feel
-        this._noise(t, 0.10, 0.06, 1600, 'bp', 1.8);
+        this._noise(t, 0.20, 0.06, 1600, 'bp', 1.8);        // R595: was 0.10 — was inaudible
         // Higher rustle layer — bandpass at 2800Hz for the dry-leaf shimmer
-        this._noise(t + 0.01, 0.05, 0.05, 2800, 'bp', 2.5);
+        this._noise(t + 0.01, 0.10, 0.05, 2800, 'bp', 2.5); // R595: was 0.05
         // Tiny ground-tap under it
-        this._noise(t, 0.04, 0.03, 400, 'lp', 1);
+        this._noise(t, 0.09, 0.03, 400, 'lp', 1);           // R595: was 0.04
     }
 
     _landThump(t) {
@@ -1412,6 +1416,16 @@ class Audio {
     //  - Cylinder/mechanism "click" pre-shot for the mechanical feel
     //    Doom guns have (1f offset so it doesn't smear the transient).
     _gunshot(t, { thump = 80, body = 1400, bodyDur = 0.12, crack = 5000, layers = 1 }) {
+        // R595: the four layers (sub 0.78 + thump 0.72 + body 0.62 + crack 0.48)
+        // all fire at `start`, summing to ~2.6 linear at the transient — well
+        // over full scale. The master tanh limiter was flattening every gunshot
+        // to a uniform ~-1 dBFS, erasing the per-weapon punch the layer mix is
+        // meant to give. Route all layers through one trim so the summed peak
+        // lands just under 0 dBFS and the limiter stops squashing the transient.
+        const trim = this.ctx.createGain();
+        trim.gain.value = 0.60;
+        trim.connect(this.sfxBus);
+        const outBus = trim;
         for (let layer = 0; layer < layers; layer++) {
             const start = t + layer * 0.025;
 
@@ -1425,7 +1439,7 @@ class Audio {
             subG.gain.setValueAtTime(0.0, start);
             subG.gain.linearRampToValueAtTime(0.78, start + 0.004);
             subG.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
-            sub.connect(subG).connect(this.sfxBus);
+            sub.connect(subG).connect(outBus);
             sub.start(start); sub.stop(start + 0.15);
 
             // PRIMARY THUMP — the original kick, now louder
@@ -1437,7 +1451,7 @@ class Audio {
             og.gain.setValueAtTime(0.0, start);
             og.gain.linearRampToValueAtTime(0.72, start + 0.005);
             og.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
-            o.connect(og).connect(this.sfxBus);
+            o.connect(og).connect(outBus);
             o.start(start); o.stop(start + 0.18);
 
             // BODY — extended bandpass noise with sub-resonance for meat.
@@ -1459,7 +1473,7 @@ class Audio {
             const g = this.ctx.createGain();
             this._envOn(g, 0.62, start);     // was 0.42 — meatier
             g.gain.exponentialRampToValueAtTime(0.001, start + bodyDurFinal);
-            src.connect(filt).connect(g).connect(this.sfxBus);
+            src.connect(filt).connect(g).connect(outBus);
             src.start(start); src.stop(start + bodyDurFinal + 0.02);
 
             // CRACK — sharper, brighter, slightly longer
@@ -1473,7 +1487,7 @@ class Audio {
             const cg = this.ctx.createGain();
             this._envOn(cg, 0.48, start);    // was 0.32 — brighter snap
             cg.gain.exponentialRampToValueAtTime(0.001, start + 0.035);
-            csrc.connect(cfilt).connect(cg).connect(this.sfxBus);
+            csrc.connect(cfilt).connect(cg).connect(outBus);
             csrc.start(start); csrc.stop(start + 0.04);
         }
     }
@@ -2035,7 +2049,7 @@ class Audio {
         sub.type = 'sine';
         sub.frequency.setValueAtTime(110, t);
         sub.frequency.exponentialRampToValueAtTime(38, t + 0.16);
-        this._envOn(subG, 0.78, t);                  // hotter than punch
+        this._envOn(subG, 0.60, t);                  // R595: was 0.78 — summed peak clipped
         subG.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
         sub.connect(subG).connect(this.sfxBus);
         sub.start(t); sub.stop(t + 0.22);
@@ -2044,12 +2058,12 @@ class Audio {
         sub2.type = 'sine';
         sub2.frequency.setValueAtTime(70, t);
         sub2.frequency.exponentialRampToValueAtTime(28, t + 0.16);
-        this._envOn(sub2G, 0.42, t);
+        this._envOn(sub2G, 0.34, t);                 // R595: was 0.42
         sub2G.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
         sub2.connect(sub2G).connect(this.sfxBus);
         sub2.start(t); sub2.stop(t + 0.22);
         // Extended body — bigger lowpass noise tail
-        this._noise(t, 0.50, 0.18, 450, 'lp', 1.4);
+        this._noise(t, 0.40, 0.18, 450, 'lp', 1.4);  // R595: was 0.50
         // Snap-crack — sharp transient at attack
         this._noise(t, 0.22, 0.05, 3200, 'hp', 2);
     }
@@ -2141,12 +2155,12 @@ class Audio {
         sub.type = 'sine';
         sub.frequency.setValueAtTime(70, t);
         sub.frequency.exponentialRampToValueAtTime(22, t + 0.30);
-        this._envOn(subG, 1.0, t);
+        this._envOn(subG, 0.78, t);                  // R595: was 1.0 — summed peak clipped
         subG.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
         sub.connect(subG).connect(this.sfxBus);
         sub.start(t); sub.stop(t + 0.36);
         // Mid-low body rumble
-        this._noise(t, 0.62, 0.45, 380, 'lp', 1.2);
+        this._noise(t, 0.50, 0.45, 380, 'lp', 1.2);  // R595: was 0.62
         // Mid bark
         this._noise(t + 0.01, 0.42, 0.28, 850, 'bp', 1.4);
         // High crack
