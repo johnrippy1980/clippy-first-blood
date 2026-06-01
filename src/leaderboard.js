@@ -50,10 +50,17 @@ class Leaderboard {
         return sha256Hex(payload);
     }
 
+    // Modes whose runs are partitioned onto a sub-board by a routing key
+    // (the daily challenge's date, the weekly board's ISO-week). The key rides
+    // along as `dailyKey` in the body / `day` in the query — reusing the same
+    // partition column server-side — but it is NEVER part of the signed hash.
+    static PARTITIONED = new Set(['daily', 'weekly']);
+
     // Submit a finished run. Returns { ok, verified?, reason?, error? }.
-    // dailyKey (YYYYMMDD) is required only for mode 'daily' — it routes the
-    // run onto that day's board. It is NOT part of the signed hash (it's a
-    // routing key, not a scored value), so it's added after signing.
+    // dailyKey is required for partitioned modes ('daily' → YYYYMMDD,
+    // 'weekly' → <isoYear>W<ww>) — it routes the run onto the right sub-board.
+    // It is NOT part of the signed hash (it's a routing key, not a scored
+    // value), so it's added after signing.
     async submit({ runId, name, mode, score, timeFrames, stagesCleared, checkpoints, dailyKey }) {
         if (!runId) return { ok: false, error: 'no_run_id' };
         const playerName = this.setName(name || this._name || 'AAA');
@@ -65,7 +72,7 @@ class Leaderboard {
             checkpoints: checkpoints || [],
         };
         body.hash = await this._sign(body);
-        if (mode === 'daily' && dailyKey) body.dailyKey = String(dailyKey);
+        if (Leaderboard.PARTITIONED.has(mode) && dailyKey) body.dailyKey = String(dailyKey);
         try {
             const res = await fetch(API, {
                 method: 'POST',
@@ -81,14 +88,15 @@ class Leaderboard {
     }
 
     // Fetch a board's top entries. Caches the result by cache key. Returns
-    // { entries, status }. status: 'ok' | 'error'. For the daily board pass
-    // opts.day (YYYYMMDD); the cache key becomes 'daily:<day>' so different
-    // days don't clobber each other.
+    // { entries, status }. status: 'ok' | 'error'. For a partitioned board
+    // (daily/weekly) pass opts.day (the partition key); the cache key becomes
+    // '<mode>:<key>' so different days/weeks don't clobber each other.
     async fetch(mode, limit = 20, opts = {}) {
         const day = opts.day ? String(opts.day) : null;
-        const cacheKey = mode === 'daily' && day ? `daily:${day}` : mode;
+        const partitioned = Leaderboard.PARTITIONED.has(mode);
+        const cacheKey = partitioned && day ? `${mode}:${day}` : mode;
         let url = `${API}?mode=${encodeURIComponent(mode)}&limit=${limit}`;
-        if (mode === 'daily' && day) url += `&day=${encodeURIComponent(day)}`;
+        if (partitioned && day) url += `&day=${encodeURIComponent(day)}`;
         try {
             const res = await fetch(url);
             if (!res.ok) throw new Error('http_' + res.status);
@@ -104,7 +112,7 @@ class Leaderboard {
     }
 
     cached(mode, day = null) {
-        const key = mode === 'daily' && day ? `daily:${day}` : mode;
+        const key = Leaderboard.PARTITIONED.has(mode) && day ? `${mode}:${day}` : mode;
         return this._cache.get(key) || null;
     }
 }

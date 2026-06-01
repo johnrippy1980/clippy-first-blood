@@ -33,6 +33,24 @@ class DailyChallenge {
         return `${y}${m}${d}`;
     }
 
+    // ISO-8601 week key for the given date, "<isoYear>W<ww>" (e.g. 2026W22).
+    // Used as the partition key for the rolling weekly Any% board — everyone
+    // playing in the same ISO week competes on the same board, and it rolls
+    // over automatically each Monday. ISO weeks start Monday; the week
+    // containing the year's first Thursday is week 1 (which can belong to the
+    // previous or next calendar year, hence the separate isoYear).
+    weeklyKey(date = new Date()) {
+        // Work in UTC on the local Y/M/D so the key is timezone-stable.
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        // Shift to the Thursday of this week: ISO day 1=Mon..7=Sun.
+        const isoDay = d.getUTCDay() || 7;        // Sunday(0) → 7
+        d.setUTCDate(d.getUTCDate() + 4 - isoDay);
+        const isoYear = d.getUTCFullYear();
+        const yearStart = Date.UTC(isoYear, 0, 1);
+        const week = Math.ceil(((d.getTime() - yearStart) / 86400000 + 1) / 7);
+        return `${isoYear}W${String(week).padStart(2, '0')}`;
+    }
+
     // Whole days since the Unix epoch in local time — a monotonic day index
     // that drives the rotation. Independent of timezone offset sign because we
     // build it from the local Y/M/D, not from getTime().

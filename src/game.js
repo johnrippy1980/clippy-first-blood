@@ -4227,13 +4227,16 @@ export class Game {
     // leaderboard client's localStorage), and a top-20 list fetched on entry.
     _enterLeaderboard() {
         this.scene = SCENE.LEADERBOARD;
-        this._lbTab = 0;                 // 0 = Any%, 1 = Time Trial, 2 = Daily
+        this._lbTab = 0;                 // 0 Any% · 1 Time Trial · 2 Weekly · 3 Daily
         // Today's daily challenge supplies the DAILY board's day key (which
-        // partitions the board) and its name for the subtitle.
+        // partitions the board) and its name for the subtitle. The weekly board
+        // is partitioned by ISO-week key and rolls over every Monday.
         const today = dailyChallenge.todayChallenge();
+        const week = dailyChallenge.weeklyKey();
         this._lbTabs = [
             { mode: 'any',       title: 'ANY %',      ranked: 'score' },
             { mode: 'timeTrial', title: 'TIME TRIAL', ranked: 'time'  },
+            { mode: 'weekly',    title: 'WEEKLY: ' + week, ranked: 'score', day: week },
             { mode: 'daily',     title: 'DAILY: ' + today.name, ranked: 'score', day: today.day },
         ];
         // Name-entry state: 3 initials, edit cursor 0..2. Seed from saved name.
@@ -4245,9 +4248,9 @@ export class Game {
 
     _lbFetch(tab) {
         // Fire-and-forget; _drawLeaderboard reads leaderboard.cached(...).
-        // The daily board is partitioned by day, so it needs opts.day to
-        // route the fetch (and cache) to today's board.
-        if (tab.mode === 'daily') leaderboard.fetch('daily', 20, { day: tab.day });
+        // Partitioned boards (daily/weekly) carry a `day` key and need it
+        // passed through to route the fetch (and cache) to the right sub-board.
+        if (tab.day) leaderboard.fetch(tab.mode, 20, { day: tab.day });
         else leaderboard.fetch(tab.mode, 20);
     }
 
@@ -4298,8 +4301,8 @@ export class Game {
             if (((x + y) >> 3) & 1) ctx.fillRect(x, y, 4, 4);
         }
         const tab = this._lbTabs[this._lbTab];
-        const cache = tab.mode === 'daily'
-            ? leaderboard.cached('daily', tab.day)
+        const cache = tab.day
+            ? leaderboard.cached(tab.mode, tab.day)
             : leaderboard.cached(tab.mode);
 
         drawTextOutlined(ctx, 'LEADERBOARD', GAME.W / 2, 14, '#ffe070', '#a82020', 1, 'center');
@@ -6551,6 +6554,22 @@ export class Game {
                     this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED', 'PENDING VERIFICATION');
                 }
             });
+            // A clean Any% clear ALSO enters this week's rolling board. Daily
+            // runs are excluded — their modifiers make the score non-comparable.
+            // Distinct run id ('-w' suffix) so it doesn't collide with the Any%
+            // row on the run_id upsert.
+            if (!isDaily) {
+                leaderboard.submit({
+                    runId: this.runId + '-w',
+                    name: leaderboard.name || 'AAA',
+                    mode: 'weekly',
+                    score: this.player?.score || 0,
+                    timeFrames: this.totalTime,
+                    stagesCleared: stages,
+                    checkpoints: this.runCheckpoints,
+                    dailyKey: dailyChallenge.weeklyKey(),
+                });
+            }
         }
         // GRENADE (V / gamepad Y) downloads a shareable run-summary PNG.
         // Handled before the advance gate so it doesn't also skip to epilogue.

@@ -10,7 +10,12 @@ import { createHash } from 'node:crypto';
 // secret (it ships in the bundle) — it only raises the bar past trivial.
 const SIGN_SALT = process.env.CFB_SIGN_SALT || 'clippy-bonzi-1997';
 
-const MODES = new Set(['any', 'hundred', 'bossRush', 'timeTrial', 'daily']);
+const MODES = new Set(['any', 'hundred', 'bossRush', 'timeTrial', 'daily', 'weekly']);
+
+// Modes whose runs are partitioned onto a sub-board by a routing key.
+// daily → YYYYMMDD, weekly → <isoYear>W<ww>. Kept here so the API and
+// validator agree on which modes require a partition key.
+const PARTITIONED_MODES = new Set(['daily', 'weekly']);
 
 // Recompute the submission hash the same way the client does.
 export function computeHash({ runId, mode, score, timeFrames, stagesCleared, checkpoints }) {
@@ -60,4 +65,23 @@ export function validateRun(run) {
     return { verified: true };
 }
 
-export { MODES };
+// Normalize a partition key for a partitioned mode. daily keys are 8 digits
+// (YYYYMMDD); weekly keys are "<isoYear>W<ww>" (e.g. 2026W22). Returns the
+// cleaned key, or null if it doesn't fit the mode's shape.
+function partitionKey(mode, raw) {
+    const s = String(raw ?? '').toUpperCase();
+    if (mode === 'daily') {
+        const d = s.replace(/[^0-9]/g, '').slice(0, 8);
+        return d.length === 8 ? d : null;
+    }
+    if (mode === 'weekly') {
+        const m = s.replace(/[^0-9W]/g, '').match(/^(\d{4})W(\d{2})$/);
+        if (!m) return null;
+        const wk = parseInt(m[2], 10);
+        if (wk < 1 || wk > 53) return null;
+        return `${m[1]}W${m[2]}`;
+    }
+    return null;
+}
+
+export { MODES, PARTITIONED_MODES, partitionKey };

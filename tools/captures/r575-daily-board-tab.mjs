@@ -44,15 +44,19 @@ const result = await page.evaluate(() => {
     // Enter the leaderboard scene.
     g._enterLeaderboard();
     const tabCount = g._lbTabs.length;
-    const dailyTab = g._lbTabs[2];
+    // Locate the daily tab by mode (its index shifts as boards are added —
+    // e.g. the weekly board was inserted ahead of it in R580).
+    const dailyIdx = g._lbTabs.findIndex(t => t.mode === 'daily');
+    const dailyTab = g._lbTabs[dailyIdx];
 
-    // Cycle TAB twice to land on the daily (index 2) tab.
-    g._lbTab = 2;
-    g._lbFetch(g._lbTabs[2]);
+    // Switch to the daily tab and fetch it.
+    g._lbTab = dailyIdx;
+    g._lbFetch(g._lbTabs[dailyIdx]);
     g.render();
 
     return {
         tabCount,
+        dailyIdx,
         dailyTabTitle: dailyTab?.title,
         dailyTabMode: dailyTab?.mode,
         dailyTabDay: dailyTab?.day,
@@ -66,8 +70,9 @@ await browser.close();
 
 let ok = true;
 const fail = (m) => { ok = false; console.log('FAIL: ' + m); };
-if (result.tabCount !== 3) fail('expected 3 tabs (any/timeTrial/daily), got ' + result.tabCount);
-if (result.dailyTabMode !== 'daily') fail('3rd tab mode should be daily, got ' + result.dailyTabMode);
+if (result.tabCount < 3) fail('expected at least 3 tabs, got ' + result.tabCount);
+if (result.dailyIdx < 0) fail('no daily tab found in _lbTabs');
+if (result.dailyTabMode !== 'daily') fail('daily tab mode should be daily, got ' + result.dailyTabMode);
 if (!/^DAILY: /.test(result.dailyTabTitle || '')) fail('daily tab title should start "DAILY: ", got ' + result.dailyTabTitle);
 if (!/^\d{8}$/.test(result.dailyTabDay || '')) fail('daily tab day should be YYYYMMDD, got ' + result.dailyTabDay);
 const dailyFetch = result.fetchCalls.find(c => c.mode === 'daily');

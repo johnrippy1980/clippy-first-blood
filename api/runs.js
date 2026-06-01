@@ -3,7 +3,7 @@
 //   POST /api/runs   { runId, name, mode, score, timeFrames,
 //                      stagesCleared, checkpoints, hash }   → submit a run
 import { ensureSchema, getSql } from './_db.js';
-import { validateRun, MODES } from './_validate.js';
+import { validateRun, MODES, PARTITIONED_MODES, partitionKey } from './_validate.js';
 
 // Score-ranked boards sort high→low; time-ranked boards sort fast→slow.
 const TIME_RANKED = new Set(['timeTrial']);
@@ -33,18 +33,19 @@ export default async function handler(req, res) {
             if (!Number.isFinite(limit) || limit < 1) limit = 20;
             if (limit > 100) limit = 100;
 
-            // Daily Challenge: one score-ranked board per calendar day. The
-            // client passes ?day=YYYYMMDD; runs are partitioned by daily_key.
-            if (mode === 'daily') {
-                const day = String(req.query.day || '').replace(/[^0-9]/g, '').slice(0, 8);
-                if (day.length !== 8) return res.status(400).json({ error: 'bad_day' });
-                const dailyRows = await sql`
+            // Partitioned boards (daily / weekly): one score-ranked board per
+            // partition key. The client passes ?day=<key>; runs are filtered by
+            // daily_key. daily → YYYYMMDD, weekly → <isoYear>W<ww>.
+            if (PARTITIONED_MODES.has(mode)) {
+                const key = partitionKey(mode, req.query.day);
+                if (!key) return res.status(400).json({ error: 'bad_key' });
+                const partRows = await sql`
                     SELECT name, score, time_frames, stages_cleared, verified, created_at
                     FROM cfb_runs
-                    WHERE mode = 'daily' AND daily_key = ${day} AND verified = true
+                    WHERE mode = ${mode} AND daily_key = ${key} AND verified = true
                     ORDER BY score DESC
                     LIMIT ${limit}`;
-                return res.status(200).json({ mode, day, entries: dailyRows });
+                return res.status(200).json({ mode, day: key, entries: partRows });
             }
 
             const rows = TIME_RANKED.has(mode)
@@ -78,14 +79,14 @@ export default async function handler(req, res) {
             };
             if (!run.runId) return res.status(400).json({ error: 'missing_run_id' });
 
-            // Daily Challenge partition key (YYYYMMDD). Only meaningful for
-            // mode='daily'; stored NULL otherwise. Not part of the signed hash
-            // — it's a routing key, not a scored value.
-            const dailyKey = run.mode === 'daily'
-                ? String(body.dailyKey || '').replace(/[^0-9]/g, '').slice(0, 8) || null
+            // Partition key for daily/weekly boards. Stored in daily_key (a
+            // generic partition column), NULL for unpartitioned modes. Not part
+            // of the signed hash — it's a routing key, not a scored value.
+            const dailyKey = PARTITIONED_MODES.has(run.mode)
+                ? partitionKey(run.mode, body.dailyKey)
                 : null;
-            if (run.mode === 'daily' && !dailyKey) {
-                return res.status(400).json({ error: 'missing_daily_key' });
+            if (PARTITIONED_MODES.has(run.mode) && !dailyKey) {
+                return res.status(400).json({ error: 'missing_partition_key' });
             }
 
             const { verified, reason } = validateRun(run);
