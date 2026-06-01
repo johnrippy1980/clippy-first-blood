@@ -398,8 +398,29 @@ export class Player {
             // Light horizontal drift so Clippy arcs sideways instead of
             // falling straight down. Air friction tapers vx to zero.
             this.vx *= 0.985;
-            this.x += this.vx;
-            this.y += this.vy;
+            // Resolve the death tumble against terrain instead of free-falling.
+            // Without collision the body sails through the floor and off the
+            // bottom of the screen during the ~90f death animation, so the
+            // respawn reads as "player materializes far off-screen." Route the
+            // fall through the same level collision the live player uses so the
+            // sprawled-on-back pose settles on the floor, in view, where you
+            // died. Guard for level (some harnesses tick without one).
+            if (level && level.moveX && level.moveY) {
+                const xRes = level.moveX(this, this.vx);
+                this.x = xRes.x;
+                if (xRes.hit) this.vx = 0;
+                const yRes = level.moveY(this, this.vy, true, this.vy);
+                this.y = yRes.y;
+                if (yRes.hit) this.vy = 0;
+                // Dying over a pit: there's no floor to catch the body, so cap
+                // the fall at the level floor rather than letting it sink an
+                // unbounded distance below the world during the death window.
+                const floor = level.height - this.h;
+                if (this.y > floor) { this.y = floor; this.vy = 0; }
+            } else {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
             return;
         }
 
