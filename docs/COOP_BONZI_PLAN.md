@@ -1,7 +1,10 @@
 # Co-op + Bonzi Buddy — Implementation Plan
 
-Status: **planned**, not started. Designed in conversation with John
-on 2026-05-27 evening.
+Status: **SHIPPED** (slices 1–7.5, commits R568–R568n). Designed in
+conversation with John on 2026-05-27 evening; built out over the R568*
+series. The slice breakdown below is preserved as the historical build
+plan — all of it landed. Co-op unlocks by defeating Bonzi in stage 26
+(`THE COMPETITION`), gated on `achievements.stats.bonziDefeated`.
 
 ## Premise
 
