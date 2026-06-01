@@ -5575,6 +5575,21 @@ export class Game {
                 achievements._save();
                 this._modeNewBest = true;
             }
+            // Submit every time-trial clear to the online board (not just PBs)
+            // — the server keeps the fastest per board, and other players'
+            // times still belong on the list. Single-stage mode: stageTime is
+            // the run time and the sole checkpoint. Best-effort, non-blocking.
+            const ttFrames = this.stageTime;
+            const ttRunId = leaderboard.newRunId();
+            leaderboard.submit({
+                runId: ttRunId,
+                name: leaderboard.name || 'AAA',
+                mode: 'timeTrial',
+                score: this.player?.score || 0,
+                timeFrames: ttFrames,
+                stagesCleared: 1,
+                checkpoints: [{ key: 'timeTrial', frame: ttFrames }],
+            });
         }
         // R568m-fix: after achievement roll-up has run, override the scene
         // for stage 26 so the forced-alliance cinematic plays instead of
