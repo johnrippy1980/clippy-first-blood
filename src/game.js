@@ -23,6 +23,7 @@ import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { leaderboard } from './leaderboard.js';
 import { downloadShareCard } from './sharecard.js';
 import { dailyChallenge } from './daily.js';
+import { ghost } from './ghost.js';
 import { options } from './options.js';
 
 const SCENE = {
@@ -74,8 +75,8 @@ const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SCENE GALLERY', 'SO
 // options.js DEFAULTS but weren't selectable from the menu. CRT curve
 // is a visual preference some players hate (motion sickness), and
 // veterans want to skip the READY screen on repeat runs.
-const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'SHOW READY', 'BACK'];
-const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'crtCurve',  'shakeScale',     'showReady',  'BACK'];
+const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'SHOW READY', 'SHOW GHOST', 'BACK'];
+const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'crtCurve',  'shakeScale',     'showReady',  'showGhost',  'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 // Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
@@ -2326,6 +2327,11 @@ export class Game {
     _tickPlayUpdateWorld(slowMoSkipEnemies) {
         this.stageTime++;
         this.totalTime++;
+        // Ghost replay: sample the player's path on the recording cadence. Uses
+        // pre-update stageTime so playback (keyed on the same counter) lines up.
+        if (this._ghostActive && this.player) {
+            ghost.record(this.stageTime, this.player.x, this.player.y, this.player.facing);
+        }
         this.level.update();
         if (this._ambientProps) {
             this._ambientProps.update();
@@ -2573,10 +2579,51 @@ export class Game {
         if (this.player.lives < 0) {
             this.gameOverIndex = 0;
             this.storyTimer = 0;
+            // Run ended — this stage won't clear, so drop the in-flight ghost
+            // recording rather than persisting a partial path.
+            ghost.abortRecording();
+            this._ghostActive = false;
             this._fadeTo(SCENE.GAME_OVER);
         } else {
             this._respawn();
         }
+    }
+
+    // Ghost replay silhouette. Reads the interpolated best-run position for the
+    // current per-stage frame and paints a translucent, facing-aware figure so
+    // the player can race their own pace. No-op when playback is off or the
+    // ghost has already finished (you've fallen behind your best). Drawn in
+    // world space via the same camera transform the player uses.
+    _drawGhost(ctx) {
+        if (!this._ghostActive || !ghost.playing) return;
+        const g = ghost.posAt(this.stageTime);
+        if (!g) return;
+        const sx = Math.round(g.x - this.camera.viewX);
+        const sy = Math.round(g.y - this.camera.viewY);
+        // Cull when off-screen (with a small margin).
+        if (sx < -20 || sx > GAME.W + 20 || sy < -28 || sy > GAME.H + 8) return;
+        const W = 12, H = 22;
+        ctx.save();
+        // Dark backing first — a low-alpha black body so the ghost reads against
+        // cool-toned backgrounds (the cyan alone can blend into blue scenery).
+        ctx.globalAlpha = 0.28;
+        ctx.fillStyle = '#001018';
+        ctx.fillRect(sx + 1, sy - 1, W, H + 1);
+        // Body — cyan ghost so it never reads as an enemy (those are warm-hued).
+        ctx.globalAlpha = 0.42;
+        ctx.fillStyle = '#70e0ff';
+        ctx.fillRect(sx + 2, sy + 4, W - 4, H - 4);
+        // Head.
+        ctx.fillStyle = '#b8f4ff';
+        ctx.fillRect(sx + 3, sy, W - 6, 6);
+        // Facing pip — a small nub on the leading edge so direction reads.
+        const fx = g.facing < 0 ? sx + 1 : sx + W - 3;
+        ctx.fillRect(fx, sy + 8, 2, 4);
+        // Bright outline so the silhouette pops regardless of backdrop.
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#e0fcff';
+        ctx.strokeRect(sx + 1.5, sy + 0.5, W - 2, H);
+        ctx.restore();
     }
 
     _drawPlay() {
@@ -2613,6 +2660,9 @@ export class Game {
         if (this._swapAnimPhase === 'out' && this._swapOutPlayer) {
             this._drawSwapOutgoing(ctx);
         }
+        // Ghost replay silhouette — drawn behind the live player so it never
+        // occludes the character you're controlling. No-op when no ghost.
+        this._drawGhost(ctx);
         // Active player. During 'in' phase, the incoming character renders
         // with a drop-in offset Y + landing flash via _drawSwapIncoming.
         this.player.draw(ctx, this.camera, this.level);
@@ -3512,6 +3562,9 @@ export class Game {
             } else if (k === 'showReady') {
                 // R364: skip the stage-intro READY card on repeat runs
                 options.set(k, !options.get(k));
+            } else if (k === 'showGhost') {
+                // Ghost replay silhouette toggle.
+                options.set(k, !options.get(k));
             } else if (k === 'shakeScale') {
                 options.set(k, Math.max(0, Math.min(2, options.get('shakeScale') + dir * 0.25)));
             }
@@ -3572,7 +3625,7 @@ export class Game {
                 ctx.fillStyle = sel ? '#ffe070' : '#80a0c0';
                 ctx.fillRect(barX, barY, Math.round(barW * v), barH);
                 drawText(ctx, options.get('shakeScale').toFixed(2), panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
-            } else if (key === 'scanlines' || key === 'crtCurve' || key === 'showReady') {
+            } else if (key === 'scanlines' || key === 'crtCurve' || key === 'showReady' || key === 'showGhost') {
                 drawText(ctx, options.get(key) ? 'ON' : 'OFF', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
             }
         }
@@ -5387,12 +5440,37 @@ export class Game {
         // Mode-best banner clears per stage entry; otherwise a NEW BEST from
         // a prior mode clear would survive into the next stage-clear panel.
         this._modeNewBest = false;
+        // Ghost replay: on a clean campaign stage, record this run's path and
+        // play back the stored best as a translucent silhouette to race. Mode
+        // runs (training/boss-rush/time-trial/daily), co-op, and stage-select
+        // warps are excluded so a ghost is always a fair, comparable pace.
+        this._ghostStage = this.currentStage;
+        this._ghostActive = !this.trainingMode && !this.bossRushMode
+            && !this.timeTrialMode && !this.dailyMode && !this.coopMode
+            && !this._runWarped && options.get('showGhost') !== false;
+        if (this._ghostActive) {
+            ghost.startRecording(this.currentStage);
+            ghost.startPlayback(this.currentStage);
+        } else {
+            ghost.abortRecording();
+            ghost.stopPlayback();
+        }
         this._fadeTo(SCENE.STAGE_INTRO);
     }
 
     _onStageClear() {
         if (this._clearScheduled) return;
         this._clearScheduled = true;
+        // Ghost replay: persist this run's path as the stage's best if it beat
+        // the stored clear time. _ghostNewBest drives a "GHOST BEATEN" banner on
+        // the stage-clear panel. Only fires for clean campaign stages (the flag
+        // was gated at stage start).
+        this._ghostNewBest = false;
+        if (this._ghostActive) {
+            this._ghostNewBest = ghost.finishRecording(this._ghostStage, this.stageTime);
+            ghost.stopPlayback();
+            this._ghostActive = false;
+        }
         // Stray mini-boss survives if player rushed past the mini trigger
         // and burned down the main first — drop it so its HP bar doesn't
         // bleed through the stage-clear panel.
@@ -5849,8 +5927,23 @@ export class Game {
         if (panelT < 12) return;
         this._drawStageClearStats(panelT, panelTop);
         this._drawStageClearMedals(panelT);
+        this._drawStageClearGhostBadge(panelT);
         this._drawStageClearAchievementBanner(panelT);
         this._drawStageClearContinuePrompt(t, panelT);
+    }
+
+    // "GHOST BEATEN" badge — shown when this clear set a new best-time path for
+    // the stage, so the ghost the player raced has been overwritten by a faster
+    // one. Cyan to match the ghost silhouette. Sits just under the stats panel.
+    _drawStageClearGhostBadge(panelT) {
+        if (!this._ghostNewBest || panelT <= 40) return;
+        const ctx = this.ctx;
+        const k = Math.min(1, (panelT - 40) / 12);
+        ctx.save();
+        ctx.globalAlpha = k;
+        const y = 148;
+        drawTextOutlined(ctx, '* GHOST BEATEN *', GAME.W / 2, y, '#70e0ff', '#0a2030', 1, 'center');
+        ctx.restore();
     }
 
     // Beat 1: white flash. Returns true if still in this beat so caller bails
@@ -6839,6 +6932,14 @@ export class Game {
         this.dailyMode = false;
         this.dailyChallenge = null;
         this._modeNewBest = false;
+        // Ghost replay: drop any in-flight recording and clear per-run flags so
+        // a quit mid-stage doesn't persist a partial path or leak playback into
+        // the next run.
+        ghost.abortRecording();
+        ghost.stopPlayback();
+        this._ghostActive = false;
+        this._ghostNewBest = false;
+        this._ghostStage = null;
         // Defensive: gauntlet queue normally clears in _startStage, but
         // quit-from-pause skips that path. Drop it here so the queue can't
         // bleed into a future BOSS RUSH session.

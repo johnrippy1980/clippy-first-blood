@@ -17,6 +17,9 @@ const DEFAULTS = {
     // the READY screen itself (don't-show-again toggle). New players
     // see it by default so they get the bindings before getting shot.
     showReady: true,
+    // Ghost replay: render the stored best-run path as a translucent
+    // silhouette during clean campaign stages. On by default.
+    showGhost: true,
 };
 
 class Options {

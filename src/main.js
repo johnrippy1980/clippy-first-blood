@@ -6,6 +6,7 @@ import { Game } from './game.js';
 import { audio } from './audio.js';
 import { achievements } from './achievements.js';
 import { leaderboard } from './leaderboard.js';
+import { ghost } from './ghost.js';
 import { options } from './options.js';
 
 // R364: honor persisted display preferences on boot.
@@ -27,6 +28,7 @@ if (typeof window !== 'undefined') {
     window.__audio = audio;
     window.__achievements = achievements;
     window.__leaderboard = leaderboard;
+    window.__ghost = ghost;
 }
 
 // Kick off async asset loading. Boot scene shows until ready.
