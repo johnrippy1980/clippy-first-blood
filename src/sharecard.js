@@ -89,6 +89,11 @@ export function buildShareCanvas(stats) {
         y += 14;
     }
 
+    // New-personal-best ribbon — only when this run set a record. Sits just
+    // above the path badge so a PB run is visible at a glance in the thumbnail.
+    if (stats.newBest) {
+        drawTextOutlined(ctx, '* NEW PERSONAL BEST *', 128, 150, '#ffe070', '#1a0a14', 1, 'center');
+    }
     // Path badge + footer URL / CTA.
     drawTextOutlined(ctx, 'PATH: ' + (stats.path || ''), 128, 160, stats.accent || '#ff5050', '#0a0410', 1, 'center');
     if (stats.name) {

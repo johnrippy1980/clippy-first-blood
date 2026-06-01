@@ -97,6 +97,12 @@ class Achievements {
             // Mode best times (frames). 0 = no time set. Persisted.
             bestBossRushTime: 0,
             bestTimeTrialTime: 0,
+            // Campaign (any%) personal records. bestScore (above) already
+            // tracks lifetime high score; these add a best clear time (frames,
+            // 0 = none yet) and best rank letter ('' = none) so the game-complete
+            // screen can flag a new PB. Lower time / higher rank = better.
+            bestCampaignTime: 0,
+            bestCampaignRank: '',
             // R223: paperclip dog-tags collected across all runs. Drives
             // the FULL SET achievement at 7 (one per main stage 2..8).
             // High-water mark — once earned, can't lose them.
@@ -188,6 +194,8 @@ class Achievements {
                 }
                 this.stats.bestBossRushTime = data.stats.bestBossRushTime || 0;
                 this.stats.bestTimeTrialTime = data.stats.bestTimeTrialTime || 0;
+                this.stats.bestCampaignTime = data.stats.bestCampaignTime || 0;
+                this.stats.bestCampaignRank = data.stats.bestCampaignRank || '';
                 // R279: konami unlock persists across sessions so the
                 // user doesn't have to re-enter the code every time.
                 this.stats.konamiUnlocked = data.stats.konamiUnlocked === true;
@@ -226,6 +234,8 @@ class Achievements {
                     stageBestScores: this.stats.stageBestScores,
                     bestBossRushTime: this.stats.bestBossRushTime,
                     bestTimeTrialTime: this.stats.bestTimeTrialTime,
+                    bestCampaignTime: this.stats.bestCampaignTime || 0,
+                    bestCampaignRank: this.stats.bestCampaignRank || '',
                     konamiUnlocked: this.stats.konamiUnlocked || false,
                     // R565d: tagsFound is a high-water-mark per R223 (paperclip
                     // dog tags). Was being set in memory by _onStageClear and

@@ -1043,6 +1043,11 @@ export class Game {
                     this.runCheckpoints = [];
                     this._runWarped = false;
                     this._leaderboardSubmitted = false;
+                    // Snapshot the high score BEFORE this run so the game-complete
+                    // PB check can tell a new high score from a tie. The stage-clear
+                    // roll-up bumps achievements.stats.bestScore mid-run, so by the
+                    // time we reach game-complete the live value is already updated.
+                    this._preRunBestScore = achievements.stats.bestScore || 0;
                     this.storyPage = 0;
                     this.storyTimer = 0;
                     this._fadeTo(SCENE.STORY);
@@ -6533,6 +6538,36 @@ export class Game {
     }
 
     // Snapshot of the finished run for the share card. Mirrors the title +
+    // Compare this campaign clear to the persisted personal bests and write
+    // back any improvement. Returns { score, time, rank } booleans flagging
+    // which records were beaten this run, for the game-complete overlay.
+    // Warped (stage-select) runs don't qualify — they aren't full campaigns.
+    _evalCampaignPB() {
+        const flags = { score: false, time: false, rank: false };
+        if (this._runWarped) return flags;
+        const s = achievements.stats;
+        const score = this.player?.score || 0;
+        const time = this.totalTime || 0;
+        const letter = this._runRank?.letter || 'D';
+        // bestScore is bumped mid-run by the stage-clear roll-up, so compare
+        // against the snapshot taken when this run started. A strict beat of
+        // the pre-run high score counts as a new score record.
+        const preBest = this._preRunBestScore ?? s.bestScore;
+        if (score > 0 && score > preBest) flags.score = true;
+        if (time > 0 && (s.bestCampaignTime === 0 || time < s.bestCampaignTime)) {
+            s.bestCampaignTime = time;
+            flags.time = true;
+        }
+        const order = { D: 0, C: 1, B: 2, A: 3, S: 4 };
+        const prevRank = order[s.bestCampaignRank] ?? -1;
+        if ((order[letter] ?? 0) > prevRank) {
+            s.bestCampaignRank = letter;
+            flags.rank = true;
+        }
+        if (flags.time || flags.rank) achievements._save();
+        return flags;
+    }
+
     // accent palette used by _drawGameComplete so the card matches the screen.
     _runShareStats() {
         const path = this._endingPath();
@@ -6556,6 +6591,7 @@ export class Game {
             maxCombo: p.maxCombo || 0,
             deaths: this.totalDeaths || 0,
             name: leaderboard.name || null,
+            newBest: !!(this._runPB && (this._runPB.score || this._runPB.time || this._runPB.rank)),
         };
     }
 
@@ -6628,6 +6664,11 @@ export class Game {
                          : composite >= 0.62 ? 'B'
                          : composite >= 0.45 ? 'C' : 'D';
             this._runRank = { letter, composite };
+            // Personal-record check — runs once (gated by _runRank == null),
+            // only on a clean non-warped campaign clear. Compares this run to
+            // the persisted campaign bests and writes back any improvement.
+            // Skip warped/stage-select runs so partial campaigns can't set PBs.
+            this._runPB = this._evalCampaignPB();
         }
         // Big rank letter on the right edge of the stats panel, scale=3 outlined
         const rankCol = this._runRank.letter === 'S' ? '#ffe070'
@@ -6636,8 +6677,26 @@ export class Game {
                       : this._runRank.letter === 'C' ? '#c0a0d0' : '#806080';
         drawTextOutlined(ctx, this._runRank.letter, GAME.W - 58, 110, rankCol, '#0a0410', 3, 'center');
         drawText(ctx, 'RANK', GAME.W - 58, 144, '#c0a0d0', 1, 'center');
-        // Path badge under stats
-        drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 184, ep.accent, '#0a0410', 1, 'center');
+        // Personal-best banner — only when this clean campaign clear beat a
+        // stored record (score / time / rank). Flashes gold so it reads as a
+        // reward, and lists which records fell. Sits between panel and path.
+        const pb = this._runPB;
+        if (pb && (pb.score || pb.time || pb.rank)) {
+            const beaten = [];
+            if (pb.rank)  beaten.push('RANK');
+            if (pb.score) beaten.push('SCORE');
+            if (pb.time)  beaten.push('TIME');
+            const flash = this.storyTimer % 40 < 26;
+            if (flash) {
+                drawTextOutlined(ctx, '* NEW PERSONAL BEST *', GAME.W / 2, 172, '#ffe070', '#1a0a14', 1, 'center');
+            }
+            drawText(ctx, beaten.join('  '), GAME.W / 2, 182, '#a0ff70', 1, 'center');
+            // Path badge drops below the PB banner when one is shown.
+            drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 192, ep.accent, '#0a0410', 1, 'center');
+        } else {
+            // Path badge under stats
+            drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 184, ep.accent, '#0a0410', 1, 'center');
+        }
         if (this.storyTimer % 60 < 40) {
             drawText(ctx, 'X CONTINUE', GAME.W / 2, GAME.H - 18, '#fff', 1, 'center');
         }
@@ -6671,6 +6730,8 @@ export class Game {
         this.player = null;
         this._stageClearTallyDone = false;
         this._runRank = null;
+        this._runPB = null;
+        this._preRunBestScore = null;
         this.gameOverCountdown = null;
         this._pendingStage = null;
         this._goEmbers = null;
