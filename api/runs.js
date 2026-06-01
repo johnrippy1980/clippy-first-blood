@@ -8,6 +8,38 @@ import { validateRun, MODES, PARTITIONED_MODES, partitionKey } from './_validate
 // Score-ranked boards sort high→low; time-ranked boards sort fast→slow.
 const TIME_RANKED = new Set(['timeTrial']);
 
+// Reject oversized POST bodies before parsing — a legit submission is well
+// under 8KB (a 64-entry checkpoint trail is a few hundred bytes). Anything
+// bigger is junk or an attempt to exhaust the function.
+const MAX_BODY_BYTES = 8 * 1024;
+
+// Best-effort per-IP rate limit. In-memory, so it only spans a warm function
+// instance (resets on cold start) — not a hard guarantee, but it blunts burst
+// floods from a single source without any external store. Sliding window.
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX_POSTS = 20;                 // submissions per IP per minute
+const _rate = new Map();                   // ip -> number[] (timestamps)
+
+function rateLimited(ip) {
+    const now = Date.now();
+    const hits = (_rate.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+    hits.push(now);
+    _rate.set(ip, hits);
+    // Opportunistic cleanup so the map doesn't grow unbounded across IPs.
+    if (_rate.size > 5000) {
+        for (const [k, v] of _rate) {
+            if (!v.length || now - v[v.length - 1] > RATE_WINDOW_MS) _rate.delete(k);
+        }
+    }
+    return hits.length > RATE_MAX_POSTS;
+}
+
+function clientIp(req) {
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff.length) return xff.split(',')[0].trim();
+    return req.socket?.remoteAddress || 'unknown';
+}
+
 function clampName(raw) {
     return String(raw ?? 'AAA')
         .toUpperCase()
@@ -66,7 +98,25 @@ export default async function handler(req, res) {
         }
 
         if (req.method === 'POST') {
-            const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+            // Burst guard — best-effort per-IP rate limit.
+            if (rateLimited(clientIp(req))) {
+                return res.status(429).json({ error: 'rate_limited' });
+            }
+            // Payload-size guard. Reject oversized bodies before JSON.parse so a
+            // megabyte of garbage can't tie up the function. Works whether the
+            // body arrives as a raw string or pre-parsed object.
+            const rawBody = typeof req.body === 'string'
+                ? req.body
+                : (req.body != null ? JSON.stringify(req.body) : '');
+            if (rawBody.length > MAX_BODY_BYTES) {
+                return res.status(413).json({ error: 'payload_too_large' });
+            }
+            let body;
+            try {
+                body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+            } catch {
+                return res.status(400).json({ error: 'bad_json' });
+            }
             const run = {
                 runId: String(body.runId || '').slice(0, 64),
                 name: clampName(body.name),
