@@ -21,6 +21,7 @@ import { drawText, drawTextOutlined } from './pixelfont.js';
 import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST, BONZI_MANIFEST } from './sprites.js';
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { leaderboard } from './leaderboard.js';
+import { downloadShareCard } from './sharecard.js';
 import { options } from './options.js';
 
 const SCENE = {
@@ -6289,6 +6290,14 @@ export class Game {
                 }
             });
         }
+        // GRENADE (V / gamepad Y) downloads a shareable run-summary PNG.
+        // Handled before the advance gate so it doesn't also skip to epilogue.
+        if (this.storyTimer > 30 && input.isPressed('grenade')) {
+            const ok = downloadShareCard(this._runShareStats());
+            audio.sfx(ok ? 'menu' : 'comboBreak');
+            this._pushUnlockToast('SHARE CARD SAVED', 'CHECK YOUR DOWNLOADS');
+            return;
+        }
         // R191: first input after the result screen advances to the epilogue
         // cinematic (Clippy's redemption arc). Second input from the epilogue
         // returns to title via _restartRun. Skippable via `start` for replay
@@ -6523,6 +6532,33 @@ export class Game {
         return 'VENGEANCE';
     }
 
+    // Snapshot of the finished run for the share card. Mirrors the title +
+    // accent palette used by _drawGameComplete so the card matches the screen.
+    _runShareStats() {
+        const path = this._endingPath();
+        const titles = {
+            PERFECT:   { title: 'PERFECT REVENGE',  accent: '#ffe070' },
+            VENGEANCE: { title: 'MISSION COMPLETE', accent: '#ff5050' },
+            MERCIFUL:  { title: 'NO MORE BLOOD',    accent: '#7af0bf' },
+        };
+        const t = titles[path] || titles.VENGEANCE;
+        const min = Math.floor(this.totalTime / 3600);
+        const sec = Math.floor((this.totalTime / 60) % 60);
+        const p = this.player || {};
+        return {
+            rank: this._runRank ? this._runRank.letter : '?',
+            title: t.title,
+            accent: t.accent,
+            path,
+            time: String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0'),
+            score: p.score || 0,
+            kills: p.kills || 0,
+            maxCombo: p.maxCombo || 0,
+            deaths: this.totalDeaths || 0,
+            name: leaderboard.name || null,
+        };
+    }
+
     _drawGameComplete() {
         const ctx = this.ctx;
         // Guard: if _restartRun clears this.player but the scene is briefly
@@ -6603,8 +6639,9 @@ export class Game {
         // Path badge under stats
         drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 184, ep.accent, '#0a0410', 1, 'center');
         if (this.storyTimer % 60 < 40) {
-            drawText(ctx, 'X TO RETURN TO TITLE', GAME.W / 2, GAME.H - 14, '#fff', 1, 'center');
+            drawText(ctx, 'X CONTINUE', GAME.W / 2, GAME.H - 18, '#fff', 1, 'center');
         }
+        drawText(ctx, 'V SAVE SHARE CARD', GAME.W / 2, GAME.H - 8, '#80d0ff', 1, 'center');
     }
 
     _restartRun() {
