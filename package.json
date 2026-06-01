@@ -27,6 +27,9 @@
     "url": "https://github.com/johnrippy1980/clippy-first-blood/issues"
   },
   "homepage": "https://github.com/johnrippy1980/clippy-first-blood#readme",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  },
   "devDependencies": {
     "canvas": "^3.2.3",
     "playwright": "^1.49.0"

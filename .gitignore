@@ -3,6 +3,9 @@
 node_modules/
 package-lock.json
 .vercel/
+.env
+.env.*
+!.env.example
 
 # Reference / large source assets — kept locally, not in git
 _reference/

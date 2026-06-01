@@ -20,6 +20,7 @@ import { drawHUD } from './hud.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST, BONZI_MANIFEST } from './sprites.js';
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
+import { leaderboard } from './leaderboard.js';
 import { options } from './options.js';
 
 const SCENE = {
@@ -35,6 +36,7 @@ const SCENE = {
     ACHIEVEMENTS: 'achievements',
     SOUNDTRACK: 'soundtrack',
     GALLERY: 'gallery',          // painted-scene gallery — view all unlocked cutscenes
+    LEADERBOARD: 'leaderboard',  // online high-score boards (Any% / Time Trial) + name entry
     STAGE_SELECT: 'stageSelect',
     STAGE_CARD: 'stageCard',     // cinematic painted card between stages
     BOSS_INTRO: 'bossIntro',     // cinematic slide before main boss spawn
@@ -386,6 +388,13 @@ export class Game {
         this.stageTime = 0;
         this.totalTime = 0;
         this.totalDeaths = 0;
+        // Leaderboard run identity + checkpoint trail. runId is minted when a
+        // clean campaign run begins; runCheckpoints accumulates {key,frame} at
+        // each stage clear for server-side hash validation. _runWarped marks a
+        // run as stage-select-warped (not leaderboard-eligible).
+        this.runId = null;
+        this.runCheckpoints = [];
+        this._runWarped = false;
         // R421/R422: screen-flash overlay — short colored wash painted just
         // before scanlines so big moments (weapon pickup, grenade pop, boss
         // kill) get a tactile screen-level beat. flashFrames counts down,
@@ -504,6 +513,7 @@ export class Game {
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
             case SCENE.SOUNDTRACK:   this._tickSoundtrack(); break;
             case SCENE.GALLERY:      this._tickGallery(); break;
+            case SCENE.LEADERBOARD:  this._tickLeaderboard(); break;
             case SCENE.STAGE_SELECT: this._tickStageSelect(); break;
             case SCENE.STAGE_CARD:   this._tickStageCard(); break;
             case SCENE.BOSS_INTRO:   this._tickBossIntro(); break;
@@ -626,6 +636,7 @@ export class Game {
             case SCENE.ACHIEVEMENTS: this._drawSubMenuBackdrop(); this._drawAchievements(); break;
             case SCENE.SOUNDTRACK:   this._drawSubMenuBackdrop(); this._drawSoundtrack(); break;
             case SCENE.GALLERY:      this._drawSubMenuBackdrop(); this._drawGallery(); break;
+            case SCENE.LEADERBOARD:  this._drawLeaderboard(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
             case SCENE.BOSS_INTRO:   this._drawBossIntro(); break;
@@ -1003,6 +1014,7 @@ export class Game {
             { label: 'TRAINING',       action: 'training' },
             { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
             { label: 'TIME TRIAL',     action: 'timeTrial',    gate: () => cleared },
+            { label: 'LEADERBOARD',    action: 'leaderboard' },
             { label: 'OPTIONS',        action: 'options' },
             { label: 'ACHIEVEMENTS',   action: 'achievements' },
             { label: 'SCENE GALLERY',  action: 'gallery' },
@@ -1023,6 +1035,13 @@ export class Game {
             const sel = items[this.mainMenuIndex];
             switch (sel.action) {
                 case 'start':
+                    // Mint a fresh leaderboard run: new id, empty checkpoint
+                    // trail, not warped. The run clock (totalTime) zeroes when
+                    // stage 1 begins.
+                    this.runId = leaderboard.newRunId();
+                    this.runCheckpoints = [];
+                    this._runWarped = false;
+                    this._leaderboardSubmitted = false;
                     this.storyPage = 0;
                     this.storyTimer = 0;
                     this._fadeTo(SCENE.STORY);
@@ -1076,6 +1095,10 @@ export class Game {
                     this._menuReturnScene = SCENE.MAIN_MENU;
                     this.galleryIndex = 0;
                     this.scene = SCENE.GALLERY;
+                    break;
+                case 'leaderboard':
+                    this._menuReturnScene = SCENE.MAIN_MENU;
+                    this._enterLeaderboard();
                     break;
                 case 'soundtrack':
                     this._menuReturnScene = SCENE.MAIN_MENU;
@@ -4032,6 +4055,134 @@ export class Game {
         drawText(ctx, 'ARROWS MOVE  X VIEW  TAB SECTION  P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
 
+    // ---- Leaderboard scene ---------------------------------------------
+    // Online high-score boards. Two tabs (Any% / Time Trial), an arcade-style
+    // 3-letter name-entry widget at the top (initials persist via the
+    // leaderboard client's localStorage), and a top-20 list fetched on entry.
+    _enterLeaderboard() {
+        this.scene = SCENE.LEADERBOARD;
+        this._lbTab = 0;                 // 0 = Any%, 1 = Time Trial
+        this._lbTabs = [
+            { mode: 'any',       title: 'ANY %',      ranked: 'score' },
+            { mode: 'timeTrial', title: 'TIME TRIAL', ranked: 'time'  },
+        ];
+        // Name-entry state: 3 initials, edit cursor 0..2. Seed from saved name.
+        const saved = (leaderboard.name || 'AAA').padEnd(3, 'A').slice(0, 3);
+        this._lbInitials = saved.split('');
+        this._lbNameCursor = 0;
+        this._lbFetch(this._lbTabs[0].mode);
+    }
+
+    _lbFetch(mode) {
+        // Fire-and-forget; _drawLeaderboard reads leaderboard.cached(mode).
+        leaderboard.fetch(mode, 20);
+    }
+
+    _tickLeaderboard() {
+        const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
+        // Close → back to the menu we came from (MAIN_MENU).
+        if (input.isPressed('pause')) {
+            audio.sfx('select');
+            this.scene = this._menuReturnScene || SCENE.MAIN_MENU;
+            return;
+        }
+        // TAB / shield (SHIFT) switches board.
+        if (input.isPressed('aimlock') || input.isPressed('shield')) {
+            this._lbTab = (this._lbTab + 1) % this._lbTabs.length;
+            audio.sfx('select');
+            this._lbFetch(this._lbTabs[this._lbTab].mode);
+            return;
+        }
+        // LEFT/RIGHT move the name-entry cursor.
+        if (input.isPressed('left'))  { this._lbNameCursor = (this._lbNameCursor + 2) % 3; audio.sfx('select'); }
+        if (input.isPressed('right')) { this._lbNameCursor = (this._lbNameCursor + 1) % 3; audio.sfx('select'); }
+        // UP/DOWN cycle the character at the cursor.
+        const cur = this._lbInitials[this._lbNameCursor] || 'A';
+        let idx = ALPHA.indexOf(cur); if (idx < 0) idx = 0;
+        if (input.isPressed('up'))   { idx = (idx + 1) % ALPHA.length; this._lbSetChar(ALPHA[idx]); audio.sfx('select'); }
+        if (input.isPressed('down')) { idx = (idx + ALPHA.length - 1) % ALPHA.length; this._lbSetChar(ALPHA[idx]); audio.sfx('select'); }
+        // X confirms the name (persists it for the next submission).
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            const name = this._lbInitials.join('').replace(/\s+$/, '') || 'AAA';
+            leaderboard.setName(name);
+            audio.sfx('menu');
+            this._pushUnlockToast('NAME SET', name);
+        }
+    }
+
+    _lbSetChar(ch) {
+        this._lbInitials[this._lbNameCursor] = ch;
+    }
+
+    _drawLeaderboard() {
+        const ctx = this.ctx;
+        // Own full-screen backdrop (like stage-select) — this scene is not a
+        // modal over the menu, so it must not reuse _drawSubMenuBackdrop.
+        ctx.fillStyle = '#0a0410';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        ctx.fillStyle = '#1a0a1a';
+        for (let y = 0; y < GAME.H; y += 8) for (let x = 0; x < GAME.W; x += 8) {
+            if (((x + y) >> 3) & 1) ctx.fillRect(x, y, 4, 4);
+        }
+        const tab = this._lbTabs[this._lbTab];
+        const cache = leaderboard.cached(tab.mode);
+
+        drawTextOutlined(ctx, 'LEADERBOARD', GAME.W / 2, 14, '#ffe070', '#a82020', 1, 'center');
+        drawText(ctx, tab.title, GAME.W / 2, 26, '#ffd0d0', 1, 'center');
+
+        // Name-entry widget.
+        const nameY = 40;
+        drawText(ctx, 'YOUR NAME', GAME.W / 2, nameY, '#c0a0d0', 1, 'center');
+        const slotW = 14;
+        const totalW = slotW * 3;
+        const nx0 = (GAME.W - totalW) / 2;
+        for (let i = 0; i < 3; i++) {
+            const sx = nx0 + i * slotW + slotW / 2;
+            const sel = i === this._lbNameCursor;
+            const ch = this._lbInitials[i] === ' ' ? '_' : (this._lbInitials[i] || 'A');
+            if (sel) {
+                drawText(ctx, '^', sx, nameY + 8, '#ffe070', 1, 'center');
+            }
+            drawText(ctx, ch, sx, nameY + 16, sel ? '#fff' : '#ffd060', 1, 'center');
+        }
+
+        // Board list.
+        const listX = 28;
+        const listTop = 72;
+        const rowH = 9;
+        const maxRows = Math.floor((GAME.H - listTop - 16) / rowH);
+
+        if (!cache || cache.status !== 'ok') {
+            const msg = !cache ? 'LOADING...'
+                : (cache.status === 'error' ? 'BOARD UNAVAILABLE' : 'NO SCORES YET');
+            drawText(ctx, msg, GAME.W / 2, listTop + 20, '#806890', 1, 'center');
+        } else if (cache.entries.length === 0) {
+            drawText(ctx, 'BE THE FIRST — BEAT THE GAME!', GAME.W / 2, listTop + 20, '#806890', 1, 'center');
+        } else {
+            const rows = cache.entries.slice(0, maxRows);
+            for (let i = 0; i < rows.length; i++) {
+                const e = rows[i];
+                const y = listTop + i * rowH;
+                const rank = String(i + 1).padStart(2, ' ');
+                drawText(ctx, rank, listX, y, '#806890', 1, 'left');
+                drawText(ctx, (e.name || 'AAA').slice(0, 8), listX + 18, y, '#fff', 1, 'left');
+                const val = tab.ranked === 'time'
+                    ? this._lbFmtTime(e.time_frames)
+                    : String(e.score).padStart(6, ' ');
+                drawText(ctx, val, GAME.W - listX, y, '#ffd060', 1, 'right');
+            }
+        }
+
+        drawText(ctx, 'ARROWS NAME  X SAVE  TAB BOARD  P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+    }
+
+    _lbFmtTime(frames) {
+        const total = Math.max(0, Math.floor(frames || 0));
+        const min = Math.floor(total / 3600);
+        const sec = Math.floor((total / 60) % 60);
+        return `${min}:${String(sec).padStart(2, '0')}`;
+    }
+
     // R266: wrap a label into <=2 lines of ~maxChars each. Splits on word
     // boundaries first; for single long words, splits at the midpoint so the
     // full label still reads (e.g. "ALGORITHM" → "ALGO" / "RITHM").
@@ -4344,6 +4495,9 @@ export class Game {
                 this.player = null;
                 this.totalTime = 0;
                 this.totalDeaths = 0;
+                // Stage-select is a warp — mark the run ineligible for the
+                // leaderboard so a partial/warped run never posts a score.
+                this._runWarped = true;
                 this._startStage(stage);
             } else {
                 audio.sfx('comboBreak');
@@ -5279,6 +5433,13 @@ export class Game {
             // null-safe — Doom + beat-em-up + FPS engines have their own
             // player object so this.player (platformer) may not exist.
             this.runStats.stagesCleared.add(this.currentStage);
+            // Leaderboard checkpoint trail: record this clear with the run
+            // clock so the server can verify the run is internally consistent
+            // (stage N can't clear before N-1). Skipped for stage-select warps
+            // since those aren't leaderboard-eligible runs.
+            if (this.runCheckpoints && !this._runWarped) {
+                this.runCheckpoints.push({ key: 'stage' + this.currentStage, frame: this.totalTime });
+            }
             this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player?.maxCombo || 0);
             for (const [k, v] of Object.entries(this.player?.dmgDealt || {})) {
                 this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
@@ -6090,6 +6251,29 @@ export class Game {
             this._pushUnlockToast('POST-GAME UNLOCKED',
                 'BOSS RUSH MODE, TIME TRIAL, RDF, CORE BREACH');
         }
+        // Leaderboard submit — fires once, on a clean (non-warped) campaign
+        // clear that has a minted run id. Best-effort: never blocks the
+        // cinematic. A verified toast appears if the server accepts the run.
+        if (this.storyTimer === 1 && !this._leaderboardSubmitted
+            && this.runId && !this._runWarped) {
+            this._leaderboardSubmitted = true;
+            const stages = this.runStats.stagesCleared.size;
+            leaderboard.submit({
+                runId: this.runId,
+                name: leaderboard.name || 'AAA',
+                mode: 'any',
+                score: this.player?.score || 0,
+                timeFrames: this.totalTime,
+                stagesCleared: stages,
+                checkpoints: this.runCheckpoints,
+            }).then((r) => {
+                if (r.ok && r.verified) {
+                    this._pushUnlockToast('SCORE SUBMITTED', 'LEADERBOARD UPDATED');
+                } else if (r.ok) {
+                    this._pushUnlockToast('SCORE SUBMITTED', 'PENDING VERIFICATION');
+                }
+            });
+        }
         // R191: first input after the result screen advances to the epilogue
         // cinematic (Clippy's redemption arc). Second input from the epilogue
         // returns to title via _restartRun. Skippable via `start` for replay
@@ -6417,6 +6601,10 @@ export class Game {
         // and medal grants become sticky from prior runs.
         this.totalTime = 0;
         this.totalDeaths = 0;
+        this.runId = null;
+        this.runCheckpoints = [];
+        this._runWarped = false;
+        this._leaderboardSubmitted = false;
         this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0, grenadeUses: 0, grenadeKills: 0 };
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         this._bossEntrance = null;
