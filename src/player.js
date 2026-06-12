@@ -3089,6 +3089,13 @@ export class Player {
         const coreDX = getFrameAnchorX(frame) * (this.facing < 0 ? 1 : -1);
         const cx = this.x + this.w / 2 - camera.viewX + recoilDX + coreDX;
         const cy = this.y + this.h - dims.h / 2 - camera.viewY + 1 + recoilDY;
+        // Geometric-center pivot (no body-core offset). Rotation branches must
+        // pivot here, not on `cx`: the spin/die frames have DIFFERENT core
+        // offsets per frame (spin_1 −0.8 vs spin_2 −3.9), so pivoting on the
+        // cored cx would jump the pivot ~3px between frames and make the spin
+        // wobble. The body-core correction is only meaningful for the upright,
+        // ground-anchored draw where the 12px hitbox column matters.
+        const pivotX = cx - coreDX;
 
         // Ducked in swamp water — replace sprite with surface ripple + tiny periscope head
         if (this.waterHidden) {
@@ -3136,7 +3143,7 @@ export class Player {
         // Spin-jump rotates the whole sprite around its center
         if (this.state === STATE.SPIN_JUMP) {
             ctx.save();
-            ctx.translate(Math.round(cx), Math.round(cy));
+            ctx.translate(Math.round(pivotX), Math.round(cy));
             ctx.rotate(this.spinAngle * (this.facing > 0 ? 1 : -1));
             drawClippyFrame(ctx, frame, -dims.w / 2, -dims.h / 2, this.facing < 0);
             ctx.restore();
@@ -3150,9 +3157,10 @@ export class Player {
             const drawX = Math.round(cx - dims.w / 2);
             const drawY = Math.round(cy - dims.h / 2);
             if (this.deathTimer < settleAt) {
-                // Brief tumble during the initial pop
+                // Brief tumble during the initial pop — pivot on geometric
+                // center (pivotX), not the cored cx, so the tumble spins true.
                 ctx.save();
-                ctx.translate(Math.round(cx), Math.round(cy));
+                ctx.translate(Math.round(pivotX), Math.round(cy));
                 const spinDir = this._deathSpin || -1;
                 const tumbleFrac = this.deathTimer / settleAt;
                 ctx.rotate(spinDir * tumbleFrac * Math.PI * 0.6);
