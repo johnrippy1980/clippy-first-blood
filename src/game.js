@@ -1952,10 +1952,42 @@ export class Game {
         audio.sfx?.('select');     // generic UI confirm under the voice
     }
 
-    // R568m: BANANA BARRAGE — Bonzi's signature tag-in attack. Fires 3
-    // bananas in a forward-up fan timed to land at the end of the swap
-    // animation. Scheduled here at swap-start so it queues regardless of
-    // who lands the killing blow.
+    // R618: BANANA BARRAGE tiers. Bonzi's tag-in attack grows as the player
+    // logs co-op stage clears, so co-op has a grind hook beyond achievements.
+    // Tier is keyed off the count of distinct co-op stages cleared (a
+    // persisted Set), so it survives across sessions and only advances by
+    // actually playing co-op. Returns 0..3.
+    //   T0 (default)  — 3 sticky bananas, 1.5 dmg, narrow fan (the OG attack)
+    //   T1 (>=3 co-op stages) — 5 sticky bananas, wider fan
+    //   T2 (>=8)      — 5 PIERCING bananas, 2.0 dmg (machine-gun feel)
+    //   T3 (>=15)     — 5 piercing + 2.5 dmg + a downward stomp shockwave
+    _bonziBarrageTier() {
+        const n = achievements.stats.coopStagesCleared?.size || 0;
+        if (n >= 15) return 3;
+        if (n >= 8)  return 2;
+        if (n >= 3)  return 1;
+        return 0;
+    }
+
+    // R618: when a co-op clear pushes the distinct-stage count across a barrage
+    // tier threshold (3/8/15), surface a one-time unlock toast so the upgrade
+    // is legible. `before`/`after` are the Set sizes around the add; the toast
+    // fires only on the clear that actually crosses the line.
+    _maybeBarrageUpgradeToast(before, after) {
+        const crossed = (t) => before < t && after >= t;
+        if (crossed(15)) {
+            this._pushUnlockToast('GOLDEN BARRAGE', 'BONZI TAG-IN: +STOMP SHOCKWAVE');
+        } else if (crossed(8)) {
+            this._pushUnlockToast('PIERCING BARRAGE', 'BONZI BANANAS NOW PIERCE');
+        } else if (crossed(3)) {
+            this._pushUnlockToast('BANANA BARRAGE+', 'BONZI TAG-IN: 5-BANANA FAN');
+        }
+    }
+
+    // R568m / R618: BANANA BARRAGE — Bonzi's signature tag-in attack. Fires a
+    // forward-up fan of bananas timed to land at the end of the swap animation.
+    // Scheduled here at swap-start so it queues regardless of who lands the
+    // killing blow; the tier is captured at fire time in _tickBananaBarrage.
     _scheduleBananaBarrage(incoming) {
         // Delay 24 frames so the bananas spawn when Bonzi is visibly landing
         this._pendingBananaBarrage = { player: incoming, delay: 24 };
@@ -1968,27 +2000,59 @@ export class Game {
         if (pb.delay > 0) return;
         const p = pb.player;
         if (!p || !p.bullets) { this._pendingBananaBarrage = null; return; }
-        // 3 bananas in a forward-up fan: -50deg, -25deg, 0 from horizontal
+        const tier = this._bonziBarrageTier();
         const facing = p.facing || 1;
-        const angles = [-Math.PI / 3.6, -Math.PI / 7.2, 0];
+        // T0 = 3-banana narrow fan; T1+ = 5-banana wide fan.
+        const angles = tier >= 1
+            ? [-Math.PI / 2.6, -Math.PI / 4, -Math.PI / 7.2, -Math.PI / 18, Math.PI / 24]
+            : [-Math.PI / 3.6, -Math.PI / 7.2, 0];
+        // T2+ bananas pierce (and skip the sticky-goo path so they tear through
+        // a line of enemies) and hit harder; T0/T1 keep the classic sticky goo.
+        const piercing = tier >= 2;
+        const dmg = tier >= 3 ? 2.5 : tier >= 2 ? 2.0 : 1.5;
+        const sp = piercing ? 3.6 : 3.0;
         for (const ang of angles) {
-            const sp = 3.0;
             const vx = Math.cos(ang) * sp * facing;
             const vy = Math.sin(ang) * sp;
             p.bullets.push({
                 x: p.x + p.w / 2,
                 y: p.y + 8,
                 vx, vy,
-                damage: 1.5,
-                color: '#b860ff',
+                damage: dmg,
+                color: tier >= 3 ? '#ffd83a' : '#b860ff',   // T3 = golden bananas
                 weapon: 'BANANA',
-                banana: true,
+                banana: !piercing,    // piercing bananas skip the stick path
+                piercing,
                 life: 80,
                 hits: new Set(),
             });
         }
+        // T3 adds a ground stomp shockwave on landing — a short-range AoE that
+        // damages nearby enemies, rewarding the long co-op grind with crowd
+        // control on top of the projectile fan.
+        if (tier >= 3) this._fireBananaStomp(p);
         audio.sfx?.('bananaFire');
         this._pendingBananaBarrage = null;
+    }
+
+    // R618: T3 BANANA BARRAGE stomp. A one-shot radial hit centered on Bonzi's
+    // feet when the golden barrage lands. Reuses the enemy manager's direct
+    // hurt path so kills credit normally; purely additive crowd control.
+    _fireBananaStomp(p) {
+        const mgr = this.enemies;
+        const cx = p.x + p.w / 2;
+        const cy = p.y + p.h;
+        const R = 40;
+        if (mgr?.enemies) {
+            for (const e of mgr.enemies) {
+                if (!e.alive) continue;
+                const ecx = e.x + e.w / 2, ecy = e.y + e.h / 2;
+                if (Math.hypot(ecx - cx, ecy - cy) > R) continue;
+                e.hurt(2.0, ecx < cx ? -1 : 1, { knockBack: 1.6 });
+            }
+        }
+        particles.shockRing?.(cx, cy, 10, 14, '#ffd83a');
+        this.camera?.shake?.(3);
     }
 
     // R568b: tick the swap-in animation. Transition from 'out' to 'in'
@@ -6129,7 +6193,13 @@ export class Game {
                 const k1 = (this.players?.[1]?.kills || 0) - base[1];
                 css.clippyKills = Math.max(0, k0);
                 css.bonziKills = Math.max(0, k1);
+                // R618: capture the distinct-co-op-stage count before/after
+                // this clear so we can fire a BANANA BARRAGE upgrade toast the
+                // first time the player crosses a tier threshold (3/8/15).
+                const coopBefore = achievements.stats.coopStagesCleared.size;
                 achievements.stats.coopStagesCleared.add(this.currentStage);
+                const coopAfter = achievements.stats.coopStagesCleared.size;
+                if (coopAfter > coopBefore) this._maybeBarrageUpgradeToast(coopBefore, coopAfter);
                 // ANNOYING ASSISTANT — clear the stage with Bonzi doing all kills
                 if (css.bonziKills > 0 && css.clippyKills === 0) {
                     achievements.stats.coopBonziSoloStages++;
