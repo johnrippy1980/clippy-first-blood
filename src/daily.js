@@ -16,12 +16,19 @@
 //   oneLife       — start with a single life, no continues (player.lives = 0)
 //   doubleDamage  — incoming damage is doubled (player.damageTakenMult = 2)
 //   noPickups     — weapon/powerup pickups don't spawn (machine gun only)
+//   glassCannon   — you deal 2x AND take 2x (damageDealtMult + damageTakenMult)
+//   lowGravity    — reduced gravity, floaty jumps (player.gravityMult ~0.55)
+//   weaponRoulette— start each stage with a deterministic random power weapon
 const CHALLENGES = [
-    { id: 'oneLife',   name: 'SUDDEN DEATH', desc: 'ONE LIFE. NO CONTINUES.',  mods: { oneLife: true } },
-    { id: 'doubleDmg', name: 'GLASS WORLD',  desc: 'INCOMING DAMAGE DOUBLED.', mods: { doubleDamage: true } },
-    { id: 'noPickups', name: 'BARE HANDS',   desc: 'NO WEAPON PICKUPS.',       mods: { noPickups: true } },
-    { id: 'ironMan',   name: 'IRON MAN',     desc: 'ONE LIFE. DOUBLE DAMAGE.', mods: { oneLife: true, doubleDamage: true } },
-    { id: 'austerity', name: 'AUSTERITY',    desc: 'NO PICKUPS. ONE LIFE.',    mods: { noPickups: true, oneLife: true } },
+    { id: 'oneLife',    name: 'SUDDEN DEATH', desc: 'ONE LIFE. NO CONTINUES.',   mods: { oneLife: true } },
+    { id: 'doubleDmg',  name: 'GLASS WORLD',  desc: 'INCOMING DAMAGE DOUBLED.',  mods: { doubleDamage: true } },
+    { id: 'noPickups',  name: 'BARE HANDS',   desc: 'NO WEAPON PICKUPS.',        mods: { noPickups: true } },
+    { id: 'ironMan',    name: 'IRON MAN',     desc: 'ONE LIFE. DOUBLE DAMAGE.',  mods: { oneLife: true, doubleDamage: true } },
+    { id: 'austerity',  name: 'AUSTERITY',    desc: 'NO PICKUPS. ONE LIFE.',     mods: { noPickups: true, oneLife: true } },
+    { id: 'glassCannon',name: 'GLASS CANNON', desc: 'DEAL 2X. TAKE 2X.',         mods: { glassCannon: true } },
+    { id: 'lowGravity', name: 'MOON SHOT',    desc: 'LOW GRAVITY. FLOATY JUMPS.',mods: { lowGravity: true } },
+    { id: 'roulette',   name: 'ROULETTE',     desc: 'RANDOM WEAPON EACH STAGE.', mods: { weaponRoulette: true } },
+    { id: 'glassRoulette', name: 'HIGH STAKES', desc: 'RANDOM WEAPON. ONE LIFE.', mods: { weaponRoulette: true, oneLife: true } },
 ];
 
 class DailyChallenge {
@@ -67,6 +74,18 @@ class DailyChallenge {
         const idx = ((this._dayIndex(date) % CHALLENGES.length) + CHALLENGES.length) % CHALLENGES.length;
         const c = CHALLENGES[idx];
         return { ...c, day: this.todayKey(date) };
+    }
+
+    // R607: deterministic ROULETTE weapon for a given day + stage. Same day +
+    // same stage → same weapon for every player, so the daily board stays fair.
+    // Excludes MG (the default) so the modifier always grants a power weapon.
+    // NOTE: the stage multiplier (17) must be coprime with pool.length (7) or
+    // the stage term vanishes under the modulo and every stage gets the same
+    // weapon — an earlier `stage*7` did exactly that.
+    rouletteWeapon(stage = 1, date = new Date()) {
+        const pool = ['SPREAD', 'LASER', 'FLAME', 'HOMING', 'THUNDER', 'SHOTGUN', 'CHAINSAW'];
+        const seed = this._dayIndex(date) * 31 + (stage | 0) * 17;
+        return pool[((seed % pool.length) + pool.length) % pool.length];
     }
 }
 

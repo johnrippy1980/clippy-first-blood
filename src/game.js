@@ -5506,12 +5506,29 @@ export class Game {
         // is a run-level flag (set at menu launch), not derived from stage data.
         if (this.dailyMode && this.player) {
             const mods = this.dailyChallenge?.mods || {};
-            // SUDDEN DEATH / BLITZ / AUSTERITY: a single life, no continues.
+            // SUDDEN DEATH / BLITZ / AUSTERITY / HIGH STAKES: a single life.
             if (mods.oneLife) this.player.lives = 0;
-            // GLASS WORLD / IRON MAN: incoming damage doubled.
-            this.player.damageTakenMult = mods.doubleDamage ? 2 : 1;
+            // GLASS WORLD / IRON MAN: incoming damage doubled. R607 GLASS CANNON
+            // also doubles incoming, so OR them together.
+            this.player.damageTakenMult = (mods.doubleDamage || mods.glassCannon) ? 2 : 1;
+            // R607 GLASS CANNON: outgoing damage doubled too.
+            this.player.damageDealtMult = mods.glassCannon ? 2 : 1;
+            // R607 MOON SHOT: low gravity, floaty jumps.
+            this.player.gravityMult = mods.lowGravity ? 0.55 : 1;
+            // R607 ROULETTE / HIGH STAKES: grant a deterministic power weapon for
+            // this day+stage. Runs AFTER resetForStage()/respawn weapon reset so
+            // it isn't clobbered. Bonzi is BANANA-locked, so skip him.
+            if (mods.weaponRoulette && this.player.character !== 'bonzi') {
+                const wpn = dailyChallenge.rouletteWeapon(this.currentStage);
+                this.player.weapon = wpn;
+                this.player.weaponLevel = 1;
+                this.player.weaponTimer = -1;   // persist until hit (Contra rule)
+                this.player.weaponInventory = ['MG', wpn];
+            }
         } else if (this.player) {
             this.player.damageTakenMult = 1;
+            this.player.damageDealtMult = 1;
+            this.player.gravityMult = 1;
         }
         // Mode-best banner clears per stage entry; otherwise a NEW BEST from
         // a prior mode clear would survive into the next stage-clear panel.

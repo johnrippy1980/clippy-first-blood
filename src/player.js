@@ -59,6 +59,14 @@ const STAND_HEIGHT = 22;
 const PLAYER_W = 12;
 const CLIMB_SPEED = 1.4;
 const WEAPON_DURATION = 600;  // frames (not infinite; encourages variety)
+// R606: Weapon Overcharge tuning. Meter fills on clean kills (grunt +10,
+// elite +16, boss-tier +28), tops out at MAX, then burns for DURATION frames
+// at DMG× damage and a faster fire cadence. ~5 grunts (or ~2 elites) to charge;
+// ~2.5s payout. A single hit empties it (handled in hurt()).
+const OVERCHARGE_MAX = 50;
+const OVERCHARGE_DURATION = 150;
+const OVERCHARGE_DMG = 1.6;
+const OVERCHARGE_FIRE_SCALE = 0.6;  // fireCooldown multiplier while lit (faster)
 
 // R180: shield tunables. SHIELD_MAX is the full charge value, drained per
 // hit by the hit's weight: 1 (normal), 2 (heavy: spread, shotgun pellet,
@@ -163,6 +171,12 @@ export class Player {
         // IRON MAN challenges set 2. Applied in hurt() after the god-mode and
         // rage guards so invincibility still fully negates.
         this.damageTakenMult = 1;
+        // R607: Daily Challenge outgoing-damage scale (GLASS CANNON sets 2) and
+        // gravity scale (MOON SHOT sets ~0.55). Set by game.js per stage; 1 =
+        // normal. damageDealtMult folds into every bullet/melee damage; the
+        // gravity scale multiplies GAME.GRAVITY at each vy-integration site.
+        this.damageDealtMult = 1;
+        this.gravityMult = 1;
         this.iFrames = 0;
         this.hurtTimer = 0;
         this.knockX = 0;
@@ -283,6 +297,16 @@ export class Player {
         this.comboTimer = 0;
         this.maxCombo = 0;
 
+        // R606: Weapon Overcharge. Kills without taking a hit fill the meter
+        // (0..OVERCHARGE_MAX). At full it ignites OVERCHARGE for
+        // OVERCHARGE_DURATION frames: the held weapon fires at 1.6x damage and
+        // a faster cadence, with a charged aura. ANY hit (the hurt() HURT
+        // branch) cancels it and empties the meter — so it's a reward for
+        // sustained clean aggression, lost the instant you slip.
+        this.overchargeMeter = 0;
+        this.overchargeFrames = 0;
+        this.overchargeFlash = 0;
+
         // Recoil visual offset
         this.recoilTimer = 0;
 
@@ -332,6 +356,9 @@ export class Player {
         this.weaponInventory = isBonzi ? ['BANANA'] : ['MG'];
         this.secondChanceUsed = false;
         this.combo = 0;
+        this.overchargeMeter = 0;
+        this.overchargeFrames = 0;
+        this.overchargeFlash = 0;
         this.bullets.length = 0;
         this.iFrames = 30;
         // Grenade count persists across stages — player can save them for a
@@ -393,7 +420,7 @@ export class Player {
 
         if (this.state === STATE.DIE) {
             this.deathTimer++;
-            this.vy += GAME.GRAVITY;
+            this.vy += GAME.GRAVITY * this.gravityMult;
             this.vy = Math.min(this.vy, GAME.MAX_FALL);
             // Light horizontal drift so Clippy arcs sideways instead of
             // falling straight down. Air friction tapers vx to zero.
@@ -463,6 +490,17 @@ export class Player {
             if (this.comboTimer === 0 && this.combo >= 5) audio.sfx('comboBreak');
             if (this.comboTimer === 0) this.combo = 0;
         }
+        // R606: overcharge burn-down. When it runs out, drain the meter so the
+        // player must re-earn it from zero (no rolling refill).
+        if (this.overchargeFlash > 0) this.overchargeFlash--;
+        if (this.overchargeFrames > 0) {
+            this.overchargeFrames--;
+            if (this.overchargeFrames === 0) {
+                this.overchargeMeter = 0;
+                audio.sfx('comboBreak');
+                particles.floatingText(this.x + this.w / 2, this.y - 8, 'CHARGE SPENT', '#a0a0c0', 40, -0.4, 0.9);
+            }
+        }
         // R181: power weapons persist until you take a hit (Contra rule).
         // weaponTimer is now a sentinel: -1 = persistent (never expires),
         // 0 = MG default, > 0 = legacy timed weapon (kept for any mode that
@@ -490,12 +528,12 @@ export class Player {
         if (this.hurtTimer > 0) {
             // Knockback control
             this.vx = this.knockX * 0.92;
-            this.vy += GAME.GRAVITY;
+            this.vy += GAME.GRAVITY * this.gravityMult;
             this.knockX *= 0.92;
         } else if (this.state === STATE.SLIDE) {
             this.slideTimer--;
             this.vx = this.facing * SLIDE_V * (this.slideTimer / SLIDE_FRAMES + 0.4);
-            this.vy += GAME.GRAVITY;
+            this.vy += GAME.GRAVITY * this.gravityMult;
             // Dust trail kicks up under the slide — sells the speed/friction
             if (this.onGround && this.slideTimer % 2 === 0) {
                 particles.spawn(
@@ -527,14 +565,14 @@ export class Player {
         } else if (this.state === STATE.ROLL) {
             this.rollTimer--;
             this.vx = this.facing * ROLL_V * (this.rollTimer / ROLL_FRAMES + 0.5);
-            this.vy += GAME.GRAVITY;
+            this.vy += GAME.GRAVITY * this.gravityMult;
             if (this.rollTimer <= 0) { this.state = STATE.IDLE; this.h = STAND_HEIGHT; this.iFrames = Math.max(this.iFrames, 4); }
         } else if (this.state === STATE.DASH_ATTACK) {
             this.dashAtkTimer--;
             // Linear lunge with brief tail-off — front-loaded for snap
             const t = this.dashAtkTimer / DASH_ATK_FRAMES;
             this.vx = this.facing * DASH_ATK_V * (0.4 + t * 0.6);
-            this.vy += GAME.GRAVITY;
+            this.vy += GAME.GRAVITY * this.gravityMult;
             // Slash particles trailing the dash
             if (this.dashAtkTimer % 3 === 0) {
                 particles.spawn(
@@ -551,7 +589,7 @@ export class Player {
         } else if (this.state === STATE.BACKDASH) {
             this.backdashTimer--;
             this.vx = -this.facing * BACKDASH_V * (this.backdashTimer / BACKDASH_FRAMES);
-            this.vy += GAME.GRAVITY * 0.6;
+            this.vy += GAME.GRAVITY * 0.6 * this.gravityMult;
             // Burst of light-blue speed motes drag behind the backdash
             if (this.backdashTimer % 2 === 0) {
                 particles.spawn(
@@ -627,7 +665,7 @@ export class Player {
             }
         } else {
             this._handleInput(level);
-            this.vy += GAME.GRAVITY;
+            this.vy += GAME.GRAVITY * this.gravityMult;
             this.vy = Math.min(this.vy, GAME.MAX_FALL);
             // Spin animation in air
             if (this.state === STATE.SPIN_JUMP) this.spinAngle += 0.42;
@@ -1402,7 +1440,7 @@ export class Player {
         const sp = w.bulletSpeed * 1.3;
         const tier = this.combo >= 50 ? 3 : this.combo >= 25 ? 2 : this.combo >= 10 ? 1 : 0;
         const COMBO_MULT = [1, 1.25, 1.5, 2.0];
-        const comboMult = COMBO_MULT[tier];
+        const comboMult = COMBO_MULT[tier] * this._overchargeMult() * this.damageDealtMult;
         this.bullets.push({
             x: baseX, y: baseY,
             vx: ndx * sp, vy: ndy * sp,
@@ -1466,6 +1504,8 @@ export class Player {
         let rate = Math.max(2, Math.round(w.fireRate - this.weaponLevel * 1.5));
         // R418: rage halves fire rate (minimum 2)
         if (this.rageFrames > 0) rate = Math.max(2, Math.floor(rate / 2));
+        // R606: overcharge speeds up the cadence too (minimum 2)
+        if (this.overchargeFrames > 0) rate = Math.max(2, Math.floor(rate * OVERCHARGE_FIRE_SCALE));
         this.fireCooldown = rate;
         if (this.weapon === 'MG') {
             this.mgHeat = Math.min(100, this.mgHeat + 8);
@@ -1507,8 +1547,9 @@ export class Player {
         const tier = this.combo >= 50 ? 3 : this.combo >= 25 ? 2 : this.combo >= 10 ? 1 : 0;
         const COMBO_MULT = [1, 1.25, 1.5, 2.0];
         const COMBO_COLOR = [w.color, '#ffe070', '#ff9030', '#ffffff'];
-        const comboMult = COMBO_MULT[tier];
-        const bulletColor = COMBO_COLOR[tier];
+        const comboMult = COMBO_MULT[tier] * this._overchargeMult() * this.damageDealtMult;
+        // R606: overcharge tints bullets molten-gold so the boost reads on-screen.
+        const bulletColor = this.overchargeFrames > 0 ? '#ffd040' : COMBO_COLOR[tier];
 
         const fire = (vx, vy) => {
             const b = {
@@ -1836,8 +1877,8 @@ export class Player {
         const cy = this.y + this.h / 2;
         const range = w.range;
         const halfArc = (w.arcDeg * Math.PI / 180) / 2;
-        // Damage scales with weapon level (1, 1.5, 2.0)
-        const dmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5);
+        // Damage scales with weapon level (1, 1.5, 2.0); R606 overcharge boost; R607 glass-cannon
+        const dmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5) * this._overchargeMult() * this.damageDealtMult;
         for (const e of game.enemies.enemies) {
             if (!e.alive) continue;
             const ex = e.x + e.w / 2;
@@ -2532,6 +2573,7 @@ export class Player {
             this.combo++;
             this.maxCombo = Math.max(this.maxCombo, this.combo);
             this.comboTimer = 90;
+            this._addOvercharge(enemy);
             const points = 100 + this.combo * 10;
             this.score += points;
             // Game-feel: short hit-pause + screen-shake on every kill.
@@ -2569,6 +2611,32 @@ export class Player {
         if (this.combo >= 20) return 'CARNAGE';
         if (this.combo >= 10) return 'RAMPAGE';
         return 'STREAK';
+    }
+
+    // R606: feed the overcharge meter on a clean kill. Tougher enemies pay
+    // more so the meter ramps with engagement, not just kill count. When the
+    // meter tops out it ignites OVERCHARGE — but only if not already lit, so a
+    // kill mid-overcharge doesn't refresh the timer indefinitely (you must
+    // spend it, then re-earn it). While lit the meter holds at full.
+    _addOvercharge(enemy) {
+        if (this.overchargeFrames > 0) return;   // already spending it
+        const gain = enemy && enemy.maxHp >= 10 ? 28 : enemy && enemy.maxHp >= 8 ? 16 : 10;
+        this.overchargeMeter = Math.min(OVERCHARGE_MAX, this.overchargeMeter + gain);
+        if (this.overchargeMeter >= OVERCHARGE_MAX) {
+            this.overchargeFrames = OVERCHARGE_DURATION;
+            this.overchargeFlash = 24;
+            audio.sfx('powerup');
+            particles.weaponHitBurst(this.x + this.w / 2, this.y + this.h / 2, 'OVERCHARGE', '#ffd040');
+            particles.floatingText(this.x + this.w / 2, this.y - 12, 'OVERCHARGE!', '#ffd040', 70, -0.5, 1.6);
+            particles.shockRing(this.x + this.w / 2, this.y + this.h / 2, 30, 22, '#ffd040');
+            this.requestShake = Math.max(this.requestShake || 0, 4);
+        }
+    }
+
+    // R606: damage multiplier applied to every bullet while OVERCHARGE is lit.
+    // Folds in alongside the existing combo multiplier at each fire site.
+    _overchargeMult() {
+        return this.overchargeFrames > 0 ? OVERCHARGE_DMG : 1;
     }
 
     pickup(type) {
@@ -2791,6 +2859,12 @@ export class Player {
         this.knockX = knockDir * 2.4;
         this.vy = -3.0;
         this.combo = 0;
+        // R606: a hit cancels overcharge and empties the meter — the whole
+        // point is that it rewards staying untouched.
+        if (this.overchargeFrames > 0 || this.overchargeMeter > 0) {
+            this.overchargeFrames = 0;
+            this.overchargeMeter = 0;
+        }
         // R181: Contra-style weapon persistence — taking a hit drops power
         // weapons back to MG. Player retains their MG inventory slot but
         // loses anything they'd picked up. weaponInventory is reset to
@@ -3096,6 +3170,41 @@ export class Player {
         // wobble. The body-core correction is only meaningful for the upright,
         // ground-anchored draw where the 12px hitbox column matters.
         const pivotX = cx - coreDX;
+
+        // R606: Overcharge aura — a pulsing molten-gold ring under the sprite
+        // while the boost is lit, plus a brighter flash burst on ignition.
+        // Pivots on the geometric center so it never wobbles on spin/die.
+        if (this.overchargeFrames > 0 && this.state !== STATE.DIE) {
+            const bcx = Math.round(pivotX), bcy = Math.round(cy);
+            const pulse = (Math.sin(performance.now() * 0.02) + 1) * 0.5;
+            // Fade out over the last 30 frames so the boost visibly winds down.
+            const fade = Math.min(1, this.overchargeFrames / 30);
+            ctx.save();
+            ctx.globalAlpha = (0.35 + pulse * 0.3) * fade;
+            ctx.strokeStyle = '#ffd040';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(bcx, bcy + dims.h / 2 - 2, 13 + pulse * 3, 5 + pulse * 1.5, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = (0.18 + pulse * 0.15) * fade;
+            ctx.fillStyle = '#ffd040';
+            ctx.beginPath();
+            ctx.ellipse(bcx, bcy + dims.h / 2 - 2, 11, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+        if (this.overchargeFlash > 0) {
+            const bcx = Math.round(pivotX), bcy = Math.round(cy);
+            const t = this.overchargeFlash / 24;
+            ctx.save();
+            ctx.globalAlpha = 0.5 * t;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(bcx, bcy, 8 + (1 - t) * 30, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         // Ducked in swamp water — replace sprite with surface ripple + tiny periscope head
         if (this.waterHidden) {

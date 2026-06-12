@@ -410,6 +410,30 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(x, 12, fillW, 2);
     }
 
+    // R606: Overcharge meter. While filling, a gold bar charges left-to-right;
+    // when lit, the label pulses and the bar drains as the boost burns down.
+    const ocMax = 50, ocDur = 150;
+    const ocActive = (player.overchargeFrames || 0) > 0;
+    if (ocActive || (player.overchargeMeter || 0) > 0) {
+        const x = 176, y = 12, barW = 18;
+        if (ocActive) {
+            const lit = (performance.now() % 320 < 160);
+            drawText(ctx, 'OVR', x, 5, lit ? '#fff' : '#ffd040', 1);
+            const t = Math.min(1, (player.overchargeFrames || 0) / ocDur);
+            ctx.fillStyle = '#241a04';
+            ctx.fillRect(x, y, barW, 2);
+            ctx.fillStyle = '#ffd040';
+            ctx.fillRect(x, y, Math.max(0, Math.floor(barW * t)), 2);
+        } else {
+            const t = Math.min(1, (player.overchargeMeter || 0) / ocMax);
+            drawText(ctx, 'OVR', x, 5, '#7a6a30', 1);
+            ctx.fillStyle = '#241a04';
+            ctx.fillRect(x, y, barW, 2);
+            ctx.fillStyle = '#c8a020';
+            ctx.fillRect(x, y, Math.max(0, Math.floor(barW * t)), 2);
+        }
+    }
+
     // Score — flashes briefly when score increases. Static counters feel
     // dead; the flash makes kills feel rewarding even when the popup is
     // off-screen or buried in particle noise.
