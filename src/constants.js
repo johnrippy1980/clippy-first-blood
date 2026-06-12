@@ -235,6 +235,12 @@ export const STAGES = [
     // which in turn enables co-op mode. Uses the keynote theme + boardroom
     // backdrop so the corporate launch-party setting reads visually.
     { id: 26, name: 'THE COMPETITION',          category: 'postgame', displayId: 'P8', theme: THEME.BOARDROOM,  boss: 'BONZI',        music: 'arenaBoss',    tagline: 'HE WASN\'T THE ONLY ONE THEY REPLACED.' },
+    // R613: ENDLESS / SURVIVAL (R609) — stage 27. Metadata entry was missing
+    // in R609, so STAGES[27] was undefined and the stage-intro / stage-card /
+    // music lookups crashed reading .id on launch from the title menu. category
+    // 'mode' keeps it off the stage-select grid (title-menu entry only, like
+    // BOSS RUSH MODE). music matches makeEndlessArena's 'bossRushMode' track.
+    { id: 27, name: 'ENDLESS',                  category: 'mode',     displayId: '—',  theme: THEME.SERVERROOM, boss: null,           music: 'bossRushMode', tagline: 'NO EXIT. JUST WAVES.' },
 ];
 
 // Damage flash colors per source.

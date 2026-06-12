@@ -1134,7 +1134,15 @@ export class Game {
                 case 'bossRush':     this._startStage(24); break;
                 case 'timeTrial':    this._startStage(17); break;
                 // R609: ENDLESS / SURVIVAL — stage 27, title-menu only.
-                case 'endless':      this._startStage(27); break;
+                // R613: each Endless run is its own roguelite build, so clear
+                // any relics carried over from a prior campaign run before the
+                // every-5-waves draft starts stacking fresh ones.
+                case 'endless':
+                    this.runRelics = [];
+                    this._relicOffer = null;
+                    this._relicReturnEndless = false;
+                    this._startStage(27);
+                    break;
                 // R487: 'secret' (ONE MORE THING / Jobs) removed from main
                 // menu — players reach stage 18 via stage-select after
                 // clear_game unlock. Case retained for save-state safety
@@ -4665,7 +4673,11 @@ export class Game {
         ctx.fillStyle = 'rgba(40, 24, 60, 0.5)';
         ctx.fillRect(0, 0, GAME.W, GAME.H);
         drawTextOutlined(ctx, 'CHOOSE YOUR EDGE', GAME.W / 2, 20, '#ffd040', '#1a0800', 1, 'center');
-        drawText(ctx, 'A RELIC FOR THE ROAD AHEAD', GAME.W / 2, 34, '#a890c0', 1, 'center');
+        // R613: Endless drafts read as a survival reward, not a campaign beat.
+        const relicSub = this._relicReturnEndless
+            ? 'A RELIC TO SURVIVE THE SWARM'
+            : 'A RELIC FOR THE ROAD AHEAD';
+        drawText(ctx, relicSub, GAME.W / 2, 34, '#a890c0', 1, 'center');
         if (!offer) { return; }
         const choices = offer.choices;
         const n = choices.length;
@@ -5405,6 +5417,16 @@ export class Game {
                 audio.sfx('powerup');
                 e.state = 'breather';
                 e.breatherT = 150;
+                // R613: every 5th wave, offer a relic draft so Endless builds
+                // into a roguelite loadout. Skip when every relic is owned.
+                if (e.wave % 5 === 0) {
+                    const offer = this._buildRelicOffer();
+                    if (offer) {
+                        this._relicOffer = offer;
+                        this._relicReturnEndless = true;
+                        this.scene = SCENE.RELIC_PICK;
+                    }
+                }
             }
         }
     }
@@ -5494,6 +5516,15 @@ export class Game {
             achievements.stats.relicsDrafted = (achievements.stats.relicsDrafted || 0) + 1;
             achievements.update({});
             achievements._save();
+            // R613: an Endless-mode draft re-applies the relic to the live
+            // player and resumes the survival arena, rather than handing off
+            // to the campaign stage card.
+            if (this._relicReturnEndless) {
+                this._relicReturnEndless = false;
+                this._applyRunRelics();
+                this.scene = SCENE.PLAY;
+                return;
+            }
             this._proceedToStageCard();
         }
     }
@@ -7437,6 +7468,8 @@ export class Game {
         // R610: relics are a per-run roguelite stack — wiped when the run ends.
         this.runRelics = [];
         this._relicOffer = null;
+        // R613: drop any dangling Endless relic-draft return flag.
+        this._relicReturnEndless = false;
         // Ghost replay: drop any in-flight recording and clear per-run flags so
         // a quit mid-stage doesn't persist a partial path or leak playback into
         // the next run.
