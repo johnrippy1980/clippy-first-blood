@@ -110,6 +110,13 @@ class Achievements {
             // additive lifetime counter. Both persisted.
             bestEndlessWave: 0,
             relicsDrafted: 0,
+            // R615: Daily Challenge completion streak. dailyStreak = consecutive
+            // calendar days the daily was cleared; dailyStreakBest = lifetime
+            // high; lastDailyDay = YYYYMMDD of the most recent clear (the anchor
+            // used to decide continue-vs-reset). All persisted.
+            dailyStreak: 0,
+            dailyStreakBest: 0,
+            lastDailyDay: '',
             // Campaign (any%) personal records. bestScore (above) already
             // tracks lifetime high score; these add a best clear time (frames,
             // 0 = none yet) and best rank letter ('' = none) so the game-complete
@@ -210,6 +217,10 @@ class Achievements {
                 // R611: Endless/relic persistence.
                 this.stats.bestEndlessWave = data.stats.bestEndlessWave || 0;
                 this.stats.relicsDrafted = data.stats.relicsDrafted || 0;
+                // R615: Daily Challenge streak persistence.
+                this.stats.dailyStreak = data.stats.dailyStreak || 0;
+                this.stats.dailyStreakBest = data.stats.dailyStreakBest || 0;
+                this.stats.lastDailyDay = data.stats.lastDailyDay || '';
                 this.stats.bestCampaignTime = data.stats.bestCampaignTime || 0;
                 this.stats.bestCampaignRank = data.stats.bestCampaignRank || '';
                 // R279: konami unlock persists across sessions so the
@@ -242,7 +253,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 611,
+                schemaVersion: 615,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -252,6 +263,9 @@ class Achievements {
                     bestTimeTrialTime: this.stats.bestTimeTrialTime,
                     bestEndlessWave: this.stats.bestEndlessWave || 0,
                     relicsDrafted: this.stats.relicsDrafted || 0,
+                    dailyStreak: this.stats.dailyStreak || 0,
+                    dailyStreakBest: this.stats.dailyStreakBest || 0,
+                    lastDailyDay: this.stats.lastDailyDay || '',
                     bestCampaignTime: this.stats.bestCampaignTime || 0,
                     bestCampaignRank: this.stats.bestCampaignRank || '',
                     konamiUnlocked: this.stats.konamiUnlocked || false,

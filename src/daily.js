@@ -40,6 +40,15 @@ class DailyChallenge {
         return `${y}${m}${d}`;
     }
 
+    // The YYYYMMDD key for the calendar day BEFORE the given date. Used by the
+    // R615 streak logic to decide continue-vs-reset: a daily clear extends the
+    // streak iff the last clear was on this date's previous day. Built from a
+    // real Date so month/year rollovers (and leap days) are handled correctly.
+    prevDayKey(date = new Date()) {
+        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
+        return this.todayKey(d);
+    }
+
     // ISO-8601 week key for the given date, "<isoYear>W<ww>" (e.g. 2026W22).
     // Used as the partition key for the rolling weekly Any% board — everyone
     // playing in the same ISO week competes on the same board, and it rolls

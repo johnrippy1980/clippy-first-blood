@@ -6993,6 +6993,28 @@ export class Game {
             this._leaderboardSubmitted = true;
             const stages = this.runStats.stagesCleared.size;
             const isDaily = !!(this.dailyMode && this.dailyChallenge);
+            // R615: advance the Daily Challenge completion streak. A clear today
+            // either extends yesterday's streak (+1), holds when today was
+            // already credited (re-clear), or resets to 1 after any gap. Best is
+            // a lifetime high-water mark. _dailyStreakResult is read by the
+            // game-complete card to flash the streak + any new record.
+            if (isDaily) {
+                const today = this.dailyChallenge.day;
+                const last = achievements.stats.lastDailyDay || '';
+                const prev = dailyChallenge.prevDayKey();
+                let streak = achievements.stats.dailyStreak || 0;
+                let advanced = true;
+                if (last === today) { advanced = false; }           // already counted today
+                else if (last === prev) { streak += 1; }            // consecutive day
+                else { streak = 1; }                                // first ever / gap
+                achievements.stats.dailyStreak = streak;
+                achievements.stats.lastDailyDay = today;
+                const prevBest = achievements.stats.dailyStreakBest || 0;
+                const isRecord = streak > prevBest;
+                if (isRecord) achievements.stats.dailyStreakBest = streak;
+                achievements._save();
+                this._dailyStreakResult = { streak, isRecord, advanced };
+            }
             leaderboard.submit({
                 runId: this.runId,
                 name: leaderboard.name || 'AAA',
@@ -7416,7 +7438,19 @@ export class Game {
         // stored record (score / time / rank). Flashes gold so it reads as a
         // reward, and lists which records fell. Sits between panel and path.
         const pb = this._runPB;
-        if (pb && (pb.score || pb.time || pb.rank)) {
+        // R615: Daily Challenge clears show a streak banner instead of a campaign
+        // PB (dailies are excluded from campaign PBs by design). The streak +
+        // NEW RECORD flag come from _dailyStreakResult, computed once at submit.
+        const ds = this._dailyStreakResult;
+        if (this.dailyMode && ds) {
+            const flash = this.storyTimer % 40 < 26;
+            const label = 'DAILY STREAK ' + ds.streak + (ds.streak === 1 ? ' DAY' : ' DAYS');
+            drawTextOutlined(ctx, label, GAME.W / 2, 172, '#ffb060', '#1a0a14', 1, 'center');
+            if (ds.isRecord && flash) {
+                drawText(ctx, '* NEW RECORD *', GAME.W / 2, 182, '#a0ff70', 1, 'center');
+            }
+            drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 192, ep.accent, '#0a0410', 1, 'center');
+        } else if (pb && (pb.score || pb.time || pb.rank)) {
             const beaten = [];
             if (pb.rank)  beaten.push('RANK');
             if (pb.score) beaten.push('SCORE');
@@ -7466,6 +7500,7 @@ export class Game {
         this._stageClearTallyDone = false;
         this._runRank = null;
         this._runPB = null;
+        this._dailyStreakResult = null;
         this._preRunBestScore = null;
         this.gameOverCountdown = null;
         this._pendingStage = null;
