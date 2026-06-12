@@ -69,6 +69,15 @@ export const ACHIEVEMENT_LIST = [
     { id: 'coop_ride_die', name: 'RIDE OR DIE',      desc: 'CLEAR ALL 25 STAGES, SAME CHAR EVERY BOSS', icon: 'R', coopOnly: true, gate: s => (s.coopSoloBossKills || 0) >= 25, progress: s => [Math.min(s.coopSoloBossKills || 0, 25), 25] },
     { id: 'coop_bonzi_solo', name: 'ANNOYING ASSISTANT', desc: 'CLEAR A STAGE WITH BONZI-ONLY KILLS', icon: 'B',  coopOnly: true, gate: s => (s.coopBonziSoloStages || 0) >= 1 },
     { id: 'coop_clippy_solo', name: 'CLIPS OVER GORILLAS', desc: 'CLEAR A STAGE WITH CLIPPY-ONLY KILLS', icon: 'X', coopOnly: true, gate: s => (s.coopClippySoloStages || 0) >= 1 },
+    // R617: co-op variants of the single-player skill achievements that had no
+    // partner equivalent — GHOST, the combo ladder, UNTOUCHABLE, and TOP TIER.
+    // Each gates on a coop-only counter so single-player progress can't trip
+    // them, and the harder bar (campaign-no-death, 20-combo, 100k) makes them
+    // distinct trophies rather than freebies.
+    { id: 'coop_ghost',    name: 'TWO GHOSTS',       desc: 'CLEAR A CO-OP STAGE WITH ZERO DAMAGE',  icon: 'G',  coopOnly: true, gate: s => (s.coopNoDamageStages || 0) >= 1 },
+    { id: 'coop_combo_20', name: 'COMBINED ARMS',    desc: 'CHAIN 20 KILLS IN CO-OP',               icon: 'C',  coopOnly: true, gate: s => (s.coopBestCombo || 0) >= 20, progress: s => [Math.min(s.coopBestCombo || 0, 20), 20] },
+    { id: 'coop_no_death', name: 'NO ONE LEFT BEHIND', desc: 'CLEAR THE CAMPAIGN IN CO-OP, ZERO DEATHS', icon: 'O', coopOnly: true, gate: s => s.coopFlawlessCampaign === true },
+    { id: 'coop_high_score', name: 'DREAM TEAM',     desc: 'SCORE OVER 100,000 IN CO-OP',           icon: '$',  coopOnly: true, gate: s => (s.coopBestScore || 0) >= 100000 },
     // R568h (slice 7): NEW MANAGEMENT — defeat Bonzi as the boss of stage 26.
     // This is the *unlock prereq* for co-op mode itself, not a coop-only
     // achievement. Single-player can earn it; co-op mode becomes available
@@ -141,6 +150,13 @@ class Achievements {
             coopSoloBossKills: 0,
             coopBonziSoloStages: 0,
             coopClippySoloStages: 0,
+            // R617: co-op variants of single-player skill gates. NoDamage is
+            // additive; BestCombo/BestScore are high-water marks; the flawless
+            // campaign flag latches true on a zero-death co-op full clear.
+            coopNoDamageStages: 0,
+            coopBestCombo: 0,
+            coopBestScore: 0,
+            coopFlawlessCampaign: false,
             // R568h (slice 7): set once when the player defeats Bonzi in
             // THE COMPETITION (stage 26). Gates co-op menu visibility AND
             // the BONZI gallery entries.
@@ -240,6 +256,11 @@ class Achievements {
                 this.stats.coopSoloBossKills     = data.stats.coopSoloBossKills | 0;
                 this.stats.coopBonziSoloStages   = data.stats.coopBonziSoloStages | 0;
                 this.stats.coopClippySoloStages  = data.stats.coopClippySoloStages | 0;
+                // R617: co-op skill-variant stats.
+                this.stats.coopNoDamageStages    = data.stats.coopNoDamageStages | 0;
+                this.stats.coopBestCombo         = data.stats.coopBestCombo | 0;
+                this.stats.coopBestScore         = data.stats.coopBestScore | 0;
+                this.stats.coopFlawlessCampaign  = data.stats.coopFlawlessCampaign === true;
                 this.stats.bonziDefeated         = data.stats.bonziDefeated === true;
             }
             // Persist with the new schema version on next _save() so we don't
@@ -253,7 +274,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 615,
+                schemaVersion: 617,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -284,6 +305,11 @@ class Achievements {
                     coopSoloBossKills:     this.stats.coopSoloBossKills | 0,
                     coopBonziSoloStages:   this.stats.coopBonziSoloStages | 0,
                     coopClippySoloStages:  this.stats.coopClippySoloStages | 0,
+                    // R617: co-op skill-variant stats.
+                    coopNoDamageStages:    this.stats.coopNoDamageStages | 0,
+                    coopBestCombo:         this.stats.coopBestCombo | 0,
+                    coopBestScore:         this.stats.coopBestScore | 0,
+                    coopFlawlessCampaign:  this.stats.coopFlawlessCampaign === true,
                     bonziDefeated:         this.stats.bonziDefeated === true,
                 },
             }));

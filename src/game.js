@@ -6159,6 +6159,29 @@ export class Game {
                     achievements.stats.coopMaxHandoffChain || 0,
                     css.handoffChainBest || 0,
                 );
+                // R617: co-op variants of the single-player skill gates.
+                // TWO GHOSTS — neither player took damage this stage. Mirrors
+                // GHOST; stageStats.damageTaken tracks whichever character was
+                // active, so zero means a clean stage for the whole team.
+                if (this.stageStats.damageTaken === 0) {
+                    achievements.stats.coopNoDamageStages++;
+                }
+                // COMBINED ARMS / DREAM TEAM — high-water marks across co-op
+                // runs (combo and score), so they stay earned once hit.
+                achievements.stats.coopBestCombo = Math.max(
+                    achievements.stats.coopBestCombo || 0,
+                    this.runStats.maxCombo || 0,
+                );
+                achievements.stats.coopBestScore = Math.max(
+                    achievements.stats.coopBestScore || 0,
+                    this.player?.score || 0,
+                );
+                // NO ONE LEFT BEHIND — full campaign clear (stage 13) in co-op
+                // with zero deaths the entire run. Latches true once earned.
+                // Warped (stage-select) runs don't qualify as a real campaign.
+                if (this.currentStage === 13 && this.totalDeaths === 0 && !this._runWarped) {
+                    achievements.stats.coopFlawlessCampaign = true;
+                }
             }
             // Daily Challenge runs apply difficulty modifiers (double damage,
             // one life, no pickups), so crediting their kills/score/combo to the
