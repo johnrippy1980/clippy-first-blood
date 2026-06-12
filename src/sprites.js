@@ -361,18 +361,22 @@ export const CLIPPY_MANIFEST = {
     // slightly forward but the rifle reads correctly at every aim band.
     // Frame 2 (passing-leg) is most "neutral" — used for idle + standing
     // shoot. Frame 1/3 (split-stride) carry over for the aim variants.
-    'idle':            'v6_run_2.png',
-    'idle_alt':        'v6_run_2.png',
-    // R199: v6 run cycle — 4 proper frames (left-stride, pass, right-stride,
-    // pass) from the new painted run sheet. Replaces v5_run.png × 5 which
-    // was all the same frame and made Clippy look like he was skating.
-    // The engine cycles 5 keys; we map run_5 back to run_1 to close the
-    // loop without a duplicate-frame stutter.
-    'run_1':           'v6_run_1.png',
-    'run_2':           'v6_run_2.png',
-    'run_3':           'v6_run_3.png',
-    'run_4':           'v6_run_4.png',
-    'run_5':           'v6_run_1.png',
+    // R600: real standing idle art from the friend's pose pack. Replaces the
+    // v6_run_2 placeholder (a passing-leg run frame) that made Clippy look
+    // like he was mid-stride while standing still. idle_up/down give a subtle
+    // two-frame eye-line shift.
+    'idle':            'friend/idle_up.png',
+    'idle_alt':        'friend/idle_down.png',
+    // R601: real walk cycle from the friend's pose pack (walk_1/2/3).
+    // The engine plays a 4-frame cycle 1→2→3→2, so walk_2 is the passing
+    // frame reused on beats 2 and 4. run_4/run_5 close the loop back through
+    // the passing/lead frames without a duplicate-frame stutter. Replaces the
+    // v6_run_* placeholder cycle.
+    'run_1':           'friend/walk_1.png',
+    'run_2':           'friend/walk_2.png',
+    'run_3':           'friend/walk_3.png',
+    'run_4':           'friend/walk_2.png',
+    'run_5':           'friend/walk_1.png',
     // R263: back-facing Clippy sprites for the FPS arena (Contra-base
     // "into the screen" framing). Generated as a gpt-image-2 sheet,
     // sliced via tools/process-r263-r264-sprites.py.
@@ -475,66 +479,107 @@ export const CLIPPY_MANIFEST = {
     // mid-jump when he wasn't. New 'jump_neutral.png' has gun lowered
     // at his side — proper non-shooting jump pose. The 'jump_aim' alias
     // keeps pointing to v6_jump for the mid-air shoot pose.
-    'jump':            'jump_neutral.png',
-    'jump_aim':        'v6_jump.png',
+    // R601/R602: real jump art from the friend's pose pack — jump_rise is the
+    // tucked rising/peak pose (gun lowered), jump_fall the descending pose.
+    // jump_aim (shoot held mid-air) uses walk_shoot_1: legs tucked + gun
+    // extended w/ muzzle flash reads cleanly as airborne firing and is on
+    // the same art style, unlike the old lighter-grey v6_jump overhead pose.
+    'jump':            'friend/jump_rise.png',
+    'jump_aim':        'friend/walk_shoot_1.png',
     // R353: 'fall' was still aliased to v6_jump.png (rifle-extended shoot
     // pose) which made Clippy look like he was firing mid-fall when he
     // wasn't. Use the neutral pose so non-firing falls match non-firing
     // jumps. Shooting-while-falling still hits the 'jump_aim' branch.
-    'fall':            'jump_neutral.png',
-    'spin_1':          'v2_spin_1.png',
-    'spin_2':          'v2_spin_2.png',
-    'crouch':          'pack_crouch_aim.png',
-    // R169: pack_crouch_shoot_* have a rifle baked in too. We don't have a
-    // clean crouch yet — keep the painted crouch pose but drop the shoot
-    // variants down to the same clean pose so the rotated weapon overlay
-    // is the only barrel visible.
-    'crouch_shoot':    'pack_crouch_aim.png',
-    'crouch_shoot_2':  'pack_crouch_aim.png',
-    'crouch_shoot_3':  'pack_crouch_aim.png',
-    'prone':           'v2_prone.png',
-    'prone_shoot':     'v2_prone_crawl.png',
-    'prone_heavy':     'v2_prone_crawl.png',
+    'fall':            'friend/jump_fall.png',
+    // R601: real spin-jump rotation from the friend's Jump-Double sequence
+    // (frames 4/5 = the tucked mid-flip and inverted beats). The engine
+    // cycles ['jump', spin_1, spin_2, spin_1] off spinAngle, so these two
+    // carry the 90°/180° rotation read. Replaces the v2 spin placeholders.
+    'spin_1':          'friend/spin_1.png',
+    'spin_2':          'friend/spin_2.png',
+    // R601: real crouch art from the friend's pose pack. crouch_up is the
+    // settled crouch (eyes level), crouch_down the lower compressed pose
+    // reused for the shoot variants so a single read carries firing too.
+    'crouch':          'friend/crouch_up.png',
+    'crouch_shoot':    'friend/crouch_down.png',
+    'crouch_shoot_2':  'friend/crouch_down.png',
+    'crouch_shoot_3':  'friend/crouch_down.png',
+    // R601: real prone/crawl art from the friend's pose pack. crawl_1 is the
+    // neutral prone frame; crawl_shoot_1 the gun-extended crawl frame for the
+    // firing variant. Both are the wide low silhouette the prone states expect.
+    'prone':           'friend/crawl_1.png',
+    'prone_shoot':     'friend/crawl_shoot_1.png',
+    'prone_heavy':     'friend/crawl_shoot_1.png',
+    // R602: dedicated slide pose from the friend's pack (slide-2 = the low
+    // streaked slide). Previously SLIDE/ROLL collapsed onto the flat prone
+    // crawl frame, which read as "lying down" rather than "sliding". slide
+    // is the fast low read; slide_brace (slide-1, gun up) is the recovery/
+    // brace frame at the tail of the slide.
+    'slide':           'friend/slide.png',
+    'slide_brace':     'friend/slide_brace.png',
     // R169: route run-shoot / aim-band / jump-aim back through the CLEAN
     // v3 body sprites. The old v2_* variants have a rifle baked into the
     // pose, so when _drawAimArm composited the separate weapon sprite on
     // top the player would see two weapons + the baked one wouldn't rotate
     // to follow aim. Pointing these to v3_* means the body stays clean and
     // the procedural arm is the only weapon visible.
-    // R199: run-shoot variants point at the same v6 cycle so the legs
-    // animate while firing too. The rifle is already painted into every
-    // frame, so no separate weapon overlay needed.
-    'run_shoot_1':     'v6_run_1.png',
-    'run_shoot_2':     'v6_run_2.png',
-    'run_shoot_3':     'v6_run_3.png',
-    'run_shoot_4':     'v6_run_4.png',
+    // R601: real walk-and-fire art from the friend's pose pack
+    // (walk_shoot_1/2/3 = the gun-extended frame of each recoil pair). Legs
+    // still cycle while firing; the rifle is painted into every frame so no
+    // separate weapon overlay is needed. _frameForState reads 1..3 only.
+    'run_shoot_1':     'friend/walk_shoot_1.png',
+    'run_shoot_2':     'friend/walk_shoot_2.png',
+    'run_shoot_3':     'friend/walk_shoot_3.png',
+    'run_shoot_4':     'friend/walk_shoot_2.png',
     // R201: shoot + aim band — point at v6 frames with the rifle baked
     // in. Same painted body as the run cycle so the silhouette stays
     // consistent between RUN and standing-shoot. Aim variants will all
     // show the rifle held forward — the bullet origin/_drawAimArm
     // procedural overlay is now disabled (rifle is in the sprite).
-    'shoot':           'v6_run_2.png',
-    'shoot_alt':       'v6_run_4.png',
-    'aim':             'v6_run_2.png',
-    'aim_up':          'v6_run_2.png',
-    'aim_diag':        'v6_run_2.png',
-    'aim_diag_down':   'v6_run_2.png',
-    'climb_1':         'pack_rope_1.png',
-    'climb_2':         'pack_rope_2.png',
-    'cover':           'pack_cover_1.png',
-    'cover_shoot':     'pack_cover_2.png',
-    'hurt':            'v2_hurt2.png',
-    'backdash':        'v2_backdash.png',
-    'death_hit':       'v2_hurt2.png',
+    // R600: real standing-fire art from the friend's pose pack (firing_1/2).
+    // Replaces the v6_run_2 placeholder that made every aim band reuse a
+    // washed-out neutral run frame. Straight-ahead only for now — aim_up /
+    // aim_diag still use the old frames until angled firing poses are cut.
+    'shoot':           'friend/firing_1.png',
+    'shoot_alt':       'friend/firing_2.png',
+    'aim':             'friend/firing_1.png',
+    // R602: angled aim bands fall back to the straight-ahead firing pose
+    // (gun extended) instead of a neutral run frame. Milos hasn't drawn
+    // up/diagonal firing poses yet, but firing_1 + the procedural aim-arm
+    // overlay reads far better than recycling a non-firing run frame. Swap
+    // these to dedicated angled art if/when it lands. (GAP: angled fire.)
+    'aim_up':          'friend/firing_1.png',
+    'aim_diag':        'friend/firing_1.png',
+    'aim_diag_down':   'friend/firing_1.png',
+    // R601: real climbing art from the friend's pose pack — two-frame
+    // hand-over-hand cycle. Tall narrow silhouette for ladders/ropes.
+    'climb_1':         'friend/climb_1.png',
+    'climb_2':         'friend/climb_2.png',
+    // R602: route cover to the friend's crouch/brace poses. The old
+    // pack_cover_* frames were a cruder, off-style art set. COVER state
+    // already renders 'crouch'; these keys stay in sync so any cover read
+    // stays on-style.
+    'cover':           'friend/crouch_up.png',
+    'cover_shoot':     'friend/slide_brace.png',
+    // R601: real damaged/hurt art from the friend's pose pack ("Low HP").
+    // lowhp_down is the staggered/recoil read used for the hit + first death
+    // beat; lowhp_up the upright wince used for the lingering hurt pose.
+    'hurt':            'friend/lowhp_up.png',
+    // R602: backdash uses the friend's gun-up brace pose (the facing flip
+    // mirrors it for the dash direction) instead of the old v2_backdash
+    // frame, which carried an un-knocked-out grey background box.
+    'backdash':        'friend/slide_brace.png',
+    'death_hit':       'friend/lowhp_down.png',
     'death_explode':   'v2_death.png',
     'death_burning':   'v2_death.png',
     // R152: ledge-grab poses — hang from edge, mid-pullup, settled atop.
-    // R340: v2_ledge_hang lacked the red bandana headband that's on every
-    // other Clippy state — broke character consistency on ledge-grab.
-    // ledge_hang_v3 painted with headband visible + gun slung on back.
-    'ledge_hang':      'ledge_hang_v3.png',
-    'ledge_climb_1':   'v2_ledge_climb_1.png',
-    'ledge_climb_2':   'v2_ledge_climb_2.png',
+    // R602: ledge poses derive from the friend's climb cycle (climb_1 = grip/
+    // hang read, climb_2 = mid-pull) so the ledge-grab matches the on-style
+    // climb art instead of the older flat-grey ledge frames. The settled-
+    // on-top beat reuses crouch_up.
+    'ledge_hang':      'friend/climb_1.png',
+    'ledge_climb_1':   'friend/climb_2.png',
+    'ledge_climb_2':   'friend/crouch_up.png',
 };
 
 // R155: composited weapon-overlay sprites. Each PNG is drawn at Clippy's

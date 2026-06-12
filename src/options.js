@@ -18,8 +18,10 @@ const DEFAULTS = {
     // see it by default so they get the bindings before getting shot.
     showReady: true,
     // Ghost replay: render the stored best-run path as a translucent
-    // silhouette during clean campaign stages. On by default.
-    showGhost: true,
+    // silhouette during clean campaign stages. Off by default — it's an
+    // opt-in pace-racer, not something to surprise players with in normal
+    // play. Enable via Options > SHOW GHOST.
+    showGhost: false,
 };
 
 class Options {

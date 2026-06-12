@@ -5526,7 +5526,7 @@ export class Game {
         this._ghostFinishFlash = 0;
         this._ghostActive = !this.trainingMode && !this.bossRushMode
             && !this.timeTrialMode && !this.dailyMode && !this.coopMode
-            && !this._runWarped && options.get('showGhost') !== false;
+            && !this._runWarped && options.get('showGhost') === true;
         if (this._ghostActive) {
             ghost.startRecording(this.currentStage);
             ghost.startPlayback(this.currentStage);

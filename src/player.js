@@ -4514,12 +4514,21 @@ export class Player {
                 return seq[phase];
             }
             case STATE.CROUCH: return 'crouch';
-            case STATE.PRONE:
+            // R602: SLIDE/ROLL now use the dedicated low slide pose (falls
+            // back to prone if the asset is missing). PRONE/CRAWL keep the
+            // flat crawl read.
             case STATE.SLIDE:
-            case STATE.ROLL: return shooting && sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
+            case STATE.ROLL: return sprites.has('slide') ? 'slide' : 'prone';
+            case STATE.PRONE: return shooting && sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
             case STATE.CRAWL: return sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
             case STATE.BACKDASH: return 'backdash';
-            case STATE.CLIMB: return Math.floor(this.animFrame) % 2 === 0 ? 'run_1' : 'run_2';
+            // R602: real hand-over-hand climb art (climb_1/climb_2) instead of
+            // recycling the run cycle, which made ladder-climbing look like
+            // running on the spot.
+            case STATE.CLIMB:
+                return sprites.has('climb_1')
+                    ? (Math.floor(this.animFrame) % 2 === 0 ? 'climb_1' : 'climb_2')
+                    : (Math.floor(this.animFrame) % 2 === 0 ? 'run_1' : 'run_2');
             case STATE.COVER: return 'crouch';
             case STATE.LEDGE_HANG:
                 return sprites.has('ledge_hang') ? 'ledge_hang' : 'jump';
