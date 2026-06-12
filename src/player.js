@@ -5,7 +5,7 @@ import { GAME, STATE, AIM, WEAPON, HURT_FLASH, AMBIENT, STAGES } from './constan
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
-import { drawClippyFrame, getSpriteDims, sprites } from './sprites.js';
+import { drawClippyFrame, getSpriteDims, getFrameAnchorX, sprites } from './sprites.js';
 import { drawText } from './pixelfont.js';
 import { options } from './options.js';
 
@@ -3078,7 +3078,13 @@ export class Player {
             ? -this.facing * (this.recoilTimer > 4 ? 3 : this.recoilTimer > 2 ? 2 : 1)
             : 0;
         const recoilDY = this.recoilTimer > 3 ? -1 : 0;
-        const cx = this.x + this.w / 2 - camera.viewX + recoilDX;
+        // Anchor the sprite's body-core (not its geometric bbox center) on the
+        // hitbox center. Wide firing/crawl frames overhang one side (gun, arm,
+        // trailing leg) which would otherwise drag the torso off the 12px
+        // hitbox and produce hits that look like they missed. The offset is
+        // measured right-facing, so flip its sign when facing left.
+        const coreDX = getFrameAnchorX(frame) * (this.facing < 0 ? 1 : -1);
+        const cx = this.x + this.w / 2 - camera.viewX + recoilDX + coreDX;
         const cy = this.y + this.h - dims.h / 2 - camera.viewY + 1 + recoilDY;
 
         // Ducked in swamp water — replace sprite with surface ripple + tiny periscope head

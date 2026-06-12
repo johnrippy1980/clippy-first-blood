@@ -9,6 +9,13 @@ class SpriteSet {
     constructor() {
         this.images = new Map();     // frameName -> HTMLImageElement
         this.dims = new Map();       // frameName -> {w, h}
+        // frameName -> body-core horizontal offset (logical px) measured from
+        // the sprite's bbox center. Positive = core sits RIGHT of bbox center.
+        // Used to anchor the 12px hitbox on the torso, not the geometric box
+        // center, so wide firing/crawl frames (gun/limbs overhang one side)
+        // don't pull the body off the hitbox and create unfair hits. Computed
+        // from real pixels at load time so it self-corrects for any new art.
+        this.anchorX = new Map();
         // Silhouette canvas cache — keyed by `${name}::${color}`. Built on
         // first request (lazy), reused forever. Replaces the old per-frame
         // ctx.filter='brightness(0)' / 'invert(1)' draw path, which forces a
@@ -87,12 +94,62 @@ class SpriteSet {
         await Promise.allSettled(promises);
     }
 
+    // Measure where the body-core sits horizontally so the hitbox can anchor
+    // to the torso instead of the geometric bbox center. We weight toward the
+    // UPPER body (the torso/head band) because that's the mass the 12px hitbox
+    // is meant to cover; a gun, outstretched arm, or trailing leg lives lower
+    // or to one side and would otherwise drag the geometric center off the
+    // body. Returns the core's x-offset from bbox center, in logical pixels
+    // (sprite is right-facing; sign flips with facing at draw time). Falls back
+    // to 0 (geometric center) if the read fails (e.g. tainted canvas).
+    _computeAnchorX(img) {
+        try {
+            const w = img.width, h = img.height;
+            if (!w || !h) return 0;
+            const off = document.createElement('canvas');
+            off.width = w; off.height = h;
+            const octx = off.getContext('2d', { willReadFrequently: true });
+            octx.imageSmoothingEnabled = false;
+            octx.drawImage(img, 0, 0);
+            const data = octx.getImageData(0, 0, w, h).data;
+            // Per-column opaque mass, and the silhouette's vertical extent so we
+            // can restrict the centroid to the upper torso band.
+            const colMass = new Float64Array(w);
+            let minY = h, maxY = -1;
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const a = data[(y * w + x) * 4 + 3];
+                    if (a > 24) { if (y < minY) minY = y; if (y > maxY) maxY = y; }
+                }
+            }
+            if (maxY < 0) return 0;
+            // Upper 62% of the silhouette = torso/head core. Weight those rows
+            // fully; ignore the lower band (legs/gun-drop/trailing limbs).
+            const coreBottom = minY + (maxY - minY) * 0.62;
+            let sum = 0, total = 0;
+            for (let y = minY; y <= maxY; y++) {
+                if (y > coreBottom) break;
+                for (let x = 0; x < w; x++) {
+                    const a = data[(y * w + x) * 4 + 3];
+                    if (a > 24) { colMass[x] += a; }
+                }
+            }
+            for (let x = 0; x < w; x++) { sum += colMass[x] * x; total += colMass[x]; }
+            if (total <= 0) return 0;
+            const coreCenter = sum / total;
+            return coreCenter - (w - 1) / 2;
+        } catch {
+            return 0;
+        }
+    }
+
     _loadOne(name, src) {
         return new Promise(resolve => {
             const img = new Image();
             img.onload = () => {
                 this.images.set(name, img);
                 this.dims.set(name, { w: img.width, h: img.height });
+                this.anchorX.set(name, this._computeAnchorX(img));
                 resolve(true);
             };
             img.onerror = () => {
@@ -1196,6 +1253,14 @@ export function getSpriteDims(frameName) {
     if (d) return { w: d.w, h: d.h };
     const frame = CLIPPY_FRAMES[frameName] || CLIPPY_FRAMES.idle;
     return { w: frame[0]?.length || 24, h: frame.length || 32 };
+}
+
+// Body-core x-offset (logical px) from the sprite's bbox center, measured from
+// real pixels at load. Lets the player anchor its hitbox to the torso so wide
+// firing/crawl frames don't shove the body off the hitbox. 0 for procedural
+// frames (geometric center is fine for those).
+export function getFrameAnchorX(frameName) {
+    return sprites.anchorX.get(frameName) || 0;
 }
 
 // Enemy procedural sprites — designed to feel hostile, not cute.
