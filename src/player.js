@@ -307,6 +307,21 @@ export class Player {
         this.overchargeFrames = 0;
         this.overchargeFlash = 0;
 
+        // R610: Relic / mutator multipliers. Roguelite-lite — campaign stage
+        // clears offer a 3-choice relic; the picked ones persist for the run
+        // and game.js re-applies them at every stage start (they survive
+        // respawns via resetForStage NOT touching them). All default neutral.
+        //   relicDmgMult     — folds into outgoing damage (like damageDealtMult)
+        //   relicFireMult    — multiplies fire cooldown (<1 = faster, >1 = slower)
+        //   relicSpeedMult   — multiplies ground move accel + cap
+        //   relicMaxHpBonus  — added to maxHp at apply time (can be negative)
+        //   relicTakenMult   — folds into incoming damage (like damageTakenMult)
+        this.relicDmgMult = 1;
+        this.relicFireMult = 1;
+        this.relicSpeedMult = 1;
+        this.relicMaxHpBonus = 0;
+        this.relicTakenMult = 1;
+
         // Recoil visual offset
         this.recoilTimer = 0;
 
@@ -1061,8 +1076,8 @@ export class Player {
             const rageMul = this.rageFrames > 0 ? 1.5 : 1;
             const charAccelMul = this._profile.accelMul;
             const charSpeedMul = this._profile.speedMul;
-            const accel = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL) * rageMul * charAccelMul;
-            const cap = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED) * rageMul * charSpeedMul;
+            const accel = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? RUN_ACCEL * 0.4 : RUN_ACCEL) * rageMul * charAccelMul * this.relicSpeedMult;
+            const cap = ((this.state === STATE.CRAWL || this.state === STATE.CROUCH) ? MAX_SPEED * 0.45 : MAX_SPEED) * rageMul * charSpeedMul * this.relicSpeedMult;
             // Turn-snap: when input reverses against current momentum, kill a
             // chunk of the opposing velocity so the player doesn't ice-skate
             // through their own turnaround. Only applies on ground — keeps
@@ -1440,7 +1455,7 @@ export class Player {
         const sp = w.bulletSpeed * 1.3;
         const tier = this.combo >= 50 ? 3 : this.combo >= 25 ? 2 : this.combo >= 10 ? 1 : 0;
         const COMBO_MULT = [1, 1.25, 1.5, 2.0];
-        const comboMult = COMBO_MULT[tier] * this._overchargeMult() * this.damageDealtMult;
+        const comboMult = COMBO_MULT[tier] * this._overchargeMult() * this.damageDealtMult * this.relicDmgMult;
         this.bullets.push({
             x: baseX, y: baseY,
             vx: ndx * sp, vy: ndy * sp,
@@ -1506,6 +1521,8 @@ export class Player {
         if (this.rageFrames > 0) rate = Math.max(2, Math.floor(rate / 2));
         // R606: overcharge speeds up the cadence too (minimum 2)
         if (this.overchargeFrames > 0) rate = Math.max(2, Math.floor(rate * OVERCHARGE_FIRE_SCALE));
+        // R610: relic fire-rate trade (HAIR TRIGGER faster <1 / VAMPIRE etc. slower >1)
+        if (this.relicFireMult !== 1) rate = Math.max(2, Math.round(rate * this.relicFireMult));
         this.fireCooldown = rate;
         if (this.weapon === 'MG') {
             this.mgHeat = Math.min(100, this.mgHeat + 8);
@@ -1547,7 +1564,7 @@ export class Player {
         const tier = this.combo >= 50 ? 3 : this.combo >= 25 ? 2 : this.combo >= 10 ? 1 : 0;
         const COMBO_MULT = [1, 1.25, 1.5, 2.0];
         const COMBO_COLOR = [w.color, '#ffe070', '#ff9030', '#ffffff'];
-        const comboMult = COMBO_MULT[tier] * this._overchargeMult() * this.damageDealtMult;
+        const comboMult = COMBO_MULT[tier] * this._overchargeMult() * this.damageDealtMult * this.relicDmgMult;
         // R606: overcharge tints bullets molten-gold so the boost reads on-screen.
         const bulletColor = this.overchargeFrames > 0 ? '#ffd040' : COMBO_COLOR[tier];
 
@@ -1878,7 +1895,7 @@ export class Player {
         const range = w.range;
         const halfArc = (w.arcDeg * Math.PI / 180) / 2;
         // Damage scales with weapon level (1, 1.5, 2.0); R606 overcharge boost; R607 glass-cannon
-        const dmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5) * this._overchargeMult() * this.damageDealtMult;
+        const dmg = w.damage * (1 + (this.weaponLevel - 1) * 0.5) * this._overchargeMult() * this.damageDealtMult * this.relicDmgMult;
         for (const e of game.enemies.enemies) {
             if (!e.alive) continue;
             const ex = e.x + e.w / 2;
@@ -2792,6 +2809,11 @@ export class Player {
         // every hit on the GLASS WORLD / GLASS CANNON challenges.
         if (this.damageTakenMult && this.damageTakenMult !== 1) {
             dmg = dmg * this.damageTakenMult;
+        }
+        // R610: relic incoming-damage trade (ADRENALINE etc. take more for a
+        // movement upside). Stacks multiplicatively with the daily mult above.
+        if (this.relicTakenMult && this.relicTakenMult !== 1) {
+            dmg = dmg * this.relicTakenMult;
         }
         if (this.godMode) {
             this.iFrames = Math.max(this.iFrames, 12);

@@ -1570,6 +1570,42 @@ function makeBossRushMode() {
     };
 }
 
+// R609: Endless / Survival — title-menu mode unlocked after first
+// 'clear_game'. A single closed arena (no exit, no boss trigger) where
+// game.js drives escalating enemy waves via _tickEndlessWaves. Layout is a
+// symmetric SERVERROOM box wide enough to kite but small enough that waves
+// stay in play. No pre-placed enemies — every grunt is wave-spawned. A LIFE
+// pickup is granted between waves by the wave manager, not placed here. Best
+// wave survived persisted in achievements.stats.bestEndlessWave.
+function makeEndlessArena() {
+    const w = 36, h = 14;
+    const { g } = blankStage(w, h, THEME.SERVERROOM);
+    rectT(g, 0, 0, 1, h, W);
+    rectT(g, 0, w - 1, 1, h, W);
+    // Symmetric platform tiers so the player can break line-of-sight and use
+    // verticality against fliers/snipers without ever leaving the box.
+    platT(g, 10,  5, 5);
+    platT(g, 10, 26, 5);
+    platT(g,  7, 13, 4);
+    platT(g,  7, 19, 4);
+    platT(g,  4, 16, 4);
+    // Floor grates at the edges for cover breaks (mirrors the boss-rush arena).
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 3 + i, G);
+    for (let i = 0; i < 2; i++) setT(g, h - 3, 31 + i, G);
+    return {
+        tiles: g, width: w, height: h, theme: THEME.SERVERROOM,
+        playerStart: { x: (w / 2) * GAME.TILE, y: (h - 4) * GAME.TILE },
+        // No bossTrigger / no exit — the arena never "clears". The run ends on
+        // death; survival is the only objective.
+        enemySpawns: [],
+        pickupSpawns: [],
+        // R427 doom track — fast electronic pace fits the survival grind.
+        music: 'bossRushMode',
+        // Consumed by game.js _startStage to arm the wave manager + HUD badge.
+        endlessMode: true,
+    };
+}
+
 // Time Trial — stage 12. Unlocks after first 'clear_game'. Plays stage 1
 // (Office Park Jungle) layout with a prominent clock on the HUD. Best clear
 // time persisted in achievements.stats.bestTimeTrialTime.
@@ -2097,6 +2133,7 @@ export const STAGE_LOADERS = [
     () => makeBossRushMode(),                // R426: stage 24 BOSS RUSH MODE — relocated from old slot 16; launched only from title-screen MAIN_MENU
     () => makeTurretStage(),                 // R523: stage 25 HOLD THE LINE — mounted-turret CRT monster waves
     () => makeStageTheCompetition(),         // R568h: stage 26 THE COMPETITION — Bonzi boss arena
+    () => makeEndlessArena(),                // R609: stage 27 ENDLESS / SURVIVAL — wave-defense arena, title-menu only
 ];
 
 // R523: turret-arena stage data. Returns turretMode:true so _startStage

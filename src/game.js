@@ -60,7 +60,28 @@ const SCENE = {
     BEAT_PLAY: 'beatPlay',   // R306: beat-em-up street brawler scene
     DOOM_PLAY: 'doomPlay',   // R423: free-roam first-person raycaster scene
     TURRET_PLAY: 'turretPlay', // R523: third-person mounted turret stage
+    RELIC_PICK: 'relicPick', // R610: roguelite-lite 3-choice relic draft between campaign stages
 };
+
+// R610: Relic / mutator pool. Each relic is a run-persistent stat TRADE — a
+// clear upside paid for with a downside, so picks are a real decision rather
+// than a pure power creep. Applied at every stage start in _applyRunRelics by
+// folding into the player's relic* multipliers (which the player tick reads).
+// Kept small + readable; effects compose multiplicatively across a run.
+const RELICS = [
+    { id: 'glassEdge',  name: 'GLASS EDGE',  desc: '+30% DAMAGE / -1 MAX HP',
+      apply: p => { p.relicDmgMult *= 1.3; p.relicMaxHpBonus -= 1; } },
+    { id: 'hairTrigger',name: 'HAIR TRIGGER',desc: '+25% FIRE RATE / -15% SPEED',
+      apply: p => { p.relicFireMult *= 0.8; p.relicSpeedMult *= 0.85; } },
+    { id: 'adrenaline', name: 'ADRENALINE',  desc: '+25% SPEED / +15% DAMAGE TAKEN',
+      apply: p => { p.relicSpeedMult *= 1.25; p.relicTakenMult *= 1.15; } },
+    { id: 'juggernaut', name: 'JUGGERNAUT',  desc: '+1 MAX HP / -15% FIRE RATE',
+      apply: p => { p.relicMaxHpBonus += 1; p.relicFireMult *= 1.15; } },
+    { id: 'berserker',  name: 'BERSERKER',   desc: '+45% DAMAGE / +25% DAMAGE TAKEN',
+      apply: p => { p.relicDmgMult *= 1.45; p.relicTakenMult *= 1.25; } },
+    { id: 'featherfoot',name: 'FEATHERFOOT', desc: '+35% SPEED / -15% DAMAGE',
+      apply: p => { p.relicSpeedMult *= 1.35; p.relicDmgMult *= 0.85; } },
+];
 
 // MM:SS format for frame-based timers. Used by mode-best-time displays.
 function _formatTime(frames) {
@@ -523,6 +544,7 @@ export class Game {
             case SCENE.LEADERBOARD:  this._tickLeaderboard(); break;
             case SCENE.STAGE_SELECT: this._tickStageSelect(); break;
             case SCENE.STAGE_CARD:   this._tickStageCard(); break;
+            case SCENE.RELIC_PICK:   this._tickRelicPick(); break;
             case SCENE.BOSS_INTRO:   this._tickBossIntro(); break;
             case SCENE.STAGE_CLEAR:  this._tickStageClear(); break;
             case SCENE.GAME_OVER:    this._tickGameOver(); break;
@@ -646,6 +668,7 @@ export class Game {
             case SCENE.LEADERBOARD:  this._drawLeaderboard(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
+            case SCENE.RELIC_PICK:   this._drawRelicPick(); break;
             case SCENE.BOSS_INTRO:   this._drawBossIntro(); break;
             case SCENE.STAGE_CLEAR:  this._drawPlay(); this._drawStageClear(); break;
             case SCENE.GAME_OVER:    this._drawGameOver(); break;
@@ -1021,6 +1044,7 @@ export class Game {
             { label: 'TRAINING',       action: 'training' },
             { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
             { label: 'TIME TRIAL',     action: 'timeTrial',    gate: () => cleared },
+            { label: 'ENDLESS',        action: 'endless',      gate: () => cleared },
             { label: 'DAILY CHALLENGE', action: 'daily',       gate: () => cleared },
             { label: 'LEADERBOARD',    action: 'leaderboard' },
             { label: 'OPTIONS',        action: 'options' },
@@ -1057,6 +1081,9 @@ export class Game {
                     this._preRunBestScore = achievements.stats.bestScore || 0;
                     this.dailyMode = false;
                     this.dailyChallenge = null;
+                    // R610: fresh campaign run starts with an empty relic stack.
+                    this.runRelics = [];
+                    this._relicOffer = null;
                     this.storyPage = 0;
                     this.storyTimer = 0;
                     this._fadeTo(SCENE.STORY);
@@ -1106,6 +1133,8 @@ export class Game {
                 // no stage-select tile (campaign-only mode).
                 case 'bossRush':     this._startStage(24); break;
                 case 'timeTrial':    this._startStage(17); break;
+                // R609: ENDLESS / SURVIVAL — stage 27, title-menu only.
+                case 'endless':      this._startStage(27); break;
                 // R487: 'secret' (ONE MORE THING / Jobs) removed from main
                 // menu — players reach stage 18 via stage-select after
                 // clear_game unlock. Case retained for save-state safety
@@ -1746,6 +1775,14 @@ export class Game {
         this._tickPlayAdvanceBossEntrance();
         this._tickPlayTrackTelemetry(snap);
         this._tickPlayHandleBossPhase();
+        // R609: Endless / Survival owns its own enemy lifecycle — no boss
+        // trigger, no exit, no stage-clear gate. Drive the wave manager, then
+        // only the death handler runs (death ends the run).
+        if (this.endlessMode) {
+            this._tickEndlessWaves();
+            this._tickPlayHandleDeath();
+            return;
+        }
         if (this._tickPlayHandleBossTriggers()) return;
         // If a boss trigger just routed us into the BOSS_INTRO cinematic,
         // bail before the stage-clear gate runs — bossSpawned is now true
@@ -2821,6 +2858,12 @@ export class Game {
                 bestBossRushTime: achievements.stats?.bestBossRushTime || 0,
                 bestTimeTrialTime: achievements.stats?.bestTimeTrialTime || 0,
                 daily: this.dailyMode ? this.dailyChallenge : null,
+                endless: this.endlessMode ? {
+                    wave: this._endless?.wave || 0,
+                    state: this._endless?.state,
+                    bannerT: this._endless?.bannerT || 0,
+                    best: achievements.stats?.bestEndlessWave || 0,
+                } : null,
             });
             // Ghost pace delta — a tiny "+1.2s / −0.8s vs your best" readout so
             // the ghost is useful even when it's off-screen. Only while the
@@ -4583,6 +4626,83 @@ export class Game {
         }
     }
 
+    // R610: relic draft screen. Three side-by-side cards; the selected one
+    // glows gold and shows its name + trade. Left/right (or up/down) move the
+    // selection; shoot/jump confirms. Drawn over a dimmed backdrop so it reads
+    // as a deliberate between-stage decision beat.
+    _drawRelicPick() {
+        const ctx = this.ctx;
+        const offer = this._relicOffer;
+        ctx.fillStyle = '#0a0610';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        // Soft vignette wash so the cards pop.
+        ctx.fillStyle = 'rgba(40, 24, 60, 0.5)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        drawTextOutlined(ctx, 'CHOOSE YOUR EDGE', GAME.W / 2, 20, '#ffd040', '#1a0800', 1, 'center');
+        drawText(ctx, 'A RELIC FOR THE ROAD AHEAD', GAME.W / 2, 34, '#a890c0', 1, 'center');
+        if (!offer) { return; }
+        const choices = offer.choices;
+        const n = choices.length;
+        const cardW = 72, cardH = 86, gap = 6;
+        const totalW = n * cardW + (n - 1) * gap;
+        const startX = (GAME.W - totalW) / 2;
+        const cardY = 58;
+        const pulse = (Math.sin(performance.now() * 0.006) + 1) * 0.5;
+        for (let i = 0; i < n; i++) {
+            const r = choices[i];
+            const cx = startX + i * (cardW + gap);
+            const sel = i === offer.index;
+            // Card body.
+            ctx.fillStyle = sel ? '#241830' : '#160e1e';
+            ctx.fillRect(cx, cardY, cardW, cardH);
+            // Border — gold + pulsing on selected, dim purple otherwise.
+            ctx.fillStyle = sel ? `rgba(255, 208, 64, ${(0.6 + pulse * 0.4).toFixed(3)})` : '#3a2850';
+            const bw = sel ? 2 : 1;
+            ctx.fillRect(cx, cardY, cardW, bw);
+            ctx.fillRect(cx, cardY + cardH - bw, cardW, bw);
+            ctx.fillRect(cx, cardY, bw, cardH);
+            ctx.fillRect(cx + cardW - bw, cardY, bw, cardH);
+            // Relic name — wrap onto two lines if it has a space.
+            const nameCol = sel ? '#ffd040' : '#c8b0e0';
+            const parts = r.name.split(' ');
+            if (parts.length > 1) {
+                drawText(ctx, parts[0], cx + cardW / 2, cardY + 12, nameCol, 1, 'center');
+                drawText(ctx, parts.slice(1).join(' '), cx + cardW / 2, cardY + 22, nameCol, 1, 'center');
+            } else {
+                drawText(ctx, r.name, cx + cardW / 2, cardY + 16, nameCol, 1, 'center');
+            }
+            // Divider.
+            ctx.fillStyle = '#3a2850';
+            ctx.fillRect(cx + 8, cardY + 36, cardW - 16, 1);
+            // Trade description — split on ' / ' so upside / downside stack.
+            const descCol = sel ? '#e0d0f0' : '#8a78a0';
+            const segs = r.desc.split(' / ');
+            let ly = cardY + 48;
+            for (const seg of segs) {
+                // Wrap each segment to ~2 short lines if needed.
+                const words = seg.split(' ');
+                let line = '';
+                for (const w of words) {
+                    const trial = line ? line + ' ' + w : w;
+                    if (trial.length > 11) {
+                        drawText(ctx, line, cx + cardW / 2, ly, descCol, 1, 'center');
+                        ly += 9;
+                        line = w;
+                    } else { line = trial; }
+                }
+                if (line) { drawText(ctx, line, cx + cardW / 2, ly, descCol, 1, 'center'); ly += 11; }
+            }
+        }
+        // Prompt.
+        if ((performance.now() % 1000) < 650) {
+            drawText(ctx, 'LEFT / RIGHT  -  X TO TAKE', GAME.W / 2, GAME.H - 12, '#ffd040', 1, 'center');
+        }
+        // Show the relics already collected this run as a small tally.
+        if (this.runRelics && this.runRelics.length) {
+            drawText(ctx, 'HELD: ' + this.runRelics.length, GAME.W - 4, GAME.H - 12, '#8a78a0', 1, 'right');
+        }
+    }
+
     // ============== Stage select ==============
     // R230: post-R226 the main run is 1..9. Secret RECYCLE BIN is 10,
     // REALITY DISTORTION is 14, and FPS-arena CORE BREACH is 15. Stage
@@ -5124,6 +5244,20 @@ export class Game {
         this.triggerSlowMo(Math.floor(AMBIENT.SLOWMO_BOSS_KILL_F * 0.5));
         this.camera.shake(4);
         const kind = this._gauntletQueue.shift();
+        // R608: between-boss breather. The post-game Boss Rush (GAUNTLET_FULL,
+        // bossRushMode) is 8 bosses back-to-back with no pickups between them,
+        // so a clean run otherwise demands a flawless no-hit gauntlet. Restore
+        // +1 HP on each swap so a strong run can survive the gauntlet without
+        // being one chip away from death the whole time. Gated on bossRushMode
+        // so the campaign stage-12 GAUNTLET (which has its own pacing and a
+        // shorter queue) is unchanged.
+        if (this.bossRushMode && this.player.hp < this.player.maxHp) {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + 1);
+            const hcx = this.player.x + this.player.w / 2;
+            audio.sfx('pickup');
+            particles.shockRing(hcx, this.player.y + this.player.h / 2, 18, 12, '#50ff70');
+            particles.floatingText(hcx, this.player.y - 12, '+1 HP', '#50ff70', 55, -0.5, 1.2);
+        }
         // R232 + R316: reuse the fixed arena center so each gauntlet boss
         // spawns at the same anchor. If the player has wandered past the
         // stored anchor (post-respawn, slow death + reset), recompute so
@@ -5138,6 +5272,202 @@ export class Game {
         this.camera.shake(8);
         this._triggerBossEntrance();
         return true;
+    }
+
+    // R609: Endless / Survival wave manager. ---------------------------------
+    // Pure-state, frame-driven. No boss trigger, no exit — the run is the
+    // sequence of waves, and it ends only on death. Difficulty ramps by
+    // feeding an increasing pseudo-stage number into enemies.setStageDifficulty
+    // so grunt HP / contact / fire-rate climb the same curve the campaign uses.
+    _ENDLESS_POOL() {
+        // Enemy types unlocked by wave. Early waves are simple ground/air
+        // grunts; mid waves add snipers + chargers; late waves add the
+        // summoner + shielder for crowd pressure. Returns the legal pool for
+        // the current wave so the threat mix escalates with survival depth.
+        const w = this._endless ? this._endless.wave : 1;
+        const pool = ['folder', 'stapler'];
+        if (w >= 2)  pool.push('dive_bomber');
+        if (w >= 3)  pool.push('holepunch', 'cabinet');
+        if (w >= 5)  pool.push('shielder');
+        if (w >= 7)  pool.push('summoner');
+        return pool;
+    }
+    _initEndless() {
+        this._endless = {
+            wave: 0,
+            state: 'breather',   // breather -> active -> (clear) -> breather ...
+            breatherT: 90,        // frames before wave 1 spawns
+            bannerT: 0,           // wave-start banner countdown (draw only)
+            pendingSpawns: 0,     // grunts still to spawn this wave (drip-fed)
+            spawnCd: 0,           // frames until next drip spawn
+            cleared: 0,           // waves fully survived (the score)
+        };
+        // Seed difficulty at the easiest rung; ramped per wave in _advanceWave.
+        this.enemies.setStageDifficulty(1);
+    }
+    _endlessWaveSize(wave) {
+        // Grunt count climbs gently: 3 at wave 1, +1 every wave, capped so the
+        // arena never overflows past what fits / what the player can track.
+        return Math.min(14, 3 + (wave - 1));
+    }
+    _spawnEndlessGrunt() {
+        const pool = this._ENDLESS_POOL();
+        const type = pool[(Math.random() * pool.length) | 0];
+        // Spawn just inside whichever wall is FARTHER from the player so grunts
+        // don't materialize on top of them, then safe-snap onto solid ground.
+        const T = GAME.TILE;
+        const lvlW = this.level.width;
+        const px = this.player.x + this.player.w / 2;
+        const leftX = 2 * T;
+        const rightX = lvlW - 3 * T;
+        const desiredX = (px > lvlW / 2) ? leftX : rightX;
+        const groundY = this.level.height - 3 * T;
+        const { x, y } = this._findSafeSpawn(desiredX, groundY, 16, 16);
+        this.enemies.spawn(x, y + 16, type);
+    }
+    _advanceWave() {
+        const e = this._endless;
+        e.wave++;
+        // Persist the high-water wave the moment a new wave begins so a death
+        // mid-wave still credits the waves already cleared (e.wave-1).
+        // Difficulty: map wave N onto a campaign-style stage number that keeps
+        // climbing past the campaign cap (waves get genuinely hard late).
+        const pseudoStage = Math.min(22, 1 + Math.floor((e.wave - 1) * 0.7));
+        this.enemies.setStageDifficulty(pseudoStage);
+        e.pendingSpawns = this._endlessWaveSize(e.wave);
+        e.spawnCd = 0;
+        e.state = 'active';
+        e.bannerT = 90;
+        audio.sfx('bossEntrance');
+        this.camera.shake(3);
+    }
+    _tickEndlessWaves() {
+        const e = this._endless;
+        if (!e) return;
+        if (e.bannerT > 0) e.bannerT--;
+        const aliveGrunts = this.enemies.enemies.filter(en => en.alive).length;
+        if (e.state === 'breather') {
+            if (e.breatherT > 0) { e.breatherT--; return; }
+            this._advanceWave();
+            return;
+        }
+        if (e.state === 'active') {
+            // Drip-feed the wave's grunts so they don't all pop in one frame.
+            if (e.pendingSpawns > 0) {
+                if (e.spawnCd > 0) { e.spawnCd--; }
+                else { this._spawnEndlessGrunt(); e.pendingSpawns--; e.spawnCd = 18; }
+                return;
+            }
+            // Wave cleared once every spawned grunt is dead.
+            if (aliveGrunts === 0) {
+                e.cleared = e.wave;
+                this._endlessPersistBest();
+                // Between-wave payoff: heal a little, and every 3rd wave drop a
+                // LIFE + a weapon pickup so a long run can sustain.
+                if (this.player.hp < this.player.maxHp) {
+                    this.player.hp = Math.min(this.player.maxHp, this.player.hp + 1);
+                }
+                const dropX = this.player.x + this.player.w / 2;
+                const dropY = this.level.height - 3 * GAME.TILE - 10;
+                if (e.wave % 3 === 0) {
+                    this.pickups.spawn(dropX - 20, dropY, 'LIFE');
+                    const wpns = ['SPREAD', 'SHOTGUN', 'CHAINSAW'];
+                    this.pickups.spawn(dropX + 20, dropY, wpns[(e.wave / 3) % wpns.length | 0]);
+                }
+                particles.floatingText(dropX, this.player.y - 14,
+                    'WAVE ' + e.wave + ' CLEAR', '#ffd040', 70, -0.5, 1.4);
+                audio.sfx('powerup');
+                e.state = 'breather';
+                e.breatherT = 150;
+            }
+        }
+    }
+    _endlessPersistBest() {
+        const best = achievements.stats.bestEndlessWave || 0;
+        if (this._endless.cleared > best) {
+            achievements.stats.bestEndlessWave = this._endless.cleared;
+            achievements._save();
+            this._modeNewBest = true;
+        }
+    }
+
+    // R610: Relic / mutator system. ------------------------------------------
+    // Relics are run-persistent stat trades drafted between campaign stages.
+    // Effects are re-applied from a neutral baseline at every stage start so
+    // they survive respawns + transitions without compounding each apply.
+    _applyRunRelics() {
+        const p = this.player;
+        if (!p) return;
+        // Reset to neutral, then fold every owned relic. maxHp is rebuilt from
+        // the character's base (4) plus the net relic bonus so a -1/+1 relic
+        // can't drift the base across re-applies.
+        p.relicDmgMult = 1;
+        p.relicFireMult = 1;
+        p.relicSpeedMult = 1;
+        p.relicTakenMult = 1;
+        p.relicMaxHpBonus = 0;
+        for (const id of (this.runRelics || [])) {
+            const relic = RELICS.find(r => r.id === id);
+            if (relic) relic.apply(p);
+        }
+        // Rebuild maxHp from the fixed base (4) + net bonus, clamped to >=1.
+        const baseMax = 4;
+        const newMax = Math.max(1, baseMax + p.relicMaxHpBonus);
+        p.maxHp = newMax;
+        if (p.hp > p.maxHp) p.hp = p.maxHp;
+    }
+
+    // Build a fresh 3-choice relic offer: relics the player doesn't already
+    // own, shuffled, first 3. If fewer than 3 remain unowned, offer what's
+    // left. Returns null when every relic is owned (no draft this clear).
+    _buildRelicOffer() {
+        const owned = new Set(this.runRelics || []);
+        const avail = RELICS.filter(r => !owned.has(r.id));
+        if (avail.length === 0) return null;
+        // Fisher-Yates on a copy.
+        const pool = avail.slice();
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        return { choices: pool.slice(0, 3), index: 0 };
+    }
+
+    // Whether a relic draft should be offered when advancing FROM the current
+    // stage. Campaign runs only — modes (boss-rush/time-trial/endless/daily)
+    // and the secret/finale routes keep their own pacing. We also skip the
+    // pre-stage-1 jump and only offer on plain forward campaign progression.
+    _relicDraftEligible() {
+        if (this.bossRushMode || this.timeTrialMode || this.endlessMode || this.dailyMode) return false;
+        if (this.trainingMode || this.coopMode) return false;
+        // Only the main campaign stages (1-13) draft relics; post-game side
+        // stages + the Mecha trilogy keep their authored difficulty.
+        return this.currentStage >= 1 && this.currentStage <= 12;
+    }
+
+    _tickRelicPick() {
+        const offer = this._relicOffer;
+        if (!offer) { this._proceedToStageCard(); return; }
+        const n = offer.choices.length;
+        if (input.isPressed('left'))  { offer.index = (offer.index + n - 1) % n; audio.sfx('select'); }
+        if (input.isPressed('right')) { offer.index = (offer.index + 1) % n; audio.sfx('select'); }
+        if (input.isPressed('up'))    { offer.index = (offer.index + n - 1) % n; audio.sfx('select'); }
+        if (input.isPressed('down'))  { offer.index = (offer.index + 1) % n; audio.sfx('select'); }
+        // Confirm with shoot/jump/start; a relic is mandatory (always a trade,
+        // never strictly better, so forcing a pick keeps runs interesting).
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            const chosen = offer.choices[offer.index];
+            this.runRelics.push(chosen.id);
+            this._relicOffer = null;
+            audio.sfx('powerup');
+            this._proceedToStageCard();
+        }
+    }
+
+    // Hand off from the relic pick into the normal between-stage cinematic.
+    _proceedToStageCard() {
+        this.storyTimer = 0;
+        this.scene = SCENE.STAGE_CARD;
     }
 
     // Boss entrance beat — title card with name/tagline + (full boss) red flash.
@@ -5501,6 +5831,11 @@ export class Game {
         // prominently and compares against bestTimeTrialTime on stage clear.
         this.bossRushMode = !!data.bossRushMode;
         this.timeTrialMode = !!data.timeTrialMode;
+        // R609: Endless / Survival. When set, _tickEndlessWaves drives the
+        // run — escalating waves, between-wave breathers, a LIFE drop every
+        // few waves. There is no boss trigger or exit; the run ends on death.
+        this.endlessMode = !!data.endlessMode;
+        if (this.endlessMode) this._initEndless();
         // Daily Challenge modifiers — applied to the freshly-resolved player
         // each stage so they survive respawns and stage transitions. dailyMode
         // is a run-level flag (set at menu launch), not derived from stage data.
@@ -5530,6 +5865,10 @@ export class Game {
             this.player.damageDealtMult = 1;
             this.player.gravityMult = 1;
         }
+        // R610: re-apply the run's drafted relics on top of the resolved player
+        // (after daily mods so the two stack). Re-applied every stage so the
+        // multipliers survive respawns/transitions without compounding.
+        this._applyRunRelics();
         // Mode-best banner clears per stage entry; otherwise a NEW BEST from
         // a prior mode clear would survive into the next stage-clear panel.
         this._modeNewBest = false;
@@ -5543,6 +5882,7 @@ export class Game {
         this._ghostFinishFlash = 0;
         this._ghostActive = !this.trainingMode && !this.bossRushMode
             && !this.timeTrialMode && !this.dailyMode && !this.coopMode
+            && !this.endlessMode
             && !this._runWarped && options.get('showGhost') === true;
         if (this._ghostActive) {
             ghost.startRecording(this.currentStage);
@@ -5999,6 +6339,20 @@ export class Game {
             // Route through the painted cinematic card(s) before the next stage
             this._pendingStage = nextStage;
             this.storyTimer = 0;
+            // R610: on eligible campaign clears, draft a relic before the
+            // between-stage card. The pick screen hands off to STAGE_CARD on
+            // confirm; _pendingStage is already set so the chain is unbroken.
+            // Suppressed when the next stage is a special/secret destination
+            // (>13 is post-game/side; relics are tuned for the 1-13 ramp) or
+            // when no relics remain to offer.
+            if (this._relicDraftEligible() && nextStage >= 2 && nextStage <= 13) {
+                const offer = this._buildRelicOffer();
+                if (offer) {
+                    this._relicOffer = offer;
+                    this.scene = SCENE.RELIC_PICK;
+                    return;
+                }
+            }
             this.scene = SCENE.STAGE_CARD;
         }
     }
@@ -7041,9 +7395,14 @@ export class Game {
         // would inherit boss-rush / time-trial routing.
         this.bossRushMode = false;
         this.timeTrialMode = false;
+        this.endlessMode = false;
+        this._endless = null;
         this.dailyMode = false;
         this.dailyChallenge = null;
         this._modeNewBest = false;
+        // R610: relics are a per-run roguelite stack — wiped when the run ends.
+        this.runRelics = [];
+        this._relicOffer = null;
         // Ghost replay: drop any in-flight recording and clear per-run flags so
         // a quit mid-stage doesn't persist a partial path or leak playback into
         // the next run.

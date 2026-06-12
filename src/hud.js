@@ -9,7 +9,7 @@ import { achievements } from './achievements.js';
 export function drawHUD(ctx, state) {
     const { player, score, time, boss, camera, training,
             bossRush, timeTrial, stageTime,
-            bestBossRushTime, bestTimeTrialTime, daily } = state;
+            bestBossRushTime, bestTimeTrialTime, daily, endless } = state;
     // Lazy-build a single radial gradient cached on the function (geometry is constant)
     if (!drawHUD._vignetteGrad) {
         const g = ctx.createRadialGradient(GAME.W / 2, GAME.H / 2, 30, GAME.W / 2, GAME.H / 2, GAME.W * 0.7);
@@ -640,6 +640,37 @@ export function drawHUD(ctx, state) {
             const bs = Math.floor((best / 60) % 60);
             const bestStr = String(bm).padStart(2, '0') + ':' + String(bs).padStart(2, '0');
             drawText(ctx, 'BEST ' + bestStr, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
+        }
+    }
+    // R609: Endless / Survival badge + wave readout. Gold pulsing label in the
+    // top-left mode slot; current wave + best survived on the top-right under
+    // the score so survival depth reads at a glance. A centered "WAVE N" banner
+    // flashes at each wave start (bannerT > 0).
+    if (endless) {
+        const pulse = 0.7 + Math.sin(performance.now() * 0.005) * 0.25;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        const tx = 4, ty = 18;
+        const labelW = 52;
+        ctx.fillStyle = '#1a1408';
+        ctx.fillRect(tx, ty, labelW, 9);
+        ctx.fillStyle = '#ffd040';
+        ctx.fillRect(tx, ty, labelW, 1);
+        ctx.fillRect(tx, ty + 8, labelW, 1);
+        drawText(ctx, 'ENDLESS', tx + labelW / 2, ty + 2, '#ffd040', 1, 'center');
+        ctx.restore();
+        // Wave + best on the right column.
+        drawText(ctx, 'WAVE ' + (endless.wave || 0), GAME.W - 4, 30, '#ffd040', 1, 'right');
+        if (endless.best > 0) {
+            drawText(ctx, 'BEST ' + endless.best, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
+        }
+        // Center wave-start banner.
+        if (endless.bannerT > 0 && endless.state === 'active') {
+            const a = Math.min(1, endless.bannerT / 30);
+            ctx.save();
+            ctx.globalAlpha = a;
+            drawTextOutlined(ctx, 'WAVE ' + endless.wave, GAME.W / 2, 40, '#ffd040', '#1a0800', 2, 'center');
+            ctx.restore();
         }
     }
     // Training-ground badge — small green pulsing label tucked into the
