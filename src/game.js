@@ -61,6 +61,22 @@ const SCENE = {
     DOOM_PLAY: 'doomPlay',   // R423: free-roam first-person raycaster scene
     TURRET_PLAY: 'turretPlay', // R523: third-person mounted turret stage
     RELIC_PICK: 'relicPick', // R610: roguelite-lite 3-choice relic draft between campaign stages
+    // R619: pre-launch briefing for the Daily Challenge. Surfaces the day's
+    // challenge name, its active modifiers, the date, and the player's current
+    // + best streak before committing to the run. Player confirms with START.
+    DAILY_BRIEF: 'dailyBrief',
+};
+
+// R619: human-readable effect lines for each Daily Challenge modifier key, so
+// the briefing screen can spell out exactly what a challenge does rather than
+// just showing its one-line tagline. Keys match the `mods` flags in daily.js.
+const DAILY_MOD_INFO = {
+    oneLife:        { label: 'SUDDEN DEATH',  effect: 'ONE LIFE. NO CONTINUES.' },
+    doubleDamage:   { label: 'GLASS WORLD',   effect: 'INCOMING DAMAGE x2.' },
+    noPickups:      { label: 'BARE HANDS',    effect: 'NO WEAPON PICKUPS.' },
+    glassCannon:    { label: 'GLASS CANNON',  effect: 'DEAL x2. TAKE x2.' },
+    lowGravity:     { label: 'MOON SHOT',     effect: 'LOW GRAVITY. FLOATY JUMPS.' },
+    weaponRoulette: { label: 'ROULETTE',      effect: 'RANDOM WEAPON EACH STAGE.' },
 };
 
 // R610: Relic / mutator pool. Each relic is a run-persistent stat TRADE — a
@@ -542,6 +558,7 @@ export class Game {
             case SCENE.SOUNDTRACK:   this._tickSoundtrack(); break;
             case SCENE.GALLERY:      this._tickGallery(); break;
             case SCENE.LEADERBOARD:  this._tickLeaderboard(); break;
+            case SCENE.DAILY_BRIEF:  this._tickDailyBrief(); break;
             case SCENE.STAGE_SELECT: this._tickStageSelect(); break;
             case SCENE.STAGE_CARD:   this._tickStageCard(); break;
             case SCENE.RELIC_PICK:   this._tickRelicPick(); break;
@@ -666,6 +683,7 @@ export class Game {
             case SCENE.SOUNDTRACK:   this._drawSubMenuBackdrop(); this._drawSoundtrack(); break;
             case SCENE.GALLERY:      this._drawSubMenuBackdrop(); this._drawGallery(); break;
             case SCENE.LEADERBOARD:  this._drawLeaderboard(); break;
+            case SCENE.DAILY_BRIEF:  this._drawSubMenuBackdrop(); this._drawDailyBrief(); break;
             case SCENE.STAGE_SELECT: this._drawStageSelect(); break;
             case SCENE.STAGE_CARD:   this._drawStageCard(); break;
             case SCENE.RELIC_PICK:   this._drawRelicPick(); break;
@@ -1094,16 +1112,13 @@ export class Game {
                 // _startStage applies the modifiers and the clear submits to
                 // the 'daily' board partitioned by today's date.
                 case 'daily':
-                    this.runId = leaderboard.newRunId();
-                    this.runCheckpoints = [];
-                    this._runWarped = false;
-                    this._leaderboardSubmitted = false;
-                    this._preRunBestScore = achievements.stats.bestScore || 0;
-                    this.dailyMode = true;
+                    // R619: route to the briefing screen first instead of
+                    // launching straight into the story. The actual run-start
+                    // happens when the player confirms START there.
                     this.dailyChallenge = dailyChallenge.todayChallenge();
-                    this.storyPage = 0;
-                    this.storyTimer = 0;
-                    this._fadeTo(SCENE.STORY);
+                    this.dailyBriefIndex = 0;   // 0 START · 1 BACK
+                    this._menuReturnScene = SCENE.MAIN_MENU;
+                    this.scene = SCENE.DAILY_BRIEF;
                     break;
                 // R568 co-op slice 1: toggle coopMode + bump shared lives
                 // pool. Doesn't leave the menu — the player sees the label
@@ -1361,6 +1376,100 @@ export class Game {
         ctx.fillRect(0, 23, GAME.W, 1);
         drawTextOutlined(ctx, 'DAILY: ' + c.name, GAME.W / 2, 5, '#ffe070', '#1a0a00', 1, 'center');
         drawText(ctx, c.desc, GAME.W / 2, 15, '#d8c8a0', 1, 'center');
+    }
+
+    // R619: Daily Challenge briefing. Two options — START (begin the run) and
+    // BACK (return to the main menu). Up/Down moves; shoot/jump/start confirms;
+    // pause backs out. The challenge object was set when the menu routed here.
+    _tickDailyBrief() {
+        const n = 2;   // START, BACK
+        if (input.isPressed('up'))   { this.dailyBriefIndex = (this.dailyBriefIndex + n - 1) % n; audio.sfx('select'); }
+        if (input.isPressed('down')) { this.dailyBriefIndex = (this.dailyBriefIndex + 1) % n; audio.sfx('select'); }
+        if (input.isPressed('pause')) { this.scene = SCENE.MAIN_MENU; audio.sfx('select'); return; }
+        if (input.isPressed('shoot') || input.isPressed('jump') || input.isPressed('start')) {
+            if (this.dailyBriefIndex === 1) {
+                // BACK
+                audio.sfx('select');
+                this.scene = SCENE.MAIN_MENU;
+                return;
+            }
+            // START — mint the daily run exactly as the menu used to, then go
+            // through the story intro (which carries the modifier banner).
+            audio.sfx('menu');
+            this.runId = leaderboard.newRunId();
+            this.runCheckpoints = [];
+            this._runWarped = false;
+            this._leaderboardSubmitted = false;
+            this._preRunBestScore = achievements.stats.bestScore || 0;
+            this.dailyMode = true;
+            // Re-resolve in case the player sat on the briefing past midnight.
+            this.dailyChallenge = dailyChallenge.todayChallenge();
+            this.storyPage = 0;
+            this.storyTimer = 0;
+            this._fadeTo(SCENE.STORY);
+        }
+    }
+
+    // R619: render the Daily Challenge briefing — title, date, a per-modifier
+    // effect list, current/best streak, an "ALREADY CLEARED TODAY" note, and
+    // the START / BACK options. Drawn over the shared sub-menu backdrop.
+    _drawDailyBrief() {
+        const ctx = this.ctx;
+        const c = this.dailyChallenge || dailyChallenge.todayChallenge();
+        // Opaque scrim over the menu backdrop so the briefing reads cleanly
+        // instead of colliding with the still-visible main-menu items.
+        ctx.fillStyle = '#08061a';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        // Header.
+        drawTextOutlined(ctx, 'DAILY CHALLENGE', GAME.W / 2, 16, '#ffe070', '#1a0a00', 1, 'center');
+        // Pretty date from the YYYYMMDD day key.
+        const day = c.day || dailyChallenge.todayKey();
+        const pretty = `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`;
+        drawText(ctx, pretty, GAME.W / 2, 28, '#90a0c0', 1, 'center');
+
+        // Challenge name banner.
+        drawTextOutlined(ctx, c.name, GAME.W / 2, 46, '#ff80a0', '#200818', 1, 'center');
+
+        // Modifier effect list — one line per active mod, spelled out via
+        // DAILY_MOD_INFO. Falls back to the challenge tagline if a mod has no
+        // mapping (so a future modifier never renders a blank row).
+        const mods = c.mods || {};
+        const keys = Object.keys(mods).filter(k => mods[k]);
+        let y = 64;
+        drawText(ctx, '- RULES -', GAME.W / 2, y, '#c0c0d0', 1, 'center'); y += 12;
+        if (keys.length === 0) {
+            drawText(ctx, c.desc, GAME.W / 2, y, '#d8c8a0', 1, 'center'); y += 10;
+        } else {
+            for (const k of keys) {
+                const info = DAILY_MOD_INFO[k];
+                const line = info ? info.effect : c.desc;
+                drawText(ctx, line, GAME.W / 2, y, '#d8c8a0', 1, 'center');
+                y += 10;
+            }
+        }
+
+        // Streak block.
+        const s = achievements.stats;
+        const streak = s.dailyStreak || 0;
+        const best = s.dailyStreakBest || 0;
+        y = Math.max(y + 6, 120);
+        drawTextOutlined(ctx, `STREAK ${streak}   BEST ${best}`, GAME.W / 2, y,
+            '#ffb060', '#1a0a14', 1, 'center');
+        y += 12;
+        // "Cleared today" note when the most recent clear is today's key.
+        if (s.lastDailyDay && s.lastDailyDay === dailyChallenge.todayKey()) {
+            drawText(ctx, 'ALREADY CLEARED TODAY', GAME.W / 2, y, '#a0ff70', 1, 'center');
+        } else {
+            drawText(ctx, 'NOT YET CLEARED', GAME.W / 2, y, '#80788a', 1, 'center');
+        }
+
+        // Options.
+        const optY = GAME.H - 26;
+        const sel = this.dailyBriefIndex || 0;
+        drawText(ctx, (sel === 0 ? '> ' : '  ') + 'START',
+            GAME.W / 2, optY, sel === 0 ? '#fff' : '#988', 1, 'center');
+        drawText(ctx, (sel === 1 ? '> ' : '  ') + 'BACK',
+            GAME.W / 2, optY + 12, sel === 1 ? '#fff' : '#988', 1, 'center');
     }
 
     // ============== Bonzi defeat cinematic (R568m) ==============

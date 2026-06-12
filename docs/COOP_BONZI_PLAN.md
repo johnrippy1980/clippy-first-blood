@@ -284,17 +284,21 @@ slices 1-6 are gated behind a debug flag or hidden menu.
    versions of: hurt, death, special-move poses, gallery portrait,
    boss-intro plate. Budget the asset-gen time generously.
 
-## Decision points to revisit when building
+## Decision points to revisit when building — ALL RESOLVED
 
-- **Does Bonzi unlock progressively or all-at-once?** Could ship as
-  bare base movement + banana, then unlock specials by playing co-op
-  with him for X stages. More grindy but adds reason to keep playing.
-- **Achievement variants** — should some single-player achievements
-  have a "co-op" variant that's harder (like "Beat boss rush" vs
-  "Beat boss rush in co-op")?
-- **Story integration depth** — does the ENDING cinematic change if
-  the player has unlocked Bonzi vs not? Could add a 2-second tag where
-  Bonzi appears at the end of Clippy's final scene.
+- **Does Bonzi unlock progressively or all-at-once?** RESOLVED (R618):
+  progressive. BANANA BARRAGE has 4 tiers keyed off distinct co-op
+  stages cleared (3/8/15 thresholds) — sticky fan -> wider fan ->
+  piercing -> golden + stomp shockwave, with a one-time upgrade toast
+  on each threshold crossing.
+- **Achievement variants** — RESOLVED (R617): four coopOnly variants of
+  the single-player skill gates — TWO GHOSTS (no-damage stage),
+  COMBINED ARMS (20-combo), NO ONE LEFT BEHIND (flawless co-op
+  campaign), DREAM TEAM (100k co-op score). schemaVersion 615->617.
+- **Story integration depth** — RESOLVED (R616): the GAME COMPLETE
+  cinematic now shows a Bonzi cameo sliding in from the bottom-left once
+  co-op is unlocked (bonziDefeated), with a "NICE WORK, PARTNER." line.
+  No cameo when locked.
 
 ---
 
