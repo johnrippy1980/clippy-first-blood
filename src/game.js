@@ -7466,6 +7466,34 @@ export class Game {
             // Path badge under stats
             drawTextOutlined(ctx, 'PATH: ' + path, GAME.W / 2, 184, ep.accent, '#0a0410', 1, 'center');
         }
+        // R616: Bonzi ending cameo — once co-op is unlocked (Bonzi defeated),
+        // the partner peeks in from the bottom-left of the final scene, bobs,
+        // and drops a one-liner. Pure reward for the unlock; reuses the existing
+        // bonzi_idle sprite, no new art. Gated off the screen edge so it never
+        // collides with the stats panel or the centered banner/prompts.
+        if (achievements.stats.bonziDefeated && this.storyTimer > 70) {
+            const bonziImg = sprites.images.get('bonzi_idle');
+            if (bonziImg) {
+                const slideT = Math.min(1, (this.storyTimer - 70) / 45);
+                // Slow vertical bob once he's fully in, sells "waving hello".
+                const bob = slideT >= 1 ? Math.sin(this.storyTimer * 0.12) * 1.5 : 0;
+                const bw = 28, bh = 32;            // ~2x native, reads at this res
+                const bx = 6;
+                const restY = GAME.H - bh - 6;
+                const by = restY + (1 - slideT) * (bh + 8) + bob;  // rise from below
+                ctx.save();
+                ctx.globalAlpha = slideT;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(bonziImg, 0, 0, bonziImg.width, bonziImg.height, bx, by, bw, bh);
+                ctx.restore();
+                // Speech bubble line, fades in with him, sits to his right above
+                // the bottom prompts. Flashes so it reads as "him talking".
+                if (slideT >= 1 && this.storyTimer % 50 < 34) {
+                    drawTextOutlined(ctx, 'NICE WORK, PARTNER.', bx + bw + 4, restY + 6,
+                        '#c0a0ff', '#1a0a24', 1, 'left');
+                }
+            }
+        }
         if (this.storyTimer % 60 < 40) {
             drawText(ctx, 'X CONTINUE', GAME.W / 2, GAME.H - 18, '#fff', 1, 'center');
         }
