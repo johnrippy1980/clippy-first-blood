@@ -6906,7 +6906,18 @@ export class Game {
             const stagesCleared = this.runStats?.stagesCleared?.size || 0;
             // Stat rows reveal one at a time for drama
             const rowReveal = Math.floor((this.storyTimer - 40) / 6);
-            const rows = [
+            // R614: Endless deaths get a survival-flavored recap. "STAGE REACHED"
+            // / "STAGES CLEARED" are meaningless in a wave arena, so swap in the
+            // run's wave depth and drafted-relic loadout — the two numbers a
+            // roguelite player actually wants on the death screen.
+            const rows = this.endlessMode ? [
+                { label: 'WAVE REACHED',  value: this._endless?.cleared || 0, color: '#fff' },
+                { label: 'RELICS HELD',   value: (this.runRelics?.length || 0), color: '#ffd040' },
+                { label: 'KILLS',         value: this.player?.kills || 0, color: '#fff' },
+                { label: 'MAX COMBO',     value: this.player?.maxCombo || 0, color: '#ffe070' },
+                { label: 'TIME',          value: String(min).padStart(2,'0') + ':' + String(sec).padStart(2,'0'), color: '#fff' },
+                { label: 'SCORE',         value: ('000000' + (this.player?.score || 0)).slice(-6), color: '#ffe070' },
+            ] : [
                 { label: 'STAGE REACHED', value: this.currentStage || 1, color: '#fff' },
                 { label: 'STAGES CLEARED', value: stagesCleared, color: '#80c0a0' },
                 { label: 'KILLS',         value: this.player?.kills || 0, color: '#fff' },
@@ -6919,6 +6930,15 @@ export class Game {
                 const y = panelY + 8 + i * 14;
                 drawText(ctx, rows[i].label, panelX + 12, y, '#a08090', 1, 'left');
                 drawText(ctx, String(rows[i].value), panelX + panelW - 12, y, rows[i].color, 1, 'right');
+            }
+            // R614: pulsing NEW BEST! badge in the gap above the stat panel when
+            // this Endless run set a fresh high-water wave (_modeNewBest is armed
+            // by _endlessPersistBest during the run and survives the death path).
+            // Sits at panelY-9 so it never collides with the WAVE REACHED row.
+            if (this.endlessMode && this._modeNewBest && rowReveal >= 0) {
+                const phase = Math.sin(this.storyTimer * 0.2) * 0.5 + 0.5;
+                const col = `rgb(255,${180 + Math.floor(phase * 75)},64)`;
+                drawText(ctx, 'NEW BEST!', GAME.W / 2, panelY - 9, col, 1, 'center');
             }
         }
         // Two-option menu reveal after panel settle
