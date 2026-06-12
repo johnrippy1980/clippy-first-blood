@@ -3496,18 +3496,39 @@ export class Game {
 
         drawTextOutlined(ctx, 'PAUSED', GAME.W / 2, panelY + 8, '#ffe070', '#a82020', 2, 'center');
 
+        // R612: relic loadout (computed up here so the glance row can yield
+        // its tagline/target lines to the relic block when relics are held).
+        const heldRelics = (!this._doomMode && this.runRelics && this.runRelics.length)
+            ? this.runRelics.map(id => RELICS.find(r => r.id === id)).filter(Boolean)
+            : [];
+        // Pack up to 3 names per line so the row never overflows the 256px
+        // canvas; the pool is 6 so this is at most two lines.
+        const relicLines = [];
+        for (let i = 0; i < heldRelics.length; i += 3) {
+            relicLines.push(heldRelics.slice(i, i + 3).map(r => r.name).join('  '));
+        }
+
         // Glance row — current stage + score
         const stage = this.currentStage ? STAGES[this.currentStage] : null;
         if (stage) {
             drawText(ctx, 'STAGE ' + stage.id + ' / ' + stage.name, GAME.W / 2, panelY + 28, '#80a0c0', 1, 'center');
             // R480: tagline + boss preview — sells the pause as a moment to
-            // catch your breath and re-orient, not just a menu container.
-            if (stage.tagline) {
+            // catch your breath and re-orient. R612: yield these two lines to
+            // the relic loadout block when relics are held, so the panel's
+            // vertical budget stays the same as the no-relic case.
+            if (stage.tagline && !heldRelics.length) {
                 drawText(ctx, stage.tagline, GAME.W / 2, panelY + 38, '#a890b0', 1, 'center');
             }
-            if (stage.boss) {
+            if (stage.boss && !heldRelics.length) {
                 drawText(ctx, 'TARGET: ' + stage.boss.replace(/_/g, ' '),
                          GAME.W / 2, panelY + 46, '#ff8060', 1, 'center');
+            }
+            // R612: relic loadout block fills the tagline/target slot.
+            if (heldRelics.length) {
+                drawText(ctx, 'RELICS HELD', GAME.W / 2, panelY + 38, '#b090d0', 1, 'center');
+                for (let i = 0; i < relicLines.length; i++) {
+                    drawText(ctx, relicLines[i], GAME.W / 2, panelY + 47 + i * 8, '#ffd060', 1, 'center');
+                }
             }
             // R505: Doom mode shows one compact inventory row in the pause
             // overlay — KEYS [r][y][b] · GUNS MG SHOT SAW BFG on one line.
@@ -3540,11 +3561,16 @@ export class Game {
         }
 
         // R505: bump startY by one row (~10px) when Doom inventory row is
-        // shown so menu options don't sit on top of the keys/guns line
-        const startY = panelY + (this._doomMode ? 78 : 58);
+        // shown so menu options don't sit on top of the keys/guns line.
+        // R612: the relic block reuses the tagline/target slot, so only a
+        // 2-line loadout needs a small extra push to clear its second line.
+        const relicBump = relicLines.length >= 2 ? 8 : 0;
+        const startY = panelY + (this._doomMode ? 78 : 58) + relicBump;
         // R505: compress row spacing in Doom mode so all 6 options + the
-        // controls strip + footer still fit inside the existing panelH
-        const pauseRowH = this._doomMode ? 13 : 16;
+        // controls strip + footer still fit inside the existing panelH.
+        // R612: also compress when a 2-line relic loadout is shown so the
+        // pushed-down menu + controls + footer stay inside the panel.
+        const pauseRowH = (this._doomMode || relicLines.length >= 2) ? 13 : 16;
         for (let i = 0; i < PAUSE_OPTIONS.length; i++) {
             const y = startY + i * pauseRowH;
             const isSel = i === this.pauseIndex;
