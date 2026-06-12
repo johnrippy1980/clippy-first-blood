@@ -3048,7 +3048,10 @@ export class Player {
         // state change for the trail.
         for (const a of this._afterimages) {
             const aDims = spriteDims(a.frame);
-            const acx = a.x + this.w / 2 - camera.viewX;
+            // Match the live sprite's body-core anchor so the streak traces the
+            // torso, not the bbox center (else wide fire frames drift ~3px).
+            const aCoreDX = getFrameAnchorX(a.frame) * (a.facing < 0 ? 1 : -1);
+            const acx = a.x + this.w / 2 - camera.viewX + aCoreDX;
             const acy = a.y + this.h - aDims.h / 2 - camera.viewY + 1;
             const aAlpha = (1 - a.age / 14) * 0.55;
             if (aAlpha <= 0.03) continue;

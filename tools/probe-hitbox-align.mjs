@@ -25,18 +25,27 @@ const result = await page.evaluate(async (base) => {
   await sprites.loadAll(CLIPPY_MANIFEST, 'assets/sprites');
 
   const PLAYER_W = 12, STAND_H = 22, PRONE_H = 8;
-  // [frame, hitboxHeight, label]
+  // [frame, hitboxHeight, label, flip?]  — flip=true mirrors like facing left,
+  // to catch sign errors in the anchor flip on asymmetric (head-on-one-side)
+  // frames. Right- and left-facing of the same pose should both land the
+  // green hitbox-center line on the body-core.
   const cells = [
-    ['idle', STAND_H, 'idle'],
-    ['run_2', STAND_H, 'walk'],
-    ['shoot', STAND_H, 'fire R'],
-    ['run_shoot_1', STAND_H, 'walkFire'],
-    ['jump_aim', STAND_H, 'jumpFire'],
-    ['crouch', STAND_H - 4, 'crouch'],
-    ['crouch_shoot', STAND_H - 4, 'crouchFire'],
-    ['prone', PRONE_H, 'prone'],
-    ['prone_shoot', PRONE_H, 'proneFire'],
-    ['slide', PRONE_H, 'slide'],
+    ['idle', STAND_H, 'idle', false],
+    ['run_2', STAND_H, 'walk', false],
+    ['shoot', STAND_H, 'fire R', false],
+    ['run_shoot_1', STAND_H, 'walkFire', false],
+    ['jump_aim', STAND_H, 'jumpFire', false],
+    ['crouch', STAND_H - 4, 'crouch', false],
+    ['crouch_shoot', STAND_H - 4, 'crouchFire', false],
+    ['prone', PRONE_H, 'prone', false],
+    ['prone_shoot', PRONE_H, 'proneFire', false],
+    ['slide', PRONE_H, 'slide', false],
+    // left-facing checks for the asymmetric / widest frames
+    ['shoot', STAND_H, 'fire L', true],
+    ['prone', PRONE_H, 'prone L', true],
+    ['prone_shoot', PRONE_H, 'proneFire L', true],
+    ['slide', PRONE_H, 'slide L', true],
+    ['run_shoot_1', STAND_H, 'walkFire L', true],
   ];
 
   const Z = 7, pad = 14, cols = 5;
@@ -53,7 +62,7 @@ const result = await page.evaluate(async (base) => {
   ctx.font = '16px monospace'; ctx.textAlign = 'center';
 
   const report = [];
-  cells.forEach(([frame, hbH, label], i) => {
+  cells.forEach(([frame, hbH, label, flip], i) => {
     const col = i % cols, row = Math.floor(i / cols);
     const ox = pad + col * (cellW + pad);
     const oy = pad + row * (cellH + 26 + pad);
@@ -68,10 +77,12 @@ const result = await page.evaluate(async (base) => {
     const hbLeft = hbCenterX - (PLAYER_W * Z) / 2;
 
     // EXACT player.js anchor (post body-core fix): sprite centered on hitbox
-    // center X, then shifted so the measured body-core (not the bbox center)
-    // lands on the hitbox center. Facing right here, so subtract the offset.
+    // center X, then shifted by coreDX so the measured body-core (not the bbox
+    // center) lands on the hitbox center. Sign flips with facing, identical to
+    // player.js: coreDX = coreOff * (facingLeft ? +1 : -1).
     const coreOff = getFrameAnchorX(frame);            // logical px, right-facing
-    const drawX = hbCenterX - (d.w * Z) / 2 - coreOff * Z;
+    const coreDX = coreOff * (flip ? 1 : -1);
+    const drawX = hbCenterX - (d.w * Z) / 2 + coreDX * Z;
     const drawBottom = hbBottom + 1 * Z;
     const drawY = drawBottom - d.h * Z;
 
@@ -79,8 +90,8 @@ const result = await page.evaluate(async (base) => {
     ctx.strokeStyle = '#414868'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(ox, groundY); ctx.lineTo(ox + cellW, groundY); ctx.stroke();
 
-    // sprite (using sprites.draw which honors facing flip; facing right)
-    sprites.draw(ctx, frame, drawX, drawY, false, Z);
+    // sprite (using sprites.draw which honors facing flip)
+    sprites.draw(ctx, frame, drawX, drawY, !!flip, Z);
 
     // hitbox overlay (semi-transparent red)
     ctx.fillStyle = 'rgba(255,64,64,0.22)';
