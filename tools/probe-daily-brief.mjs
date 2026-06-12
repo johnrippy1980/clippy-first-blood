@@ -9,6 +9,8 @@
 //  (3) BACK (index 1) returns to the main menu without arming a daily run.
 //  (4) the briefing reads the persisted streak stats (renders without throwing
 //      when dailyStreak / lastDailyDay are populated).
+//  (5) R620: the "TOMORROW: <name>" teaser — dailyChallenge.nextChallenge()
+//      exists, resolves a different day key than today, and has a name.
 // Exits non-zero on fail.
 import { chromium } from 'playwright';
 
@@ -37,6 +39,11 @@ const routed = await page.evaluate(async () => {
     g.dailyBriefIndex = 0;
     g._menuReturnScene = 'mainMenu';
     g.scene = 'dailyBrief';
+    // R620: the "TOMORROW: ..." teaser reads from nextChallenge(). Confirm the
+    // helper exists, returns a different day key than today, and resolves a
+    // challenge from the same deterministic rotation.
+    const today = dailyChallenge.todayChallenge();
+    const tomorrow = dailyChallenge.nextChallenge();
     return {
         scene: g.scene,
         hasChallenge: !!g.dailyChallenge,
@@ -44,6 +51,9 @@ const routed = await page.evaluate(async () => {
         briefIndex: g.dailyBriefIndex,
         hasTick: typeof g._tickDailyBrief === 'function',
         hasDraw: typeof g._drawDailyBrief === 'function',
+        hasNextChallenge: typeof dailyChallenge.nextChallenge === 'function',
+        tomorrowDiffersDay: tomorrow.day !== today.day,
+        tomorrowHasName: !!tomorrow.name,
     };
 });
 
@@ -96,6 +106,9 @@ const ok = errors.length === 0
     && !!routed.challengeName
     && routed.hasTick === true
     && routed.hasDraw === true
+    && routed.hasNextChallenge === true
+    && routed.tomorrowDiffersDay === true
+    && routed.tomorrowHasName === true
     && startOutcome.dailyMode === true
     && startOutcome.pendingStory === true
     && startOutcome.fading === true

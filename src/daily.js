@@ -49,6 +49,21 @@ class DailyChallenge {
         return this.todayKey(d);
     }
 
+    // The YYYYMMDD key for the calendar day AFTER the given date. Built from a
+    // real Date so month/year rollovers are handled correctly. Used by the R620
+    // briefing teaser ("TOMORROW: ...") to give players a reason to return.
+    nextDayKey(date = new Date()) {
+        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+        return this.todayKey(d);
+    }
+
+    // The challenge that will be active tomorrow. Same determinism as
+    // todayChallenge — every player sees the same upcoming challenge.
+    nextChallenge(date = new Date()) {
+        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+        return this.todayChallenge(d);
+    }
+
     // ISO-8601 week key for the given date, "<isoYear>W<ww>" (e.g. 2026W22).
     // Used as the partition key for the rolling weekly Any% board — everyone
     // playing in the same ISO week competes on the same board, and it rolls

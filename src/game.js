@@ -1448,11 +1448,18 @@ export class Game {
             }
         }
 
+        // R620: tomorrow teaser — names the upcoming challenge so there's a
+        // reason to come back. Sits in the gap below the rules block, dimmed so
+        // it reads as a preview rather than today's active rules.
+        const next = dailyChallenge.nextChallenge();
+        y = Math.max(y + 8, 100);
+        drawText(ctx, 'TOMORROW: ' + next.name, GAME.W / 2, y, '#6a6a82', 1, 'center');
+
         // Streak block.
         const s = achievements.stats;
         const streak = s.dailyStreak || 0;
         const best = s.dailyStreakBest || 0;
-        y = Math.max(y + 6, 120);
+        y = Math.max(y + 10, 120);
         drawTextOutlined(ctx, `STREAK ${streak}   BEST ${best}`, GAME.W / 2, y,
             '#ffb060', '#1a0a14', 1, 'center');
         y += 12;
