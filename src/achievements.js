@@ -74,6 +74,14 @@ export const ACHIEVEMENT_LIST = [
     // achievement. Single-player can earn it; co-op mode becomes available
     // afterwards.
     { id: 'new_management',name: 'NEW MANAGEMENT',  desc: 'DEFEAT BONZI IN THE COMPETITION',       icon: 'M',  gate: s => s.bonziDefeated === true },
+    // R611: Endless / Survival (R609) wave milestones + relic (R610) collector.
+    // bestEndlessWave is a persisted high-water mark, so these stay earned once
+    // hit. The relic counter is additive across runs.
+    { id: 'endless_5',     name: 'OVERTIME',        desc: 'SURVIVE TO WAVE 5 IN ENDLESS',          icon: '5',  gate: s => (s.bestEndlessWave || 0) >= 5,  progress: s => [Math.min(s.bestEndlessWave || 0, 5),  5] },
+    { id: 'endless_10',    name: 'UNPAID HOURS',    desc: 'SURVIVE TO WAVE 10 IN ENDLESS',         icon: 'X',  gate: s => (s.bestEndlessWave || 0) >= 10, progress: s => [Math.min(s.bestEndlessWave || 0, 10), 10] },
+    { id: 'endless_20',    name: 'LAST ONE STANDING',desc: 'SURVIVE TO WAVE 20 IN ENDLESS',        icon: '+',  gate: s => (s.bestEndlessWave || 0) >= 20, progress: s => [Math.min(s.bestEndlessWave || 0, 20), 20] },
+    { id: 'relic_first',   name: 'CURSED TRADE',    desc: 'DRAFT YOUR FIRST RELIC',                icon: 'R',  gate: s => (s.relicsDrafted || 0) >= 1 },
+    { id: 'relic_10',      name: 'HOARDER',         desc: 'DRAFT 10 RELICS',                       icon: 'H',  gate: s => (s.relicsDrafted || 0) >= 10, progress: s => [Math.min(s.relicsDrafted || 0, 10), 10] },
 ];
 
 class Achievements {
@@ -97,6 +105,11 @@ class Achievements {
             // Mode best times (frames). 0 = no time set. Persisted.
             bestBossRushTime: 0,
             bestTimeTrialTime: 0,
+            // R611: best Endless wave reached (R609) + lifetime relics drafted
+            // (R610). bestEndlessWave is a high-water mark; relicsDrafted is an
+            // additive lifetime counter. Both persisted.
+            bestEndlessWave: 0,
+            relicsDrafted: 0,
             // Campaign (any%) personal records. bestScore (above) already
             // tracks lifetime high score; these add a best clear time (frames,
             // 0 = none yet) and best rank letter ('' = none) so the game-complete
@@ -194,6 +207,9 @@ class Achievements {
                 }
                 this.stats.bestBossRushTime = data.stats.bestBossRushTime || 0;
                 this.stats.bestTimeTrialTime = data.stats.bestTimeTrialTime || 0;
+                // R611: Endless/relic persistence.
+                this.stats.bestEndlessWave = data.stats.bestEndlessWave || 0;
+                this.stats.relicsDrafted = data.stats.relicsDrafted || 0;
                 this.stats.bestCampaignTime = data.stats.bestCampaignTime || 0;
                 this.stats.bestCampaignRank = data.stats.bestCampaignRank || '';
                 // R279: konami unlock persists across sessions so the
@@ -226,7 +242,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 568,
+                schemaVersion: 611,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -234,6 +250,8 @@ class Achievements {
                     stageBestScores: this.stats.stageBestScores,
                     bestBossRushTime: this.stats.bestBossRushTime,
                     bestTimeTrialTime: this.stats.bestTimeTrialTime,
+                    bestEndlessWave: this.stats.bestEndlessWave || 0,
+                    relicsDrafted: this.stats.relicsDrafted || 0,
                     bestCampaignTime: this.stats.bestCampaignTime || 0,
                     bestCampaignRank: this.stats.bestCampaignRank || '',
                     konamiUnlocked: this.stats.konamiUnlocked || false,

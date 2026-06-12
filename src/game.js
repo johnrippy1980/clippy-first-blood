@@ -5386,6 +5386,9 @@ export class Game {
         const best = achievements.stats.bestEndlessWave || 0;
         if (this._endless.cleared > best) {
             achievements.stats.bestEndlessWave = this._endless.cleared;
+            // R611: re-check unlocks so OVERTIME / UNPAID HOURS / LAST ONE
+            // STANDING pop the moment their wave threshold is crossed.
+            achievements.update({});
             achievements._save();
             this._modeNewBest = true;
         }
@@ -5460,6 +5463,11 @@ export class Game {
             this.runRelics.push(chosen.id);
             this._relicOffer = null;
             audio.sfx('powerup');
+            // R611: lifetime relic counter drives the CURSED TRADE / HOARDER
+            // achievements. Persist immediately so a mid-run quit still counts.
+            achievements.stats.relicsDrafted = (achievements.stats.relicsDrafted || 0) + 1;
+            achievements.update({});
+            achievements._save();
             this._proceedToStageCard();
         }
     }
