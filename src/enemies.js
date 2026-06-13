@@ -189,6 +189,11 @@ const TYPES = {
         // FLEES the player at panicSpeed for panicFlee frames — punishing a slow
         // chip-kill (and synergising with R636: that fresh cluster cascades).
         panicHp: 0.5, panicMines: 3, panicFlee: 70, panicSpeed: 1.6,
+        // R639: dead man's switch — on death the sapper drops one IMMEDIATELY
+        // armed mine at its feet, so even a clean kill leaves a live hazard
+        // (and, via R636, a seed that can cascade a nearby cluster). Punishes
+        // killing a sapper at point-blank range.
+        deathMine: true,
         activateRange: 240,
         gibPalette: ['#5a6a4a', '#3a4630', '#1a2014'],  // olive-drab sapper
     },
@@ -1027,6 +1032,31 @@ class Enemy {
         }
     }
 
+    // R639: dead man's switch. Drops one mine at the sapper's feet that is
+    // ALREADY armed and settled (no arm delay) — a kill leaves a live hazard
+    // exactly where the corpse fell. Routed through the same _mine plumbing so
+    // it trips (R632), shoots clear (R633), punts (R634/R635), and chains
+    // (R636) like any other. Called from the death paths in hurt()/_tickStatus.
+    _dropDeathMine() {
+        const tpl = this.tpl;
+        const ox = this.x + this.w / 2;
+        const oy = this.y + this.h - 2;
+        const mine = new Bullet(ox, oy, 0, 0, tpl.contactDmg);
+        mine._mine = true;
+        mine._mineArm = 0;                 // live immediately — the trap is sprung
+        mine._mineTrigger = tpl.mineTrigger;
+        mine._mineLife = tpl.mineLife;
+        mine._mineSettled = true;          // no settle bounce; it's planted
+        mine._splashR = tpl.splashR;
+        mine._splashShots = tpl.splashShots;
+        mine._splashDmg = tpl.splashDmg;
+        mine._mineChainR = tpl.mineChainR;
+        mine.life = tpl.mineLife;
+        mine.color = '#ff7030';
+        globalEnemyBullets.push(mine);
+        particles.floatingText(ox, oy - 8, 'DEAD MAN', '#ff6040', 26, -0.5, 1);
+    }
+
     // R325: dive-bomber — glides horizontally at fixed Y. When player's
     // X is within `diveTriggerDx` of dive-bomber's X, the bomber commits
     // to a 45° dive trajectory toward the player. Single-use; explodes
@@ -1207,6 +1237,8 @@ class Enemy {
             particles.shockRing(cx, cy, this.behavior === 'boss' ? 36 : 22, 14, '#fff');
             if (this.behavior === 'boss') particles.shockRing(cx, cy, 52, 22, '#ffe070');
             audio.sfx('explode');
+            // R639: dead man's switch — a killed sapper leaves a live mine.
+            if (this.tpl.deathMine) this._dropDeathMine();
             return true;
         }
         return false;
@@ -1232,6 +1264,8 @@ class Enemy {
                 if (this.gibPalette) particles.gibChunks(cx, cy, this.gibPalette);
                 particles.shockRing(cx, cy, 22, 14, '#ff8050');
                 audio.sfx('explode');
+                // R639: dead man's switch fires on a burn-death too.
+                if (this.tpl.deathMine) this._dropDeathMine();
             }
         }
         // Knock stun — block AI updates briefly
@@ -3563,7 +3597,19 @@ export class EnemyManager {
                     if (!e.alive) continue;
                     if (mine.x > e.x && mine.x < e.x + e.w
                         && mine.y > e.y && mine.y < e.y + e.h) {
-                        e.hurt(mine.dmg || 1, mine.vx > 0 ? 1 : -1);
+                        const killed = e.hurt(mine.dmg || 1, mine.vx > 0 ? 1 : -1);
+                        // R640: credit the punt-kill the way the slide/melee
+                        // paths do — synthesize a bullet stand-in so combo,
+                        // score, taunt, overcharge, popup and shake all fire.
+                        // Chained punt-kills (R636) land in this same loop, so a
+                        // mine punted into a packed cluster racks the combo and
+                        // the per-kill score ramps automatically.
+                        if (killed && player.onBulletHit) {
+                            player.onBulletHit(
+                                { x: e.x + e.w / 2, y: e.y + e.h / 2, damage: mine.dmg || 1, _punt: true },
+                                e, true);
+                            particles.floatingText(e.x + e.w / 2, e.y - 16, 'PUNT KILL', '#80e0ff', 36, -0.6, 1);
+                        }
                         mine._detonateMine(level);     // enemy-damaging splash
                         this.bullets.splice(mi, 1);
                         // R636: a punted mine seeds an ENEMY-damaging cascade.
@@ -3660,7 +3706,16 @@ export class EnemyManager {
                 for (const e of this.enemies) {
                     if (!e.alive) continue;
                     if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
-                        e.hurt(b.dmg, b.vx > 0 ? 1 : -1);
+                        const killed = e.hurt(b.dmg, b.vx > 0 ? 1 : -1);
+                        // R640: parried/punt-shrapnel kills feed the combo too —
+                        // a punted-mine cascade (R635/R636) sprays enemy-damaging
+                        // shrapnel through this lane, so its kills should credit
+                        // the player like any other kill (combo, score, popup).
+                        if (killed && player.onBulletHit) {
+                            player.onBulletHit(
+                                { x: e.x + e.w / 2, y: e.y + e.h / 2, damage: b.dmg, _punt: true },
+                                e, true);
+                        }
                         particles.hitSpark(b.x, b.y, '#ffffff');
                         this.bullets.splice(i, 1);
                         consumed = true;
