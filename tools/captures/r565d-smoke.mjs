@@ -43,7 +43,10 @@ const stored = await page.evaluate(() => {
 });
 console.log('PHASE 2 stored schemaVersion:', stored?.schemaVersion);
 console.log('PHASE 2 stored tagsFound:', stored?.stats?.tagsFound);
-if (stored?.schemaVersion !== 302) throw new Error(`Expected schema 302, got ${stored?.schemaVersion}`);
+// The schema version is a moving target (bumped on every persisted-shape
+// change). Assert the save round-trips with a positive version rather than
+// a frozen literal — hardcoding it rotted (was 302, now 617+).
+if (!(stored?.schemaVersion > 0)) throw new Error(`Expected a positive schemaVersion, got ${stored?.schemaVersion}`);
 if (stored?.stats?.tagsFound !== 5) throw new Error(`Expected stored 5, got ${stored?.stats?.tagsFound}`);
 
 // === PHASE 3: Reload, confirm value survives ===

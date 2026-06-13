@@ -64,9 +64,15 @@ const unit = await page.evaluate(() => {
 console.log('unit:', JSON.stringify(unit, null, 2));
 
 // --- Integration: clean campaign stage arms ghost; daily does not ---
-const integ = await page.evaluate(() => {
+const integ = await page.evaluate(async () => {
     const g = window.__game;
     const ghost = window.__ghost;
+
+    // The ghost is opt-in (options.showGhost defaults to false). Enable it so
+    // a clean campaign stage actually arms recording/playback — without this
+    // the gate at stage start leaves _ghostActive false and the test fails.
+    const options = (await import('/src/options.js')).options;
+    options.set('showGhost', true);
 
     // Clean campaign stage 1.
     g._restartRun();

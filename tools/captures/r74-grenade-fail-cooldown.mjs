@@ -34,17 +34,19 @@ const result = await page.evaluate(async () => {
     const origIsPressed = input.isPressed.bind(input);
     input.isPressed = (name) => name === 'grenade';
 
-    // Tick _handleGrenadeInput across 10 frames — only the first should fail-beat
+    // Tick _handleGrenadeInput across 10 frames — only the first should fail-beat.
+    // The empty-belt fail SFX is 'grenadeFail' (R259 split it off from
+    // 'comboBreak', which is for combo-streak loss — a different event).
     for (let i = 0; i < 10; i++) {
         player._handleGrenadeInput();
     }
-    const failCallsImmediate = calls.filter(c => c === 'comboBreak').length;
+    const failCallsImmediate = calls.filter(c => c === 'grenadeFail').length;
 
     // Run 30 more frames to drain the cooldown, expecting a second fail
     for (let i = 0; i < 35; i++) {
         player._handleGrenadeInput();
     }
-    const failCallsAfterDrain = calls.filter(c => c === 'comboBreak').length;
+    const failCallsAfterDrain = calls.filter(c => c === 'grenadeFail').length;
 
     input.isPressed = origIsPressed;
     audio.sfx = orig;
