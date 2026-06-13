@@ -134,6 +134,11 @@ const TYPES = {
         // on its BLIND side (the side it isn't facing) deals weakMult damage —
         // rewarding the dash-past play the swivel-lag was designed around.
         weakBack: true, weakMult: 3,
+        // R629: after the turret empties a burst the barrel runs hot —
+        // overheatTime frames where it can't fire AND takes overheatMult
+        // damage from ANY direction (a front-accessible punish window that
+        // complements the blind-side weak point).
+        overheatTime: 50, overheatMult: 2,
         gibPalette: ['#909098', '#505058', '#202028'],
     },
 };
@@ -574,6 +579,13 @@ class Enemy {
             return;
         }
         if (this.owlPause > 0) return;
+        // R629: overheat window — after a burst the barrel cools for
+        // overheatTime frames. It can't charge or fire while hot; the cooldown
+        // ticks here so the punish window resolves even if the player leaves.
+        if ((this._overheat || 0) > 0) {
+            this._overheat--;
+            return;
+        }
         // Only fire when actually facing the player's side and in range, and
         // not mid-burst / mid-charge already.
         const facingPlayer = wantFacing === this.facing;
@@ -604,6 +616,8 @@ class Enemy {
                 audio.sfx?.('shoot');
                 this._burstLeft--;
                 this._burstTimer = tpl.burstGap;
+                // Last shot of the burst -> enter the overheat punish window.
+                if (this._burstLeft === 0) this._overheat = tpl.overheatTime;
             } else {
                 this._burstTimer--;
             }
@@ -730,18 +744,28 @@ class Enemy {
     }
 
     hurt(dmg, knockDir = 0, opts = {}) {
-        // R627: directional weak point. The turret is armored facing-forward
-        // but exposed on its back; a shot whose travel direction matches the
-        // turret's facing came from BEHIND (its blind side) and deals weakMult
-        // damage. fromDir is the bullet's travel sign (+1 right / -1 left),
-        // passed by the bullet-hit path. Only applies when the turret is
-        // actively facing a side (facing != 0).
-        if (this.tpl.weakBack && opts.fromDir && this.facing
-            && opts.fromDir === this.facing) {
-            dmg *= (this.tpl.weakMult || 2);
+        // R627/R629: turret damage-amp windows. Two ways to punish the turret,
+        // and a hit that satisfies BOTH takes the larger multiplier (no stack),
+        // so the numbers stay readable.
+        //  - blind side (R627): a shot whose travel direction matches the
+        //    turret's facing came from BEHIND its armor. fromDir is the bullet
+        //    travel sign (+1 right / -1 left). Needs an active facing.
+        //  - overheat (R629): for overheatTime frames after a burst the barrel
+        //    is hot and exposed from ANY direction.
+        const blindSide = this.tpl.weakBack && opts.fromDir && this.facing
+            && opts.fromDir === this.facing;
+        const overheated = (this._overheat || 0) > 0;
+        if (blindSide || overheated) {
+            const mult = Math.max(
+                blindSide ? (this.tpl.weakMult || 2) : 1,
+                overheated ? (this.tpl.overheatMult || 2) : 1,
+            );
+            dmg *= mult;
             const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
-            particles.floatingText(cx, cy - 6, 'WEAK!', '#ffe070', 30, -0.5, 1);
-            particles.hitSpark(cx, cy, '#ffe070');
+            const label = overheated && !blindSide ? 'OVERHEAT!' : 'WEAK!';
+            const color = overheated ? '#ff8050' : '#ffe070';
+            particles.floatingText(cx, cy - 6, label, color, 30, -0.5, 1);
+            particles.hitSpark(cx, cy, color);
         }
         this.hp -= dmg;
         this.hitFlash = 6;
@@ -920,6 +944,32 @@ class Enemy {
             ctx.globalCompositeOperation = 'source-atop';
             ctx.fillRect(dx + shakeDX - 1, dy + shakeDY - 1, dims.w + 2, dims.h + 2);
             ctx.restore();
+        }
+        // R629: overheat glow — while the turret's barrel is hot (post-burst
+        // punish window) wash it in a pulsing orange-red so the player reads
+        // "hit me now, from anywhere." Source-atop so it only paints the
+        // sprite's own pixels, like the hit-flash.
+        if ((this._overheat || 0) > 0) {
+            ctx.save();
+            const pulse = 0.4 + Math.sin(this.timer * 0.5) * 0.25;
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = pulse;
+            ctx.beginPath();
+            ctx.rect(dx + shakeDX - 1, dy + shakeDY - 1, dims.w + 2, dims.h + 2);
+            ctx.clip();
+            ctx.globalCompositeOperation = 'source-atop';
+            ctx.fillStyle = '#ff5020';
+            ctx.fillRect(dx + shakeDX - 1, dy + shakeDY - 1, dims.w + 2, dims.h + 2);
+            ctx.restore();
+            // Heat shimmer — a couple of rising sparks off the barrel top.
+            if (this.timer % 4 === 0) {
+                particles.spawn(
+                    dx + dims.w / 2 + (Math.random() - 0.5) * 6 + camera.viewX,
+                    dy + 2 + camera.viewY,
+                    (Math.random() - 0.5) * 0.3, -0.6 - Math.random() * 0.3,
+                    12 + (Math.random() * 4 | 0), '#ff8050', 1, -0.03
+                );
+            }
         }
         // Imminent-death danger pulse: 1-px red corner ticks on tougher
         // enemies (maxHp > 2) when down to 1 HP. Lets the player read
