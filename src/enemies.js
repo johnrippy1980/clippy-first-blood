@@ -141,6 +141,29 @@ const TYPES = {
         overheatTime: 50, overheatMult: 2,
         gibPalette: ['#909098', '#505058', '#202028'],
     },
+    // R630: mortar emplacement — stationary lobber (zone denial by AREA, not
+    // line). It never fires straight: it arcs a shell toward the player's
+    // PREDICTED landing spot, telegraphed by a ground reticle the whole time
+    // the shell is airborne, then bursts into a low shrapnel splash on impact.
+    // Complements the turret: the turret punishes crossing its line, the mortar
+    // punishes standing still. Players must keep moving laterally to dodge the
+    // reticle. The shell is interceptable mid-air (R631).
+    mortar: {
+        sprite: 'mortar',
+        w: 16, h: 16,
+        hp: 6, contactDmg: 2, score: 240,
+        speed: 0, behavior: 'mortar',
+        // Lob cadence + telegraph. fireInterval frames between shells; charge
+        // frames of wind-up (barrel rises) before launch.
+        fireInterval: 150, charge: 34,
+        // Shell ballistics. leadFrames = how far ahead of the player we aim
+        // (predictive). launchVy = initial upward speed; shellGravity pulls it
+        // back down to the reticle. splash* tune the impact AoE.
+        leadFrames: 26, launchVy: -4.2, shellGravity: 0.16,
+        splashR: 26, splashShots: 6, splashDmg: 1,
+        activateRange: 260,
+        gibPalette: ['#6a6a52', '#48483a', '#202018'],
+    },
 };
 
 class Bullet {
@@ -188,7 +211,18 @@ class Bullet {
         }
         this.x += this.vx; this.y += this.vy;
         this.life--;
+        // R630: mortar shell — once it descends to (or below) its telegraphed
+        // ground reticle, it detonates into a splash regardless of exact tile
+        // alignment, so the impact always matches the reticle the player saw.
+        // Only on the way DOWN (vy>0) so the launch arc up doesn't trip it.
+        if (this._mortar && this.vy > 0 && this.y >= this._reticleY) {
+            this._detonateMortar(level);
+            return;
+        }
         if (level.isSolid(this.x, this.y)) {
+            // R630: a mortar shell that meets terrain early (a step/wall on the
+            // way down) still detonates rather than embedding as a divot.
+            if (this._mortar) { this._detonateMortar(level); return; }
             // R325: ricochet path for cyclone-style bullets (`bouncesLeft > 0`).
             // Reflects velocity along the axis it actually hit (horizontal wall
             // → invert vy; vertical wall → invert vx). Decrements bouncesLeft;
@@ -225,9 +259,79 @@ class Bullet {
             }
         }
     }
+    // R630: mortar shell detonation. Bursts an explosion at the impact point
+    // and spawns a low ring of short-lived splash sub-bullets that the existing
+    // manager player-collision loop damages the player with — so the AoE needs
+    // no new collision code. The shell itself dies. R631: if the shell was
+    // intercepted in the air (_intercepted) it pops harmlessly with NO splash.
+    _detonateMortar(level) {
+        this.life = 0;
+        const cx = this.x, cy = this.y;
+        if (this._intercepted) {
+            // Harmless mid-air pop — a smaller, white-hot burst, no ground splash.
+            particles.explosion(cx, cy, '#fff0c0', 8);
+            audio.sfx?.('hitSpark');
+            return;
+        }
+        particles.explosion(cx, cy, '#ff9040', 16);
+        audio.sfx?.('explosion');
+        // Ground scorch ring + splash sub-bullets fanning low across the ground.
+        const n = this._splashShots || 6;
+        const r = this._splashR || 22;
+        for (let i = 0; i < n; i++) {
+            // Fan from up-left to up-right so shrapnel sprays outward + slightly up.
+            const t = n === 1 ? 0.5 : i / (n - 1);
+            const ang = -Math.PI * 0.85 + t * (Math.PI * 0.7); // ~ -153° .. -27°
+            const sp = 1.6 + Math.random() * 0.6;
+            const b = new Bullet(cx, cy - 2, Math.cos(ang) * sp, Math.sin(ang) * sp,
+                this._splashDmg || 1);
+            b.color = '#ffb060';
+            b.life = Math.round(r / sp) + 6;   // short range — it's a ground splash
+            b._gravity = 0.14;                 // shrapnel arcs back down
+            b._splashChild = true;             // tag so children never re-splash
+            globalEnemyBullets.push(b);
+        }
+        // Dust kick along the ground.
+        for (let i = 0; i < 6; i++) {
+            particles.spawn(cx + (Math.random() - 0.5) * r, cy,
+                (Math.random() - 0.5) * 1.2, -0.3 - Math.random() * 0.4,
+                12 + (Math.random() * 5 | 0), '#9a8060', 1, 0.05);
+        }
+    }
     draw(ctx, camera) {
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY);
+        // R630: mortar shell renders as a tumbling dark shell with a bright
+        // ember tail, plus a ground reticle telegraph at its predicted impact
+        // so the player always sees where it will land before it does.
+        if (this._mortar) {
+            // Ground reticle — pulsing target ring at the impact point.
+            const rx = Math.round(this._reticleX - camera.viewX);
+            const ry = Math.round(this._reticleY - camera.viewY);
+            const pulse = (Math.floor(this.life / 4) % 2) === 0;
+            ctx.globalAlpha = pulse ? 0.9 : 0.5;
+            ctx.fillStyle = '#ff5030';
+            // crosshair ring
+            ctx.fillRect(rx - 6, ry, 4, 1); ctx.fillRect(rx + 3, ry, 4, 1);
+            ctx.fillRect(rx, ry - 6, 1, 4); ctx.fillRect(rx, ry + 3, 1, 4);
+            ctx.globalAlpha = pulse ? 0.5 : 0.25;
+            ctx.fillRect(rx - 4, ry - 4, 9, 9);
+            ctx.globalAlpha = 1;
+            // Ember tail behind the shell.
+            ctx.fillStyle = '#ff8030';
+            for (let i = 1; i <= 3; i++) {
+                ctx.globalAlpha = 0.4 - i * 0.1;
+                ctx.fillRect(Math.round(dx - this.vx * i) - 1,
+                    Math.round(dy - this.vy * i) - 1, 2, 2);
+            }
+            ctx.globalAlpha = 1;
+            // Shell body — dark casing with a hot tip.
+            ctx.fillStyle = '#2a2018';
+            ctx.fillRect(dx - 2, dy - 2, 4, 4);
+            ctx.fillStyle = '#ffd060';
+            ctx.fillRect(dx - 1, dy - 1, 2, 2);
+            return;
+        }
         // Stuck-in-wall divot: small fading pixel, no trail, no glow. Same
         // beat as the player-bullet impact-stick — "you hit the wall, here's
         // the scorch mark" before the bullet vanishes.
@@ -367,6 +471,7 @@ class Enemy {
             case 'summon':         this._summon(level, player); break;
             case 'shielded_walk':  this._shieldedWalk(level, player); break;
             case 'turret':         this._turret(level, player); break;
+            case 'mortar':         this._mortar(level, player); break;
         }
     }
 
@@ -624,6 +729,83 @@ class Enemy {
         }
     }
 
+    // R630: mortar emplacement. Stationary. On a fixed cadence it picks the
+    // player's PREDICTED position (current x + vx*leadFrames), finds the ground
+    // under that column, then — after a charge wind-up — lobs an arcing shell
+    // whose ballistics are solved to land exactly on that ground reticle. The
+    // shell telegraphs its impact the whole flight (drawn in Bullet.draw), so a
+    // moving player can always read and dodge it.
+    _mortar(level, player) {
+        const tpl = this.tpl;
+        const dx = player.x - this.x;
+        const distAbs = Math.abs(dx);
+        // Face the player (cosmetic — sprite barrel tilts toward them).
+        this.facing = dx > 0 ? 1 : -1;
+        // Fairness gates — never lob at a hidden / owl-paused player.
+        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
+            this._noticeTargetLost();
+            return;
+        }
+        if (this.owlPause > 0) return;
+        // Charge wind-up: once armed, count down then launch.
+        if ((this._mCharge || 0) > 0) {
+            this._mCharge--;
+            this.subTimer = this._mCharge;   // drives the attack-pose barrel rise
+            if (this._mCharge === 0) this._lobShell(level, player);
+            return;
+        }
+        // Arm a new shot when in range on the cadence beat.
+        if (distAbs < tpl.activateRange && this.timer % tpl.fireInterval === 0) {
+            this._mCharge = tpl.charge;
+            this.subTimer = this._mCharge;
+        }
+    }
+
+    // R630: solve + launch a single arcing shell at the player's predicted
+    // landing column. We don't need a perfect projectile solution — we set the
+    // launch velocity and let the shell's _gravity carry it, computing the
+    // reticle (impact point) from that same ballistic so render + contact agree.
+    _lobShell(level, player) {
+        const tpl = this.tpl;
+        const ox = this.x + this.w / 2;
+        const oy = this.y + 2;
+        // Predict where the player will be: lead their horizontal velocity.
+        const predX = player.x + player.w / 2 + (player.vx || 0) * tpl.leadFrames;
+        // Find the ground Y under that predicted column (scan down from the
+        // player's head). Fall back to the player's feet if no floor found.
+        let groundY = player.y + player.h;
+        for (let yy = player.y; yy < level.height; yy += GAME.TILE) {
+            if (level.isSolid(predX, yy)) { groundY = yy; break; }
+        }
+        // Solve horizontal velocity so the shell travels (predX-ox) over the
+        // time it takes to rise from launchVy and fall back down to groundY.
+        // Time of flight from oy to groundY under shellGravity with initial vy:
+        //   groundY = oy + vy*t + 0.5*g*t^2  -> quadratic in t (take the +root).
+        const g = tpl.shellGravity;
+        const vy0 = tpl.launchVy;
+        const dyTotal = groundY - oy;
+        const disc = vy0 * vy0 + 2 * g * dyTotal;
+        const t = disc > 0 ? (-vy0 + Math.sqrt(disc)) / g : 40;
+        const vx = (predX - ox) / Math.max(t, 1);
+        const shell = new Bullet(ox, oy, vx, vy0, tpl.contactDmg);
+        shell._gravity = g;
+        shell._mortar = true;
+        shell._reticleX = predX;
+        shell._reticleY = groundY;
+        shell._splashR = tpl.splashR;
+        shell._splashShots = tpl.splashShots;
+        shell._splashDmg = tpl.splashDmg;
+        shell.life = Math.round(t) + 30;   // generous cap; detonation ends it first
+        shell.color = '#ffb060';
+        globalEnemyBullets.push(shell);
+        audio.sfx?.('shoot');
+        // Muzzle puff at the barrel.
+        for (let i = 0; i < 4; i++) {
+            particles.spawn(ox, oy, (Math.random() - 0.5) * 0.8, -0.6 - Math.random() * 0.5,
+                10 + (Math.random() * 4 | 0), '#b0a080', 1, 0.04);
+        }
+    }
+
     // R325: dive-bomber — glides horizontally at fixed Y. When player's
     // X is within `diveTriggerDx` of dive-bomber's X, the bomber commits
     // to a 45° dive trajectory toward the player. Single-use; explodes
@@ -861,6 +1043,7 @@ class Enemy {
         const attackPose = (this.behavior === 'charge' && this.subState === 1)
                         || (this.behavior === 'hover_sniper' && this.subTimer > 0)
                         || (this.behavior === 'turret' && this.subTimer > 0)
+                        || (this.behavior === 'mortar' && this.subTimer > 0)
                         || (this.behavior === 'hop' && this.vy < -1);
         let useSprite = this.sprite;
         // R346: shielder swap — painted 'shielder' sprite has the shield

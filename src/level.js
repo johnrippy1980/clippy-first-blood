@@ -1319,6 +1319,11 @@ function makeStage8() {
             { x: 50 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'summoner' },
             { x: 72 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'dive_bomber' },
             { x: 88 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'dive_bomber' },
+            // R630: mortar emplacement on a high ledge near the rippling arc
+            // corridor — it lobs arcing shells onto the safe ground lane the
+            // arcs already threaten, so the player can't just camp the gaps.
+            // Predictive reticle keeps it fair; the shell is interceptable.
+            { x: 60 * GAME.TILE, y: ( 4) * GAME.TILE, type: 'mortar' },
         ],
         pickupSpawns: [
             // C top: THUNDER (unchanged)

@@ -1332,11 +1332,34 @@ const ENEMY_TURRET = [
     '________________',
 ];
 
+// R630: mortar emplacement — a squat heavy base (sandbag-style treads) with a
+// short fat tube angled up-and-right to lob shells. 'd' optic eye between the
+// base plates reads it as hostile, matching the turret's blood-red cue.
+const ENEMY_MORTAR = [
+    '____________aab_',
+    '___________aabb_',
+    '__________aabb1_',
+    '_________aabb1__',
+    '________aabb1___',
+    '_______1bbc1____',
+    '______1bcc1_____',
+    '___1111cc1______',
+    '__1ccbbcc111____',
+    '__1cbddbc1______',
+    '__1cbddbc1______',
+    '_1ccbbbbcc1_____',
+    '_1c11111111c1___',
+    '1cc11111111cc1__',
+    '1111111111111___',
+    '________________',
+];
+
 const ENEMY_FRAMES = {
     'folder':  ENEMY_FOLDER,
     'stapler': ENEMY_STAPLER,
     'cabinet': ENEMY_CABINET,
     'turret':  ENEMY_TURRET,
+    'mortar':  ENEMY_MORTAR,
 };
 
 // Enemy palette — bone whites, dirty creams, rust reds. Hostile.
