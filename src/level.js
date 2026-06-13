@@ -1222,6 +1222,12 @@ function makeStage8() {
     // Section A (x 0–18): SHORT GROUND INTRO — first archipelago platforms.
     platT(g,  9, 10, 5);
     platT(g, 12, 16, 4);
+    // R626: rippling arc corridor on the ground approach. Six arcs whose live
+    // window sweeps left-to-right (arcRippleStep=20, one tile live at a time)
+    // so the player chases the traveling safe gap across the floor instead of
+    // waiting out a single on/off gate. Placed past the spawn (col 3) and the
+    // first platform (col 10), gating the ground route into Section B.
+    arcRow(g, h - 3, 12, 6);
 
     // Section B (x 18–34): MID ARCHIPELAGO — high + low islands.
     platT(g,  7, 20, 4);
@@ -1279,6 +1285,7 @@ function makeStage8() {
 
     return {
         tiles: g, width: w, height: h, theme: THEME.CLOUD,
+        arcRippleStep: 20,   // R626: stagger the Section-A arc corridor into a wave
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
         bossTrigger: { x: 102 * GAME.TILE },
         miniBossTrigger: 40 * GAME.TILE,
@@ -3007,6 +3014,11 @@ export class Level {
         this.palette = THEME_PALETTE[data.theme] || THEME_PALETTE[THEME.JUNGLE];
         this.frame = 0;
         this.tileAnimTick = 0;
+        // R626: per-column phase step for rippling arc corridors (frames). 0
+        // makes every arc pulse in unison (the R625 single-gate behaviour);
+        // a non-zero step staggers neighbours into a traveling wave. Stage
+        // data may override via data.arcRippleStep.
+        this.arcRippleStep = data.arcRippleStep ?? 0;
         // Crumble tile state. Key = `${tx},${ty}`; value tracks how long the
         // player has been standing on the tile (cracking) or how long until
         // it respawns (broken). Map keeps the level data immutable.
@@ -3115,7 +3127,12 @@ export class Level {
         // R625: pulsing arc only bites during its live window. The 20-frame
         // telegraph that precedes it (see arcPhase) is intentionally NOT
         // hazardous so a fair player always gets a tell before the shock.
-        if (t === TILE.ARC) return this.arcPhase() === 'live';
+        // R626: phase is per-column so a corridor of arcs ripples — the same
+        // offset the renderer uses, so contact and visuals never disagree.
+        if (t === TILE.ARC) {
+            const tx = Math.floor(px / GAME.TILE);
+            return this.arcPhase(this.arcOffsetForTile(tx)) === 'live';
+        }
         return false;
     }
 
@@ -3131,6 +3148,16 @@ export class Level {
         if (f >= 100) return 'live';
         if (f >= 80) return 'warn';
         return 'off';
+    }
+
+    // R626: per-column phase offset so an arc corridor pulses as a traveling
+    // wave instead of all-on/all-off. Each tile column is shifted by a fixed
+    // step (arcRippleStep frames) so neighbouring arcs fire in sequence — the
+    // player threads the gaps as the live window sweeps down the corridor.
+    // Keyed off raw column so it's stable across frames and identical in the
+    // render + contact paths.
+    arcOffsetForTile(tx) {
+        return (tx * this.arcRippleStep) % 120;
     }
 
     isExit(px, py) {
@@ -3921,7 +3948,12 @@ export class Level {
                 // the tile) with a vertical bolt that crackles between them. The
                 // node always renders so the hazard's location reads even when
                 // off; the bolt's intensity tracks arcPhase (off/warn/live).
-                const phase = this.arcPhase();
+                // R626: phase is offset per-column so a corridor ripples; the
+                // bolt animation reads the same offset so each tile's zap is in
+                // sync with its own live window.
+                const arcOff = this.arcOffsetForTile(c);
+                const af = this.frame + arcOff;
+                const phase = this.arcPhase(arcOff);
                 const cx = x + T / 2;
                 // Emitter nodes — chunky metal caps top and bottom.
                 ctx.fillStyle = '#4a4a58';
@@ -3938,7 +3970,7 @@ export class Level {
                     const seg = 3;
                     ctx.fillStyle = live ? '#ffffff' : '#5a6a9a';
                     for (let yy = 3; yy < T - 3; yy += seg) {
-                        const wob = ((this.frame + yy * 3) % 5) - 2; // -2..2
+                        const wob = ((af + yy * 3) % 5) - 2; // -2..2
                         const bx = cx + (live ? wob : (wob >> 1));
                         const bw = live ? 2 : 1;
                         ctx.fillRect(bx, y + yy, bw, seg);
@@ -3947,7 +3979,7 @@ export class Level {
                         // Cyan glow halo + node flare on the live frames.
                         ctx.fillStyle = '#80e0ff';
                         for (let yy = 4; yy < T - 4; yy += 4) {
-                            const wob = ((this.frame + yy) % 5) - 2;
+                            const wob = ((af + yy) % 5) - 2;
                             ctx.fillRect(cx + wob - 2, y + yy, 1, 1);
                             ctx.fillRect(cx + wob + 2, y + yy, 1, 1);
                         }
