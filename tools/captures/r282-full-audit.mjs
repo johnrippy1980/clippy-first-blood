@@ -248,12 +248,21 @@ console.log(`  THUNDER at 250px: damaged=${thunderResult.damaged} hp ${thunderRe
 // AUDIT 10: FPS-arena music cut on exit
 // =============================================================
 console.log('\n=== R282 AUDIT 10: MUSIC CUT ===');
-// In FPS arena clear-state → press X → should stop track
+// In FPS arena clear-state → press X → should stop track. Stage 6 is the
+// FPS BALLMER OFFICE; the arena mounts after STAGE_INTRO, so poll for it
+// (the old _startStage(7) rotted — 7 is BALLMER ARENA, not an FPS stage,
+// so _fpsArena was null).
+await page.evaluate(() => window.__game._startStage(6));
+for (let k = 0; k < 40; k++) {
+    const mounted = await page.evaluate(() => !!window.__game._fpsArena);
+    if (mounted) break;
+    await page.waitForTimeout(150);
+}
 const musicTest = await page.evaluate(() => {
-    // boot FPS, fake clear, press X, check audio
-    window.__game._startStage(7);
-    window.__game._fpsArena.phase = 'clear';
-    window.__game._fpsArena.clearT = 100;
+    const a = window.__game._fpsArena;
+    if (!a) return { ok: false, why: 'no fps arena' };
+    a.phase = 'clear';
+    a.clearT = 100;
     return { ok: true };
 });
 await page.waitForTimeout(500);
