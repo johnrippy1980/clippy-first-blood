@@ -130,6 +130,10 @@ const TYPES = {
         shootInterval: 80, projectileSpeed: 2.5, beamCharge: 26,
         burstCount: 2, burstGap: 10, reaimLag: 36,
         activateRange: 230,
+        // R627: armored on the front, exposed on the back. A shot that lands
+        // on its BLIND side (the side it isn't facing) deals weakMult damage —
+        // rewarding the dash-past play the swivel-lag was designed around.
+        weakBack: true, weakMult: 3,
         gibPalette: ['#909098', '#505058', '#202028'],
     },
 };
@@ -726,6 +730,19 @@ class Enemy {
     }
 
     hurt(dmg, knockDir = 0, opts = {}) {
+        // R627: directional weak point. The turret is armored facing-forward
+        // but exposed on its back; a shot whose travel direction matches the
+        // turret's facing came from BEHIND (its blind side) and deals weakMult
+        // damage. fromDir is the bullet's travel sign (+1 right / -1 left),
+        // passed by the bullet-hit path. Only applies when the turret is
+        // actively facing a side (facing != 0).
+        if (this.tpl.weakBack && opts.fromDir && this.facing
+            && opts.fromDir === this.facing) {
+            dmg *= (this.tpl.weakMult || 2);
+            const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+            particles.floatingText(cx, cy - 6, 'WEAK!', '#ffe070', 30, -0.5, 1);
+            particles.hitSpark(cx, cy, '#ffe070');
+        }
         this.hp -= dmg;
         this.hitFlash = 6;
         // Knockback push — SPREAD weapon and contact-hits shove the enemy back
@@ -2984,6 +3001,9 @@ export class EnemyManager {
                     if (b.weapon === 'THUNDER') opts.knockBack = 2.0;
                     if (b.weapon === 'FLAME')  { opts.burn = 90; opts.burnDPS = 0.08; }
                     const knockDir = b.vx > 0 ? 1 : (b.vx < 0 ? -1 : (e.x < player.x ? 1 : -1));
+                    // R627: pass the shot's travel direction so directional
+                    // weak points (turret blind side) can read it in hurt().
+                    opts.fromDir = knockDir;
                     // Stun-bonus: follow-up hits on a pounce-stunned target
                     // deal 1.5x damage. Yellow "STUN+" float telegraphs the
                     // reward so the pounce→shoot loop has clear payoff.
