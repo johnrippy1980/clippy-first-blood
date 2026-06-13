@@ -1687,7 +1687,7 @@ export class Game {
 
         // Stage context — so the player knows which stage they're about to start
         if (stg) {
-            drawText(ctx, 'STAGE ' + stg.id + ' / ' + stg.name,
+            drawText(ctx, 'STAGE ' + stg.displayId + ' / ' + stg.name,
                      GAME.W / 2, panelY + 28, '#80a0c0', 1, 'center');
         }
 
@@ -1791,7 +1791,7 @@ export class Game {
             const k = Math.min(1, (t - 12) / 18);
             const eased = 1 - Math.pow(1 - k, 3);
             const numX = -50 + (GAME.W / 2 + 50) * eased;
-            drawText(ctx, 'STAGE ' + stg.id, numX, 78, '#ffe070', 1, 'center');
+            drawText(ctx, 'STAGE ' + stg.displayId, numX, 78, '#ffe070', 1, 'center');
         }
         // Stage NAME slides in from right at t > 24. Drop to size=1 for
         // long names that would overflow 256px at size=2.
@@ -3712,7 +3712,7 @@ export class Game {
         // Glance row — current stage + score
         const stage = this.currentStage ? STAGES[this.currentStage] : null;
         if (stage) {
-            drawText(ctx, 'STAGE ' + stage.id + ' / ' + stage.name, GAME.W / 2, panelY + 28, '#80a0c0', 1, 'center');
+            drawText(ctx, 'STAGE ' + stage.displayId + ' / ' + stage.name, GAME.W / 2, panelY + 28, '#80a0c0', 1, 'center');
             // R480: tagline + boss preview — sells the pause as a moment to
             // catch your breath and re-orient. R612: yield these two lines to
             // the relic loadout block when relics are held, so the panel's
@@ -4814,7 +4814,7 @@ export class Game {
                 // 10px vertical pitch so STAGE N / NAME / TAGLINE read as
                 // distinct rows. Earlier 8-px pitch fused stage-name with
                 // STAGE-N row when both had outline pixels.
-                drawText(ctx, 'STAGE ' + stg.id, GAME.W / 2, GAME.H - 28, '#ffe070', 1, 'center');
+                drawText(ctx, 'STAGE ' + stg.displayId, GAME.W / 2, GAME.H - 28, '#ffe070', 1, 'center');
                 drawTextOutlined(ctx, stg.name, GAME.W / 2, GAME.H - 18, '#ff5050', '#1a0000', 1, 'center');
                 ctx.globalAlpha = 1;
             }

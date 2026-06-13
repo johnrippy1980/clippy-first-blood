@@ -2346,6 +2346,16 @@ export class TurretArena {
                 drawTextOutlined(ctx, 'OVERHEATED', GAME.W / 2, GAME.H - 36, '#ff4040', '#1a0a14', 1, 'center');
             }
         }
+        // Persistent control reminder through wave 1 — the 1.5s intro hint is
+        // easy to blink past, and the crosshair-aim scheme reads as "broken"
+        // to anyone expecting run-and-gun. Pin it low-center while the player
+        // is still learning, then retire it once wave 2 begins. Independent of
+        // the OVERHEATED blink above (different row) — a new player who melts
+        // the gun in wave 1 needs the reminder most.
+        if (this.waveIdx === 0) {
+            drawText(ctx, 'AIM ARROWS   HOLD X FIRE   V GRENADE',
+                     GAME.W / 2, GAME.H - 14, '#c0a0d0', 1, 'center');
+        }
         // R567h: boss-name plate during the pre-Voltron build-up. Slide-in
         // from top with red-glow + name reveal. Anchored at top-center,
         // independent of the boss-bark bubble which renders later.
@@ -2393,7 +2403,7 @@ export class TurretArena {
         ctx.save();
         ctx.globalAlpha = alpha;
         drawTextOutlined(ctx, 'HOLD THE LINE', GAME.W / 2, titleY, '#ffe070', '#1a0a14', 2, 'center');
-        drawText(ctx, 'AIM ARROWS   X FIRE   V GRENADE', GAME.W / 2, subY, '#c0a0d0', 1, 'center');
+        drawText(ctx, 'AIM ARROWS   HOLD X FIRE   V GRENADE', GAME.W / 2, subY, '#c0a0d0', 1, 'center');
         ctx.restore();
     }
 
