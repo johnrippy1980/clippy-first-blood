@@ -17,6 +17,7 @@ _staging/
 # Smoke-test artefact
 screenshot.png
 tools/screenshots/
+tools/_shot-*.png
 
 # Python bytecode (sprite processing scripts)
 __pycache__/
