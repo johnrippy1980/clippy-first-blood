@@ -258,6 +258,10 @@ function makeStage1() {
             { x: 44 * GAME.TILE, y: ( 5) * GAME.TILE, type: 'holepunch' },
             { x: 49 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },
             { x: 54 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
+            // E2: R632 sapper — paces this open stretch laying proximity mines
+            // in its wake. Teaches the player to watch the floor (and to shoot
+            // a blinking mine before stepping on it — R633).
+            { x: 58 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'sapper' },
             // F: AMBUSH CORRIDOR — three-grunt squad pre-staged. Two on
             // the ground behind cover, one on the overlook ledge.
             { x: 63 * GAME.TILE, y: ( 6) * GAME.TILE, type: 'folder' },

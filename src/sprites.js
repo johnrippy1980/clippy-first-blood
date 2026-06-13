@@ -1354,12 +1354,33 @@ const ENEMY_MORTAR = [
     '________________',
 ];
 
+// R632: mine-layer "sapper" — a low, squat tracked crawler. A rounded hull
+// (browns/olive 3-4-5) with a single red 'd' optic up front, riding a dark
+// tread line (7) with bolt highlights, plus a stubby rear hopper that dispenses
+// mines. Reads as a ground-hugging hazard-layer, distinct from the upright
+// turret/mortar emplacements. 16 wide x 12 tall to match the hitbox.
+const ENEMY_SAPPER = [
+    '________________',
+    '_____1111_______',
+    '____15554111____',
+    '___1544445d51___',
+    '__1544444455511_',
+    '_1444444445d511_',
+    '_1444444444551__',
+    '_1334444443311__',
+    '11111111111111__',
+    '17171717171717_1',
+    '_17171717171717_',
+    '__1111111111111_',
+];
+
 const ENEMY_FRAMES = {
     'folder':  ENEMY_FOLDER,
     'stapler': ENEMY_STAPLER,
     'cabinet': ENEMY_CABINET,
     'turret':  ENEMY_TURRET,
     'mortar':  ENEMY_MORTAR,
+    'sapper':  ENEMY_SAPPER,
 };
 
 // Enemy palette — bone whites, dirty creams, rust reds. Hostile.

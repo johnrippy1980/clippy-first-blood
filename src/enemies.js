@@ -164,6 +164,26 @@ const TYPES = {
         activateRange: 260,
         gibPalette: ['#6a6a52', '#48483a', '#202018'],
     },
+    // R632: mine-layer "sapper" — a low ground crawler that patrols back and
+    // forth and periodically DROPS a proximity mine behind itself. The mine
+    // (an enemy-bullet, not a separate entity) falls to the ground, ARMS after
+    // a short delay (blink telegraph), then bursts the shared shrapnel ring if
+    // the player steps inside its trigger radius. Counter-play: shoot the mine
+    // before you reach it (R633). Complements the stationary turret/mortar — a
+    // MOBILE area-denier that seeds the floor with hazards in its wake.
+    sapper: {
+        sprite: 'sapper',
+        w: 16, h: 12,
+        hp: 4, contactDmg: 1, score: 180,
+        speed: 0.7, behavior: 'sapper',
+        // Mine cadence + behavior. dropInterval frames between drops; mineArm
+        // frames before a dropped mine goes live; mineTrigger px proximity
+        // radius; mineLife caps how long an un-tripped mine lingers.
+        dropInterval: 140, mineArm: 40, mineTrigger: 18, mineLife: 600,
+        splashR: 22, splashShots: 5, splashDmg: 1,
+        activateRange: 240,
+        gibPalette: ['#5a6a4a', '#3a4630', '#1a2014'],  // olive-drab sapper
+    },
 };
 
 class Bullet {
@@ -218,6 +238,26 @@ class Bullet {
         if (this._mortar && this.vy > 0 && this.y >= this._reticleY) {
             this._detonateMortar(level);
             return;
+        }
+        // R632: proximity mine. It falls under gravity until it meets the ground,
+        // then sits inert (vx=vy=0) while its arm-timer counts down. life never
+        // expires on its own — _mineLife holds it indefinitely until it ARMS and
+        // the manager's proximity check trips it (or a player bullet shoots it).
+        // The actual proximity-detonation is in the manager loop (it needs the
+        // player ref Bullet.update lacks), mirroring the mortar/shell split.
+        if (this._mine) {
+            if (!this._mineSettled) {
+                // Settling: keep falling until a solid tile is directly below.
+                if (level.isSolid(this.x, this.y + 2)) {
+                    this._mineSettled = true;
+                    this.vx = 0; this.vy = 0;
+                    // Nudge up flush onto the surface.
+                    while (level.isSolid(this.x, this.y + 1)) this.y -= 1;
+                }
+            }
+            if (this._mineArm > 0) this._mineArm--;     // arming countdown
+            this.life = this._mineLife || 600;          // hold; never natural-expire
+            return;                                      // skip the wall-divot path
         }
         if (level.isSolid(this.x, this.y)) {
             // R630: a mortar shell that meets terrain early (a step/wall on the
@@ -275,7 +315,13 @@ class Bullet {
         }
         particles.explosion(cx, cy, '#ff9040', 16);
         audio.sfx?.('explosion');
-        // Ground scorch ring + splash sub-bullets fanning low across the ground.
+        this._spawnShrapnel(cx, cy);
+    }
+    // R632: shared shrapnel burst — a low ring of short-lived splash sub-bullets
+    // the manager player-collision loop damages with, so any AoE source (mortar
+    // shell, proximity mine) needs zero new collision code. Children are tagged
+    // _splashChild so they never recursively re-splash.
+    _spawnShrapnel(cx, cy) {
         const n = this._splashShots || 6;
         const r = this._splashR || 22;
         for (let i = 0; i < n; i++) {
@@ -297,6 +343,21 @@ class Bullet {
                 (Math.random() - 0.5) * 1.2, -0.3 - Math.random() * 0.4,
                 12 + (Math.random() * 5 | 0), '#9a8060', 1, 0.05);
         }
+    }
+    // R632: proximity-mine detonation. A mine sits inert on the ground until it
+    // ARMS, then bursts the same shrapnel ring as a mortar shell. R633: if the
+    // mine was shot (_intercepted) it pops harmlessly with NO splash.
+    _detonateMine(level) {
+        this.life = 0;
+        const cx = this.x, cy = this.y;
+        if (this._intercepted) {
+            particles.explosion(cx, cy, '#fff0c0', 6);
+            audio.sfx?.('hitSpark');
+            return;
+        }
+        particles.explosion(cx, cy, '#ff7030', 14);
+        audio.sfx?.('explosion');
+        this._spawnShrapnel(cx, cy);
     }
     draw(ctx, camera) {
         const dx = Math.round(this.x - camera.viewX);
@@ -330,6 +391,28 @@ class Bullet {
             ctx.fillRect(dx - 2, dy - 2, 4, 4);
             ctx.fillStyle = '#ffd060';
             ctx.fillRect(dx - 1, dy - 1, 2, 2);
+            return;
+        }
+        // R632: proximity mine — a squat dark puck with a blinking indicator
+        // light. Slow amber pulse while arming, fast red blink once armed, so
+        // the player can read the threat state before stepping near it.
+        if (this._mine) {
+            const armed = this._mineArm <= 0;
+            const blink = armed
+                ? (Math.floor(this.life / 4) % 2) === 0     // fast when armed
+                : (Math.floor(this.life / 12) % 2) === 0;   // slow while arming
+            // Casing.
+            ctx.fillStyle = '#303038';
+            ctx.fillRect(dx - 3, dy - 1, 6, 3);
+            ctx.fillStyle = '#1a1a20';
+            ctx.fillRect(dx - 3, dy + 1, 6, 1);            // shadow base
+            // Prongs.
+            ctx.fillStyle = '#505058';
+            ctx.fillRect(dx - 2, dy - 2, 1, 1);
+            ctx.fillRect(dx + 1, dy - 2, 1, 1);
+            // Indicator light.
+            ctx.fillStyle = blink ? (armed ? '#ff3020' : '#ffb030') : '#601008';
+            ctx.fillRect(dx, dy - 1, 1, 1);
             return;
         }
         // Stuck-in-wall divot: small fading pixel, no trail, no glow. Same
@@ -438,7 +521,7 @@ class Enemy {
         if ((this._stunTimer || 0) > 0) {
             // Apply gravity for grounded behaviors so a stunned hopper sits
             // still instead of floating.
-            if (this.behavior === 'hop' || this.behavior === 'charge') {
+            if (this.behavior === 'hop' || this.behavior === 'charge' || this.behavior === 'sapper') {
                 this.vy = (this.vy || 0) + GAME.GRAVITY;
                 const yRes = level.moveY(this, this.vy, true, this.vy);
                 this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
@@ -448,7 +531,7 @@ class Enemy {
         // Knock-stun: skip AI; physics still applies for hop/charge
         if ((this.knockStun || 0) > 0) {
             // Just settle vy on stunned ground enemies, no behavior
-            if (this.behavior === 'hop' || this.behavior === 'charge') {
+            if (this.behavior === 'hop' || this.behavior === 'charge' || this.behavior === 'sapper') {
                 this.vy = (this.vy || 0) + GAME.GRAVITY;
                 const yRes = level.moveY(this, this.vy, true, this.vy);
                 this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
@@ -472,6 +555,7 @@ class Enemy {
             case 'shielded_walk':  this._shieldedWalk(level, player); break;
             case 'turret':         this._turret(level, player); break;
             case 'mortar':         this._mortar(level, player); break;
+            case 'sapper':         this._sapper(level, player); break;
         }
     }
 
@@ -803,6 +887,72 @@ class Enemy {
         for (let i = 0; i < 4; i++) {
             particles.spawn(ox, oy, (Math.random() - 0.5) * 0.8, -0.6 - Math.random() * 0.5,
                 10 + (Math.random() * 4 | 0), '#b0a080', 1, 0.04);
+        }
+    }
+
+    // R632: mine-layer "sapper". A ground walker that paces toward the player
+    // and periodically DROPS a proximity mine behind itself (an enemy-bullet,
+    // not a separate entity — reuses the whole bullet lane). The mine falls to
+    // the floor, arms after mineArm frames, then trips the shared shrapnel ring
+    // when the player steps inside mineTrigger. The drop is gated on the same
+    // fairness rules as other shooters (no laying while the player is hidden).
+    _sapper(level, player) {
+        const tpl = this.tpl;
+        const dx = player.x - this.x;
+        this.facing = dx > 0 ? 1 : -1;
+        // Walk toward the player when not right on top of them.
+        this.vx = Math.abs(dx) > 20 ? this.facing * tpl.speed : 0;
+        this.vy += GAME.GRAVITY;
+        const xRes = level.moveX(this, this.vx);
+        this.x = xRes.x;
+        if (xRes.hit) this.vx = 0;           // bumped a wall — stop, will re-face next tick
+        const yRes = level.moveY(this, this.vy, true, this.vy);
+        this.y = yRes.y; if (yRes.hit && yRes.landed) this.vy = 0;
+        // Walk-cycle frame for the sprite.
+        if (Math.abs(this.x - (this._lastWalkX || 0)) > 1) {
+            this.frame = (this.frame + 0.1) % 4;
+            this._lastWalkX = this.x;
+        }
+        // Drop cadence — never lay a mine while the player is hidden / owl-paused
+        // (it'd be an unfair off-screen hazard), and only once we've settled on
+        // the ground so the mine drops onto real floor.
+        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
+            this._noticeTargetLost();
+            return;
+        }
+        if (this.owlPause > 0) return;
+        if (this.timer % tpl.dropInterval === 0 && this.timer > 0 && this._isOnGround(level)) {
+            this._dropMine(level);
+        }
+    }
+
+    // R632: drop a single proximity mine behind the sapper. The mine is a
+    // stationary enemy-bullet tagged _mine; Bullet.update settles it onto the
+    // ground and ticks its arm timer, while the manager loop runs the proximity
+    // trigger + the R633 shootable-mine check.
+    _dropMine(level) {
+        const tpl = this.tpl;
+        // Drop slightly behind the direction of travel so the sapper walks away
+        // from its own mine rather than parking on it.
+        const ox = this.x + this.w / 2 - this.facing * 6;
+        const oy = this.y + this.h - 2;
+        const mine = new Bullet(ox, oy, 0, 0.4, tpl.contactDmg);
+        mine._mine = true;
+        mine._mineArm = tpl.mineArm;
+        mine._mineTrigger = tpl.mineTrigger;
+        mine._mineLife = tpl.mineLife;
+        mine._mineSettled = false;
+        mine._splashR = tpl.splashR;
+        mine._splashShots = tpl.splashShots;
+        mine._splashDmg = tpl.splashDmg;
+        mine.life = tpl.mineLife;
+        mine.color = '#ff7030';
+        globalEnemyBullets.push(mine);
+        audio.sfx?.('select');
+        // Small drop puff.
+        for (let i = 0; i < 3; i++) {
+            particles.spawn(ox, oy, (Math.random() - 0.5) * 0.6, -0.2 - Math.random() * 0.3,
+                8 + (Math.random() * 4 | 0), '#7a6a40', 1, 0.05);
         }
     }
 
@@ -3277,6 +3427,49 @@ export class EnemyManager {
                     player.onBulletHit?.(b, null, false);
                     if (!b.piercing) player.bullets.splice(bi, 1);
                     break;
+                }
+            }
+        }
+
+        // R632/R633: proximity-mine passes. Mines are stationary enemy-bullets
+        // (_mine) dropped by the sapper. Two checks, both needing the player ref
+        // Bullet.update lacks, so they live here in the manager loop:
+        //  (R632) ARMED mines detonate when the player steps inside the trigger
+        //         radius — the area-denial payoff.
+        //  (R633) a player bullet that hits ANY mine (armed or not) clears it
+        //         harmlessly with NO splash — the skill counter (shoot it first).
+        for (let mi = this.bullets.length - 1; mi >= 0; mi--) {
+            const mine = this.bullets[mi];
+            if (!mine._mine || mine._intercepted || mine.life <= 0) continue;
+            // (R633) shootable — check player bullets first so a well-aimed shot
+            // always beats the proximity trip on the same frame.
+            let shot = false;
+            for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
+                const b = player.bullets[bi];
+                if (b.stuck) continue;
+                const pad = 5;
+                if (b.x > mine.x - pad && b.x < mine.x + pad
+                    && b.y > mine.y - pad && b.y < mine.y + pad) {
+                    mine._intercepted = true;
+                    mine._detonateMine(level);     // harmless pop, no splash
+                    this.bullets.splice(mi, 1);
+                    particles.floatingText(mine.x, mine.y - 8, 'CLEAR', '#80e0ff', 26, -0.5, 1);
+                    player.onBulletHit?.(b, null, false);
+                    if (!b.piercing) player.bullets.splice(bi, 1);
+                    shot = true;
+                    break;
+                }
+            }
+            if (shot) continue;
+            // (R632) proximity trip — only once ARMED.
+            if (mine._mineArm <= 0) {
+                const pcx = player.x + player.w / 2;
+                const pcy = player.y + player.h / 2;
+                const r = mine._mineTrigger || 18;
+                const ddx = pcx - mine.x, ddy = pcy - mine.y;
+                if (ddx * ddx + ddy * ddy <= r * r) {
+                    mine._detonateMine(level);     // full shrapnel splash
+                    this.bullets.splice(mi, 1);
                 }
             }
         }
