@@ -26,6 +26,7 @@ export const TILE = Object.freeze({
     EXIT: 9,        // stage end trigger
     GRASS: 10,      // tall grass — passes through; while inside, player is hidden from AI
     ARC: 11,        // R625: pulsing electric arc — only damages during its "on" window; telegraphs first
+    ARCSWITCH: 12,  // R628: shootable emitter switch — a bullet hit permanently kills the stage's arcs (dark + safe)
 });
 
 // Soundtrack gallery — what shows in the SOUNDTRACK pause menu.

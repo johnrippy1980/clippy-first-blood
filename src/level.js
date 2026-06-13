@@ -144,6 +144,7 @@ const B = 8; // breakable crumble tile (solid until stood on for ~30 frames)
 const X = 9; // exit
 const G = 10; // tall grass — pass-through, hides player from AI
 const A = 11; // R625: pulsing electric arc — hazard only during its live window
+const K = 12; // R628: arc emitter kill-switch — shoot it to defuse the stage's arcs
 
 // Stage 1 — Office Park Jungle.
 // Each row is 16 tiles wide × n cols tall mapped to GAME.TILE pixels (16px).
@@ -1023,6 +1024,12 @@ function makeStage6() {
     // time the 2s pulse to dash through (or take the high platform route).
     // The 20-frame telegraph before each live window keeps it fair.
     arcRow(g, h - 3, 70, 2);
+    // R628: emitter kill-switch on a raised panel just LEFT of the arc gate.
+    // Shoot it on the approach and the gate (plus any other arc on the stage)
+    // goes dark + safe — rewards the player who spots the panel over the one
+    // who just times the pulse. Sits one tile above the floor at col 68 so the
+    // player has to aim up for it rather than mash forward through the corridor.
+    setT(g, h - 4, 68, K);
 
     // Section D (x 84–96): CONVERGENCE — paths meet at a vertical climb.
     rectT(g, 4, 84, 1, 8, W);
@@ -3019,6 +3026,10 @@ export class Level {
         // a non-zero step staggers neighbours into a traveling wave. Stage
         // data may override via data.arcRippleStep.
         this.arcRippleStep = data.arcRippleStep ?? 0;
+        // R628: shootable emitter switch. Once a bullet hits an ARCSWITCH tile,
+        // every ARC tile on the stage goes permanently dark + safe. Latched for
+        // the life of the level instance so the corridor stays defused.
+        this.arcDisabled = false;
         // Crumble tile state. Key = `${tx},${ty}`; value tracks how long the
         // player has been standing on the tile (cracking) or how long until
         // it respawns (broken). Map keeps the level data immutable.
@@ -3100,6 +3111,9 @@ export class Level {
     isSolid(px, py, allowPlatform = false, prevY = null) {
         const t = this.tileAt(px, py);
         if (t === TILE.SOLID) return true;
+        // R628: the arc emitter switch is a wall-mounted panel — solid so the
+        // player can't pass through it and so bullets stop on (and trip) it.
+        if (t === TILE.ARCSWITCH) return true;
         if (t === TILE.BREAKABLE) {
             const tx = Math.floor(px / GAME.TILE);
             const ty = Math.floor(py / GAME.TILE);
@@ -3130,10 +3144,28 @@ export class Level {
         // R626: phase is per-column so a corridor of arcs ripples — the same
         // offset the renderer uses, so contact and visuals never disagree.
         if (t === TILE.ARC) {
+            // R628: a tripped emitter switch defuses the whole circuit.
+            if (this.arcDisabled) return false;
             const tx = Math.floor(px / GAME.TILE);
             return this.arcPhase(this.arcOffsetForTile(tx)) === 'live';
         }
         return false;
+    }
+
+    // R628: is the tile at this pixel a shootable arc emitter switch? Used by
+    // the player bullet loop to register a hit and defuse the arc circuit.
+    isArcSwitch(px, py) {
+        return this.tileAt(px, py) === TILE.ARCSWITCH;
+    }
+
+    // R628: trip the emitter switch — latch every ARC on the stage to dark +
+    // safe. Idempotent; the first shot wins and subsequent calls no-op (the
+    // switch tile itself stays put as a SOLID, now-spent panel). Returns true
+    // only on the transition so callers can fire the one-time spark/SFX.
+    disableArcs() {
+        if (this.arcDisabled) return false;
+        this.arcDisabled = true;
+        return true;
     }
 
     // R625: deterministic arc clock. A 120-frame (2s) cycle keyed off the
@@ -3144,6 +3176,10 @@ export class Level {
     //   100..119 live (full arc, isHazard true)
     // Offset by an optional tile phase so a corridor of arcs can ripple.
     arcPhase(phaseOffset = 0) {
+        // R628: once the emitter switch is tripped the whole circuit reads
+        // 'off' forever — contact (isHazard) and render share this so a defused
+        // corridor never zaps and never draws a bolt.
+        if (this.arcDisabled) return 'off';
         const f = (this.frame + phaseOffset) % 120;
         if (f >= 100) return 'live';
         if (f >= 80) return 'warn';
@@ -3247,7 +3283,7 @@ export class Level {
             // it because moveX still blocked horizontal escape. Now moveY
             // honors the same wall-solid check moveX/isSolid use.
             const isBreakableWall = !!(this._wallSolidCheck && this._wallSolidCheck(px, probeY));
-            if (t === TILE.SOLID || isPlatformLanding || isCrumbleSolid || isBreakableWall) {
+            if (t === TILE.SOLID || t === TILE.ARCSWITCH || isPlatformLanding || isCrumbleSolid || isBreakableWall) {
                 const ty = Math.floor(probeY / GAME.TILE);
                 const tileEdge = sign > 0 ? ty * GAME.TILE : (ty + 1) * GAME.TILE;
                 return {
@@ -3987,6 +4023,46 @@ export class Level {
                         ctx.fillRect(cx - 1, y + 1, 2, 1);
                         ctx.fillRect(cx - 1, y + T - 2, 2, 1);
                     }
+                }
+                break;
+            }
+            case TILE.ARCSWITCH: {
+                // R628: wall-mounted emitter kill-switch. ARMED = amber housing,
+                // upright red lever, blinking warn light (shoot me). SPENT (arcs
+                // disabled) = dark housing, dropped lever, steady green "safe"
+                // light. The state is read straight off this.arcDisabled so the
+                // panel and the corridor it controls can never visually disagree.
+                const spent = this.arcDisabled;
+                // Recessed steel housing.
+                ctx.fillStyle = '#26262e';
+                ctx.fillRect(x + 1, y + 1, T - 2, T - 2);
+                ctx.fillStyle = spent ? '#3a3a44' : '#5a4a26';
+                ctx.fillRect(x + 2, y + 2, T - 4, T - 4);
+                ctx.fillStyle = spent ? '#26262e' : '#7a6230';
+                ctx.fillRect(x + 3, y + 3, T - 6, 1);
+                // Lever — upright when armed, dropped to the side when spent.
+                const lx = x + T / 2;
+                ctx.fillStyle = '#1a1a20';
+                ctx.fillRect(lx - 1, y + T - 6, 2, 4);    // pivot base
+                ctx.strokeStyle = spent ? '#707078' : '#d04030';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(lx, y + T - 5);
+                if (spent) ctx.lineTo(lx + 4, y + T - 4);  // flopped down/right
+                else ctx.lineTo(lx, y + 4);                // standing up
+                ctx.stroke();
+                ctx.lineWidth = 1;
+                // Lever knob.
+                ctx.fillStyle = spent ? '#909098' : '#ff7060';
+                if (spent) ctx.fillRect(lx + 3, y + T - 6, 3, 3);
+                else ctx.fillRect(lx - 2, y + 2, 4, 3);
+                // Status light — armed blinks amber/red, spent holds green.
+                const blink = (this.frame % 40) < 20;
+                ctx.fillStyle = spent ? '#40e060' : (blink ? '#ff4030' : '#803020');
+                ctx.fillRect(x + T - 5, y + 3, 3, 3);
+                if (!spent && blink) {
+                    ctx.fillStyle = '#ffd0a0';
+                    ctx.fillRect(x + T - 4, y + 4, 1, 1);
                 }
                 break;
             }

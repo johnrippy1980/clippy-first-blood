@@ -1983,6 +1983,28 @@ export class Player {
             // before the wall's own update loop sees them — destructibles
             // never take damage. Check level.isSolid AND not a breakable wall.
             const onBreakableWall = level._wallSolidCheck && level._wallSolidCheck(b.x, b.y);
+            // R628: a bullet that lands on an arc emitter switch trips it,
+            // permanently defusing the stage's arc circuit. The switch is solid,
+            // so this resolves inside the wall-hit branch before the usual
+            // stick/splice logic. Only the first hit does the work + fanfare.
+            if (level.isArcSwitch && level.isArcSwitch(b.x, b.y) && level.disableArcs) {
+                if (level.disableArcs()) {
+                    const sx = b.x, sy = b.y;
+                    audio.sfx?.('explosion');
+                    audio.sfx?.('powerup');
+                    particles.explosion(sx, sy, '#80e0ff', 12);
+                    particles.floatingText(sx, sy - 10, 'ARCS OFFLINE', '#80e0ff', 50, -0.5, 1.1);
+                    for (let s = 0; s < 8; s++) {
+                        const a = (s / 8) * Math.PI * 2;
+                        particles.spawn(sx, sy, Math.cos(a) * 1.4, Math.sin(a) * 1.4,
+                            14 + (Math.random() * 6 | 0), '#d8f4ff', 1, -0.04);
+                    }
+                }
+                // Consume the bullet regardless (already-spent switch eats it too).
+                particles.hitSpark(b.x, b.y, b.color);
+                this.bullets.splice(i, 1);
+                continue;
+            }
             if (level.isSolid(b.x, b.y) && !onBreakableWall) {
                 particles.hitSpark(b.x, b.y, b.color);
                 // Impact-stick: MG/SPREAD/LASER bury into the wall and fade.
