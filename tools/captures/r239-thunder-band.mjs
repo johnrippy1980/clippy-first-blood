@@ -42,13 +42,20 @@ const result = await page.evaluate(async () => {
     ];
     const out = [];
     for (const s of samples) {
-        // Take the first alive cabinet-like enemy and reposition it. If none
-        // exist, fall back to inserting a minimal alive enemy.
-        const e = g.enemies.enemies.find(x => x.alive) || null;
+        // Spawn a FRESH enemy per sample. Reusing one enemy across samples
+        // poisons the test: the first THUNDER hit adds it to the shot's struck
+        // Set and knocks it back, so later samples on the same enemy read
+        // stale/inconsistent damage. Kill any prior enemy, spawn a new grunt.
+        g.enemies.enemies.forEach(x => { x.alive = false; });
+        g.enemies.spawn(g.player.x + 80, g.player.y + s.yOff, 'folder');
+        const e = g.enemies.enemies[g.enemies.enemies.length - 1];
         if (!e) { out.push({ ...s, skipped: true }); continue; }
+        e._grace = 0;
+        e.activated = true;
         // Park enemy fairly far so it's clearly past any nearby walls
         e.x = g.player.x + 80;
         e.y = g.player.y + s.yOff;
+        e.vx = 0; e.vy = 0;
         e.hp = 10;
         e.alive = true;
         const hpBefore = e.hp;
@@ -61,7 +68,10 @@ const result = await page.evaluate(async () => {
         g.player.mgVentLock = 0;
         g.player.bullets = [];
         g.player._shoot();
-        await new Promise(r => setTimeout(r, 100));
+        // Read damage SYNCHRONOUSLY — THUNDER is a hit-scan that applies
+        // damage during _shoot(). A trailing wait let an async enemy-state
+        // reset (or reference swap) restore hp before the read, masking the
+        // hit and making the band test spuriously fail for off-axis samples.
         const hpAfter = e.hp;
         out.push({ ...s, hpBefore, hpAfter, dmg: hpBefore - hpAfter,
             mzY: Math.round(mz.y), mzX: Math.round(mz.x),

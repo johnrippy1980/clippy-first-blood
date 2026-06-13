@@ -81,9 +81,12 @@ await page.evaluate(() => {
 await page.waitForTimeout(120);
 await snap('04_dead');
 
-// Spawn some projectiles
+// Spawn some projectiles. The death snap above set voltron.hp=0, which
+// clears _turretArena.voltron — so re-spawn a fresh boss before posing it
+// rather than mutating the now-null reference.
 await page.evaluate(() => {
     const a = window.__game._turretArena;
+    if (!a.voltron) { a._voltronSpawned = false; a._spawnVoltron(); a.voltron.introT = 0; }
     a.voltron.hp = 30; a.voltron.face = 'angry'; a.voltron.faceLockT = 100;
     a._voltronThrowMouse();
     a._voltronThrowFloppy();
