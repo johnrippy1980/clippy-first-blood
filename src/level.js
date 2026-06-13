@@ -143,6 +143,7 @@ const C = 7; // cover (theme-specific duck-behind: tree, vending machine, etc.)
 const B = 8; // breakable crumble tile (solid until stood on for ~30 frames)
 const X = 9; // exit
 const G = 10; // tall grass — pass-through, hides player from AI
+const A = 11; // R625: pulsing electric arc — hazard only during its live window
 
 // Stage 1 — Office Park Jungle.
 // Each row is 16 tiles wide × n cols tall mapped to GAME.TILE pixels (16px).
@@ -348,6 +349,7 @@ function setT(g, r, c, v) { if (g[r] && c >= 0 && c < g[0].length) g[r][c] = v; 
 function rectT(g, r, c, rw, rh, v) { for (let dr = 0; dr < rh; dr++) for (let dc = 0; dc < rw; dc++) setT(g, r + dr, c + dc, v); }
 function platT(g, r, c, len) { for (let i = 0; i < len; i++) setT(g, r, c + i, P); }
 function spikeRow(g, r, c, len) { for (let i = 0; i < len; i++) setT(g, r, c + i, S); }
+function arcRow(g, r, c, len) { for (let i = 0; i < len; i++) setT(g, r, c + i, A); }
 function ladderT(g, r, c, h) { for (let i = 0; i < h; i++) setT(g, r + i, c, L); }
 
 // Stage 2 — Break Room. Vending-machine cover, coffee-puddle slip hazards,
@@ -1016,6 +1018,11 @@ function makeStage6() {
     platT(g, 9, 70, 4);
     platT(g, 7, 76, 4);
     platT(g, 9, 81, 3);
+    // R625: pulsing arc gate across the reactor low-lane floor. Sits in the
+    // safe ground route between spike-pillars 1 and 2, so the player must
+    // time the 2s pulse to dash through (or take the high platform route).
+    // The 20-frame telegraph before each live window keeps it fair.
+    arcRow(g, h - 3, 70, 2);
 
     // Section D (x 84–96): CONVERGENCE — paths meet at a vertical climb.
     rectT(g, 4, 84, 1, 8, W);
@@ -3104,7 +3111,26 @@ export class Level {
 
     isHazard(px, py) {
         const t = this.tileAt(px, py);
-        return t === TILE.SPIKE || t === TILE.HAZARD;
+        if (t === TILE.SPIKE || t === TILE.HAZARD) return true;
+        // R625: pulsing arc only bites during its live window. The 20-frame
+        // telegraph that precedes it (see arcPhase) is intentionally NOT
+        // hazardous so a fair player always gets a tell before the shock.
+        if (t === TILE.ARC) return this.arcPhase() === 'live';
+        return false;
+    }
+
+    // R625: deterministic arc clock. A 120-frame (2s) cycle keyed off the
+    // level frame counter so every ARC tile on screen pulses in unison and
+    // the render + contact checks never disagree:
+    //   0..79   off   (dim emitter, safe)
+    //   80..99  warn  (sparks crackle — telegraph, still safe)
+    //   100..119 live (full arc, isHazard true)
+    // Offset by an optional tile phase so a corridor of arcs can ripple.
+    arcPhase(phaseOffset = 0) {
+        const f = (this.frame + phaseOffset) % 120;
+        if (f >= 100) return 'live';
+        if (f >= 80) return 'warn';
+        return 'off';
     }
 
     isExit(px, py) {
@@ -3890,6 +3916,48 @@ export class Level {
                     ctx.fillRect(x + 4, y + 4, T - 8, T - 8);
                 }
                 break;
+            case TILE.ARC: {
+                // R625: pulsing electric arc. Two emitter nodes (top + bottom of
+                // the tile) with a vertical bolt that crackles between them. The
+                // node always renders so the hazard's location reads even when
+                // off; the bolt's intensity tracks arcPhase (off/warn/live).
+                const phase = this.arcPhase();
+                const cx = x + T / 2;
+                // Emitter nodes — chunky metal caps top and bottom.
+                ctx.fillStyle = '#4a4a58';
+                ctx.fillRect(x + 3, y, T - 6, 3);
+                ctx.fillRect(x + 3, y + T - 3, T - 6, 3);
+                ctx.fillStyle = '#7a7a8a';
+                ctx.fillRect(x + 5, y + 1, T - 10, 1);
+                ctx.fillRect(x + 5, y + T - 2, T - 10, 1);
+                if (phase !== 'off') {
+                    // Jagged bolt down the middle. WARN = thin dim sputter,
+                    // LIVE = bright thick zap. Deterministic zigzag keyed off
+                    // frame so it animates but stays reproducible.
+                    const live = phase === 'live';
+                    const seg = 3;
+                    ctx.fillStyle = live ? '#ffffff' : '#5a6a9a';
+                    for (let yy = 3; yy < T - 3; yy += seg) {
+                        const wob = ((this.frame + yy * 3) % 5) - 2; // -2..2
+                        const bx = cx + (live ? wob : (wob >> 1));
+                        const bw = live ? 2 : 1;
+                        ctx.fillRect(bx, y + yy, bw, seg);
+                    }
+                    if (live) {
+                        // Cyan glow halo + node flare on the live frames.
+                        ctx.fillStyle = '#80e0ff';
+                        for (let yy = 4; yy < T - 4; yy += 4) {
+                            const wob = ((this.frame + yy) % 5) - 2;
+                            ctx.fillRect(cx + wob - 2, y + yy, 1, 1);
+                            ctx.fillRect(cx + wob + 2, y + yy, 1, 1);
+                        }
+                        ctx.fillStyle = '#d8f4ff';
+                        ctx.fillRect(cx - 1, y + 1, 2, 1);
+                        ctx.fillRect(cx - 1, y + T - 2, 2, 1);
+                    }
+                }
+                break;
+            }
             case TILE.COVER: {
                 // Themed cover object — tree, vending machine, server rack, door,
                 // podium, statue, cloud-pillar. Player holds UP near these to
