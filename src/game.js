@@ -17,7 +17,7 @@ import { EnemyManager } from './enemies.js';
 import { PickupManager } from './pickups.js';
 import { Parallax } from './parallax.js';
 import { drawHUD } from './hud.js';
-import { drawText, drawTextOutlined } from './pixelfont.js';
+import { drawText, drawTextOutlined, textWidth } from './pixelfont.js';
 import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST, BONZI_MANIFEST } from './sprites.js';
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { leaderboard } from './leaderboard.js';
@@ -1244,6 +1244,19 @@ export class Game {
                 drawText(ctx, '<', panelX + panelW - 16, y, '#ffe070', 1, 'left');
             }
             drawText(ctx, items[i].label, GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
+            // R621: live streak badge on the DAILY CHALLENGE row. Shows the
+            // current streak so it's visible before entering the briefing.
+            // Sits just right of the centered label, streak-orange, with a tiny
+            // dot if today's already cleared (matches the briefing's note).
+            if (items[i].action === 'daily') {
+                const streak = achievements.stats.dailyStreak || 0;
+                if (streak > 0) {
+                    const labelW = textWidth(items[i].label, 1);
+                    const bx = GAME.W / 2 + labelW / 2 + 5;
+                    const clearedToday = achievements.stats.lastDailyDay === dailyChallenge.todayKey();
+                    drawText(ctx, 'x' + streak, bx, y, clearedToday ? '#a0ff70' : '#ffb060', 1, 'left');
+                }
+            }
         }
 
         drawText(ctx, 'UP/DOWN  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 7, '#604068', 1, 'center');
