@@ -1078,6 +1078,10 @@ function makeStage6() {
             // R325: dive_bomber over the wider pit — pressure on top of
             // the existing folder/sniper combo.
             { x: 64 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'dive_bomber' },
+            // R624: sentry turret mounted on the reactor mid-platform (row 7,
+            // platT at col 76). Guards the spike-pillar corridor exit — the
+            // player must dash past its blind side or eat the burst.
+            { x: 78 * GAME.TILE, y: ( 7) * GAME.TILE, type: 'turret' },
         ],
         pickupSpawns: [
             // B top: LASER (unchanged)

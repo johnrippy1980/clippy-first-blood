@@ -116,6 +116,22 @@ const TYPES = {
         activateRange: 220,
         gibPalette: ['#707880', '#404848', '#202028'],
     },
+    // R624: sentry turret — fixed gun emplacement (zone denial). Never moves;
+    // locks its facing to whichever side the player is on, then fires aimed
+    // bursts with a charge telegraph. Crucial twist: it only fires toward the
+    // side it currently faces and has a long re-aim lag, so a player who runs
+    // PAST it (crossing to its blind side) gets a free window before it
+    // swivels — rewarding aggressive movement over camping at range.
+    turret: {
+        sprite: 'turret',
+        w: 16, h: 16,
+        hp: 5, contactDmg: 1, score: 200,
+        speed: 0, behavior: 'turret',
+        shootInterval: 80, projectileSpeed: 2.5, beamCharge: 26,
+        burstCount: 2, burstGap: 10, reaimLag: 36,
+        activateRange: 230,
+        gibPalette: ['#909098', '#505058', '#202028'],
+    },
 };
 
 class Bullet {
@@ -341,6 +357,7 @@ class Enemy {
             case 'dive_bomb':      this._diveBomb(level, player); break;
             case 'summon':         this._summon(level, player); break;
             case 'shielded_walk':  this._shieldedWalk(level, player); break;
+            case 'turret':         this._turret(level, player); break;
         }
     }
 
@@ -521,6 +538,70 @@ class Enemy {
                 b.color = '#ff5050';
                 globalEnemyBullets.push(b);
                 audio.sfx?.('shoot');
+            }
+        }
+    }
+
+    // R624: sentry turret — stationary aimed-fire emplacement with a swivel
+    // lag. Locks facing to the player's side, but only AFTER reaimLag frames of
+    // the player being on the opposite side (the "blind side" window). When
+    // facing the player and in range, charges (telegraph) then fires a short
+    // aimed burst. Honors the same hidden/owl-pause fairness gates as snipers.
+    _turret(level, player) {
+        const tpl = this.tpl;
+        const dx = player.x - this.x;
+        const distAbs = Math.abs(dx);
+        const wantFacing = dx > 0 ? 1 : -1;
+        // Swivel lag: count frames the player has spent on the side the turret
+        // is NOT currently facing; only flip once that exceeds reaimLag. This
+        // is what gives a player who dashes past the turret a free window.
+        if (wantFacing !== this.facing) {
+            this._reaimTimer = (this._reaimTimer || 0) + 1;
+            if (this._reaimTimer >= tpl.reaimLag) {
+                this.facing = wantFacing;
+                this._reaimTimer = 0;
+            }
+        } else {
+            this._reaimTimer = 0;
+        }
+        // Fairness gates — never fire at a hidden / owl-paused player.
+        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
+            this._noticeTargetLost();
+            return;
+        }
+        if (this.owlPause > 0) return;
+        // Only fire when actually facing the player's side and in range, and
+        // not mid-burst / mid-charge already.
+        const facingPlayer = wantFacing === this.facing;
+        if (facingPlayer && distAbs < tpl.activateRange
+            && this.timer % tpl.shootInterval === 0
+            && this.subTimer === 0 && (this._burstLeft || 0) === 0) {
+            this.subTimer = tpl.beamCharge;   // charge telegraph window
+        }
+        // Charge -> first shot of a burst.
+        if (this.subTimer > 0) {
+            this.subTimer--;
+            if (this.subTimer === 0) {
+                this._burstLeft = tpl.burstCount;
+                this._burstTimer = 0;
+            }
+        }
+        // Fire the burst, one aimed shot every burstGap frames.
+        if ((this._burstLeft || 0) > 0) {
+            if (this._burstTimer <= 0) {
+                const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+                const tx = player.x + player.w / 2 - cx;
+                const ty = player.y + player.h / 2 - cy;
+                const d = Math.hypot(tx, ty) || 1;
+                const b = new Bullet(cx, cy,
+                    tx / d * tpl.projectileSpeed, ty / d * tpl.projectileSpeed);
+                b.color = '#ff7040';
+                globalEnemyBullets.push(b);
+                audio.sfx?.('shoot');
+                this._burstLeft--;
+                this._burstTimer = tpl.burstGap;
+            } else {
+                this._burstTimer--;
             }
         }
     }
@@ -738,6 +819,7 @@ class Enemy {
         const dyingShortly = this.hp <= 1 && this.maxHp > 2;
         const attackPose = (this.behavior === 'charge' && this.subState === 1)
                         || (this.behavior === 'hover_sniper' && this.subTimer > 0)
+                        || (this.behavior === 'turret' && this.subTimer > 0)
                         || (this.behavior === 'hop' && this.vy < -1);
         let useSprite = this.sprite;
         // R346: shielder swap — painted 'shielder' sprite has the shield

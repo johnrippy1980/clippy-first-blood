@@ -1309,10 +1309,34 @@ const ENEMY_CABINET = [
     '_1111111111_____',
 ];
 
+// R624: wall/floor-mounted sentry turret. A squat armored base with a
+// forward gun barrel and a single red optic. Stationary zone-denial enemy —
+// reads as a "fixed gun emplacement", visually distinct from the mobile
+// grunts. Barrel points right; the renderer flips it to face the player.
+const ENEMY_TURRET = [
+    '________________',
+    '_____1111_______',
+    '____1cccc1______',
+    '____1cddc1aaaa__',
+    '___1ccddcc1bbb1_',
+    '___1cddddc1bbb1_',
+    '____1cddc1aaaa__',
+    '___11111111_____',
+    '__1cc1111cc1____',
+    '__1c1baaab1c1___',
+    '__1c1baaab1c1___',
+    '__1ccbbbbccc1___',
+    '__1c11111111c1__',
+    '_1cc111111ccc1__',
+    '_1111111111111__',
+    '________________',
+];
+
 const ENEMY_FRAMES = {
     'folder':  ENEMY_FOLDER,
     'stapler': ENEMY_STAPLER,
     'cabinet': ENEMY_CABINET,
+    'turret':  ENEMY_TURRET,
 };
 
 // Enemy palette — bone whites, dirty creams, rust reds. Hostile.
