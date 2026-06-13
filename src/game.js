@@ -7236,6 +7236,14 @@ export class Game {
                 if (isRecord) achievements.stats.dailyStreakBest = streak;
                 achievements._save();
                 this._dailyStreakResult = { streak, isRecord, advanced };
+                // R622: celebrate a genuine new streak best with a one-time
+                // banner. Gated on `advanced` so a same-day re-clear (which
+                // can't raise the streak) never fires it, and on streak > 1 so
+                // the very first daily ever isn't dressed up as a "record".
+                if (isRecord && advanced && streak > 1) {
+                    this._pushUnlockToast('NEW STREAK RECORD',
+                        streak + ' DAYS IN A ROW');
+                }
             }
             leaderboard.submit({
                 runId: this.runId,
