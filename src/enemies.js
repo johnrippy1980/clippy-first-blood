@@ -246,6 +246,19 @@ class Bullet {
         // The actual proximity-detonation is in the manager loop (it needs the
         // player ref Bullet.update lacks), mirroring the mortar/shell split.
         if (this._mine) {
+            // R634/R635: a PUNTED mine is a live projectile — the player kicked
+            // it (slide/roll/dash) and it now flies in their facing, arcing under
+            // gravity, until it meets terrain and detonates with ENEMY-damaging
+            // shrapnel (the manager handles enemy contact). It does NOT re-settle.
+            if (this._minePunt) {
+                this.life--;                            // punted mines DO expire
+                if (level.isSolid(this.x, this.y)) {
+                    this.x = this.prevX; this.y = this.prevY;
+                    this._detonateMine(level);          // _minePunt → enemy splash
+                    return;
+                }
+                return;
+            }
             if (!this._mineSettled) {
                 // Settling: keep falling until a solid tile is directly below.
                 if (level.isSolid(this.x, this.y + 2)) {
@@ -320,8 +333,10 @@ class Bullet {
     // R632: shared shrapnel burst — a low ring of short-lived splash sub-bullets
     // the manager player-collision loop damages with, so any AoE source (mortar
     // shell, proximity mine) needs zero new collision code. Children are tagged
-    // _splashChild so they never recursively re-splash.
-    _spawnShrapnel(cx, cy) {
+    // _splashChild so they never recursively re-splash. R635: vsEnemies flips
+    // ownership — a punted mine's shrapnel damages ENEMIES, not the player, via
+    // the manager's parried-bullet enemy-hit loop (tagged _parried).
+    _spawnShrapnel(cx, cy, vsEnemies = false) {
         const n = this._splashShots || 6;
         const r = this._splashR || 22;
         for (let i = 0; i < n; i++) {
@@ -331,10 +346,11 @@ class Bullet {
             const sp = 1.6 + Math.random() * 0.6;
             const b = new Bullet(cx, cy - 2, Math.cos(ang) * sp, Math.sin(ang) * sp,
                 this._splashDmg || 1);
-            b.color = '#ffb060';
+            b.color = vsEnemies ? '#80e0ff' : '#ffb060';
             b.life = Math.round(r / sp) + 6;   // short range — it's a ground splash
             b._gravity = 0.14;                 // shrapnel arcs back down
             b._splashChild = true;             // tag so children never re-splash
+            if (vsEnemies) b._parried = true;  // ownership flip → hits enemies
             globalEnemyBullets.push(b);
         }
         // Dust kick along the ground.
@@ -346,7 +362,9 @@ class Bullet {
     }
     // R632: proximity-mine detonation. A mine sits inert on the ground until it
     // ARMS, then bursts the same shrapnel ring as a mortar shell. R633: if the
-    // mine was shot (_intercepted) it pops harmlessly with NO splash.
+    // mine was shot (_intercepted) it pops harmlessly with NO splash. R635: a
+    // PUNTED mine (_minePunt) bursts ENEMY-damaging shrapnel — the player kicked
+    // it into an enemy/wall, so the AoE turns against the enemies.
     _detonateMine(level) {
         this.life = 0;
         const cx = this.x, cy = this.y;
@@ -355,9 +373,10 @@ class Bullet {
             audio.sfx?.('hitSpark');
             return;
         }
-        particles.explosion(cx, cy, '#ff7030', 14);
+        const vsEnemies = !!this._minePunt;
+        particles.explosion(cx, cy, vsEnemies ? '#80e0ff' : '#ff7030', 14);
         audio.sfx?.('explosion');
-        this._spawnShrapnel(cx, cy);
+        this._spawnShrapnel(cx, cy, vsEnemies);
     }
     draw(ctx, camera) {
         const dx = Math.round(this.x - camera.viewX);
@@ -3438,9 +3457,47 @@ export class EnemyManager {
         //         radius — the area-denial payoff.
         //  (R633) a player bullet that hits ANY mine (armed or not) clears it
         //         harmlessly with NO splash — the skill counter (shoot it first).
+        // R634: a player kicking through a deployed mine while sliding / rolling
+        // / dash-attacking PUNTS it — turning the hazard into a weapon. The mine
+        // becomes a live projectile (_minePunt) flying in the player's facing.
+        const puntState = player.state === STATE.SLIDE
+            || player.state === STATE.ROLL
+            || player.state === STATE.DASH_ATTACK;
         for (let mi = this.bullets.length - 1; mi >= 0; mi--) {
             const mine = this.bullets[mi];
             if (!mine._mine || mine._intercepted || mine.life <= 0) continue;
+            // (R635) a PUNTED mine in flight that overlaps an enemy detonates with
+            // enemy-damaging shrapnel right there (wall contact is handled in
+            // Bullet.update). Checked first so a punt-kill resolves immediately.
+            if (mine._minePunt) {
+                for (const e of this.enemies) {
+                    if (!e.alive) continue;
+                    if (mine.x > e.x && mine.x < e.x + e.w
+                        && mine.y > e.y && mine.y < e.y + e.h) {
+                        e.hurt(mine.dmg || 1, mine.vx > 0 ? 1 : -1);
+                        mine._detonateMine(level);     // enemy-damaging splash
+                        this.bullets.splice(mi, 1);
+                        break;
+                    }
+                }
+                continue;     // punted mines ignore the player-trip / shoot checks
+            }
+            // (R634) punt check — the player's body crossing a grounded mine.
+            if (puntState
+                && mine.x > player.x - 4 && mine.x < player.x + player.w + 4
+                && mine.y > player.y - 2 && mine.y < player.y + player.h + 4) {
+                mine._minePunt = true;
+                mine._parried = true;               // ownership flipped — can't hit player
+                mine._mineSettled = false;          // it's airborne again
+                mine.vx = (player.facing || 1) * 3.2;
+                mine.vy = -1.4;                     // slight pop off the ground
+                mine._gravity = 0.16;
+                mine.life = 90;                     // travel budget before fizzle
+                mine.color = '#80e0ff';
+                particles.floatingText(mine.x, mine.y - 8, 'PUNT!', '#80e0ff', 26, -0.6, 1);
+                audio.sfx?.('select');
+                continue;
+            }
             // (R633) shootable — check player bullets first so a well-aimed shot
             // always beats the proximity trip on the same frame.
             let shot = false;
