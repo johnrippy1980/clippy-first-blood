@@ -3256,6 +3256,31 @@ export class EnemyManager {
             }
         }
 
+        // R631: player bullets can INTERCEPT a mortar shell in the air. A hit
+        // marks the shell _intercepted then detonates it — a harmless mid-air
+        // pop with NO ground splash — giving skilled players a hard counter to
+        // the mortar's area denial. Shells live in the enemy-bullet array, so
+        // this is a separate pass from the player-bullet-vs-enemy loop above.
+        for (let si = this.bullets.length - 1; si >= 0; si--) {
+            const shell = this.bullets[si];
+            if (!shell._mortar || shell._intercepted || shell.life <= 0) continue;
+            // Slightly padded box so a fast bullet doesn't tunnel past the 4px shell.
+            const sx = shell.x, sy = shell.y, pad = 4;
+            for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
+                const b = player.bullets[bi];
+                if (b.stuck) continue;
+                if (b.x > sx - pad && b.x < sx + pad && b.y > sy - pad && b.y < sy + pad) {
+                    shell._intercepted = true;
+                    shell._detonateMortar(level);      // harmless pop, no splash
+                    this.bullets.splice(si, 1);        // shell is spent
+                    particles.floatingText(sx, sy - 8, 'INTERCEPT', '#80e0ff', 28, -0.5, 1);
+                    player.onBulletHit?.(b, null, false);
+                    if (!b.piercing) player.bullets.splice(bi, 1);
+                    break;
+                }
+            }
+        }
+
         // Enemy bullets
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.bullets.length - 1; i >= 0; i--) {
