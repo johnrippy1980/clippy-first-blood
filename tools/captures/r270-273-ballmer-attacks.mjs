@@ -14,25 +14,32 @@ await page.waitForTimeout(2500);
 await page.click('#screen');
 await page.waitForTimeout(600);
 
-// Jump to FPS Ballmer stage
+// Jump to the FPS Ballmer stage (BALLMER OFFICE, stage id 6). Old hardcoded
+// index 16 rotted when the STAGES table was renumbered (16 is now FLOOR 11).
 await page.evaluate(() => {
-    window.__game._startStage(16);
+    window.__game._startStage(6);
 });
-// R272: stage intro should fire first
+// R272: stage intro should fire first.
 await page.waitForTimeout(1500);
 await page.screenshot({ path: '/tmp/r270-273/01-intro-card.png' });
 
-// Skip intro
+// Skip intro, then poll for the arena to mount (R272/R457 routes through
+// STAGE_INTRO, so the mount time is variable).
 await page.keyboard.down('x');
 await page.waitForTimeout(80);
 await page.keyboard.up('x');
-await page.waitForTimeout(1500);
+for (let k = 0; k < 40; k++) {
+    const mounted = await page.evaluate(() => !!window.__game._fpsArena);
+    if (mounted) break;
+    await page.waitForTimeout(150);
+}
+await page.waitForTimeout(300);
 await page.screenshot({ path: '/tmp/r270-273/02-arena-loaded.png' });
 
 // Force-advance to segment 1 (grunts with floppy projectiles)
 await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    a.turrets.forEach(t => { t.hp = 0; t.alive = false; });
+    a?.turrets?.forEach(t => { t.hp = 0; t.alive = false; });
 });
 await page.waitForTimeout(1200);
 // Wait for grunts to fire some floppies
@@ -41,20 +48,20 @@ await page.screenshot({ path: '/tmp/r270-273/03-floppy-projectiles.png' });
 
 const floppyState = await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    const floppies = a.enemyBullets.filter(b => b.isFloppy);
-    return { totalBullets: a.enemyBullets.length, floppies: floppies.length };
+    const floppies = (a?.enemyBullets || []).filter(b => b.isFloppy);
+    return { totalBullets: a?.enemyBullets?.length ?? 0, floppies: floppies.length };
 });
 console.log('Floppy projectiles in flight:', JSON.stringify(floppyState));
 
 // Force-advance to segment 2 then 3 (boss)
 await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    a.grunts.forEach(g => { g.hp = 0; g.alive = false; });
+    a?.grunts?.forEach(g => { g.hp = 0; g.alive = false; });
 });
 await page.waitForTimeout(1200);
 await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    a.turrets.forEach(t => { t.hp = 0; t.alive = false; });
+    a?.turrets?.forEach(t => { t.hp = 0; t.alive = false; });
 });
 // Wait through bossEntry phase
 await page.waitForTimeout(2200);
@@ -65,8 +72,8 @@ await page.screenshot({ path: '/tmp/r270-273/05-chairs-flying.png' });
 
 const chairState = await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    const chairs = a.enemyBullets.filter(b => b.isChair);
-    return { totalBullets: a.enemyBullets.length, chairs: chairs.length };
+    const chairs = (a?.enemyBullets || []).filter(b => b.isChair);
+    return { totalBullets: a?.enemyBullets?.length ?? 0, chairs: chairs.length };
 });
 console.log('Chairs in flight:', JSON.stringify(chairState));
 

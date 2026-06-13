@@ -14,12 +14,19 @@ await page.waitForTimeout(2500);
 await page.click('#screen');
 await page.waitForTimeout(600);
 
-// Jump to FPS stage (loader index 15)
+// Jump to the FPS stage (KEYNOTE CORRIDOR, stage id 9). The arena mounts
+// only after the STAGE_INTRO transition (R272/R457), so poll for _fpsArena
+// instead of a fixed wait — the old hardcoded index + fixed timeout rotted
+// when the STAGES table was renumbered (15 is now TRAINING GROUND).
 await page.evaluate(() => {
-    window.__game._startStage(15);
+    window.__game._startStage(9);
 });
-// Wait through the fade transition into FPS_PLAY scene
-await page.waitForTimeout(1500);
+for (let k = 0; k < 40; k++) {
+    const mounted = await page.evaluate(() => !!window.__game._fpsArena);
+    if (mounted) break;
+    await page.waitForTimeout(150);
+}
+await page.waitForTimeout(300);
 await page.screenshot({ path: '/tmp/r261/seg0-turret-wave.png' });
 
 // Probe state
@@ -36,10 +43,13 @@ let probe = await page.evaluate(() => {
 });
 console.log('Initial:', JSON.stringify(probe));
 
-// Force-kill segment 0 turrets, advance to segment 1
+// Force-kill segment 0 turrets, advance to segment 1. Guard the array
+// reads — this is a screenshot-capture probe, not a pass/fail gate, and the
+// arena's segment composition has shifted since it was written; an absent
+// turrets/grunts array should not crash the whole capture.
 await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    a.turrets.forEach(t => { t.hp = 0; t.alive = false; });
+    a?.turrets?.forEach(t => { t.hp = 0; t.alive = false; });
 });
 // Wait through the advance transition
 await page.waitForTimeout(1200);
@@ -57,7 +67,7 @@ await page.screenshot({ path: '/tmp/r261/seg1-grunts-mid.png' });
 // Force-kill grunts → segment 2
 await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    a.grunts.forEach(g => { g.hp = 0; g.alive = false; });
+    a?.grunts?.forEach(g => { g.hp = 0; g.alive = false; });
 });
 await page.waitForTimeout(1200);
 await page.screenshot({ path: '/tmp/r261/seg2-barrier.png' });
@@ -70,7 +80,7 @@ console.log('After advance 2:', JSON.stringify(probe));
 // Force-kill turrets → segment 3 (boss)
 await page.evaluate(() => {
     const a = window.__game._fpsArena;
-    a.turrets.forEach(t => { t.hp = 0; t.alive = false; });
+    a?.turrets?.forEach(t => { t.hp = 0; t.alive = false; });
 });
 await page.waitForTimeout(1800);
 await page.screenshot({ path: '/tmp/r261/seg3-boss-entry.png' });

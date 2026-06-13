@@ -16,6 +16,7 @@ const report = await page.evaluate(async () => {
     const STAGES = constants.STAGES;
     const out = [];
     for (const stage of STAGES) {
+        if (!stage) continue;   // STAGES is 1-indexed; index 0 is a null hole
         const id = stage.id;
         const entry = {
             id,

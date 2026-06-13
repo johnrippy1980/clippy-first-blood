@@ -13,11 +13,19 @@ await page.waitForTimeout(2500);
 await page.click('#screen');
 await page.waitForTimeout(600);
 
-// Jump to FPS Ballmer stage (loader index 16)
+// Jump to the FPS Ballmer stage (BALLMER OFFICE, stage id 6). The arena
+// mounts only after the STAGE_INTRO transition (R272/R457), so poll for
+// _fpsArena rather than a fixed wait — the old hardcoded index 16 rotted
+// when the STAGES table was renumbered (16 is now FLOOR 11).
 await page.evaluate(() => {
-    window.__game._startStage(16);
+    window.__game._startStage(6);
 });
-await page.waitForTimeout(1500);
+for (let k = 0; k < 40; k++) {
+    const mounted = await page.evaluate(() => !!window.__game._fpsArena);
+    if (mounted) break;
+    await page.waitForTimeout(150);
+}
+await page.waitForTimeout(300);
 await page.screenshot({ path: '/tmp/r268/seg0-fax-turrets.png' });
 
 let probe = await page.evaluate(() => {
