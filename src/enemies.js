@@ -437,7 +437,15 @@ class Enemy {
         if (this.subState === 0) {
             this.facing = dx > 0 ? 1 : -1;
             this.vx = this.facing * tpl.speed;
-            if (dist < 96) this.subState = 1; // wind up earlier
+            if (dist < 96) {
+                this.subState = 1; // wind up earlier
+                this.subTimer = 0;
+                // R623: kick a dust puff at the feet the instant wind-up
+                // begins so the charge is telegraphed and reads fairly — the
+                // player gets a visual "it's about to lunge" beat.
+                particles.dust(this.x + this.w / 2, this.y + this.h - 2);
+                audio.sfx('select');
+            }
             this.subTimer = 0;
         } else if (this.subState === 1) {
             this.subTimer++;
@@ -451,7 +459,17 @@ class Enemy {
         } else if (this.subState === 2) {
             this.vx = this.facing * tpl.chargeSpeed;
             this.subTimer++;
-            if (this.subTimer > 45) { this.subState = 0; }
+            if (this.subTimer > 45) {
+                // R623: a charge that whiffs (runs its full duration without
+                // hitting a wall) leaves the cabinet winded — a short recovery
+                // stun so a perfect dodge is ALWAYS rewarded with a punish
+                // window, not just when the cabinet slams a wall. Reuses the
+                // existing knockStun "settle, skip AI" path.
+                this.subState = 0;
+                this.knockStun = Math.max(this.knockStun || 0, 28);
+                this.vx = -this.facing * 0.8; // brief recoil as it overshoots
+                particles.dust(this.x + this.w / 2, this.y + this.h - 2);
+            }
         }
         this.vy += GAME.GRAVITY;
         const xRes = level.moveX(this, this.vx);
