@@ -181,6 +181,14 @@ const TYPES = {
         // radius; mineLife caps how long an un-tripped mine lingers.
         dropInterval: 140, mineArm: 40, mineTrigger: 18, mineLife: 600,
         splashR: 22, splashShots: 5, splashDmg: 1,
+        // R636: sympathetic chain radius — a mine that detonates touches off
+        // other settled mines within mineChainR, so packed clusters cascade.
+        mineChainR: 28,
+        // R637: panic burst. The FIRST time the sapper drops below panicHp of
+        // its max HP it scatters panicMines in a tight cluster at its feet and
+        // FLEES the player at panicSpeed for panicFlee frames — punishing a slow
+        // chip-kill (and synergising with R636: that fresh cluster cascades).
+        panicHp: 0.5, panicMines: 3, panicFlee: 70, panicSpeed: 1.6,
         activateRange: 240,
         gibPalette: ['#5a6a4a', '#3a4630', '#1a2014'],  // olive-drab sapper
     },
@@ -255,6 +263,9 @@ class Bullet {
                 if (level.isSolid(this.x, this.y)) {
                     this.x = this.prevX; this.y = this.prevY;
                     this._detonateMine(level);          // _minePunt → enemy splash
+                    // R636: flag the detonation point so the manager seeds an
+                    // enemy-damaging cascade through any cluster it landed in.
+                    this._chainSeed = { x: this.x, y: this.y, r: this._mineChainR, vsEnemies: true };
                     return;
                 }
                 return;
@@ -918,9 +929,45 @@ class Enemy {
     _sapper(level, player) {
         const tpl = this.tpl;
         const dx = player.x - this.x;
-        this.facing = dx > 0 ? 1 : -1;
-        // Walk toward the player when not right on top of them.
-        this.vx = Math.abs(dx) > 20 ? this.facing * tpl.speed : 0;
+        const toPlayer = dx > 0 ? 1 : -1;
+
+        // R637: PANIC BURST. The first frame the sapper drops below panicHp of
+        // its max HP, it scatters a tight mine cluster at its feet and turns to
+        // FLEE. Gated on being grounded + the player visible (same fairness rule
+        // as a normal drop) so it never fires off-screen; if it can't fire yet it
+        // stays un-panicked and tries again next frame.
+        const hidden = player.waterHidden || player.grassHidden || player.state === STATE.COVER;
+        if (!this._panicked && this.hp <= this.maxHp * (tpl.panicHp || 0.5)
+            && !hidden && !(this.owlPause > 0) && this._isOnGround(level)) {
+            this._panicked = true;
+            this._fleeTimer = tpl.panicFlee || 70;
+            // Scatter the cluster — centered, spread so neighbors fall inside
+            // each other's chain radius (R636 makes the whole cluster cascade).
+            const n = tpl.panicMines || 3;
+            for (let i = 0; i < n; i++) {
+                const off = (i - (n - 1) / 2) * 10;       // -10, 0, +10 for n=3
+                this._dropMine(level, off);
+            }
+            particles.floatingText(this.x + this.w / 2, this.y - 8, 'PANIC!', '#ff6040', 30, -0.6, 1);
+            audio.sfx?.('explosion');
+        }
+
+        // While fleeing, run AWAY from the player at panicSpeed; otherwise pace
+        // toward them as usual.
+        let moveDir, speed;
+        if (this._fleeTimer > 0) {
+            this._fleeTimer--;
+            moveDir = -toPlayer;                       // opposite the player
+            speed = tpl.panicSpeed || 1.6;
+            this.facing = moveDir;                     // face the run direction
+        } else {
+            this.facing = toPlayer;
+            moveDir = toPlayer;
+            speed = tpl.speed;
+        }
+
+        // Walk toward/away from the player (hold still only when adjacent & calm).
+        this.vx = (this._fleeTimer > 0 || Math.abs(dx) > 20) ? moveDir * speed : 0;
         this.vy += GAME.GRAVITY;
         const xRes = level.moveX(this, this.vx);
         this.x = xRes.x;
@@ -934,12 +981,13 @@ class Enemy {
         }
         // Drop cadence — never lay a mine while the player is hidden / owl-paused
         // (it'd be an unfair off-screen hazard), and only once we've settled on
-        // the ground so the mine drops onto real floor.
-        if (player.waterHidden || player.grassHidden || player.state === STATE.COVER) {
+        // the ground so the mine drops onto real floor. Fleeing suppresses the
+        // routine drop so the panic burst reads as a distinct beat.
+        if (hidden) {
             this._noticeTargetLost();
             return;
         }
-        if (this.owlPause > 0) return;
+        if (this.owlPause > 0 || this._fleeTimer > 0) return;
         if (this.timer % tpl.dropInterval === 0 && this.timer > 0 && this._isOnGround(level)) {
             this._dropMine(level);
         }
@@ -949,11 +997,14 @@ class Enemy {
     // stationary enemy-bullet tagged _mine; Bullet.update settles it onto the
     // ground and ticks its arm timer, while the manager loop runs the proximity
     // trigger + the R633 shootable-mine check.
-    _dropMine(level) {
+    _dropMine(level, offsetX = null) {
         const tpl = this.tpl;
         // Drop slightly behind the direction of travel so the sapper walks away
-        // from its own mine rather than parking on it.
-        const ox = this.x + this.w / 2 - this.facing * 6;
+        // from its own mine rather than parking on it. R637: a panic burst passes
+        // an explicit offset so the cluster spreads around the sapper's feet.
+        const ox = offsetX != null
+            ? this.x + this.w / 2 + offsetX
+            : this.x + this.w / 2 - this.facing * 6;
         const oy = this.y + this.h - 2;
         const mine = new Bullet(ox, oy, 0, 0.4, tpl.contactDmg);
         mine._mine = true;
@@ -964,6 +1015,7 @@ class Enemy {
         mine._splashR = tpl.splashR;
         mine._splashShots = tpl.splashShots;
         mine._splashDmg = tpl.splashDmg;
+        mine._mineChainR = tpl.mineChainR;     // R636: sympathetic-detonation radius
         mine.life = tpl.mineLife;
         mine.color = '#ff7030';
         globalEnemyBullets.push(mine);
@@ -3191,6 +3243,43 @@ export class EnemyManager {
         return boss;
     }
 
+    // R636: sympathetic chain detonation. After a mine pops, any other settled
+    // mine whose body lies within the origin's chain radius "catches" the blast
+    // and detonates too — packed clusters cascade in a ripple. The cascade is a
+    // breadth-first sweep seeded at the first detonation point; each newly-caught
+    // mine seeds the next ring, so a single trip can clear a whole field.
+    //   - ownership PROPAGATES: if the seed was a punted (enemy-damaging) mine,
+    //     every link in the chain also bursts enemy-damaging shrapnel, so a
+    //     punt into a cluster turns the sapper's own field against it.
+    //   - intercepted/shot mines never seed a chain (they pop harmless) and a
+    //     mine already mid-detonation is skipped so we never double-count.
+    // `seeds` is a list of {x, y, vsEnemies} points; returns the # detonated.
+    _chainDetonateMines(seeds, level) {
+        let detonated = 0;
+        let guard = 0;
+        while (seeds.length && guard++ < 64) {
+            const seed = seeds.shift();
+            const r = seed.r || 28;
+            for (let i = this.bullets.length - 1; i >= 0; i--) {
+                const m = this.bullets[i];
+                if (!m._mine || m._intercepted || m.life <= 0) continue;
+                if (m._chaining) continue;                 // already caught this pass
+                const dx = m.x - seed.x, dy = m.y - seed.y;
+                if (dx * dx + dy * dy > r * r) continue;    // out of blast reach
+                // Catch it: propagate punt-ownership so the chain matches the seed.
+                m._chaining = true;
+                if (seed.vsEnemies) m._minePunt = true;
+                particles.floatingText(m.x, m.y - 6, 'CHAIN', '#ffd060', 22, -0.4, 1);
+                m._detonateMine(level);
+                this.bullets.splice(i, 1);
+                detonated++;
+                // This link seeds the next ring of the cascade.
+                seeds.push({ x: m.x, y: m.y, r: m._mineChainR || r, vsEnemies: seed.vsEnemies });
+            }
+        }
+        return detonated;
+    }
+
     update(level, player) {
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         // Pounce target scan — while the player is hidden (grass/water/cover),
@@ -3477,6 +3566,9 @@ export class EnemyManager {
                         e.hurt(mine.dmg || 1, mine.vx > 0 ? 1 : -1);
                         mine._detonateMine(level);     // enemy-damaging splash
                         this.bullets.splice(mi, 1);
+                        // R636: a punted mine seeds an ENEMY-damaging cascade.
+                        this._chainDetonateMines(
+                            [{ x: mine.x, y: mine.y, r: mine._mineChainR, vsEnemies: true }], level);
                         break;
                     }
                 }
@@ -3527,6 +3619,10 @@ export class EnemyManager {
                 if (ddx * ddx + ddy * ddy <= r * r) {
                     mine._detonateMine(level);     // full shrapnel splash
                     this.bullets.splice(mi, 1);
+                    // R636: a proximity trip seeds a player-damaging cascade —
+                    // packed sapper clusters ripple, raising the area-denial cost.
+                    this._chainDetonateMines(
+                        [{ x: mine.x, y: mine.y, r: mine._mineChainR, vsEnemies: false }], level);
                 }
             }
         }
@@ -3536,6 +3632,10 @@ export class EnemyManager {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
             b.update(level);
+            // R636: a punted mine that wall/floor-detonated inside Bullet.update
+            // leaves a _chainSeed — touch off the surrounding cluster here, where
+            // we have the bullet array, before the dead mine is spliced out.
+            if (b._chainSeed) { this._chainDetonateMines([b._chainSeed], level); b._chainSeed = null; }
             if (b.life <= 0) { this.bullets.splice(i, 1); continue; }
             // R481: "whizz" SFX when bullet passes within ~16px of player
             // without hitting. Track min distance per bullet so we only fire
