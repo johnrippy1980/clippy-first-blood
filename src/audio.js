@@ -243,7 +243,7 @@ class Audio {
     // No more Atari beeps. Each shot = layered: low thump (sub kick), mid
     // body (filtered noise burst), high crack (HPF noise), and a tonal
     // click. Total ~120-200ms with proper envelope, not 50ms square waves.
-    sfx(name) {
+    sfx(name, arg) {
         if (!this.ctx || this.muted) return;
         const t = this.ctx.currentTime;
         switch (name) {
@@ -345,6 +345,9 @@ class Audio {
             case 'enemyShoot':  return this._gunshot(t, { thump: 50, body: 700, bodyDur: 0.07, crack: 3200, layers: 1 });
             case 'bossDie':     return this._bossExplode(t); // big boss death
             case 'explosion':   return this._explode(t);     // alias for explode
+            // R641: mine punt/chain juice (sapper counterplay feedback).
+            case 'minePunt':    return this._minePunt(t);
+            case 'mineChainPop': return this._mineChainPop(t, arg);
             case 'crateBreak':  return this._crateHit(t);    // alias for crateHit
             case 'shoot':       return this._gunshot(t, { thump: 60, body: 1100, bodyDur: 0.08, crack: 4200, layers: 1 });
             // R566h: Doom-flavored enemy sounds. Distinct from the player's
@@ -2066,6 +2069,53 @@ class Audio {
         this._noise(t, 0.40, 0.18, 450, 'lp', 1.4);  // R595: was 0.50
         // Snap-crack — sharp transient at attack
         this._noise(t, 0.22, 0.05, 3200, 'hp', 2);
+    }
+
+    // R641: mine PUNT — the player slide/dash-kicks a deployed mine. Reads as
+    // a heavy metallic toe-punt: a low body thump (boot meets casing) topped
+    // by a bright ringing clang (steel shell) that pitches DOWN as it flies
+    // off. Replaces the thin 'select' UI blip the punt was borrowing.
+    _minePunt(t) {
+        // Boot-impact body thump.
+        const sub = this.ctx.createOscillator(); const subG = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(130, t);
+        sub.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+        this._envOn(subG, 0.40, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        sub.connect(subG).connect(this.sfxBus);
+        sub.start(t); sub.stop(t + 0.18);
+        // Ringing metal clang — triangle tone gliding down (shell tumbling away).
+        const ring = this.ctx.createOscillator(); const ringG = this.ctx.createGain();
+        ring.type = 'triangle';
+        ring.frequency.setValueAtTime(640, t);
+        ring.frequency.exponentialRampToValueAtTime(320, t + 0.18);
+        this._envOn(ringG, 0.22, t, 0.004);
+        ringG.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        ring.connect(ringG).connect(this.sfxBus);
+        ring.start(t); ring.stop(t + 0.24);
+        // Sharp contact transient — the "tok" of the kick landing.
+        this._noise(t, 0.20, 0.05, 2600, 'hp', 2.4);
+    }
+
+    // R641: mine CHAIN cascade pop — one link of a sympathetic-detonation
+    // ripple (R636). Pitched UP per `step` so a packed cluster going off
+    // sounds like a rising "bup-bup-BUP" run rather than a flat wall of the
+    // same boom. step 0 = first/origin link, climbing from there.
+    _mineChainPop(t, step = 0) {
+        const k = Math.min(step, 6);                 // clamp the climb at ~6 links
+        const base = 120 + k * 26;                   // each link starts brighter
+        const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(base, t);
+        o.frequency.exponentialRampToValueAtTime(base * 0.36, t + 0.16);
+        this._envOn(g, 0.32, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+        o.connect(g).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.22);
+        // Crackle layer also rises in brightness with the chain.
+        this._noise(t,        0.18, 0.14, 900 + k * 220, 'bp', 1.6);
+        this._noise(t + 0.02, 0.10, 0.12, 3600 + k * 300, 'hp', 1.2);
     }
 
     // R566i: BONE CRACK — special finisher impact. Wet crunch + sharp

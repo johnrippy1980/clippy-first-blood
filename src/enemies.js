@@ -391,7 +391,10 @@ class Bullet {
         }
         const vsEnemies = !!this._minePunt;
         particles.explosion(cx, cy, vsEnemies ? '#80e0ff' : '#ff7030', 14);
-        audio.sfx?.('explosion');
+        // R641: chain links get the rising 'mineChainPop' cascade voice from
+        // the manager instead of this flat boom, so a cluster sounds like a
+        // building ripple. Standalone (non-chained) mines keep 'explosion'.
+        if (!this._chaining) audio.sfx?.('explosion');
         this._spawnShrapnel(cx, cy, vsEnemies);
     }
     draw(ctx, camera) {
@@ -3305,6 +3308,9 @@ export class EnemyManager {
                 if (seed.vsEnemies) m._minePunt = true;
                 particles.floatingText(m.x, m.y - 6, 'CHAIN', '#ffd060', 22, -0.4, 1);
                 m._detonateMine(level);
+                // R641: rising cascade pop — each link pitches up off `detonated`
+                // so a packed cluster reads as a building "bup-bup-BUP" ripple.
+                audio.sfx?.('mineChainPop', detonated);
                 this.bullets.splice(i, 1);
                 detonated++;
                 // This link seeds the next ring of the cascade.
@@ -3633,7 +3639,7 @@ export class EnemyManager {
                 mine.life = 90;                     // travel budget before fizzle
                 mine.color = '#80e0ff';
                 particles.floatingText(mine.x, mine.y - 8, 'PUNT!', '#80e0ff', 26, -0.6, 1);
-                audio.sfx?.('select');
+                audio.sfx?.('minePunt');     // R641: metallic kick-clang, not a UI blip
                 continue;
             }
             // (R633) shootable — check player bullets first so a well-aimed shot
