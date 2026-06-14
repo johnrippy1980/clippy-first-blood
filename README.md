@@ -9,6 +9,32 @@ npm run dev   # starts python http server on :8765
 open http://localhost:8765/
 ```
 
+## Desktop app (download & play)
+
+A standalone desktop build (Electron) runs the game outside the browser — no
+server, no internet needed. A small in-process server (`electron/main.js`) serves
+the same `index.html`/`src`/`assets` the dev server does, so behavior is identical.
+
+**Controllers** work out of the box (Xbox/PlayStation/generic via the Gamepad
+API): left stick / d-pad move, A jump, X shoot, B special, Y grenade, RB aim-lock,
+LB shield, right stick 360° aim, Start pause, Back/L3 cycle weapon.
+
+The leaderboard is online-only and fails soft when offline — the rest of the game
+(all stages, saves, achievements, ghosts) is fully local via `localStorage`.
+
+```bash
+npm run desktop     # run the app from source (dev)
+npm run dist:mac    # build a .dmg into dist/  (macOS, ~230MB — assets dominate)
+npm run dist:win    # build a Windows installer into dist/
+```
+
+The Mac build is **unsigned** (no Apple Developer cert). On first launch Gatekeeper
+will block it; either right-click the app → **Open** → **Open**, or run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Clippy First Blood.app"
+```
+
 ## Test
 
 ```bash

@@ -6,8 +6,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "main": "electron/main.js",
   "scripts": {
     "dev": "python3 -m http.server 8765",
+    "desktop": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
     "test": "node tools/validate-assets.mjs && node tools/smoke-prod.mjs && node tools/run-probes.mjs",
     "test:assets": "node tools/validate-assets.mjs",
     "test:smoke": "node tools/smoke-prod.mjs",
@@ -32,6 +36,45 @@
   },
   "devDependencies": {
     "canvas": "^3.2.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "playwright": "^1.49.0"
+  },
+  "build": {
+    "appId": "com.rip.clippyfirstblood",
+    "productName": "Clippy First Blood",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "index.html",
+      "src/**/*",
+      "assets/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.games",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }
