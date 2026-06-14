@@ -25,6 +25,7 @@ const BASE_DIRS = {
     CLIPPY_MANIFEST: 'assets/sprites',
     ENEMY_MANIFEST:  'assets/sprites',
     WEAPON_MANIFEST: 'assets/sprites',
+    BONZI_MANIFEST:  'assets/sprites',
 };
 
 const missing = [];

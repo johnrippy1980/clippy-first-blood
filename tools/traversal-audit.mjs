@@ -118,6 +118,15 @@ async function analyzeStage(stageN) {
         };
     }, stageN);
 
+    // Not every STAGE_LOADERS entry is a platformer tile-map: FPS-rail and
+    // beat-em-up stages (e.g. makeFpsStageBallmer, makeBeatEmUpBallmer) return
+    // no `tiles`/`playerStart`, so BFS reachability doesn't apply. Skip them
+    // instead of dereferencing a missing playerStart.
+    if (!data.tiles || !data.playerStart) {
+        console.log(`Stage ${stageN}: SKIP — non-platformer stage (FPS/beat-em-up), no tile reachability`);
+        return { stageN, reachable: 0, total: 0, gaps: [], bossReached: true, skipped: true };
+    }
+
     const g = data.tiles;
     const startCol = Math.floor(data.playerStart.x / TILE);
     const startRow = Math.floor(data.playerStart.y / TILE);
@@ -198,6 +207,10 @@ for (let n = 1; n <= 8; n++) {
 results.push(await analyzeStage(9));  // secret
 
 for (const r of results) {
+    if (r.skipped) {
+        console.log(`--- Stage ${r.stageN}: skipped (non-platformer stage)`);
+        continue;
+    }
     const pct = r.total === 0 ? 100 : Math.round(r.reachable / r.total * 100);
     const flag = r.bossReached && r.gapCount === 0 ? 'OK ' : '!!!';
     console.log(`${flag} Stage ${r.stageN}: ${r.reachable}/${r.total} cells (${pct}%), boss reached: ${r.bossReached}, gaps: ${r.gapCount}`);
