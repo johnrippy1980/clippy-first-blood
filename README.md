@@ -28,12 +28,41 @@ npm run dist:mac    # build a .dmg into dist/  (macOS, ~230MB — assets dominat
 npm run dist:win    # build a Windows installer into dist/
 ```
 
-The Mac build is **unsigned** (no Apple Developer cert). On first launch Gatekeeper
-will block it; either right-click the app → **Open** → **Open**, or run:
+The local Mac build is **ad-hoc signed** (no Apple Developer cert). On first
+launch Gatekeeper will block it; either right-click the app → **Open** →
+**Open**, or run:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Clippy First Blood.app"
 ```
+
+## Releasing (CI builds for both platforms)
+
+`.github/workflows/release.yml` builds the Mac `.dmg` **and** Windows `.exe` on
+real GitHub-hosted runners and attaches them to a GitHub Release. Push a version
+tag to trigger it:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+(Or run it manually from the repo's **Actions** tab → *release* → *Run workflow*.)
+
+By default both builds are unsigned (Mac ad-hoc; Windows triggers a SmartScreen
+warning until it earns reputation). To ship a **signed + notarized** Mac build
+that opens with no Gatekeeper prompt, add these repo secrets (Settings → Secrets
+and variables → Actions) — the workflow auto-detects them:
+
+| Secret | What it is |
+| --- | --- |
+| `CSC_LINK` | base64 of your *Developer ID Application* `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `CSC_KEY_PASSWORD` | the `.p12` export password |
+| `APPLE_ID` | your Apple Developer account email |
+| `APPLE_APP_SPECIFIC_PASSWORD` | app-specific password from [appleid.apple.com](https://appleid.apple.com) → Sign-In & Security |
+| `APPLE_TEAM_ID` | 10-char team id (Developer portal → Membership) |
+
+With no secrets set, `build/notarize.cjs` cleanly no-ops and the build stays
+ad-hoc — nothing breaks, you just get the unsigned `.dmg`.
 
 ## Test
 

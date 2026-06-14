@@ -1,0 +1,89 @@
+# Build downloadable desktop installers on real macOS + Windows runners and
+# attach them to a GitHub Release. Push a version tag to trigger:
+#
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# The Mac job signs + notarizes ONLY if the Apple secrets below are configured
+# in the repo (Settings → Secrets and variables → Actions). Without them it
+# still builds a working ad-hoc .dmg (users do the right-click→Open step).
+#
+#   CSC_LINK                     base64 of your Developer ID Application .p12
+#   CSC_KEY_PASSWORD             password for that .p12
+#   APPLE_ID                     Apple Developer account email
+#   APPLE_APP_SPECIFIC_PASSWORD  app-specific password (appleid.apple.com)
+#   APPLE_TEAM_ID                10-char team id
+#
+# Windows builds are unsigned (code-signing certs for Windows are a separate
+# paid cert; SmartScreen will warn until reputation builds — that's expected).
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+permissions:
+  contents: write          # needed to create the Release + upload assets
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        # This repo gitignores package-lock.json, so use `install` not `ci`
+        # (ci requires a committed lockfile).
+        run: npm install --no-audit --no-fund
+
+      - name: Build macOS (.dmg)
+        if: matrix.platform == 'mac'
+        run: npx electron-builder --mac --publish never
+        env:
+          # If these secrets are unset they're empty strings and the build
+          # falls back to ad-hoc (notarize.cjs no-ops, signing is skipped).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Skip cert auto-discovery when no CSC_LINK is provided so the build
+          # doesn't error looking for a keychain identity that isn't there.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+
+      - name: Build Windows (.exe)
+        if: matrix.platform == 'win'
+        run: npx electron-builder --win --publish never
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-installers
+          retention-days: 14
+          path: |
+            dist/*.dmg
+            dist/*.exe
+          if-no-files-found: error
+
+      - name: Attach installers to the Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.exe
+          fail_on_unmatched_files: false
