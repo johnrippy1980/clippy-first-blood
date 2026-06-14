@@ -43,12 +43,18 @@ for (let i = 0; i < 10; i++) {
 
 const diag = await page.evaluate(() => {
     const g = window.__game;
-    const heli = g?.enemies?.find(e => e.kind === 'HELICOPTER');
+    // The HELICOPTER is a BOSS (BOSS_TEMPLATES.HELICOPTER), so it lives on
+    // g.boss — not in the enemy manager. The manager's array is
+    // g.enemies.enemies (g.enemies is the EnemyManager, not an array).
+    const arr = g?.enemies?.enemies || [];
+    const heli = (g?.boss && g.boss.kind === 'HELICOPTER') ? g.boss
+        : arr.find(e => e.kind === 'HELICOPTER');
     return {
         scene: g.scene,
-        enemyCount: g?.enemies?.length || 0,
-        enemyKinds: g?.enemies?.map(e => e.kind) || [],
-        boss: !!g._boss,
+        enemyCount: arr.length,
+        enemyKinds: arr.map(e => e.kind),
+        boss: !!g.boss,
+        bossKind: g.boss?.kind || null,
         heli: heli ? { x: heli.x, y: heli.y, w: heli.w, h: heli.h, hp: heli.hp } : null,
     };
 });
