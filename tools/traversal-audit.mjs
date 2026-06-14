@@ -190,7 +190,11 @@ async function analyzeStage(stageN) {
     }
     return {
         stageN,
-        reachable: visited.size,
+        // Count REACHABLE STANDABLE cells, not visited.size: the BFS also walks
+        // through mid-ladder cells (isLadder but not isStandable) which aren't in
+        // `total`, so visited.size could exceed total and report >100%. This is
+        // apples-to-apples with `total` (both standable-only) → always ≤100%.
+        reachable: allStandable.length - unreachable.length,
         total: allStandable.length,
         gapCount: unreachable.length,
         gaps,
