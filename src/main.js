@@ -144,6 +144,15 @@ document.addEventListener('visibilitychange', () => {
         if (audio.ctx) try { audio.ctx.suspend(); } catch (_) {}
     } else {
         if (audio.ctx) try { audio.ctx.resume(); } catch (_) {}
+        // Resume file-backed music we paused on hide. Scenes in
+        // AUTO_PAUSE_SCENES recover via the unpause→playTrack path, but
+        // non-pausing scenes (title, soundtrack jukebox, gameOver, etc.)
+        // have no such path — without this the track stays silently paused
+        // until the next track change. A non-null _fileEl means we paused it
+        // for the tab-hide (stopTrack/playTrack null it), so resuming is safe.
+        if (audio._fileEl && audio._fileEl.paused) {
+            try { audio._fileEl.play().catch(() => {}); } catch (_) {}
+        }
     }
 });
 

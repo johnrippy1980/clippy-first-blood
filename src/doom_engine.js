@@ -1055,15 +1055,21 @@ export class DoomEngine {
     }
 
     _pollWeaponSwitch() {
-        // Install one-time number-key listener that flags a pending switch.
-        if (!this._numListener) {
-            this._numListener = true;
-            this._pendingSwitch = null;
+        if (this._pendingSwitch === undefined) this._pendingSwitch = null;
+        // Install the number-key listener exactly once across all DoomEngine
+        // instances (static flag, like _installPointerLockOnce). A fresh engine
+        // is built on every Doom-stage entry; an instance-flag guard here leaked
+        // a new keydown listener per entry. The surviving listener resolves the
+        // currently-active engine each press instead of capturing a stale `this`.
+        if (typeof window !== 'undefined' && !DoomEngine._numListenerInstalled) {
+            DoomEngine._numListenerInstalled = true;
             window.addEventListener('keydown', (e) => {
-                if (e.key === '1') this._pendingSwitch = 0;
-                else if (e.key === '2') this._pendingSwitch = 1;
-                else if (e.key === '3') this._pendingSwitch = 2;
-                else if (e.key === '4') this._pendingSwitch = 3;
+                const eng = window.__game && window.__game._doomEngine;
+                if (!eng) return;
+                if (e.key === '1') eng._pendingSwitch = 0;
+                else if (e.key === '2') eng._pendingSwitch = 1;
+                else if (e.key === '3') eng._pendingSwitch = 2;
+                else if (e.key === '4') eng._pendingSwitch = 3;
             });
         }
         // R500: weapon swap animation — 12 frames total. Frames 0-6 slide

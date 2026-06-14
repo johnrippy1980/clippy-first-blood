@@ -2067,7 +2067,7 @@ export class Game {
         // R568f (slice 6): record the tag for co-op stats.
         if (this.coopStageStats) {
             this.coopStageStats.tagSwapsThisStage++;
-            if (this.bossSpawned && !this.bossDefeated) {
+            if (this.bossSpawned && this.boss && this.boss.alive) {
                 this.coopStageStats.tagSwapsThisBossFight++;
             }
         }
