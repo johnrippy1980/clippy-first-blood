@@ -52,6 +52,7 @@
       "index.html",
       "src/**/*",
       "assets/**/*",
+      "!assets/audio/_originals_pre_r352/**",
       "public/**/*",
       "package.json"
     ],
