@@ -600,14 +600,12 @@ export const CLIPPY_MANIFEST = {
     'shoot':           'friend/firing_1.png',
     'shoot_alt':       'friend/firing_2.png',
     'aim':             'friend/firing_1.png',
-    // R602: angled aim bands fall back to the straight-ahead firing pose
-    // (gun extended) instead of a neutral run frame. Milos hasn't drawn
-    // up/diagonal firing poses yet, but firing_1 + the procedural aim-arm
-    // overlay reads far better than recycling a non-firing run frame. Swap
-    // these to dedicated angled art if/when it lands. (GAP: angled fire.)
-    'aim_up':          'friend/firing_1.png',
-    'aim_diag':        'friend/firing_1.png',
-    'aim_diag_down':   'friend/firing_1.png',
+    // R645: dedicated angled-firing art from the friend's pose pack — barrel
+    // straight up, up-45, and down-45, each muzzle-flashing and facing right.
+    // Replaces the firing_1 fallback now that the real angled poses exist.
+    'aim_up':          'friend/aim_up.png',
+    'aim_diag':        'friend/aim_diag.png',
+    'aim_diag_down':   'friend/aim_diag_down.png',
     // R601: real climbing art from the friend's pose pack — two-frame
     // hand-over-hand cycle. Tall narrow silhouette for ladders/ropes.
     'climb_1':         'friend/climb_1.png',
@@ -626,9 +624,13 @@ export const CLIPPY_MANIFEST = {
     // mirrors it for the dash direction) instead of the old v2_backdash
     // frame, which carried an un-knocked-out grey background box.
     'backdash':        'friend/slide_brace.png',
-    'death_hit':       'friend/lowhp_down.png',
-    'death_explode':   'v2_death.png',
-    'death_burning':   'v2_death.png',
+    // R645: real 3-beat death sequence from the friend's pose pack. hit =
+    // muzzle-blast at the chest, still standing; explode = full fireball with
+    // the body gone; burning = the settled smoking-rubble pile. Replaces the
+    // lowhp_down stand-in + the single recycled v2_death frame.
+    'death_hit':       'friend/death_hit.png',
+    'death_explode':   'friend/death_explode.png',
+    'death_burning':   'friend/death_burning.png',
     // R152: ledge-grab poses — hang from edge, mid-pullup, settled atop.
     // R602: ledge poses derive from the friend's climb cycle (climb_1 = grip/
     // hang read, climb_2 = mid-pull) so the ledge-grab matches the on-style

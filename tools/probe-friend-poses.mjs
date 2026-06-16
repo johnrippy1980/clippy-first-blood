@@ -29,11 +29,14 @@ const result = await page.evaluate(async (base) => {
     ['run_1', false, 'walk1'], ['run_2', false, 'walk2'], ['run_3', false, 'walk3'],
     ['run_shoot_1', false, 'wfire1'], ['run_shoot_2', false, 'wfire2'], ['run_shoot_3', false, 'wfire3'],
     ['shoot', false, 'fire1'], ['shoot_alt', false, 'fire2'],
+    ['aim_up', false, 'aimUp'], ['aim_diag', false, 'aimDiag'], ['aim_diag_down', false, 'aimDiagDn'],
     ['jump', false, 'jump'], ['fall', false, 'fall'],
     ['crouch', false, 'crouch'], ['crouch_shoot', false, 'crouchS'],
     ['prone', false, 'prone'], ['prone_shoot', false, 'proneS'],
     ['climb_1', false, 'climb1'], ['climb_2', false, 'climb2'],
-    ['hurt', false, 'hurt'], ['death_hit', false, 'deathHit'],
+    ['hurt', false, 'hurt'],
+    ['death_hit', false, 'deathHit'], ['death_explode', false, 'deathBoom'], ['death_burning', false, 'deathRubble'],
+    ['aim_up', true, 'aimUp L'], ['aim_diag', true, 'aimDiag L'], ['aim_diag_down', true, 'aimDiagDn L'],
     // a few left-facing checks to confirm the flip mirrors cleanly
     ['run_2', true, 'walk2 L'], ['shoot', true, 'fire L'], ['jump', true, 'jump L'],
   ];
