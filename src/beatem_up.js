@@ -1383,6 +1383,12 @@ export class BeatEmUp {
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
+            // Defensive guard (mirrors doom_engine R533 / fps_arena): a hit
+            // later in this loop calls _hitPlayer -> _onPlayerDeath, which
+            // resets this.enemyBullets = []. The backwards index then points
+            // past the now-empty array, so b is undefined. Skip the dead slot
+            // instead of crashing the loop on the fatal hit.
+            if (!b) continue;
             // R413: optional per-bullet gravity (chairs arc)
             if (b.gravity) b.vy += b.gravity;
             b.x += b.vx;

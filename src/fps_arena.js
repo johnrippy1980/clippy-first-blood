@@ -680,6 +680,12 @@ export class FpsArena {
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
+            // Defensive guard (mirrors doom_engine R533): a hit later in this
+            // loop calls _damagePlayer -> _onPlayerDeath, which resets
+            // this.enemyBullets = []. The backwards index then points past the
+            // now-empty array, so b is undefined. Skip the dead slot instead of
+            // crashing the loop on the fatal hit.
+            if (!b) continue;
             // R271: physics-projectiles (chairs) — apply gravity each tick
             if (b.gravity) b.vy += b.gravity;
             if (b.isChair || b.isFloppy) b.spinT = (b.spinT || 0) + 1;
