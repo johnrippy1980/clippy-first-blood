@@ -2504,7 +2504,7 @@ export class Player {
         // If the hit killed the enemy outright, fall through to the splice
         // path so the goo doesn't trail a dead body — the impact damage was
         // enough; no detonation needed.
-        if (bullet.banana && !bullet.stuck && !killed) {
+        if (bullet.banana && !bullet.stuck && !killed && enemy) {
             bullet.stuck = true;
             bullet.stuckLife = WEAPON.BANANA.stickLife;
             bullet.stuckLifeMax = bullet.stuckLife;
@@ -2597,6 +2597,11 @@ export class Player {
         }
         particles.weaponHitBurst(bullet.x, bullet.y, bullet.weapon, bullet.color);
         this.dmgDealt[bullet.weapon] = (this.dmgDealt[bullet.weapon] || 0) + bullet.damage;
+        // A bullet can hit a non-enemy target (e.g. a shot-down sapper mine,
+        // which calls onBulletHit with enemy=null). Bullet cleanup + hit FX
+        // above still apply, but everything below is enemy/kill bookkeeping —
+        // skip it so we don't deref a null enemy (maxHp/x/w).
+        if (!enemy) return;
         // Damage numbers on non-kill hits — only for high-HP targets (bosses /
         // miniboss). Grunts die in 1-2 hits, so a number would just be noise.
         // Helps players see chip-damage progress on long boss bars.
