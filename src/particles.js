@@ -119,13 +119,17 @@ class ShockRing {
 // over its lifetime, anchored to a world point. Used by particles.explosion().
 class SpriteBurst {
     constructor() { this.alive = false; }
-    init(x, y, scale = 1, framesEach = 4) {
+    init(x, y, scale = 1, framesEach = 4, prefix = 'ambient_explosion') {
         this.x = x; this.y = y;
         this.scale = scale;
         // 4 frames × framesEach ticks each = total life
         this.framesEach = framesEach;
         this.life = framesEach * 4;
         this.maxLife = this.life;
+        // R646: painted FX packs can override the default fireball frames.
+        // If the requested prefix's frame 1 isn't loaded, fall back to the
+        // stock ambient_explosion_* so a missing pack is a no-op.
+        this.prefix = sprites.has(`${prefix}_1`) ? prefix : 'ambient_explosion';
         this.alive = true;
     }
     update() {
@@ -135,7 +139,7 @@ class SpriteBurst {
     draw(ctx, camera) {
         const elapsed = this.maxLife - this.life;
         const frameIdx = Math.min(4, Math.floor(elapsed / this.framesEach) + 1);
-        const img = sprites.images.get(`ambient_explosion_${frameIdx}`);
+        const img = sprites.images.get(`${this.prefix || 'ambient_explosion'}_${frameIdx}`);
         if (!img) return;
         const dx = Math.round(this.x - camera.viewX);
         const dy = Math.round(this.y - camera.viewY);
@@ -144,6 +148,52 @@ class SpriteBurst {
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, dx - w / 2 | 0, dy - h / 2 | 0, w, h);
+        ctx.restore();
+    }
+}
+
+// R646: oriented muzzle-flash sprite. A short 2-3 frame painted flash stamped
+// at the barrel, rotated to the firing direction, mirrored when shooting left.
+// Self-disables if the requested prefix's frame 1 isn't loaded, so the
+// procedural particle flash (still spawned alongside) is the only thing seen
+// when no art is present.
+class MuzzleFlash {
+    constructor() { this.alive = false; }
+    init(x, y, dx, dy, prefix = 'fx_muzzle', framesEach = 2) {
+        this.prefix = sprites.has(`${prefix}_1`) ? prefix : null;
+        if (!this.prefix) { this.alive = false; return; }
+        // Frame count = however many sequential frames exist (1..N).
+        let n = 0;
+        while (sprites.has(`${this.prefix}_${n + 1}`)) n++;
+        this.frameCount = Math.max(1, n);
+        this.x = x; this.y = y;
+        this.angle = Math.atan2(dy, dx);
+        this.flipY = dx < 0;
+        this.framesEach = framesEach;
+        this.life = framesEach * this.frameCount;
+        this.maxLife = this.life;
+        this.alive = true;
+    }
+    update() {
+        this.life--;
+        if (this.life <= 0) this.alive = false;
+    }
+    draw(ctx, camera) {
+        if (!this.prefix) return;
+        const elapsed = this.maxLife - this.life;
+        const idx = Math.min(this.frameCount, Math.floor(elapsed / this.framesEach) + 1);
+        const img = sprites.images.get(`${this.prefix}_${idx}`);
+        if (!img) return;
+        const dx = Math.round(this.x - camera.viewX);
+        const dy = Math.round(this.y - camera.viewY);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(dx, dy);
+        ctx.rotate(this.angle);
+        if (this.flipY) ctx.scale(1, -1);
+        // Flash authored pointing right, grip end at left edge so it reads as
+        // erupting from the barrel tip outward.
+        ctx.drawImage(img, 0, -(img.height >> 1));
         ctx.restore();
     }
 }
@@ -158,6 +208,23 @@ class ParticleSystem {
         this.nextRing = 0;
         this.bursts = Array.from({ length: 12 }, () => new SpriteBurst());
         this.nextBurst = 0;
+        // R646: muzzle-flash sprite pool (rapid-fire, so give it headroom).
+        this.muzzles = Array.from({ length: 16 }, () => new MuzzleFlash());
+        this.nextMuzzle = 0;
+    }
+    _takeMuzzle() {
+        for (let i = 0; i < this.muzzles.length; i++) {
+            const m = this.muzzles[this.nextMuzzle];
+            this.nextMuzzle = (this.nextMuzzle + 1) % this.muzzles.length;
+            if (!m.alive) return m;
+        }
+        return this.muzzles[0];
+    }
+    // R646: spawn an oriented painted muzzle flash. No-op (init disables it)
+    // when the prefix's frames aren't loaded, so callers can fire-and-forget
+    // alongside the procedural muzzleFlash() particle burst.
+    muzzleFlashSprite(x, y, dx, dy, prefix = 'fx_muzzle') {
+        this._takeMuzzle().init(x, y, dx, dy, prefix);
     }
     _takeBurst() {
         for (let i = 0; i < this.bursts.length; i++) {
@@ -168,8 +235,25 @@ class ParticleSystem {
         return this.bursts[0];
     }
     // R416: painted sprite burst alongside particles for that arcade impact.
-    spriteBurst(x, y, scale = 1, framesEach = 4) {
-        this._takeBurst().init(x, y, scale, framesEach);
+    spriteBurst(x, y, scale = 1, framesEach = 4, prefix = 'ambient_explosion') {
+        this._takeBurst().init(x, y, scale, framesEach, prefix);
+    }
+
+    // R646: explosion variant that prefers a painted FX pack (e.g. the
+    // homing-rocket impact). Identical debris/spark layering to explosion();
+    // only the anchoring sprite frames differ. Falls back to the stock
+    // fireball when the pack's frames aren't loaded (handled in init()).
+    explosionFx(x, y, prefix, color = '#ff8050', count = 24) {
+        const scale = count >= 22 ? 1.0 : 0.7;
+        this.spriteBurst(x, y, scale, 5, prefix);
+        for (let i = 0; i < count; i++) {
+            const a = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+            const sp = 0.8 + Math.random() * 2;
+            this.spawn(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 25 + Math.random() * 15, color, 1 + (Math.random() < 0.3 ? 1 : 0), 0.1);
+        }
+        for (let i = 0; i < 8; i++) {
+            this.spawn(x, y, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5, 8, '#fff', 1, 0);
+        }
     }
 
     _takeRing() {
@@ -439,6 +523,7 @@ class ParticleSystem {
         for (const f of this.floats) if (f.alive) f.update();
         for (const r of this.rings) if (r.alive) r.update();
         for (const b of this.bursts) if (b.alive) b.update();
+        for (const m of this.muzzles) if (m.alive) m.update();
     }
 
     draw(ctx, camera) {
@@ -446,6 +531,8 @@ class ParticleSystem {
         for (const b of this.bursts) if (b.alive) b.draw(ctx, camera);
         for (const p of this.pool) if (p.alive) p.draw(ctx, camera);
         for (const r of this.rings) if (r.alive) r.draw(ctx, camera);
+        // Muzzle flashes on top — they're a foreground accent at the barrel.
+        for (const m of this.muzzles) if (m.alive) m.draw(ctx, camera);
     }
 
     drawFloats(ctx, camera, drawText, drawTextOutlined = null) {

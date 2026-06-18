@@ -1469,6 +1469,7 @@ export class Player {
             _charged: true,    // flag so onBulletHit can render bigger hit FX
         });
         particles.muzzleFlash(baseX, baseY, ndx, ndy, '#ffffff');
+        particles.muzzleFlashSprite(baseX, baseY, ndx, ndy, 'fx_muzzle');
         // Extra burst — bright ring scatter at muzzle.
         for (let i = 0; i < 12; i++) {
             const a = Math.random() * Math.PI * 2;
@@ -1815,6 +1816,10 @@ export class Player {
         // loop ticks while the player holds shoot.
         if (this.weapon !== 'CHAINSAW') {
             particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color);
+            // R646: painted muzzle-flash overlay (no-op until art lands).
+            // Shotgun gets its fatter signature flash if that pack exists.
+            particles.muzzleFlashSprite(baseX, baseY, ndx, ndy,
+                this.weapon === 'SHOTGUN' ? 'fx_muzzle_shotgun' : 'fx_muzzle');
             // Pass floorY when grounded so the shell bounces + settles on the
             // ground tile beneath Clippy instead of falling forever.
             const shellFloor = this.onGround ? this.y + this.h : null;
@@ -2531,7 +2536,9 @@ export class Player {
         if (bullet.weapon === 'HOMING') {
             const bx = bullet.x, by = bullet.y;
             audio.sfx('rpgImpact');
-            particles.explosion(bx, by, '#ff8030', 20);
+            // R646: prefer the painted RPG-impact FX pack; explosionFx falls
+            // back to the stock fireball when fx_explosion_* isn't loaded.
+            particles.explosionFx(bx, by, 'fx_explosion', '#ff8030', 20);
             particles.shockRing(bx, by, 14, 16, '#ff5030');
             this.requestShake = Math.max(this.requestShake || 0, 2.2);
             // Splash damage — 24px radius, half the bullet's damage at edge,
@@ -3010,6 +3017,32 @@ export class Player {
             line, isBoss ? '#ffe070' : '#80e0ff', 70, -0.45, 1,
         );
         this._tauntCooldown = TAUNT_COOLDOWN_F;
+    }
+
+    // R646: draw a projectile/effect sprite centered at screen (sx,sy),
+    // rotated to a velocity vector so it points the way it's travelling.
+    // `key` must already be loaded (caller gates on sprites.has). When the
+    // velocity is ~0 (e.g. an impact FX), we draw unrotated. Pixel-snapped,
+    // smoothing off. Returns true if it drew, false if the asset is missing
+    // (so the caller can fall through to its procedural draw).
+    _drawProjectileSprite(ctx, key, sx, sy, vx = 0, vy = 0) {
+        const img = sprites.images.get(key);
+        if (!img) return false;
+        const speed = Math.hypot(vx, vy);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(Math.round(sx), Math.round(sy));
+        if (speed > 0.01) {
+            // Sprite is authored pointing RIGHT. Rotate to the travel angle.
+            // When travelling leftward, mirror vertically after rotating so
+            // the art's "up" stays up instead of flipping under the barrel.
+            const angle = Math.atan2(vy, vx);
+            ctx.rotate(angle);
+            if (vx < 0) ctx.scale(1, -1);
+        }
+        ctx.drawImage(img, -(img.width >> 1), -(img.height >> 1));
+        ctx.restore();
+        return true;
     }
 
     // ---------- drawing ----------
@@ -3631,6 +3664,14 @@ export class Player {
                 continue;
             }
             if (b.weapon === 'LASER') {
+                // R646: painted dart sprite if present (2-frame flicker by
+                // bullet age), else the procedural dart below.
+                const laserKey = (sprites.has('proj_laser_2') && (Math.floor((b.life || 0) / 2) % 2 === 0))
+                    ? 'proj_laser_2' : 'proj_laser';
+                if (sprites.has(laserKey) &&
+                    this._drawProjectileSprite(ctx, laserKey, bx, by, b.vx, b.vy)) {
+                    continue;
+                }
                 // Short cyan dart — outer glow + bright core. Previous render
                 // drew a continuous prev→current beam that read as a hard
                 // white aim-line across the screen, which players described
@@ -3685,6 +3726,21 @@ export class Player {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(ex - 1, ey - 1, 3, 3);
             } else if (b.weapon === 'FLAME') {
+                // R646: animated painted flame-puff loop if present. Each puff
+                // gets a per-bullet phase offset (b.fxPhase, set once below) so
+                // the stream isn't all on the same frame, then advances on a
+                // ~70ms cadence through whatever fx_flame_* frames exist.
+                if (sprites.has('fx_flame_1')) {
+                    const frames = ['fx_flame_1', 'fx_flame_2', 'fx_flame_3', 'fx_flame_4']
+                        .filter(k => sprites.has(k));
+                    if (frames.length) {
+                        if (b.fxPhase === undefined) b.fxPhase = (Math.random() * frames.length) | 0;
+                        const idx = (Math.floor(performance.now() / 70) + b.fxPhase) % frames.length;
+                        if (this._drawProjectileSprite(ctx, frames[idx], bx, by, b.vx, b.vy)) {
+                            continue;
+                        }
+                    }
+                }
                 // Soft flame puff
                 ctx.fillStyle = b.color;
                 ctx.globalAlpha = 0.6;
@@ -3722,6 +3778,32 @@ export class Player {
                     ctx.fillRect(bx - 2, by - 2, 5, 5);
                 }
             } else {
+                // R646: HOMING painted missile sprite. Keep the curve trail
+                // below (path readability) then draw the missile on top,
+                // oriented to travel. 2-frame exhaust flicker if _2 exists.
+                if (b.weapon === 'HOMING' && sprites.has('proj_missile_1')) {
+                    if (b.prevX != null) {
+                        const px = Math.round(b.prevX - camera.viewX);
+                        const py = Math.round(b.prevY - camera.viewY);
+                        ctx.globalAlpha = 0.45;
+                        this._line(ctx, px, py, bx, by, b.color, 1);
+                        ctx.globalAlpha = 1;
+                    }
+                    const mKey = (sprites.has('proj_missile_2') && (Math.floor(performance.now() / 60) % 2 === 0))
+                        ? 'proj_missile_2' : 'proj_missile_1';
+                    if (this._drawProjectileSprite(ctx, mKey, bx, by, b.vx, b.vy)) {
+                        continue;
+                    }
+                }
+                // R646: shared painted bullet sprite for MG/SPREAD/SHOTGUN.
+                if ((b.weapon === 'MG' || b.weapon === 'SPREAD' || b.weapon === 'SHOTGUN')
+                    && sprites.has('proj_bullet')) {
+                    const bKey = (sprites.has('proj_bullet_2') && (Math.floor((b.life || 0) / 2) % 2 === 0))
+                        ? 'proj_bullet_2' : 'proj_bullet';
+                    if (this._drawProjectileSprite(ctx, bKey, bx, by, b.vx, b.vy)) {
+                        continue;
+                    }
+                }
                 // HOMING gets a curve-revealing trail — its path is non-linear so the trail adds info.
                 if (b.weapon === 'HOMING' && b.prevX != null) {
                     const px = Math.round(b.prevX - camera.viewX);

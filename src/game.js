@@ -18,13 +18,18 @@ import { PickupManager } from './pickups.js';
 import { Parallax } from './parallax.js';
 import { drawHUD } from './hud.js';
 import { drawText, drawTextOutlined, textWidth } from './pixelfont.js';
-import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST, BONZI_MANIFEST } from './sprites.js';
+import { sprites, CLIPPY_MANIFEST, ENEMY_MANIFEST, SCENE_MANIFEST, BG_MANIFEST, WEAPON_MANIFEST, PROJECTILE_MANIFEST, BONZI_MANIFEST } from './sprites.js';
 import { achievements, ACHIEVEMENT_LIST } from './achievements.js';
 import { leaderboard } from './leaderboard.js';
 import { downloadShareCard } from './sharecard.js';
 import { dailyChallenge } from './daily.js';
 import { ghost } from './ghost.js';
 import { options } from './options.js';
+
+// Flip to true once the painted projectile/FX sprites (PROJECTILE_MANIFEST)
+// are delivered into assets/sprites/. Until then the game uses procedural
+// projectiles and the manifest load is skipped (see preload()).
+const PROJECTILE_ART_READY = false;
 
 const SCENE = {
     BOOT: 'boot',
@@ -511,6 +516,13 @@ export class Game {
         await sprites.loadAll(CLIPPY_MANIFEST, 'assets/sprites');
         await sprites.loadAll(ENEMY_MANIFEST, 'assets/sprites');
         await sprites.loadAll(WEAPON_MANIFEST, 'assets/sprites');
+        // PROJECTILE_MANIFEST art is designer-pending (Milos). Until the PNGs
+        // ship, skip the load: the bullet renderer gates every sprite branch on
+        // sprites.has() and falls back to procedural draw, so an un-loaded
+        // manifest is a no-op. Loading it now would 404 on 20 not-yet-existing
+        // files — harmless to the game, but it trips probes that assert zero
+        // console errors. Flip PROJECTILE_ART_READY to true when the files land.
+        if (PROJECTILE_ART_READY) await sprites.loadAll(PROJECTILE_MANIFEST, 'assets/sprites');
         await sprites.loadAll(BONZI_MANIFEST, 'assets/sprites');
         await sprites.loadAll(SCENE_MANIFEST, 'assets/scenes');
         await sprites.loadAll(BG_MANIFEST, 'assets/bg');

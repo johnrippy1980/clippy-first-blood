@@ -658,6 +658,45 @@ export const WEAPON_MANIFEST = {
     'weapon_chainsaw':  'weapon_chainsaw.png',
 };
 
+// R646: painted projectile/effect sprites that REPLACE the procedural
+// canvas-drawn bullets in player.js. Every entry is optional — the bullet
+// renderer gates each sprite branch behind `sprites.has(key)` and falls
+// through to the existing procedural draw when the asset is absent, so a
+// missing file is a no-op (game renders exactly as before). Files don't
+// exist yet; loadAll() resolves missing images to `false` without throwing.
+//
+// All sprites point RIGHT; the renderer rotates to the velocity vector and
+// mirrors when facing left. Sizes are target in-game pixels (small).
+//   proj_bullet      — shared MG/Spread/Shotgun pellet (~4-6px). _2 = optional flicker frame.
+//   proj_laser       — cyan dart (~5-8px). _2 = optional flicker frame.
+//   proj_missile_1/2 — homing RPG missile w/ exhaust flicker (~12-16px).
+//   fx_explosion_1..4 — homing impact burst (~24-32px), played in sequence.
+//   fx_flame_1..4    — flamethrower puff loop (~8-12px), played by puff age.
+//   fx_muzzle_1..3   — generic muzzle flash at barrel (~8-14px).
+//   fx_muzzle_shotgun_1..3 — fatter orange shotgun flash (optional override).
+export const PROJECTILE_MANIFEST = {
+    'proj_bullet':           'proj_bullet.png',
+    'proj_bullet_2':         'proj_bullet_2.png',
+    'proj_laser':            'proj_laser.png',
+    'proj_laser_2':          'proj_laser_2.png',
+    'proj_missile_1':        'proj_missile_1.png',
+    'proj_missile_2':        'proj_missile_2.png',
+    'fx_explosion_1':        'fx_explosion_1.png',
+    'fx_explosion_2':        'fx_explosion_2.png',
+    'fx_explosion_3':        'fx_explosion_3.png',
+    'fx_explosion_4':        'fx_explosion_4.png',
+    'fx_flame_1':            'fx_flame_1.png',
+    'fx_flame_2':            'fx_flame_2.png',
+    'fx_flame_3':            'fx_flame_3.png',
+    'fx_flame_4':            'fx_flame_4.png',
+    'fx_muzzle_1':           'fx_muzzle_1.png',
+    'fx_muzzle_2':           'fx_muzzle_2.png',
+    'fx_muzzle_3':           'fx_muzzle_3.png',
+    'fx_muzzle_shotgun_1':   'fx_muzzle_shotgun_1.png',
+    'fx_muzzle_shotgun_2':   'fx_muzzle_shotgun_2.png',
+    'fx_muzzle_shotgun_3':   'fx_muzzle_shotgun_3.png',
+};
+
 // R568c (slice 3): Bonzi Buddy sprites for co-op P2. Generated via Local Howl
 // gemini-pro and processed through the standard chroma-knockout pipeline.
 // All Bonzi keys are prefixed `bonzi_` to keep them isolated from CLIPPY_MANIFEST

@@ -20,15 +20,23 @@ const ENTRY_RX = /'([^']+)'\s*:\s*'([^']+)'/g;
 
 // Manifest → base path on disk
 const BASE_DIRS = {
-    SCENE_MANIFEST:  'assets/scenes',
-    BG_MANIFEST:     'assets/bg',
-    CLIPPY_MANIFEST: 'assets/sprites',
-    ENEMY_MANIFEST:  'assets/sprites',
-    WEAPON_MANIFEST: 'assets/sprites',
-    BONZI_MANIFEST:  'assets/sprites',
+    SCENE_MANIFEST:     'assets/scenes',
+    BG_MANIFEST:        'assets/bg',
+    CLIPPY_MANIFEST:    'assets/sprites',
+    ENEMY_MANIFEST:     'assets/sprites',
+    WEAPON_MANIFEST:    'assets/sprites',
+    BONZI_MANIFEST:     'assets/sprites',
+    PROJECTILE_MANIFEST: 'assets/sprites',
 };
 
+// Manifests whose files are expected-pending (designer hasn't delivered yet).
+// The bullet renderer gates every sprite branch behind `sprites.has(key)` and
+// falls through to procedural draw, so a missing file is a no-op. Report these
+// as a warning instead of a hard failure so CI stays green until art lands.
+const OPTIONAL_MANIFESTS = new Set(['PROJECTILE_MANIFEST']);
+
 const missing = [];
+const pending = [];
 const seen = [];
 let m;
 while ((m = MANIFEST_RX.exec(src))) {
@@ -44,7 +52,9 @@ while ((m = MANIFEST_RX.exec(src))) {
         const [, key, file] = e;
         const path = resolve(root, baseDir, file);
         seen.push({ manifest: name, key, file });
-        if (!existsSync(path)) missing.push({ manifest: name, key, file, path });
+        if (!existsSync(path)) {
+            (OPTIONAL_MANIFESTS.has(name) ? pending : missing).push({ manifest: name, key, file, path });
+        }
     }
 }
 
@@ -67,6 +77,13 @@ if (TRACKS_MATCH) {
 
 console.log(`Checked ${seen.length} manifest entries across ${Object.keys(BASE_DIRS).length + 1} manifests.`);
 
+if (pending.length) {
+    console.warn(`\n⚠️  ${pending.length} optional sprites not yet on disk (procedural fallback active):`);
+    for (const p of pending) {
+        console.warn(`  [${p.manifest}] ${p.key} → ${p.file}`);
+    }
+}
+
 if (missing.length) {
     console.error(`\n❌ ${missing.length} missing files:`);
     for (const m of missing) {
@@ -74,4 +91,4 @@ if (missing.length) {
     }
     process.exit(1);
 }
-console.log('✅ All manifest entries resolve to files on disk.');
+console.log('✅ All required manifest entries resolve to files on disk.');

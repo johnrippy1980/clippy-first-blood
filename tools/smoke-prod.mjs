@@ -1,12 +1,38 @@
 // Production smoke test: load, navigate menus, start stage, kill boss, exit.
 // Captures console errors + uncaught exceptions. Fails fast if anything throws.
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// PROJECTILE_MANIFEST sprites are designer-pending: the renderer gates each on
+// sprites.has() and falls back to procedural draw, so their 404s are expected
+// and must not fail the smoke. Pull the exact filenames so any OTHER 404 still
+// trips the test. When the art lands, these resolve and the allowlist is inert.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const spritesSrc = readFileSync(resolve(__dirname, '../src/sprites.js'), 'utf8');
+const projBlock = spritesSrc.match(/export const PROJECTILE_MANIFEST\s*=\s*\{([^}]+)\}/);
+const expectedMissing = new Set();
+if (projBlock) {
+    for (const e of projBlock[1].matchAll(/'[^']+'\s*:\s*'([^']+)'/g)) {
+        expectedMissing.add(e[1].split('/').pop());
+    }
+}
+const isExpectedMissing = (text) =>
+    text.includes('404') && [...expectedMissing].some(f => text.includes(f));
+
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
 const page = await ctx.newPage();
 const errors = [];
 const warnings = [];
 page.on('pageerror', e => errors.push('PAGE ERROR: ' + e.message));
+// Track every 404 filename. The console "Failed to load resource" error omits
+// the URL, so we judge those at the end: real failures = 404s NOT on the
+// expected-missing projectile allowlist. (response and console events can fire
+// in either order, so this can't be decided inline.)
+const failed404 = new Set();
+page.on('response', r => { if (r.status() === 404) failed404.add(r.url().split('/').pop().split('?')[0]); });
 // Suppress warnings we deliberately trigger (bounds-guard test, autoplay).
 // Anything else lands in `warnings` and prints at the end as signal.
 const EXPECTED_WARN_FRAGMENTS = [
@@ -17,6 +43,10 @@ const EXPECTED_WARN_FRAGMENTS = [
 page.on('console', m => {
     const t = m.type();
     const text = m.text();
+    if (t !== 'error' && t !== 'warning') return;
+    // Defer generic resource-load 404 errors to the end-of-run tally.
+    if (t === 'error' && /Failed to load resource/.test(text)) return;
+    if (t === 'error' && isExpectedMissing(text)) return;
     if (t === 'error') errors.push('CONSOLE ERROR: ' + text);
     if (t === 'warning' && !EXPECTED_WARN_FRAGMENTS.some(f => text.includes(f))) {
         warnings.push('WARN: ' + text);
@@ -209,6 +239,17 @@ if (!reached) {
 }
 
 await browser.close();
+
+// End-of-run 404 tally: fail only on 404s outside the expected-missing
+// (designer-pending projectile) allowlist. Expected ones are a no-op fallback.
+const unexpected404 = [...failed404].filter(f => !expectedMissing.has(f));
+if (unexpected404.length) {
+    for (const f of unexpected404) errors.push(`CONSOLE ERROR: 404 — ${f}`);
+}
+const suppressed404 = [...failed404].filter(f => expectedMissing.has(f));
+if (suppressed404.length) {
+    console.log(`(suppressed ${suppressed404.length} expected-missing projectile sprite 404s — procedural fallback active)`);
+}
 
 if (errors.length) {
     console.error('\n=== ERRORS ===');
