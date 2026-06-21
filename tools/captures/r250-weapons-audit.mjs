@@ -11,6 +11,7 @@ await page.waitForTimeout(600);
 
 async function setup() {
     return await page.evaluate(async () => {
+        const { input } = await import('/src/input.js');
         const g = window.__game;
         g._startStage(1);
         g.storyTimer = 999;
@@ -18,6 +19,16 @@ async function setup() {
         await new Promise(r => setTimeout(r, 250));
         g.scene = 'play';
         g.bossSpawned = true;
+        // Neutralize mouse aim. The page.click('#screen') that focuses the
+        // canvas leaves the Playwright cursor parked up-and-right of the
+        // player, so aimFor() returns that direction while aimActive is true.
+        // A real rAF tick can interleave inside the 250ms settle above and run
+        // player.update(), which recomputes this.aim from that stale cursor —
+        // overwriting the {x:1,y:0} we set below. The flat-right shots then
+        // become up-left shots that MISS the staged enemy, so FLAME/SHOTGUN
+        // intermittently "deal no damage". Forcing aimActive=false makes
+        // aimFor() fall back to the deterministic keyboard default {x:1,y:0}.
+        input.aimActive = false;
         g.player.x = 80;
         g.player.y = g.level.height - 48;
         g.player.facing = 1;
