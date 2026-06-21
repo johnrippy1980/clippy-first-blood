@@ -497,6 +497,7 @@ export class Player {
         if (this.lastHurtSrc && this.lastHurtSrc.frames > 0) this.lastHurtSrc.frames--;
         if (this.hurtTimer > 0) this.hurtTimer--;
         if (this.fireCooldown > 0) this.fireCooldown--;
+        if (this._impactFreezeCD > 0) this._impactFreezeCD--;
         // R180: shield tick — read input, manage cooldown / recharge / FX
         // timers, set shieldActive flag for hurt() and draw paths to consume.
         this._tickShield();
@@ -1815,7 +1816,7 @@ export class Player {
         // melee weapon, no muzzle, no shell. SFX still plays so the rev
         // loop ticks while the player holds shoot.
         if (this.weapon !== 'CHAINSAW') {
-            particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color);
+            particles.muzzleFlash(baseX, baseY, ndx, ndy, w.color, this.weapon);
             // R646: painted muzzle-flash overlay (no-op until art lands).
             // Shotgun gets its fatter signature flash if that pack exists.
             particles.muzzleFlashSprite(baseX, baseY, ndx, ndy,
@@ -2617,6 +2618,14 @@ export class Player {
             // Slight horizontal jitter so multi-hit bursts don't stack on one column
             const jx = (Math.random() - 0.5) * 6;
             particles.floatingText(bullet.x + jx, bullet.y - 2, dmgLabel, '#ff8050', 28, -0.7, 0);
+        }
+        // Single-frame impact freeze on any non-kill hit so chip damage has
+        // weight. Throttled by _impactFreezeCD (independent of fire cadence) so
+        // rapid weapons (MG/FLAME/SHOTGUN multi-hit) can't stutter the game by
+        // pausing every shot — at most one freeze per ~9 frames.
+        if (!killed && (this._impactFreezeCD || 0) <= 0) {
+            this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, 1);
+            this._impactFreezeCD = 9;
         }
         if (killed) {
             this.kills++;

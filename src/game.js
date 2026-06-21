@@ -2766,8 +2766,13 @@ export class Game {
             // (_tickPlayHandleBossTriggers), so reaching here is a real kill.
             if (!this._bossKillBeatFired) {
                 this._bossKillBeatFired = true;
+                // Hard freeze BEFORE the slow-mo ramp — parity with the doom /
+                // beat-em-up boss kills. The dead-stop sells the impact; the
+                // slow-mo then drags out the explosion. hitPauseFrames freezes
+                // enemy/world ticks (see _tickPlayUpdateWorld) for these frames.
+                this.player.hitPauseFrames = Math.max(this.player.hitPauseFrames || 0, 8);
                 this.triggerSlowMo(AMBIENT.SLOWMO_BOSS_KILL_F);
-                this.camera.shake(6);
+                this.camera.shake(8);
                 // R520: red "TARGET DOWN" stamp during the slow-mo window.
                 // Big bold text overlay tied to the boss-kill beat — gives
                 // the kill weight beyond just an explosion + slow-mo.

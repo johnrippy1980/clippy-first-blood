@@ -1,6 +1,22 @@
 // Particle system. Ring buffer; particles age out automatically.
 import { sprites } from './sprites.js';
 
+// Per-weapon muzzle-flash geometry. `count`/`size`/`life` shape the forward
+// spark cone; `spread` is its angular width; `speed`/`speedVar` its velocity;
+// `core` the bright white center sparkles; `smoke` the trailing puff count.
+// Tuned so each gun's flash reads at a glance: MG snappy, SHOTGUN fat, LASER a
+// thin lance, HOMING a heavy smoky launch, THUNDER an electric crackle.
+const MUZZLE_FLASH_PROFILES = {
+    _default: { core: 3, coreSize: 3, count: 8,  spread: 0.6,  speed: 1.4, speedVar: 1.2, life: 5, size: 1, smoke: 4 },
+    MG:       { core: 2, coreSize: 2, count: 5,  spread: 0.35, speed: 1.6, speedVar: 1.0, life: 4, size: 1, smoke: 2 },
+    SPREAD:   { core: 3, coreSize: 3, count: 11, spread: 1.1,  speed: 1.3, speedVar: 1.3, life: 6, size: 1, smoke: 3 },
+    LASER:    { core: 4, coreSize: 4, count: 6,  spread: 0.12, speed: 2.6, speedVar: 1.4, life: 7, size: 1, smoke: 1 },
+    FLAME:    { core: 1, coreSize: 2, count: 3,  spread: 0.5,  speed: 1.1, speedVar: 0.8, life: 5, size: 2, smoke: 1 },
+    HOMING:   { core: 4, coreSize: 4, count: 10, spread: 0.7,  speed: 1.1, speedVar: 1.0, life: 8, size: 2, smoke: 6 },
+    THUNDER:  { core: 5, coreSize: 3, count: 9,  spread: 0.9,  speed: 1.8, speedVar: 1.6, life: 5, size: 1, smoke: 1 },
+    SHOTGUN:  { core: 4, coreSize: 4, count: 12, spread: 1.0,  speed: 1.7, speedVar: 1.5, life: 6, size: 2, smoke: 5 },
+};
+
 class Particle {
     constructor() { this.alive = false; }
     init(x, y, vx, vy, life, color, size = 1, gravity = 0, fade = true) {
@@ -420,20 +436,26 @@ class ParticleSystem {
         }
     }
 
-    muzzleFlash(x, y, dx, dy, color = '#ffe070') {
-        // Bright core sparkle
-        for (let i = 0; i < 3; i++) {
-            this.spawn(x, y, 0, 0, 3 + i, '#fff', 3 - i, 0);
+    // Per-weapon flash signature. Each gun gets a distinct core sparkle + a
+    // forward cone whose width/speed/count/size telegraphs its character: MG is
+    // a tight rapid pop, SHOTGUN a wide fat blast, LASER a needle-thin lance,
+    // HOMING a chunky smoky launch, THUNDER a crackling electric burst. Color
+    // still comes from the weapon; the `weapon` arg drives the geometry. Falls
+    // back to the original generic cone when weapon is unknown/omitted.
+    muzzleFlash(x, y, dx, dy, color = '#ffe070', weapon = null) {
+        const P = MUZZLE_FLASH_PROFILES[weapon] || MUZZLE_FLASH_PROFILES._default;
+        // Bright core sparkle — count + size from profile.
+        for (let i = 0; i < P.core; i++) {
+            this.spawn(x, y, 0, 0, P.coreSize + i, '#fff', Math.max(1, P.core - i), 0);
         }
-        // Forward cone of bright particles
-        for (let i = 0; i < 8; i++) {
-            const spread = 0.6;
-            const vx = dx * (1.4 + Math.random() * 1.2) + (Math.random() - 0.5) * spread;
-            const vy = dy * (1.4 + Math.random() * 1.2) + (Math.random() - 0.5) * spread;
-            this.spawn(x, y, vx, vy, 5 + Math.random() * 4, color, 1 + (Math.random() < 0.5 ? 1 : 0), 0);
+        // Forward cone of bright particles.
+        for (let i = 0; i < P.count; i++) {
+            const vx = dx * (P.speed + Math.random() * P.speedVar) + (Math.random() - 0.5) * P.spread;
+            const vy = dy * (P.speed + Math.random() * P.speedVar) + (Math.random() - 0.5) * P.spread;
+            this.spawn(x, y, vx, vy, P.life + Math.random() * 4, color, P.size + (Math.random() < 0.5 ? 1 : 0), 0);
         }
-        // Smoke trail puff
-        for (let i = 0; i < 4; i++) {
+        // Smoke trail puff — heavier weapons leave more smoke.
+        for (let i = 0; i < P.smoke; i++) {
             this.spawn(x, y, -dx * 0.4 + (Math.random() - 0.5) * 0.5, -dy * 0.4 + (Math.random() - 0.5) * 0.5,
                        14 + Math.random() * 4, '#605060', 1, -0.02);
         }
