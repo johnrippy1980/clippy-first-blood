@@ -29,7 +29,7 @@ import { options } from './options.js';
 // Flip to true once the painted projectile/FX sprites (PROJECTILE_MANIFEST)
 // are delivered into assets/sprites/. Until then the game uses procedural
 // projectiles and the manifest load is skipped (see preload()).
-const PROJECTILE_ART_READY = false;
+const PROJECTILE_ART_READY = true;
 
 const SCENE = {
     BOOT: 'boot',

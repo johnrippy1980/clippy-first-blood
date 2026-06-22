@@ -674,28 +674,29 @@ export const WEAPON_MANIFEST = {
 //   fx_flame_1..4    — flamethrower puff loop (~8-12px), played by puff age.
 //   fx_muzzle_1..3   — generic muzzle flash at barrel (~8-14px).
 //   fx_muzzle_shotgun_1..3 — fatter orange shotgun flash (optional override).
+// Only the DELIVERED sprites belong here — loadAll() fetches every entry, so a
+// key for a not-yet-shipped file 404s and trips probes that assert a clean
+// console. The renderer gates each branch on sprites.has(), so a missing key
+// just falls back to procedural draw. When Milos ships a new batch, move its
+// keys up from the PENDING block below into this object.
+//   Delivered 2026-06-22: bullet (MG/Spread/Shotgun) + 4-frame flame.
 export const PROJECTILE_MANIFEST = {
     'proj_bullet':           'proj_bullet.png',
     'proj_bullet_2':         'proj_bullet_2.png',
-    'proj_laser':            'proj_laser.png',
-    'proj_laser_2':          'proj_laser_2.png',
-    'proj_missile_1':        'proj_missile_1.png',
-    'proj_missile_2':        'proj_missile_2.png',
-    'fx_explosion_1':        'fx_explosion_1.png',
-    'fx_explosion_2':        'fx_explosion_2.png',
-    'fx_explosion_3':        'fx_explosion_3.png',
-    'fx_explosion_4':        'fx_explosion_4.png',
     'fx_flame_1':            'fx_flame_1.png',
     'fx_flame_2':            'fx_flame_2.png',
     'fx_flame_3':            'fx_flame_3.png',
     'fx_flame_4':            'fx_flame_4.png',
-    'fx_muzzle_1':           'fx_muzzle_1.png',
-    'fx_muzzle_2':           'fx_muzzle_2.png',
-    'fx_muzzle_3':           'fx_muzzle_3.png',
-    'fx_muzzle_shotgun_1':   'fx_muzzle_shotgun_1.png',
-    'fx_muzzle_shotgun_2':   'fx_muzzle_shotgun_2.png',
-    'fx_muzzle_shotgun_3':   'fx_muzzle_shotgun_3.png',
 };
+
+// PENDING delivery — add to PROJECTILE_MANIFEST above once the PNGs land:
+//   'proj_laser':          'proj_laser.png',
+//   'proj_laser_2':        'proj_laser_2.png',
+//   'proj_missile_1':      'proj_missile_1.png',
+//   'proj_missile_2':      'proj_missile_2.png',
+//   'fx_explosion_1..4':   'fx_explosion_1..4.png',
+//   'fx_muzzle_1..3':      'fx_muzzle_1..3.png',
+//   'fx_muzzle_shotgun_1..3': 'fx_muzzle_shotgun_1..3.png',
 
 // R568c (slice 3): Bonzi Buddy sprites for co-op P2. Generated via Local Howl
 // gemini-pro and processed through the standard chroma-knockout pipeline.
