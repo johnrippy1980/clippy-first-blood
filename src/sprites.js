@@ -680,6 +680,9 @@ export const WEAPON_MANIFEST = {
 // just falls back to procedural draw. When Milos ships a new batch, move its
 // keys up from the PENDING block below into this object.
 //   Delivered 2026-06-22: bullet (MG/Spread/Shotgun) + 4-frame flame.
+//   Delivered 2026-06-24: laser dart (2 frames), homing missile (2 frames),
+//     missile-impact explosion (4 frames; source shipped 5 but SpriteBurst is
+//     fixed at 4), generic muzzle flash (2 frames; MuzzleFlash auto-counts).
 export const PROJECTILE_MANIFEST = {
     'proj_bullet':           'proj_bullet.png',
     'proj_bullet_2':         'proj_bullet_2.png',
@@ -687,16 +690,21 @@ export const PROJECTILE_MANIFEST = {
     'fx_flame_2':            'fx_flame_2.png',
     'fx_flame_3':            'fx_flame_3.png',
     'fx_flame_4':            'fx_flame_4.png',
+    'proj_laser':            'proj_laser.png',
+    'proj_laser_2':          'proj_laser_2.png',
+    'proj_missile_1':        'proj_missile_1.png',
+    'proj_missile_2':        'proj_missile_2.png',
+    'fx_explosion_1':        'fx_explosion_1.png',
+    'fx_explosion_2':        'fx_explosion_2.png',
+    'fx_explosion_3':        'fx_explosion_3.png',
+    'fx_explosion_4':        'fx_explosion_4.png',
+    'fx_muzzle_1':           'fx_muzzle_1.png',
+    'fx_muzzle_2':           'fx_muzzle_2.png',
 };
 
 // PENDING delivery — add to PROJECTILE_MANIFEST above once the PNGs land:
-//   'proj_laser':          'proj_laser.png',
-//   'proj_laser_2':        'proj_laser_2.png',
-//   'proj_missile_1':      'proj_missile_1.png',
-//   'proj_missile_2':      'proj_missile_2.png',
-//   'fx_explosion_1..4':   'fx_explosion_1..4.png',
-//   'fx_muzzle_1..3':      'fx_muzzle_1..3.png',
-//   'fx_muzzle_shotgun_1..3': 'fx_muzzle_shotgun_1..3.png',
+//   'fx_muzzle_shotgun_1..3': 'fx_muzzle_shotgun_1..3.png'  (optional fatter
+//     orange shotgun-specific flash; player.js falls back to fx_muzzle when absent)
 
 // R568c (slice 3): Bonzi Buddy sprites for co-op P2. Generated via Local Howl
 // gemini-pro and processed through the standard chroma-knockout pipeline.
