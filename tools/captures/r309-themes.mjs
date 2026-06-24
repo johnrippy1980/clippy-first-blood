@@ -1,3 +1,4 @@
+// @probe-timeout 180000
 // R309: capture one in-game screenshot per theme so atmospheric layers
 // can be eyeballed without booting through the campaign manually.
 import { chromium } from 'playwright';

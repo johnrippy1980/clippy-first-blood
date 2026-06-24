@@ -1,3 +1,4 @@
+// @probe-timeout 300000
 // R554: fresh-eyes full game audit
 // 1) Visit every play scene in detail
 // 2) Exercise input (walk, jump, shoot, pause)

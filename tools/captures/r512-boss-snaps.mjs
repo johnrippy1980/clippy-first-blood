@@ -1,3 +1,4 @@
+// @probe-timeout 180000
 // R512: snap each unique boss for variety audit
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';

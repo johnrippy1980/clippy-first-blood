@@ -1,3 +1,4 @@
+// @probe-timeout 120000
 // R555: gameplay edge cases — pickups, weapon switching, player death,
 // achievement unlocks. Watch for state leaks + visual bugs.
 import { chromium } from 'playwright';

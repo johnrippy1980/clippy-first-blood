@@ -1,3 +1,4 @@
+// @probe-timeout 120000
 // R232: verify each boss stays ON-SCREEN during a fight. The boss must
 // be at least 24px inside the visible camera frame for every sampled
 // frame across a 6-second window. Also screenshots one mid-fight frame

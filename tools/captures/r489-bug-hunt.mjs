@@ -1,3 +1,4 @@
+// @probe-timeout 240000
 // R489: deep bug-hunt harness. Covers:
 //  (a) full traversal of all 24 stages
 //  (b) restart-after-death on each engine type

@@ -1,3 +1,4 @@
+// @probe-timeout 480000
 // R387: grade-the-game pass — snap each stage at multiple points so
 // we can see what looks rough end-to-end.
 import { chromium } from 'playwright';

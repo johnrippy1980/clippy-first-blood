@@ -1,3 +1,4 @@
+// @probe-timeout 180000
 // R457: full-game traversal — boot every stage, check for errors, missing
 // assets, soft-locks, frame-time spikes. Log everything in one report.
 import { chromium } from 'playwright';

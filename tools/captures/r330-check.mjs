@@ -1,3 +1,4 @@
+// @probe-timeout 90000
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 mkdirSync('/tmp/r330', { recursive: true });

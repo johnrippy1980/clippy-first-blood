@@ -1,3 +1,4 @@
+// @probe-timeout 120000
 // R390: simulate real play of stages 1, 2, 3 with the player walking
 // right and shooting. Snap multiple frames per stage to see live combat.
 import { chromium } from 'playwright';

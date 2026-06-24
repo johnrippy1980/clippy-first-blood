@@ -1,3 +1,4 @@
+// @probe-timeout 90000
 // R235: visual audit — take a mid-action screenshot of each stage so
 // I can spot polish issues (visual bugs, ugly placeholders, dead spots).
 import { chromium } from 'playwright';

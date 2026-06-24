@@ -1,3 +1,4 @@
+// @probe-timeout 90000
 // R412: snap select stages I haven't audited yet
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';

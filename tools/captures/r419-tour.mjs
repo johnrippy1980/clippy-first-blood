@@ -1,3 +1,4 @@
+// @probe-timeout 180000
 // R419: quick visual tour of every stage to spot remaining roughness
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';

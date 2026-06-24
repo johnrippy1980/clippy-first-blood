@@ -1,3 +1,4 @@
+// @probe-timeout 90000
 // R386: full pass through 20/21/22 to see current quality post-fix.
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';

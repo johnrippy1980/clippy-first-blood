@@ -1,3 +1,4 @@
+// @probe-timeout 120000
 // R454: perf harness — measure ms/frame on each engine on the largest stage.
 import { chromium } from 'playwright';
 const URL = 'http://localhost:8765/';

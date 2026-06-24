@@ -3,13 +3,31 @@
 // Probes that require the dev server at :8765 are detected by trying to
 // fetch the homepage first; if it's down we skip rather than fail.
 
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const capturesDir = join(__dirname, 'captures');
+
+// Default per-probe wall-clock budget. Most probes finish in a few seconds;
+// the long full-playthrough/audit probes legitimately run far longer and
+// declare their own budget with a `// @probe-timeout <ms>` directive on any
+// line of the file (read below). A single flat cap can't fit a suite that
+// mixes 3s unit probes with 90s campaign playthroughs — the flat 30s cap was
+// SIGKILLing the long ones and reporting them as failures under load.
+const DEFAULT_TIMEOUT_MS = 30000;
+const TIMEOUT_RX = /@probe-timeout\s+(\d+)/;
+
+async function timeoutFor(file) {
+    try {
+        const src = await readFile(file, 'utf8');
+        const m = src.match(TIMEOUT_RX);
+        if (m) return Math.max(DEFAULT_TIMEOUT_MS, parseInt(m[1], 10));
+    } catch { /* fall through to default */ }
+    return DEFAULT_TIMEOUT_MS;
+}
 
 // Confirm dev server reachable — probes use playwright to hit localhost:8765.
 async function serverUp() {
@@ -19,13 +37,16 @@ async function serverUp() {
     } catch { return false; }
 }
 
-function runOne(file) {
+function runOne(file, timeoutMs) {
     return new Promise(resolve => {
         const p = spawn('node', [file], { stdio: ['ignore', 'pipe', 'pipe'] });
         let out = '', err = '';
         p.stdout.on('data', d => out += d);
         p.stderr.on('data', d => err += d);
-        const t = setTimeout(() => { p.kill('SIGKILL'); resolve({ code: 124, out, err: err + '\n[TIMEOUT 30s]' }); }, 30000);
+        const t = setTimeout(() => {
+            p.kill('SIGKILL');
+            resolve({ code: 124, out, err: err + `\n[TIMEOUT ${Math.round(timeoutMs / 1000)}s]` });
+        }, timeoutMs);
         p.on('close', code => { clearTimeout(t); resolve({ code, out, err }); });
     });
 }
@@ -44,7 +65,7 @@ let passed = 0, failed = 0;
 const failures = [];
 for (const f of all) {
     const full = join(capturesDir, f);
-    const { code, err } = await runOne(full);
+    const { code, err } = await runOne(full, await timeoutFor(full));
     if (code === 0) {
         passed++;
         process.stdout.write('.');

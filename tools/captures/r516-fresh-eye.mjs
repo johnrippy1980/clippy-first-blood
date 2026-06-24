@@ -1,3 +1,4 @@
+// @probe-timeout 120000
 // R516: fresh-eye audit — snap one representative frame from each engine
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';

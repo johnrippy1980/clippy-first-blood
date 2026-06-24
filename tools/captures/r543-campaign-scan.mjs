@@ -1,3 +1,4 @@
+// @probe-timeout 150000
 // R543: full programmatic campaign scan. Visits every stage, force-clears,
 // watches for console errors + verifies the next stage loads cleanly.
 import { chromium } from 'playwright';

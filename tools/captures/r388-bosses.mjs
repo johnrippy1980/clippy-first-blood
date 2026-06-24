@@ -1,3 +1,4 @@
+// @probe-timeout 300000
 // R388: snap every platformer boss arena. Each stage gets its own
 // fresh browser, walks the player to bossTrigger, force-spawns, snaps.
 import { chromium } from 'playwright';
