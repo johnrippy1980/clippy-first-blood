@@ -683,6 +683,9 @@ export const WEAPON_MANIFEST = {
 //   Delivered 2026-06-24: laser dart (2 frames), homing missile (2 frames),
 //     missile-impact explosion (4 frames; source shipped 5 but SpriteBurst is
 //     fixed at 4), generic muzzle flash (2 frames; MuzzleFlash auto-counts).
+//   Delivered 2026-06-25: laser dart redesign (compact cyan star-burst spark,
+//     pure asset swap of proj_laser/_2), shotgun-specific muzzle flash (2 frames,
+//     fatter/longer orange blast; player.js requests it for SHOTGUN).
 export const PROJECTILE_MANIFEST = {
     'proj_bullet':           'proj_bullet.png',
     'proj_bullet_2':         'proj_bullet_2.png',
@@ -700,11 +703,9 @@ export const PROJECTILE_MANIFEST = {
     'fx_explosion_4':        'fx_explosion_4.png',
     'fx_muzzle_1':           'fx_muzzle_1.png',
     'fx_muzzle_2':           'fx_muzzle_2.png',
+    'fx_muzzle_shotgun_1':   'fx_muzzle_shotgun_1.png',
+    'fx_muzzle_shotgun_2':   'fx_muzzle_shotgun_2.png',
 };
-
-// PENDING delivery — add to PROJECTILE_MANIFEST above once the PNGs land:
-//   'fx_muzzle_shotgun_1..3': 'fx_muzzle_shotgun_1..3.png'  (optional fatter
-//     orange shotgun-specific flash; player.js falls back to fx_muzzle when absent)
 
 // R568c (slice 3): Bonzi Buddy sprites for co-op P2. Generated via Local Howl
 // gemini-pro and processed through the standard chroma-knockout pipeline.
