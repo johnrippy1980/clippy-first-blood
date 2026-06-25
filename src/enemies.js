@@ -1112,10 +1112,13 @@ class Enemy {
             return;
         }
         if (this.owlPause > 0) return;
-        // Track active spawned children. We tag them with _summonedBy = this
-        // so we can count them quickly.
+        // Track active spawned children by real-enemy reference. The manager
+        // links the spawned Enemy back into this list when it drains the
+        // summon queue, so the cap counts living children — not placeholders.
         this._spawned = (this._spawned || []).filter(e => e.alive);
         if (this._spawned.length >= tpl.summonMax) return;
+        // A request is already in flight this frame — don't queue a second.
+        if (this._pendingSummon) return;
         // Telegraph: bright outline pulse 30 frames before summon
         const summonPhase = this.timer % tpl.summonInterval;
         if (summonPhase >= tpl.summonInterval - 30) {
@@ -1124,9 +1127,9 @@ class Enemy {
         if (summonPhase === 0 && this.timer > 0) {
             const spawnX = this.x + (this.facing > 0 ? 16 : -16);
             const spawnY = this.y - 6;
-            this._spawned.push({ x: spawnX, y: spawnY, type: tpl.summonType, alive: true });
-            // Request the EnemyManager to spawn it on its next tick
-            this._pendingSummon = { x: spawnX, y: spawnY, type: tpl.summonType };
+            // Request the EnemyManager to spawn it on its next tick. `summoner`
+            // lets the manager link the real Enemy back into _spawned for the cap.
+            this._pendingSummon = { x: spawnX, y: spawnY, type: tpl.summonType, summoner: this };
             particles.shockRing(this.x + this.w / 2, this.y + this.h / 2, 14, 18, '#a0a0ff');
             audio.sfx?.('respawn');
         }
@@ -3268,6 +3271,7 @@ export class EnemyManager {
         // (mini-boss reinforcements) keep the default 30f grace.
         if (this._initialSpawnPhase) e._grace = 60;
         this.enemies.push(e);
+        return e;
     }
     spawnBoss(x, y, kind) {
         const tpl = BOSS_TEMPLATES[kind];
@@ -3554,6 +3558,20 @@ export class EnemyManager {
             }
         }
 
+        // R325: drain the summoner spawn queue accumulated above. Spawning here
+        // (after the iteration) avoids mutating this.enemies mid-loop. Each child
+        // is linked back into its summoner's _spawned list so the summonMax cap
+        // counts living children — the summoner re-checks .alive each tick.
+        if (this._summonQueue && this._summonQueue.length) {
+            for (const req of this._summonQueue) {
+                const child = this.spawn(req.x, req.y, req.type);
+                if (child && req.summoner) {
+                    (req.summoner._spawned || (req.summoner._spawned = [])).push(child);
+                }
+            }
+            this._summonQueue.length = 0;
+        }
+
         // R631: player bullets can INTERCEPT a mortar shell in the air. A hit
         // marks the shell _intercepted then detonates it — a harmless mid-air
         // pop with NO ground splash — giving skilled players a hard counter to
@@ -3815,6 +3833,7 @@ export class EnemyManager {
             if (b.homing && !b._target) {
                 let bestD = Infinity, best = null;
                 for (const e of this.enemies) {
+                    if (!e.alive) continue;
                     const d = Math.hypot(e.x - b.x, e.y - b.y);
                     if (d < bestD) { bestD = d; best = e; }
                 }

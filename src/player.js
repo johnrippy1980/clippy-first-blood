@@ -498,6 +498,16 @@ export class Player {
         if (this.hurtTimer > 0) this.hurtTimer--;
         if (this.fireCooldown > 0) this.fireCooldown--;
         if (this._impactFreezeCD > 0) this._impactFreezeCD--;
+        // These cooldown/animation timers used to decrement in draw(), which
+        // runs during PAUSE while update() doesn't — letting players cool an
+        // overheated MG and reset grapple/taunt by sitting on the pause menu.
+        // Ticking them here keeps them frozen while paused.
+        if (this.recoilTimer > 0) this.recoilTimer--;
+        if (this._squashFrames > 0) this._squashFrames--;
+        if (this.mgHeat > 0) this.mgHeat = Math.max(0, this.mgHeat - 1.5);
+        if (this.mgVentLock > 0) this.mgVentLock--;
+        if (this._grappleCooldown > 0) this._grappleCooldown--;
+        if (this._tauntCooldown > 0) this._tauntCooldown--;
         // R180: shield tick — read input, manage cooldown / recharge / FX
         // timers, set shieldActive flag for hurt() and draw paths to consume.
         this._tickShield();
@@ -3617,15 +3627,6 @@ export class Player {
             ctx.fillStyle = '#ffe070';
             ctx.fillRect(cx, cy, 1, 1);
         }
-
-        if (this.recoilTimer > 0) this.recoilTimer--;
-        if (this._squashFrames > 0) this._squashFrames--;
-        // MG heat decay (always — even mid-fire — but the per-shot add (+8)
-        // outpaces the per-frame -1.5 when held).
-        if (this.mgHeat > 0) this.mgHeat = Math.max(0, this.mgHeat - 1.5);
-        if (this.mgVentLock > 0) this.mgVentLock--;
-        if (this._grappleCooldown > 0) this._grappleCooldown--;
-        if (this._tauntCooldown > 0) this._tauntCooldown--;
 
         // Bullets
         for (const b of this.bullets) {
