@@ -111,7 +111,7 @@ function _formatTime(frames) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-const PAUSE_OPTIONS = ['RESUME', 'OPTIONS', 'ACHIEVEMENTS', 'SCENE GALLERY', 'SOUNDTRACK', 'QUIT TO TITLE'];
+const PAUSE_OPTIONS = ['RESUME', 'RESTART STAGE', 'OPTIONS', 'ACHIEVEMENTS', 'SCENE GALLERY', 'SOUNDTRACK', 'QUIT TO TITLE'];
 // R288: master + music + sfx volume sliders (all default 100%).
 // R364: exposed crtCurve + showReady — both already existed in
 // options.js DEFAULTS but weren't selectable from the menu. CRT curve
@@ -3788,7 +3788,10 @@ export class Game {
         // controls strip + footer still fit inside the existing panelH.
         // R612: also compress when a 2-line relic loadout is shown so the
         // pushed-down menu + controls + footer stay inside the panel.
-        const pauseRowH = (this._doomMode || relicLines.length >= 2) ? 13 : 16;
+        // Row heights chosen so 7 options + the 2-row controls strip + footer
+        // always clear the footer at panelY+panelH-8 (=198), in every mode:
+        // normal (startY 58), Doom (startY 78), 2-line relics (startY 66).
+        const pauseRowH = (this._doomMode || relicLines.length >= 2) ? 11 : 14;
         for (let i = 0; i < PAUSE_OPTIONS.length; i++) {
             const y = startY + i * pauseRowH;
             const isSel = i === this.pauseIndex;
@@ -3861,6 +3864,15 @@ export class Game {
                 // on this track + playing), so it's safe to always call.
                 const stg = STAGES[this.currentStage];
                 if (stg) audio.playTrack(stg.music);
+            }
+            // Restart the current stage from scratch (fresh player/level via the
+            // canonical _startStage path, which routes through STAGE_INTRO/READY).
+            // Run-level state (relics, run timer) is intentionally left intact —
+            // this restarts the STAGE, not the whole run (that's QUIT TO TITLE).
+            else if (sel === 'RESTART STAGE') {
+                audio.sfx('pauseExit');
+                audio.stopTrack();
+                this._startStage(this.currentStage);
             }
             // R211: arm sub-menus to return to PAUSE since we entered
             // from an in-game pause (live player/level state underneath).
