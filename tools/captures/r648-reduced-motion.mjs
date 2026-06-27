@@ -59,14 +59,23 @@ await tap('x'); await page.waitForTimeout(400);
 const inOpts = await page.evaluate(() => window.__game.scene);
 check('entered OPTIONS', inOpts === 'options', 'scene=' + inOpts);
 
-// Jump the cursor to REDUCED MOTION and toggle it ON with Right.
-await page.evaluate(() => {
-  const items = ['MASTER VOLUME','MUSIC VOLUME','SFX VOLUME','SCANLINES','CRT CURVE','SHAKE INTENSITY','REDUCED MOTION','SHOW READY','SHOW GHOST','BACK'];
-  window.__game.optionsIndex = items.indexOf('REDUCED MOTION');
-});
-const idxOk = await page.evaluate(() => window.__game.optionsIndex);
-check('cursor on REDUCED MOTION (idx 6)', idxOk === 6, 'idx=' + idxOk);
-await tap('ArrowRight'); await page.waitForTimeout(200);
+// Self-locate the REDUCED MOTION row. The menu order changes as options are
+// added (R649 DIFFICULTY shifted every later row down by one), so DON'T
+// hardcode the index — scan each row, press RIGHT, and find the one that flips
+// `reducedMotion` from false to true. Teeth: fails if the toggle is unreachable.
+const getRM = () => page.evaluate(async () => (await import('/src/options.js')).options.get('reducedMotion'));
+// Ensure a known starting state (off) so RIGHT means "turn on".
+await page.evaluate(() => import('/src/options.js').then(m => m.options.set('reducedMotion', false)));
+const rowCount = await page.evaluate(() => window.__game.optionsIndex !== undefined ? 11 : 0); // OPTIONS has 11 rows
+let rmIdx = -1;
+for (let i = 0; i < rowCount; i++) {
+  await page.evaluate(() => import('/src/options.js').then(m => m.options.set('reducedMotion', false)));
+  await page.evaluate((idx) => { window.__game.optionsIndex = idx; }, i);
+  await tap('ArrowRight'); await page.waitForTimeout(80);
+  if ((await getRM()) === true) { rmIdx = i; break; }
+}
+check('found REDUCED MOTION toggle row', rmIdx >= 0, 'idx=' + rmIdx);
+// Leave the cursor on that row with reducedMotion now ON.
 
 // Back out of OPTIONS, resume to play so tick() re-runs the camera wiring.
 await tap('p'); await page.waitForTimeout(300); // OPTIONS -> PAUSE

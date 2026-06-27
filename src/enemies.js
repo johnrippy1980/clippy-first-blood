@@ -3204,6 +3204,11 @@ export class EnemyManager {
         this.stageScale = 1;        // hp + score multiplier
         this.stageContactBonus = 0; // flat add to contact damage
         this.stageFireRate = 1;     // <1 = faster enemy fire (per stage)
+        // R649: campaign DIFFICULTY enemy-HP multiplier. 1 = Normal baseline.
+        // Set by the game per stage (injected, so enemies.js stays options-free).
+        // Scales only HP — NOT score — so an Easy run can't be score-farmed and
+        // a Hard run isn't double-rewarded. Skipped (left at 1) in Daily mode.
+        this.difficultyHpMult = 1;
         this.lostCount = 0;         // # of new "target lost" bubbles this stage
         this._whizzCooldown = 0;    // cap whizz SFX retriggers in dense barrages
     }
@@ -3260,8 +3265,9 @@ export class EnemyManager {
     }
     spawn(x, y, type) {
         const e = new Enemy(x, y - TYPES[type].h, type);
-        // Apply stage scaling
-        e.hp = Math.ceil(e.hp * this.stageScale);
+        // Apply stage scaling (R649: + campaign difficulty on HP only).
+        // max(1,...) so a soft Easy multiplier can never round a 1-HP grunt to 0.
+        e.hp = Math.max(1, Math.ceil(e.hp * this.stageScale * this.difficultyHpMult));
         e.maxHp = e.hp;
         e.score = Math.round(e.score * this.stageScale);
         e.contactDmg += this.stageContactBonus;
@@ -3276,9 +3282,12 @@ export class EnemyManager {
     spawnBoss(x, y, kind) {
         const tpl = BOSS_TEMPLATES[kind];
         const boss = new Boss(x - tpl.w / 2, y - tpl.h, kind);
-        // Bosses scale less aggressively — already tuned individually
+        // Bosses scale less aggressively — already tuned individually.
+        // R649: campaign difficulty applies at HALF strength to bosses too, so
+        // a Hard boss isn't a slog and an Easy boss still feels like a fight.
         const bossScale = 1 + (this.stageScale - 1) * 0.5;
-        boss.hp = Math.ceil(boss.hp * bossScale);
+        const bossDiff = 1 + (this.difficultyHpMult - 1) * 0.5;
+        boss.hp = Math.max(1, Math.ceil(boss.hp * bossScale * bossDiff));
         boss.maxHp = boss.hp;
         this.enemies.push(boss);
         return boss;

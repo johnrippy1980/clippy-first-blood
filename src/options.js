@@ -26,6 +26,11 @@ const DEFAULTS = {
     // and the high-combo vignette pulse. Off by default (byte-identical to the
     // shipped game-feel). For motion-sensitivity / reduced-motion preference.
     reducedMotion: false,
+    // R649: campaign difficulty. 'normal' is the tuned baseline (1.0× damage
+    // taken / 1.0× enemy HP). 'easy' halves incoming damage + softens enemy
+    // HP for newcomers; 'hard' raises both for veterans. Non-'normal' runs are
+    // excluded from the Any%/weekly leaderboards (non-comparable, like Daily).
+    difficulty: 'normal',
 };
 
 class Options {

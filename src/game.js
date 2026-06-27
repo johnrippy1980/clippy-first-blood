@@ -117,9 +117,23 @@ const PAUSE_OPTIONS = ['RESUME', 'RESTART STAGE', 'OPTIONS', 'ACHIEVEMENTS', 'SC
 // options.js DEFAULTS but weren't selectable from the menu. CRT curve
 // is a visual preference some players hate (motion sickness), and
 // veterans want to skip the READY screen on repeat runs.
-const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'REDUCED MOTION', 'SHOW READY', 'SHOW GHOST', 'BACK'];
-const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'crtCurve',  'shakeScale',     'reducedMotion',  'showReady',  'showGhost',  'BACK'];
+const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'DIFFICULTY', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'REDUCED MOTION', 'SHOW READY', 'SHOW GHOST', 'BACK'];
+const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'difficulty', 'scanlines', 'crtCurve',  'shakeScale',     'reducedMotion',  'showReady',  'showGhost',  'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
+
+// R649: campaign difficulty multipliers. `taken` scales damage the PLAYER
+// receives (folded into damageTakenMult); `enemyHp` scales every enemy's HP
+// (and the boss). Normal is the shipped baseline (1.0/1.0) so existing balance
+// is byte-identical. Order drives the EASY→NORMAL→HARD menu cycle.
+const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
+const DIFFICULTY_MULTS = {
+    easy:   { taken: 0.5, enemyHp: 0.75 },
+    normal: { taken: 1.0, enemyHp: 1.0 },
+    hard:   { taken: 1.5, enemyHp: 1.4 },
+};
+function difficultyMults() {
+    return DIFFICULTY_MULTS[options.get('difficulty')] || DIFFICULTY_MULTS.normal;
+}
 
 // Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
 // shown over the painted card as Clippy progresses through his hit list.
@@ -3947,6 +3961,12 @@ export class Game {
             } else if (k === 'reducedMotion') {
                 // Accessibility toggle — suppresses shake / slow-mo / combo pulse.
                 options.set(k, !options.get(k));
+            } else if (k === 'difficulty') {
+                // R649: cycle EASY → NORMAL → HARD. Wraps both directions.
+                const cur = DIFFICULTY_ORDER.indexOf(options.get('difficulty'));
+                const i = cur < 0 ? 1 : cur;   // default to NORMAL if unset
+                const next = (i + dir + DIFFICULTY_ORDER.length) % DIFFICULTY_ORDER.length;
+                options.set('difficulty', DIFFICULTY_ORDER[next]);
             }
             audio.sfx('menu');
         }
@@ -3970,17 +3990,17 @@ export class Game {
 
         drawTextOutlined(ctx, 'OPTIONS', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 2, 'center');
 
-        // R648: row pitch tightened 18→15 + startY raised so the 10th
-        // option (REDUCED MOTION) fits above the footer hint.
-        const startY = panelY + 30;
+        // R648/R649: row pitch tightened to 14 + startY raised so all 11
+        // options (incl. DIFFICULTY) fit above the footer hint.
+        const startY = panelY + 28;
         this._optionsPulse = (this._optionsPulse || 0) + 1;
         for (let i = 0; i < OPTIONS_ITEMS.length; i++) {
-            const y = startY + i * 15;
+            const y = startY + i * 14;
             const sel = i === this.optionsIndex;
             if (sel) {
                 const phase = Math.sin(this._optionsPulse * 0.18) * 0.5 + 0.5;
                 ctx.fillStyle = `rgb(${160 + Math.floor(phase * 40)},${16},${32})`;
-                ctx.fillRect(panelX + 8, y - 2, panelW - 16, 14);
+                ctx.fillRect(panelX + 8, y - 2, panelW - 16, 13);
                 drawText(ctx, '>', panelX + 12, y, '#ffe070', 1, 'left');
                 drawText(ctx, '<', panelX + panelW - 18, y, '#ffe070', 1, 'left');
             }
@@ -4009,6 +4029,12 @@ export class Game {
                 drawText(ctx, options.get('shakeScale').toFixed(2), panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
             } else if (key === 'scanlines' || key === 'crtCurve' || key === 'showReady' || key === 'showGhost' || key === 'reducedMotion') {
                 drawText(ctx, options.get(key) ? 'ON' : 'OFF', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
+            } else if (key === 'difficulty') {
+                // R649: 3-state label (EASY/NORMAL/HARD). Hard tints red as a
+                // "you asked for it" cue; easy tints green.
+                const d = options.get('difficulty');
+                const tint = d === 'hard' ? '#ff6048' : d === 'easy' ? '#70d060' : (sel ? '#ffe070' : '#80a0c0');
+                drawText(ctx, d.toUpperCase(), panelX + panelW - 26, y, tint, 1, 'right');
             }
         }
         drawText(ctx, 'LEFT/RIGHT CHANGE  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 10, '#604068', 1, 'center');
@@ -6034,6 +6060,10 @@ export class Game {
         this.camera.setBounds(this.level.width, this.level.height);
         this.enemies.clear();
         this.enemies.setStageDifficulty(n);
+        // R649: campaign DIFFICULTY enemy-HP scale. Daily runs keep 1.0 so their
+        // fixed mods stay comparable across players. Set BEFORE loadFromLevel so
+        // every spawn in this stage picks it up.
+        this.enemies.difficultyHpMult = this.dailyMode ? 1 : difficultyMults().enemyHp;
         this.pickups.clear();
         // Daily Challenge BARE HANDS / AUSTERITY: suppress weapon/powerup drops
         // for the whole run. Must be set BEFORE loadFromLevel below so stage
@@ -6170,6 +6200,13 @@ export class Game {
             this.player.damageTakenMult = 1;
             this.player.damageDealtMult = 1;
             this.player.gravityMult = 1;
+        }
+        // R649: fold campaign DIFFICULTY into the freshly-reset takenMult.
+        // Daily runs are skipped — their fixed mods must stay comparable across
+        // players, so difficulty can't distort them. Re-applied every stage like
+        // the daily/relic mults, so it survives respawns without compounding.
+        if (this.player && !this.dailyMode) {
+            this.player.damageTakenMult *= difficultyMults().taken;
         }
         // R610: re-apply the run's drafted relics on top of the resolved player
         // (after daily mods so the two stack). Re-applied every stage so the
@@ -7263,6 +7300,11 @@ export class Game {
             this._leaderboardSubmitted = true;
             const stages = this.runStats.stagesCleared.size;
             const isDaily = !!(this.dailyMode && this.dailyChallenge);
+            // R649: a non-Normal campaign run plays a different ruleset, so its
+            // score isn't comparable to the Any%/weekly boards — exclude it the
+            // same way Daily is. (Daily already forces Normal balance, so this
+            // only affects deliberate Easy/Hard campaign runs.)
+            const isNormalDifficulty = options.get('difficulty') === 'normal';
             // R615: advance the Daily Challenge completion streak. A clear today
             // either extends yesterday's streak (+1), holds when today was
             // already credited (re-clear), or resets to 1 after any gap. Best is
@@ -7293,28 +7335,38 @@ export class Game {
                         streak + ' DAYS IN A ROW');
                 }
             }
-            leaderboard.submit({
-                runId: this.runId,
-                name: leaderboard.name || 'AAA',
-                mode: isDaily ? 'daily' : 'any',
-                score: this.player?.score || 0,
-                timeFrames: this.totalTime,
-                stagesCleared: stages,
-                checkpoints: this.runCheckpoints,
-                dailyKey: isDaily ? this.dailyChallenge.day : undefined,
-            }).then((r) => {
-                if (r.ok && r.verified) {
-                    this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED',
-                        isDaily ? "TODAY'S BOARD UPDATED" : 'LEADERBOARD UPDATED');
-                } else if (r.ok) {
-                    this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED', 'PENDING VERIFICATION');
-                }
-            });
+            // Daily always posts to its per-day board; a campaign run posts to
+            // Any% only on Normal difficulty (R649). A non-Normal campaign clear
+            // skips the board submit but still shows a local "RUN COMPLETE" note.
+            if (isDaily || isNormalDifficulty) {
+                leaderboard.submit({
+                    runId: this.runId,
+                    name: leaderboard.name || 'AAA',
+                    mode: isDaily ? 'daily' : 'any',
+                    score: this.player?.score || 0,
+                    timeFrames: this.totalTime,
+                    stagesCleared: stages,
+                    checkpoints: this.runCheckpoints,
+                    dailyKey: isDaily ? this.dailyChallenge.day : undefined,
+                }).then((r) => {
+                    if (r.ok && r.verified) {
+                        this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED',
+                            isDaily ? "TODAY'S BOARD UPDATED" : 'LEADERBOARD UPDATED');
+                    } else if (r.ok) {
+                        this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED', 'PENDING VERIFICATION');
+                    }
+                });
+            } else {
+                // R649: deliberate Easy/Hard campaign clear — acknowledge it
+                // locally without polluting the comparable Any% board.
+                this._pushUnlockToast('RUN COMPLETE',
+                    options.get('difficulty').toUpperCase() + ' — NOT RANKED');
+            }
             // A clean Any% clear ALSO enters this week's rolling board. Daily
             // runs are excluded — their modifiers make the score non-comparable.
-            // Distinct run id ('-w' suffix) so it doesn't collide with the Any%
-            // row on the run_id upsert.
-            if (!isDaily) {
+            // Non-Normal difficulty is excluded too (R649). Distinct run id
+            // ('-w' suffix) so it doesn't collide with the Any% row on upsert.
+            if (!isDaily && isNormalDifficulty) {
                 leaderboard.submit({
                     runId: this.runId + '-w',
                     name: leaderboard.name || 'AAA',
