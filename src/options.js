@@ -22,6 +22,10 @@ const DEFAULTS = {
     // opt-in pace-racer, not something to surprise players with in normal
     // play. Enable via Options > SHOW GHOST.
     showGhost: false,
+    // Accessibility: when on, suppress screen shake, slow-motion/freeze-frames,
+    // and the high-combo vignette pulse. Off by default (byte-identical to the
+    // shipped game-feel). For motion-sensitivity / reduced-motion preference.
+    reducedMotion: false,
 };
 
 class Options {

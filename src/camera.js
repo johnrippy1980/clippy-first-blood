@@ -5,6 +5,10 @@ export class Camera {
         this.x = 0; this.y = 0;
         this.shakeX = 0; this.shakeY = 0;
         this.shakeIntensity = 0;
+        // Multiplier applied to every shake request. The game sets this each
+        // frame from the SHAKE INTENSITY option and the reduced-motion toggle
+        // (0 = no shake). Camera stays a pure render helper — no options import.
+        this.shakeScale = 1.0;
         this.targetX = 0; this.targetY = 0;
         this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
         // Smoothed lookahead values — prevent target-jumping on facing flips
@@ -65,6 +69,10 @@ export class Camera {
     }
 
     shake(intensity, decay = CAMERA.SHAKE_DECAY) {
+        // Scale every request by the player's SHAKE INTENSITY preference /
+        // reduced-motion toggle. shakeScale 0 fully disables shake.
+        intensity *= this.shakeScale;
+        if (intensity <= 0) return;
         // R322: add a brief sustain at peak intensity before exponential
         // decay starts. A 3-frame hold makes hits feel like an impact
         // ("BOOM") rather than a flick ("blip"). Bigger shakes get

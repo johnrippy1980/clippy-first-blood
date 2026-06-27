@@ -117,8 +117,8 @@ const PAUSE_OPTIONS = ['RESUME', 'RESTART STAGE', 'OPTIONS', 'ACHIEVEMENTS', 'SC
 // options.js DEFAULTS but weren't selectable from the menu. CRT curve
 // is a visual preference some players hate (motion sickness), and
 // veterans want to skip the READY screen on repeat runs.
-const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'SHOW READY', 'SHOW GHOST', 'BACK'];
-const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'crtCurve',  'shakeScale',     'showReady',  'showGhost',  'BACK'];
+const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'REDUCED MOTION', 'SHOW READY', 'SHOW GHOST', 'BACK'];
+const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'scanlines', 'crtCurve',  'shakeScale',     'reducedMotion',  'showReady',  'showGhost',  'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 // Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
@@ -532,6 +532,11 @@ export class Game {
     // ============== loop ==============
     tick() {
         this.bootTimer++;
+        // R648: push the SHAKE INTENSITY preference into the camera every
+        // frame so every engine's camera.shake() request scales by it.
+        // Reduced-motion forces it to 0 (no shake at all). This is the one
+        // place the previously-dead shakeScale option actually takes effect.
+        this.camera.shakeScale = options.get('reducedMotion') ? 0 : options.get('shakeScale');
         // R200: music duck disabled per user direction — "should be set
         // to 100% everywhere." The previous side-chain dropped music on
         // STORY/STAGE_CARD/STAGE_INTRO/BOSS_INTRO so dialog/exposition
@@ -1889,6 +1894,8 @@ export class Game {
 
     // ============== play ==============
     triggerSlowMo(frames = 30) {
+        // R648: reduced-motion suppresses all slow-motion / time-dilation.
+        if (options.get('reducedMotion')) return;
         this.slowMoFrames = Math.max(this.slowMoFrames || 0, frames);
         // R322: remember the original total so the ramped tick can
         // compute "how deep into the slow-mo we are" for the speed envelope.
@@ -2770,7 +2777,10 @@ export class Game {
                 // beat-em-up boss kills. The dead-stop sells the impact; the
                 // slow-mo then drags out the explosion. hitPauseFrames freezes
                 // enemy/world ticks (see _tickPlayUpdateWorld) for these frames.
-                this.player.hitPauseFrames = Math.max(this.player.hitPauseFrames || 0, 8);
+                // R648: reduced-motion skips the hard freeze-frame too.
+                if (!options.get('reducedMotion')) {
+                    this.player.hitPauseFrames = Math.max(this.player.hitPauseFrames || 0, 8);
+                }
                 this.triggerSlowMo(AMBIENT.SLOWMO_BOSS_KILL_F);
                 this.camera.shake(8);
                 // R520: red "TARGET DOWN" stamp during the slow-mo window.
@@ -3042,7 +3052,11 @@ export class Game {
                 g.addColorStop(1, COLORS[cTier]);
                 this._comboVignettes[cTier] = g;
             }
-            const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
+            // R648: reduced-motion freezes the pulse — hold a steady alpha so
+            // the "in the zone" glow still reads but doesn't throb.
+            const pulse = options.get('reducedMotion')
+                ? 0.5
+                : (Math.sin(performance.now() * 0.005) + 1) * 0.5;
             ctx.save();
             ctx.globalAlpha = 0.55 + pulse * 0.35;
             ctx.globalCompositeOperation = 'lighter';
@@ -3930,6 +3944,9 @@ export class Game {
                 options.set(k, !options.get(k));
             } else if (k === 'shakeScale') {
                 options.set(k, Math.max(0, Math.min(2, options.get('shakeScale') + dir * 0.25)));
+            } else if (k === 'reducedMotion') {
+                // Accessibility toggle — suppresses shake / slow-mo / combo pulse.
+                options.set(k, !options.get(k));
             }
             audio.sfx('menu');
         }
@@ -3953,10 +3970,12 @@ export class Game {
 
         drawTextOutlined(ctx, 'OPTIONS', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 2, 'center');
 
-        const startY = panelY + 38;
+        // R648: row pitch tightened 18→15 + startY raised so the 10th
+        // option (REDUCED MOTION) fits above the footer hint.
+        const startY = panelY + 30;
         this._optionsPulse = (this._optionsPulse || 0) + 1;
         for (let i = 0; i < OPTIONS_ITEMS.length; i++) {
-            const y = startY + i * 18;
+            const y = startY + i * 15;
             const sel = i === this.optionsIndex;
             if (sel) {
                 const phase = Math.sin(this._optionsPulse * 0.18) * 0.5 + 0.5;
@@ -3988,7 +4007,7 @@ export class Game {
                 ctx.fillStyle = sel ? '#ffe070' : '#80a0c0';
                 ctx.fillRect(barX, barY, Math.round(barW * v), barH);
                 drawText(ctx, options.get('shakeScale').toFixed(2), panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
-            } else if (key === 'scanlines' || key === 'crtCurve' || key === 'showReady' || key === 'showGhost') {
+            } else if (key === 'scanlines' || key === 'crtCurve' || key === 'showReady' || key === 'showGhost' || key === 'reducedMotion') {
                 drawText(ctx, options.get(key) ? 'ON' : 'OFF', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
             }
         }
