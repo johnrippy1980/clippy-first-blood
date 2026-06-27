@@ -5359,7 +5359,10 @@ export class Game {
         // mini-boss never spawns on top of or behind the player even if the
         // player rushed past the trigger.
         const bx = this._safeBossAnchorX(100);
-        const by = this.level.height - 32;
+        // R651: same floor-aware seat as the main boss — the mini-boss anchors
+        // in the same right-edge arena region, which is the carved pit on THE
+        // CLOUD. Without this it would also float below the visible floor.
+        const by = this._bossFloorY(bx);
         // Pick a thematic mini-boss kind based on stage. Default to the stage's own boss
         // sprite at 35% HP and no phase-2 transition.
         const miniKind = (this.level.data.miniBossKind) || stg.boss;
@@ -5518,7 +5521,14 @@ export class Game {
         const lair = this._bossLair;
         const lairFarX = lair ? (lair.arenaX + lair.arenaW - 64) : arenaX;
         const bx = isAir ? (this.player.x + 80) : lairFarX;
-        const by = isAir ? Math.max(40, this.player.y - 80) : (this.level.height - 32);
+        // R651: floor-aware ground-boss spawn. The legacy `level.height - 32`
+        // assumed every arena floor was flush with the bottom of the level —
+        // true for the flat boss stages, but THE CLOUD (stage 13) carves a
+        // bottom-row PIT under the arena (level.js makeStage8), so the boss
+        // dropped 80px into the void below the visible floor. Seat the boss
+        // feet on the ACTUAL floor surface at its x instead of the level
+        // bottom; falls back to the old value when no floor is found.
+        const by = isAir ? Math.max(40, this.player.y - 80) : this._bossFloorY(bx);
         if (stg.boss === 'GAUNTLET') {
             // R364: Stage 12 Boss Rush — recap of every boss the player
             // has faced in the campaign so far (stages 1, 2, 3, 4, 5, 7,
@@ -5878,6 +5888,31 @@ export class Game {
     //     still satisfies the gap
     // If the player is far past the safe anchor (post-cinematic skip + dash),
     // we accept the player+gap anchor and let the camera follow.
+    // R651: find the floor SURFACE y (the y the boss feet should rest on) at a
+    // given world x. Scans UPWARD from the bottom of the level — the first solid
+    // tile's TOP edge is the floor. Scanning from the bottom (not the top)
+    // matters: a top-down scan stops on a ceiling or a floating platform, which
+    // would strand the boss in mid-air; bottom-up finds the lowest real floor,
+    // correctly skipping a carved arena PIT (THE CLOUD's bottom-row void) to
+    // land on the surface above it. Falls back to the legacy level-bottom anchor
+    // only if the whole column is empty (open-air arena), preserving prior
+    // behavior for every flat boss stage.
+    _bossFloorY(x) {
+        const T = GAME.TILE;
+        const lvl = this.level;
+        const rows = Math.floor(lvl.height / T);
+        const legacy = lvl.height - 32;
+        // Find the lowest solid tile (skips a carved pit), then walk UP through
+        // the contiguous floor slab to its top edge — that surface (open air
+        // above it) is where the boss feet rest. Without the slab-walk a
+        // multi-tile-thick floor would bury the boss inside the block.
+        let ty = rows - 1;
+        while (ty >= 0 && !lvl.isSolid(x, ty * T + T - 1)) ty--;
+        if (ty < 0) return legacy;                 // whole column empty (open-air)
+        while (ty > 0 && lvl.isSolid(x, (ty - 1) * T + T - 1)) ty--;
+        return ty * T;                             // top of the floor slab
+    }
+
     _safeBossAnchorX(minGap = 110) {
         const safeAnchorX = this.level.width - GAME.W * 0.45;
         const leftLimit   = GAME.W * 0.5;
