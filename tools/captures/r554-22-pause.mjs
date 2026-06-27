@@ -22,5 +22,5 @@ await page.waitForTimeout(400);
 await page.keyboard.press('KeyP');
 await page.waitForTimeout(300);
 const u = await page.evaluate(() => document.getElementById('screen')?.toDataURL('image/png'));
-if (u) await fs.writeFile('/tmp/r554_pause/22_brawler.png', Buffer.from(u.replace(/^data:image\/png;base64,/, ''), 'base64'));
+if (u) { await fs.mkdir('/tmp/r554_pause', { recursive: true }); await fs.writeFile('/tmp/r554_pause/22_brawler.png', Buffer.from(u.replace(/^data:image\/png;base64,/, ''), 'base64')); }
 await browser.close();
