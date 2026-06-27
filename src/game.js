@@ -1081,25 +1081,30 @@ export class Game {
         // Boss Rush, Time Trial are MODES (no campaign chain) so they live
         // here. Jobs has a campaign chain (post-game story arc) so it lives
         // in stage-select like every other stage.
+        // R650: each row carries a `group` so _drawMainMenu can paint section
+        // headers (PLAY / MODES / EXTRAS) between groups. The headers are pure
+        // chrome — selection still runs against the flat filtered list, so the
+        // tick/index logic is unchanged. BACK TO TITLE is intentionally
+        // group-less (renders under a thin divider, no header).
         const all = [
-            { label: 'START GAME',     action: 'start' },
+            { label: 'START GAME',     action: 'start',        group: 'PLAY' },
             // R568 co-op slice 1: CO-OP option. Label shows current state.
             // R568h (slice 7): gated by bonziDefeated — beating Bonzi in
             // THE COMPETITION (stage 26) unlocks the toggle. Konami also
             // surfaces it pre-defeat for testing.
-            { label: this.coopMode ? 'CO-OP: ON' : 'CO-OP: OFF', action: 'toggleCoop',
+            { label: this.coopMode ? 'CO-OP: ON' : 'CO-OP: OFF', action: 'toggleCoop', group: 'PLAY',
               gate: () => !!achievements.stats.bonziDefeated || !!this._konamiUnlocked },
-            { label: 'STAGE SELECT',   action: 'stageSelect',  gate: () => stageSelectAvail },
-            { label: 'TRAINING',       action: 'training' },
-            { label: 'BOSS RUSH',      action: 'bossRush',     gate: () => cleared },
-            { label: 'TIME TRIAL',     action: 'timeTrial',    gate: () => cleared },
-            { label: 'ENDLESS',        action: 'endless',      gate: () => cleared },
-            { label: 'DAILY CHALLENGE', action: 'daily',       gate: () => cleared },
-            { label: 'LEADERBOARD',    action: 'leaderboard' },
-            { label: 'OPTIONS',        action: 'options' },
-            { label: 'ACHIEVEMENTS',   action: 'achievements' },
-            { label: 'SCENE GALLERY',  action: 'gallery' },
-            { label: 'SOUNDTRACK',     action: 'soundtrack' },
+            { label: 'STAGE SELECT',   action: 'stageSelect',  group: 'PLAY',   gate: () => stageSelectAvail },
+            { label: 'TRAINING',       action: 'training',     group: 'MODES' },
+            { label: 'BOSS RUSH',      action: 'bossRush',     group: 'MODES',  gate: () => cleared },
+            { label: 'TIME TRIAL',     action: 'timeTrial',    group: 'MODES',  gate: () => cleared },
+            { label: 'ENDLESS',        action: 'endless',      group: 'MODES',  gate: () => cleared },
+            { label: 'DAILY CHALLENGE', action: 'daily',       group: 'MODES',  gate: () => cleared },
+            { label: 'LEADERBOARD',    action: 'leaderboard',  group: 'EXTRAS' },
+            { label: 'OPTIONS',        action: 'options',      group: 'EXTRAS' },
+            { label: 'ACHIEVEMENTS',   action: 'achievements', group: 'EXTRAS' },
+            { label: 'SCENE GALLERY',  action: 'gallery',      group: 'EXTRAS' },
+            { label: 'SOUNDTRACK',     action: 'soundtrack',   group: 'EXTRAS' },
             { label: 'BACK TO TITLE',  action: 'back' },
         ];
         return all.filter(item => !item.gate || item.gate());
@@ -1243,9 +1248,19 @@ export class Game {
         // title wordmark above stays visible. Was centered (panelY ~ GAME.H/2 - panelH/2)
         // which covered the "CLIPPY" art dead-center.
         const items = this._mainMenuItems();
-        const rowH = 11;
-        const panelH = Math.min(GAME.H - 64, 24 + items.length * rowH + 14);
-        const panelY = GAME.H - panelH - 14;
+        const rowH = 10;
+        const headerH = 8;   // R650: per-group section-header band height
+        // Count distinct section headers in the current (filtered) list so the
+        // panel grows to fit them. A group contributes one header the first
+        // time it appears; group-less rows (BACK) add none.
+        let headerCount = 0, seenG = null;
+        for (const it of items) {
+            if (it.group && it.group !== seenG) { headerCount++; seenG = it.group; }
+        }
+        // R650: panel auto-sizes to rows + headers. Anchored to the bottom, so a
+        // taller panel just extends up over the (already dimmed) title art.
+        const panelH = Math.min(GAME.H - 24, 22 + items.length * rowH + headerCount * headerH + 12);
+        const panelY = GAME.H - panelH - 12;
         const panelX = 56, panelW = GAME.W - 112;
         ctx.fillStyle = '#0a0612';
         ctx.fillRect(panelX, panelY, panelW, panelH);
@@ -1263,31 +1278,46 @@ export class Game {
         if (this.mainMenuIndex >= items.length) this.mainMenuIndex = items.length - 1;
         if (this.mainMenuIndex < 0) this.mainMenuIndex = 0;
 
-        const startY = panelY + 18;
+        // R650: single pass over the flat list, emitting a section header when
+        // the group changes. `y` is a running cursor (not i*rowH) because the
+        // headers consume extra vertical space between groups.
+        let y = panelY + 16;
+        let lastGroup = null;
         for (let i = 0; i < items.length; i++) {
-            const y = startY + i * rowH;
+            const item = items[i];
+            if (item.group && item.group !== lastGroup) {
+                // Section header: a left-aligned tinted caption with a faint
+                // rule out to the panel edge. Not selectable — pure chrome.
+                drawText(ctx, item.group, panelX + 10, y, '#8060a0', 1, 'left');
+                const cap = panelX + 10 + textWidth(item.group, 1) + 4;
+                ctx.fillStyle = '#3a2a4a';
+                ctx.fillRect(cap, y + 2, panelX + panelW - 10 - cap, 1);
+                lastGroup = item.group;
+                y += headerH;
+            }
             const isSel = i === this.mainMenuIndex;
             if (isSel) {
                 const phase = Math.sin((this._mainMenuPulse = (this._mainMenuPulse || 0) + 1) * 0.18) * 0.5 + 0.5;
                 ctx.fillStyle = `rgb(${160 + Math.floor(phase * 40)},${16},${32})`;
-                ctx.fillRect(panelX + 6, y - 2, panelW - 12, 10);
+                ctx.fillRect(panelX + 6, y - 2, panelW - 12, 9);
                 drawText(ctx, '>', panelX + 10, y, '#ffe070', 1, 'left');
                 drawText(ctx, '<', panelX + panelW - 16, y, '#ffe070', 1, 'left');
             }
-            drawText(ctx, items[i].label, GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
+            drawText(ctx, item.label, GAME.W / 2, y, isSel ? '#fff' : '#c0a0d0', 1, 'center');
             // R621: live streak badge on the DAILY CHALLENGE row. Shows the
             // current streak so it's visible before entering the briefing.
             // Sits just right of the centered label, streak-orange, with a tiny
             // dot if today's already cleared (matches the briefing's note).
-            if (items[i].action === 'daily') {
+            if (item.action === 'daily') {
                 const streak = achievements.stats.dailyStreak || 0;
                 if (streak > 0) {
-                    const labelW = textWidth(items[i].label, 1);
+                    const labelW = textWidth(item.label, 1);
                     const bx = GAME.W / 2 + labelW / 2 + 5;
                     const clearedToday = achievements.stats.lastDailyDay === dailyChallenge.todayKey();
                     drawText(ctx, 'x' + streak, bx, y, clearedToday ? '#a0ff70' : '#ffb060', 1, 'left');
                 }
             }
+            y += rowH;
         }
 
         drawText(ctx, 'UP/DOWN  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 7, '#604068', 1, 'center');
