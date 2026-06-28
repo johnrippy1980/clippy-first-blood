@@ -1431,6 +1431,12 @@ function makeStage9() {
             { x: 11 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
             { x: 23 * GAME.TILE, y: ( 2) * GAME.TILE, type: 'LASER' },
             { x: 39 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
+            // R654: hidden CLIPPY TAG on the far ceiling-crawl shelf — this
+            // secret RECYCLE BIN stage had no collectible, the only campaign
+            // platformer gap besides TRAINING. Sits on the row-2 grapple shelf
+            // (platT row 2, x38) so it rewards the ceiling-crawl the stage was
+            // designed around.
+            { x: 38 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'CLIPPY_TAG' },
         ],
         crateSpawns: [
             { x: 24 * GAME.TILE, y: ( 7) * GAME.TILE - 14, drop: 'HOMING' },
