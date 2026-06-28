@@ -27,6 +27,7 @@ export const TILE = Object.freeze({
     GRASS: 10,      // tall grass — passes through; while inside, player is hidden from AI
     ARC: 11,        // R625: pulsing electric arc — only damages during its "on" window; telegraphs first
     ARCSWITCH: 12,  // R628: shootable emitter switch — a bullet hit permanently kills the stage's arcs (dark + safe)
+    LIFT: 13,       // R652: auto-lower lift car — solid to stand on; once a rider boards, the car descends along its shaft to the bottom row, carrying the rider down into the arena, then holds
 });
 
 // Soundtrack gallery — what shows in the SOUNDTRACK pause menu.

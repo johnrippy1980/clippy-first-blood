@@ -1277,7 +1277,15 @@ function makeStage8() {
     rectT(g, 10, 89, 1, 3, W);
     rectT(g,  8, 92, 1, 5, W);
     rectT(g,  6, 95, 1, 7, W);
-    platT(g, 11, 98, 3);     // exit ledge (over the boss pit)
+    // R652: AUTO-LOWER LIFT into the Algorithm arena. The player climbs the
+    // pyramid to its top (row 6, col 95) then steps off onto the lift car at
+    // col 99 — a visible chrome elevator (deck + glowing shaft rail) that
+    // descends them 5 tiles down to the exit-ledge level (row 11) over the
+    // arena, replacing the old unmarked one-way-platform drop. The shaft span
+    // is row 6 -> row 11; lift state lives in the `lifts` field below. The
+    // landing ledge stays so the rider has a floor when the car reaches bottom.
+    g[6][99] = TILE.LIFT;    // parked-car marker (shaft top)
+    platT(g, 11, 98, 3);     // exit / landing ledge (over the boss pit)
 
     // Section E (x 100–104): ALGORITHM APPROACH — final floating cube + exit.
     platT(g, 12, w - 8, 4);
@@ -1297,6 +1305,8 @@ function makeStage8() {
     return {
         tiles: g, width: w, height: h, theme: THEME.CLOUD,
         arcRippleStep: 20,   // R626: stagger the Section-A arc corridor into a wave
+        // R652: auto-lower lift into the Algorithm arena (see Section G).
+        lifts: [{ col: 99, topRow: 6, bottomRow: 11 }],
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
         bossTrigger: { x: 102 * GAME.TILE },
         miniBossTrigger: 40 * GAME.TILE,
@@ -3045,11 +3055,83 @@ export class Level {
         this._cracks = new Map();     // tx,ty -> crack progress (0..30)
         this._broken = new Map();     // tx,ty -> respawn countdown (300..0)
         this._crumbleDebris = [];     // {x, y, life} debris when a tile fully crumbles
+
+        // R652: auto-lower lift cars. Stage data declares `lifts:[{col,topRow,
+        // bottomRow}]`; the grid carries a single TILE.LIFT at (topRow,col) as
+        // the car's home + shaft-render anchor. The live car is NOT the grid
+        // tile — it's a 1-tile-tall solid band tracked here so it can move. The
+        // grid tile itself is never solid (it's just the parked-car marker); the
+        // car's CURRENT pixel band is what `isSolid` reports, so the player rides
+        // the band down and there's no phantom solid left at the top once it
+        // leaves. Speed in px/frame. State: idle -> descending -> bottom (holds).
+        this._lifts = (data.lifts || []).map(L => ({
+            col: L.col,
+            topY: L.topRow * GAME.TILE,
+            bottomY: L.bottomRow * GAME.TILE,
+            y: L.topRow * GAME.TILE,   // live car top edge, px
+            state: 'idle',
+            speed: L.speed ?? 1.1,
+        }));
     }
 
-    update() {
+    // R652: the lift car at column `tx` whose solid band currently spans py, or
+    // null. The car is one tile tall; its top edge is lift.y. Used by isSolid +
+    // the rider-carry path. Column match keeps lifts cheap (one per shaft).
+    _liftCarAt(px, py) {
+        if (this._lifts.length === 0) return null;
+        const tx = Math.floor(px / GAME.TILE);
+        for (const L of this._lifts) {
+            if (L.col !== tx) continue;
+            if (py >= L.y && py < L.y + GAME.TILE) return L;
+        }
+        return null;
+    }
+
+    // R652: advance auto-lower lift cars + carry their rider. An idle car arms
+    // the moment a rider's feet rest on its deck (anywhere across the car's
+    // tile width); once armed it descends at `speed` px/frame to bottomY and
+    // holds there. While descending it drags the rider down with it by snapping
+    // the rider's feet to the deck each frame so they never fall through or lag
+    // behind the moving solid (the grid collision is resolved BEFORE this runs,
+    // so a fast car would otherwise outrun the player's gravity step).
+    _updateLifts(player) {
+        if (this._lifts.length === 0) return;
+        for (const L of this._lifts) {
+            const deckTop = L.y;
+            // A rider stands on the deck if its feet are within a couple px of
+            // the deck top and it horizontally overlaps the car's tile column.
+            const carLeft = L.col * GAME.TILE;
+            const carRight = carLeft + GAME.TILE;
+            const riderOn = player && player.alive !== false &&
+                (player.x + player.w) > carLeft && player.x < carRight &&
+                Math.abs((player.y + player.h) - deckTop) <= 3;
+
+            if (L.state === 'idle') {
+                if (riderOn) L.state = 'descending';
+            }
+            if (L.state === 'descending') {
+                L.y = Math.min(L.bottomY, L.y + L.speed);
+                if (riderOn) {
+                    // Carry the rider: pin feet to the deck + cancel downward
+                    // velocity so they ride smoothly instead of bouncing.
+                    player.y = L.y - player.h;
+                    if (player.vy > 0) player.vy = 0;
+                    player.onGround = true;
+                }
+                if (L.y >= L.bottomY) { L.y = L.bottomY; L.state = 'bottom'; }
+            }
+        }
+    }
+
+    // R652: live lift cars (for the renderer). Each entry exposes the car's
+    // current pixel rect + its shaft span so level.js can paint the moving deck
+    // and the static shaft rails behind it.
+    liftCars() { return this._lifts; }
+
+    update(player = null) {
         this.frame++;
         if (this.frame % 8 === 0) this.tileAnimTick++;
+        this._updateLifts(player);
         // Decay cracks for tiles that aren't being stood on anymore. The player
         // calls `notifyStanding` each tick from `_landed`; we tag those tiles
         // here via `_crackTouched`. Anything not touched this frame heals.
@@ -3118,6 +3200,11 @@ export class Level {
     }
 
     isSolid(px, py, allowPlatform = false, prevY = null) {
+        // R652: a lift car is a movable solid band. Check it BEFORE the grid so
+        // the rider stands on (and is carried by) the car at its live position,
+        // not at the parked grid tile. The grid's own TILE.LIFT marker is never
+        // solid (handled by falling through to the default-false return).
+        if (this._lifts.length && this._liftCarAt(px, py)) return true;
         const t = this.tileAt(px, py);
         if (t === TILE.SOLID) return true;
         // R628: the arc emitter switch is a wall-mounted panel — solid so the
@@ -3343,6 +3430,53 @@ export class Level {
                 ctx.fillRect(dx, dy, 2, 2);
             }
             ctx.globalAlpha = 1;
+        }
+        // R652: lift shafts + moving cars. Drawn after the tile grid so the car
+        // (a moving solid) layers over the shaft rail behind it.
+        this._drawLifts(ctx, camera);
+    }
+
+    // R652: paint each lift's shaft rail down its full span, then the car deck
+    // at its live (moving) y. Prefers painted sprites; falls back to a clean
+    // procedural rail + chrome deck so the mechanic is visible in any boot state.
+    _drawLifts(ctx, camera) {
+        if (this._lifts.length === 0) return;
+        const T = GAME.TILE;
+        const pal = this.palette;
+        const hasRail = sprites.has('tile_lift_rail');
+        const hasCar = sprites.has('tile_lift');
+        for (const L of this._lifts) {
+            const x = L.col * T - camera.viewX;
+            // Shaft rail: tile the rail sprite from topY down to bottomY + a car
+            // height (so the rail reaches the bottom landing).
+            for (let yy = L.topY; yy <= L.bottomY; yy += T) {
+                const sy = yy - camera.viewY;
+                if (hasRail) {
+                    sprites.draw(ctx, 'tile_lift_rail', x, sy, false, T / 16);
+                } else {
+                    ctx.fillStyle = pal.plank || '#2a3340';
+                    ctx.fillRect(x + 1, sy, 2, T);
+                    ctx.fillRect(x + T - 3, sy, 2, T);
+                    ctx.fillStyle = pal.accent || '#40e0d0';
+                    ctx.fillRect(x + T / 2 - 1, sy + (this.tileAnimTick % 8), 2, 2);
+                }
+            }
+            // Car deck at its live y. The painted car art is ~2.3 tiles wide
+            // (a wide platform); center it on the 1-tile collision column so the
+            // deck visually spans the gap the player rides across + down.
+            const cy = L.y - camera.viewY;
+            if (hasCar) {
+                const scale = T / 16;
+                const cw = sprites.width('tile_lift') * scale || T;
+                sprites.draw(ctx, 'tile_lift', x - (cw - T) / 2, cy, false, scale);
+            } else {
+                ctx.fillStyle = '#c0c8d0';
+                ctx.fillRect(x, cy + 2, T, T - 6);
+                ctx.fillStyle = pal.accent || '#40e0d0';
+                ctx.fillRect(x, cy + 2, T, 2);
+                ctx.fillStyle = '#1a2028';
+                ctx.fillRect(x, cy + T - 4, T, 2);
+            }
         }
     }
 

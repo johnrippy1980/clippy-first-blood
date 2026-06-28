@@ -162,6 +162,11 @@ class SpriteSet {
 
     has(name) { return this.images.has(name); }
 
+    // Natural pixel width of a loaded sprite (0 if missing). Used by callers that
+    // need to center a sprite whose width differs from a tile (e.g. the R652
+    // lift car art is wider than its 1-tile collision column).
+    width(name) { const img = this.images.get(name); return img ? img.width : 0; }
+
     draw(ctx, name, x, y, flipH = false, scale = 1) {
         const img = this.images.get(name);
         if (!img) return false;
@@ -397,6 +402,12 @@ export const BG_MANIFEST = {
     'tile_spike':        'tile_spike.png',
     'tile_crate':        'tile_crate.png',
     'tile_door':         'tile_door.png',
+    // R652: auto-lower lift — the moving deck car + the tileable shaft rail it
+    // descends along. Painted via Local Howl (Lift-STL), keyed white→alpha by
+    // tools/process-r652-lift.py. level.js draws the rail down the shaft span
+    // and the car at its live (moving) y.
+    'tile_lift':         'tile_lift.png',
+    'tile_lift_rail':    'tile_lift_rail.png',
 };
 
 // Manifest: what we expect on disk. Missing files are non-fatal.

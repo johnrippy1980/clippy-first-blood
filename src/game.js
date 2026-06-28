@@ -2643,7 +2643,7 @@ export class Game {
             }
         }
         if (this._ghostFinishFlash > 0) this._ghostFinishFlash--;
-        this.level.update();
+        this.level.update(this.player);
         if (this._ambientProps) {
             this._ambientProps.update();
             // R416: lightning strikes flag _struck — kick a small shake
