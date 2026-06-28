@@ -167,6 +167,10 @@ class SpriteSet {
     // lift car art is wider than its 1-tile collision column).
     width(name) { const img = this.images.get(name); return img ? img.width : 0; }
 
+    // Natural pixel height of a loaded sprite (0 if missing). Lets callers
+    // base-anchor a tall sprite (e.g. the EXIT doorway rises above its tile).
+    height(name) { const img = this.images.get(name); return img ? img.height : 0; }
+
     draw(ctx, name, x, y, flipH = false, scale = 1) {
         const img = this.images.get(name);
         if (!img) return false;
@@ -408,6 +412,11 @@ export const BG_MANIFEST = {
     // and the car at its live (moving) y.
     'tile_lift':         'tile_lift.png',
     'tile_lift_rail':    'tile_lift_rail.png',
+    // R653: painted EXIT doorway. Replaces the generic "glowing slot" exit
+    // render so the way to the next stage reads as a real door/portal, not a
+    // glowing spot. Painted via Local Howl (Lift-STL), keyed white→alpha by
+    // tools/process-r653-exit.py. level.js base-anchors it on the EXIT tile.
+    'tile_exit':         'tile_exit.png',
 };
 
 // Manifest: what we expect on disk. Missing files are non-fatal.

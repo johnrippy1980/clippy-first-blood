@@ -4104,7 +4104,29 @@ export class Level {
                 }
                 break;
             }
-            case TILE.EXIT:
+            case TILE.EXIT: {
+                // R653: painted EXIT doorway. The way to the next stage should
+                // read as a real door/portal, not a "glowing spot". A soft
+                // pulsing cyan glow spills from the doorway so it stays inviting
+                // and easy to spot; the painted door is base-anchored on the tile
+                // floor and rises above it. Falls back to the procedural slot when
+                // the sprite hasn't loaded (boot-safety / asset-missing).
+                const exitGlow = 0.5 + 0.5 * (this._tileAnimSinSlow * 0.5 + 0.5);
+                if (sprites.has('tile_exit')) {
+                    const dh = sprites.height('tile_exit');
+                    const dw = sprites.width('tile_exit');
+                    // Base-anchor: door's bottom sits at the tile's bottom edge.
+                    const dx = x + T / 2 - dw / 2;
+                    const dy = (y + T) - dh;
+                    // Glow halo behind the doorway.
+                    ctx.save();
+                    ctx.globalAlpha = 0.25 + 0.25 * exitGlow;
+                    ctx.fillStyle = pal.accent || '#7af0ff';
+                    ctx.fillRect(x + T / 2 - dw / 2 - 1, dy + 1, dw + 2, dh);
+                    ctx.restore();
+                    sprites.draw(ctx, 'tile_exit', dx, dy, false);
+                    break;
+                }
                 ctx.fillStyle = '#100818';
                 ctx.fillRect(x + 2, y - 12, T - 4, T + 12);
                 ctx.fillStyle = pal.accent;
@@ -4114,6 +4136,7 @@ export class Level {
                 ctx.fillStyle = '#ffe070';
                 ctx.fillRect(x + T / 2 - 1, y + 2, 1, 2);
                 break;
+            }
             case TILE.HAZARD:
                 ctx.fillStyle = '#ff5050';
                 ctx.fillRect(x, y, T, T);
