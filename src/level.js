@@ -1072,6 +1072,14 @@ function makeStage6() {
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
         bossTrigger: { x: 98 * GAME.TILE },
         miniBossTrigger: 32 * GAME.TILE,
+        // R656: FOUNDER'S LAIR is the first campaign stage gated by the R655
+        // EXIT KEY. The penultimate gauntlet earns a "find the key" beat: the
+        // EXIT (col 100, past the boss arena) stays locked until the player
+        // grabs the EXITKEY off the FORK-3 high catwalk — a deliberate
+        // high-route detour, not the low ground lane. The boss-gate still
+        // applies independently, so the door needs BOTH the boss down AND the
+        // key in hand. See pickupSpawns below for the key placement.
+        exitKey: true,
         enemySpawns: [
             { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
             { x: 16 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'holepunch' },
@@ -1108,6 +1116,12 @@ function makeStage6() {
             { x: 30 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
             // Pre-fork-3 SHOTGUN (wider spike pit ahead, heavy hit weapon)
             { x: 47 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'SHOTGUN' },
+            // R656: EXIT KEY on the FORK-3 high catwalk (row 4 platform, cols
+            // 48–53). Sits one tile above the catwalk so the player must take
+            // the high fork (ladder at col 56 or a grapple swing) instead of
+            // the low ground lane — the key IS the reason to climb. Without it
+            // the EXIT at col 100 stays locked even after the founder falls.
+            { x: 50 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'EXITKEY' },
             // F: post-fork-3 LIFE on far ledge
             { x: 64 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
             // G: pre-reactor GRENADE (clear pillar folder)
