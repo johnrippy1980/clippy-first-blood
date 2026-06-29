@@ -989,6 +989,10 @@ export const ENEMY_MANIFEST = {
     'pickup_homing':    'pickup_homing.png',
     'pickup_thunder':   'pickup_thunder.png',
     'pickup_shotgun':   'pickup_shotgun.png',
+    // R655: painted golden EXIT KEY pickup — unlocks a stage's gated EXIT door.
+    // Lives here in ENEMY_MANIFEST (loads from assets/sprites) alongside every
+    // other pickup_* icon, NOT in BG_MANIFEST (assets/bg).
+    'pickup_key':       'pickup_key.png',
     // R566b: stage 25 HOLD THE LINE (turret arena) painted assets.
     // Generated via Local Howl image-gen, downscaled to native pixel size.
     'turret_crosshair':  'turret_crosshair.png',     // 32x32 tactical bracket reticle

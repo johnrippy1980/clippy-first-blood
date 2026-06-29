@@ -2644,6 +2644,9 @@ export class Game {
         }
         if (this._ghostFinishFlash > 0) this._ghostFinishFlash--;
         this.level.update(this.player);
+        // R655: keep the EXIT's locked-badge state in sync each frame so the
+        // padlock overlay shows exactly while a keyed exit is still locked.
+        this.level._exitLocked = !!(this.level.data?.exitKey && this.player && !this.player.hasExitKey);
         if (this._ambientProps) {
             this._ambientProps.update();
             // R416: lightning strikes flag _struck — kick a small shake
@@ -2864,6 +2867,26 @@ export class Game {
                             this.player.y - 8,
                             'BOSS NOT DEFEATED',
                             '#ff6080', 60, -0.4, 1,
+                        );
+                    }
+                    audio.sfx?.('hurt');
+                }
+                return;
+            }
+            // R655: EXIT KEY gate. Stages with `exitKey:true` in their level
+            // data keep the EXIT locked until the player grabs the EXITKEY
+            // pickup — a VISIBLE key-gated progression door. Mirrors the
+            // boss-gate feedback (throttled floating tag + denial sfx) so the
+            // player learns WHY the door won't open.
+            if (this.level?.data?.exitKey && !this.player.hasExitKey) {
+                if ((this._exitWarnCD || 0) <= 0) {
+                    this._exitWarnCD = 90;
+                    if (particles.floatingText) {
+                        particles.floatingText(
+                            this.player.x + this.player.w / 2,
+                            this.player.y - 8,
+                            'NEED EXIT KEY',
+                            '#ffd040', 60, -0.4, 1,
                         );
                     }
                     audio.sfx?.('hurt');

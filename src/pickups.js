@@ -326,6 +326,7 @@ class Pickup {
             '1UP':        'pickup_1up',
             'CHAINSAW':   'pickup_chainsaw',
             'CLIPPY_TAG': 'pickup_1up',  // same chrome paperclip — visually unified
+            'EXITKEY':    'pickup_key',  // R655: painted golden exit key
             // R319: weapon pickup icons
             'MG':         'pickup_mg',
             'SPREAD':     'pickup_spread',
@@ -487,6 +488,7 @@ class Pickup {
         if (this.type === 'GRENADE') return 'G';
         if (this.type === 'SHOTGUN') return 'X';   // S clashes with SPREAD; X reads as "scatter"
         if (this.type === 'CHAINSAW') return 'C';
+        if (this.type === 'EXITKEY') return 'K';   // R655: exit key
         return this.type[0];
     }
     _color() {
@@ -494,6 +496,7 @@ class Pickup {
         if (this.type === '1UP') return '#ff60ff';
         if (this.type === 'GRENADE') return '#80ff40';
         if (this.type === 'CLIPPY_TAG') return '#e0e0e8';  // chrome
+        if (this.type === 'EXITKEY') return '#ffd040';     // R655: gold
         return WEAPON[this.type]?.color || '#fff';
     }
     // Convert #rgb / #rrggbb to "rgba(r,g,b,a)". Cheap, no validation —

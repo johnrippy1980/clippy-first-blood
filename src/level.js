@@ -4131,6 +4131,31 @@ export class Level {
                     ctx.fillRect(x + T / 2 - dw / 2 - 1, dy + 1, dw + 2, dh);
                     ctx.restore();
                     sprites.draw(ctx, 'tile_exit', dx, dy, false);
+                    // R655: locked-EXIT padlock badge. When the stage gates its
+                    // exit behind the EXIT KEY and the player hasn't grabbed it
+                    // yet, stamp a gold padlock over the door so the lock reads
+                    // visually (the painted door stays; the badge is a status
+                    // overlay, cleared the instant the key is collected).
+                    if (this._exitLocked) {
+                        const lx = x + T / 2;       // door center x
+                        const ly = dy + dh / 2;     // door center y
+                        ctx.save();
+                        // shackle
+                        ctx.strokeStyle = '#3a2a08';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(lx, ly - 3, 3, Math.PI, 0);
+                        ctx.stroke();
+                        // body
+                        ctx.fillStyle = '#3a2a08';
+                        ctx.fillRect(lx - 4, ly - 1, 8, 7);
+                        ctx.fillStyle = '#ffd040';
+                        ctx.fillRect(lx - 3, ly, 6, 5);
+                        // keyhole
+                        ctx.fillStyle = '#3a2a08';
+                        ctx.fillRect(lx - 1, ly + 1, 2, 3);
+                        ctx.restore();
+                    }
                     break;
                 }
                 ctx.fillStyle = '#100818';

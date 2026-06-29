@@ -239,6 +239,12 @@ export class Player {
         // achievement at 24 collected.
         this.tagsFound = 0;
 
+        // R655: per-stage EXIT KEY. Stages that set `exitKey:true` lock their
+        // EXIT until the player grabs the EXITKEY pickup — a VISIBLE gated
+        // progression door, distinct from CLIPPY_TAG (cosmetic) and the
+        // Doom-mode colored keycards. Reset every stage in resetForStage().
+        this.hasExitKey = false;
+
         // R216: MG charged-shot state. Hold SHOOT while standing still
         // on the ground (no horizontal input, no jump) to charge for
         // CHARGE_FRAMES; release after full charge to fire a fat
@@ -393,6 +399,8 @@ export class Player {
         // R418: rage resets per stage
         this.rageFrames = 0;
         this.rageUsedThisStage = false;
+        // R655: EXIT KEY is per-stage — re-collect it on each keyed stage.
+        this.hasExitKey = false;
         // Full state-machine reset. Without this, a boss-kill that fires
         // while the player is mid-pounce/grapple/roll/slide/cover/dash will
         // carry that state into the next stage, where input is gated by
@@ -2759,6 +2767,18 @@ export class Player {
             particles.shockRing(cx, cy, 32, 18, '#a0a0b8');
             particles.floatingText(cx, this.y - 4, 'CLIPPY TAG +500',
                                    '#e0e0e8', 80, -0.7, 1);
+            return;
+        }
+        // R655: EXIT KEY — unlocks the stage's gated EXIT door. Per-stage flag;
+        // the exit-gate in game.js checks this before clearing a keyed stage.
+        if (type === 'EXITKEY') {
+            this.hasExitKey = true;
+            this.score += 250;
+            audio.sfx('powerup');
+            burstBurst('#ffd040', 14);
+            particles.shockRing(cx, cy, 20, 14, '#fff');
+            particles.shockRing(cx, cy, 30, 18, '#ffd040');
+            particles.floatingText(cx, this.y - 4, 'EXIT KEY', '#ffd040', 80, -0.7, 1);
             return;
         }
         if (type === 'GRENADE') {
