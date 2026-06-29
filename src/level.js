@@ -1844,6 +1844,15 @@ function makeStagePipeline() {
         bossTrigger: { x: 92 * GAME.TILE },
         // Mini-boss spawns at the act break (lab entry).
         miniBossTrigger: 50 * GAME.TILE,
+        // R658: third keyed stage (after R656 FOUNDER'S LAIR + R657 KEYNOTE
+        // HALL). THE PIPELINE's parallel high road — the UPPER PIPE LOFT (rows
+        // 1-2 ceiling ducts, reached by grapple/jump off the lab-entry catwalk)
+        // — makes a natural home for the EXIT KEY: the key rides the lab-entry
+        // ceiling duct, PAST the mini-boss act break, so reaching it commits
+        // the player to the overhead route instead of the sludge-floor lab
+        // arena. The EXIT (col 96, past the boss) needs BOTH Gates down AND the
+        // key — boss-gate and key-gate are independent.
+        exitKey: true,
         enemySpawns: [
             // A: stapler near sewer entry
             { x: 10 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
@@ -1871,6 +1880,12 @@ function makeStagePipeline() {
             { x: 31 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'THUNDER' },
             { x: 57 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'LIFE' },
             { x: 77 * GAME.TILE, y: ( 0) * GAME.TILE, type: 'HOMING' },
+            // R658: EXIT KEY on the lab-entry ceiling duct (platT row 2, cols
+            // 56–58), one tile above the platform at col 58 — set apart from
+            // the LIFE at col 57. Past the mini-boss act break (col 50): the
+            // key is the reason to commit to the overhead route. Without it the
+            // EXIT at col 96 stays locked even after Gates falls.
+            { x: 58 * GAME.TILE, y: ( 1) * GAME.TILE, type: 'EXITKEY' },
         ],
         crateSpawns: [
             // Early SHOTGUN — sewer-tight CQB weapon
