@@ -908,6 +908,15 @@ function makeStage5() {
         playerStart: { x: 48, y: (h - 4) * GAME.TILE },
         bossTrigger: { x: 94 * GAME.TILE },
         miniBossTrigger: 32 * GAME.TILE,
+        // R657: second keyed stage (after R656 FOUNDER'S LAIR). KEYNOTE HALL's
+        // tall vertical layout makes the EXIT KEY a real route choice: the key
+        // rides the TOP CATWALK (row 4 sniper run, reached via the scaffold
+        // ladder at col 36), so the player must commit to the high route rather
+        // than the audience floor. The EXIT (col 96, past the boss) needs BOTH
+        // Gates down AND the key in hand — boss-gate and key-gate are
+        // independent. Kept off the grapple-only islands on purpose: a MANDATORY
+        // progression item shouldn't be locked behind a hard grapple swing.
+        exitKey: true,
         enemySpawns: [
             // A-D (unchanged)
             { x: 12 * GAME.TILE, y: (h - 3) * GAME.TILE, type: 'stapler' },
@@ -940,6 +949,12 @@ function makeStage5() {
             { x: 78 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
             // G: pre-catwalk HOMING — handles the two snipers from below
             { x: 80 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'HOMING' },
+            // R657: EXIT KEY on the TOP CATWALK (row 4 sniper run, cols 38–44),
+            // one tile above the platform at col 43 — set apart from the THUNDER
+            // at col 40. Reached via the scaffold ladder (col 36): a vertical
+            // detour off the audience floor, NOT a grapple-only island. Without
+            // it the EXIT at col 96 stays locked even after Gates falls.
+            { x: 43 * GAME.TILE, y: ( 3) * GAME.TILE, type: 'EXITKEY' },
             // Pre-boss LIFE
             { x: 93 * GAME.TILE, y: (h - 3) * GAME.TILE - 8, type: 'LIFE' },
             // R234: grapple-only reward — LIFE on the high floating platform
