@@ -228,13 +228,21 @@ class ParticleSystem {
         this.muzzles = Array.from({ length: 16 }, () => new MuzzleFlash());
         this.nextMuzzle = 0;
     }
+    // R678: every pool's exhaustion path used to `return pool[0]` — so when
+    // a pool filled up (boss fights, big explosion chains), EVERY overflow
+    // spawn in the same frame stomped slot 0. Only the last overflow of the
+    // frame survived and slot 0 flickered through several inits. Stealing at
+    // the cursor (and advancing it) spreads overwrites round-robin across
+    // the pool, killing the oldest-ish live entries one each instead.
     _takeMuzzle() {
         for (let i = 0; i < this.muzzles.length; i++) {
             const m = this.muzzles[this.nextMuzzle];
             this.nextMuzzle = (this.nextMuzzle + 1) % this.muzzles.length;
             if (!m.alive) return m;
         }
-        return this.muzzles[0];
+        const m = this.muzzles[this.nextMuzzle];
+        this.nextMuzzle = (this.nextMuzzle + 1) % this.muzzles.length;
+        return m;
     }
     // R646: spawn an oriented painted muzzle flash. No-op (init disables it)
     // when the prefix's frames aren't loaded, so callers can fire-and-forget
@@ -248,7 +256,9 @@ class ParticleSystem {
             this.nextBurst = (this.nextBurst + 1) % this.bursts.length;
             if (!b.alive) return b;
         }
-        return this.bursts[0];
+        const b = this.bursts[this.nextBurst];
+        this.nextBurst = (this.nextBurst + 1) % this.bursts.length;
+        return b;
     }
     // R416: painted sprite burst alongside particles for that arcade impact.
     spriteBurst(x, y, scale = 1, framesEach = 4, prefix = 'ambient_explosion') {
@@ -278,7 +288,9 @@ class ParticleSystem {
             this.nextRing = (this.nextRing + 1) % this.rings.length;
             if (!r.alive) return r;
         }
-        return this.rings[0];
+        const r = this.rings[this.nextRing];
+        this.nextRing = (this.nextRing + 1) % this.rings.length;
+        return r;
     }
 
     // Outward-expanding shock ring — pairs with enemy death to sell the
@@ -300,7 +312,9 @@ class ParticleSystem {
             this.next = (this.next + 1) % this.pool.length;
             if (!p.alive) return p;
         }
-        return this.pool[0]; // overwrite oldest if pool is exhausted
+        const p = this.pool[this.next];
+        this.next = (this.next + 1) % this.pool.length;
+        return p;
     }
 
     _takeFloat() {
@@ -309,7 +323,9 @@ class ParticleSystem {
             this.nextFloat = (this.nextFloat + 1) % this.floats.length;
             if (!f.alive) return f;
         }
-        return this.floats[0];
+        const f = this.floats[this.nextFloat];
+        this.nextFloat = (this.nextFloat + 1) % this.floats.length;
+        return f;
     }
 
     spawn(x, y, vx, vy, life, color, size = 1, gravity = 0, fade = true) {
