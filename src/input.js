@@ -51,6 +51,11 @@ class Input {
         // releases when neither source still holds it.
         this._kbHeld = new Set();
         this._padHeld = new Set();
+        // R686: pointer (mouse + touch overlay) is the third input source.
+        // Without its own held set, a keyboard/pad release for the same
+        // action dropped an active mouse/touch hold (e.g. keyup on the fire
+        // key silently released a held left-button autofire).
+        this._ptrHeld = new Set();
 
         window.addEventListener('keydown', e => {
             const a = KEYMAP[e.key];
@@ -62,7 +67,7 @@ class Input {
             const a = KEYMAP[e.key];
             if (!a) return;
             this._kbHeld.delete(a);
-            if (!this._padHeld.has(a)) this._up(a);
+            if (!this._padHeld.has(a) && !this._ptrHeld.has(a)) this._up(a);
         });
         window.addEventListener('gamepadconnected', e => { this.gamepadIndex = e.gamepad.index; });
         window.addEventListener('gamepaddisconnected', () => {
@@ -71,7 +76,7 @@ class Input {
             // holding would stay stuck in `held` forever. Release it all
             // (unless the keyboard also holds it).
             for (const a of this._padHeld) {
-                if (!this._kbHeld.has(a)) this._up(a);
+                if (!this._kbHeld.has(a) && !this._ptrHeld.has(a)) this._up(a);
             }
             this._padHeld.clear();
         });
@@ -139,23 +144,23 @@ class Input {
             }
         });
         canvas.addEventListener('mousedown', e => {
-            if (e.button === 0) this._down('shoot');
+            if (e.button === 0) this._ptrDown('shoot');
         });
         canvas.addEventListener('mouseup', e => {
-            if (e.button === 0) this._up('shoot');
-            if (e.button === 2) this._up('special');
+            if (e.button === 0) this._ptrUp('shoot');
+            if (e.button === 2) this._ptrUp('special');
         });
         canvas.addEventListener('mousedown', e => {
             // Right-click triggers special (back-dash)
-            if (e.button === 2) { this._down('special'); }
+            if (e.button === 2) { this._ptrDown('special'); }
         });
         // Suppress right-click menu so back-dash works
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
         });
         // Middle-click = aim-lock toggle (alternate to Shift)
-        canvas.addEventListener('mousedown', e => { if (e.button === 1) this._down('aimlock'); });
-        canvas.addEventListener('mouseup',   e => { if (e.button === 1) this._up('aimlock'); });
+        canvas.addEventListener('mousedown', e => { if (e.button === 1) this._ptrDown('aimlock'); });
+        canvas.addEventListener('mouseup',   e => { if (e.button === 1) this._ptrUp('aimlock'); });
         // Hide cursor over canvas — we draw our own reticule
         canvas.style.cursor = 'none';
     }
@@ -215,6 +220,21 @@ class Input {
         return { x: x / d, y: y / d, angle: Math.atan2(y, x) };
     }
 
+    // R686: pointer-source wrappers. Mouse buttons and touch-overlay buttons
+    // register in _ptrHeld so the keyboard/pad release paths know the action
+    // is still physically held by a pointer.
+    _ptrDown(action) {
+        if (!action) return;
+        this._ptrHeld.add(action);
+        this._down(action);
+    }
+
+    _ptrUp(action) {
+        if (!action) return;
+        this._ptrHeld.delete(action);
+        if (!this._kbHeld.has(action) && !this._padHeld.has(action)) this._up(action);
+    }
+
     _down(action) {
         if (!action) return;
         if (!this.held.has(action)) {
@@ -248,6 +268,7 @@ class Input {
         this.pressTimes.clear();
         this._kbHeld.clear();
         this._padHeld.clear();
+        this._ptrHeld.clear();
     }
 
     // Was it pressed in the last PRESS_BUFFER_MS? Useful for forgiving jump input.
@@ -328,7 +349,7 @@ class Input {
             }
         } else if (this._padHeld.has(action)) {
             this._padHeld.delete(action);
-            if (!this._kbHeld.has(action)) this._up(action);
+            if (!this._kbHeld.has(action) && !this._ptrHeld.has(action)) this._up(action);
         }
     }
 
@@ -350,8 +371,8 @@ class Input {
         const bind = (id, action) => {
             const el = overlay.querySelector(`[data-act="${id}"]`);
             if (!el) return;
-            const start = e => { e.preventDefault(); this._down(action); el.classList.add('held'); };
-            const end   = e => { e.preventDefault(); this._up(action); el.classList.remove('held'); };
+            const start = e => { e.preventDefault(); this._ptrDown(action); el.classList.add('held'); };
+            const end   = e => { e.preventDefault(); this._ptrUp(action); el.classList.remove('held'); };
             el.addEventListener('touchstart', start, { passive: false });
             el.addEventListener('touchend', end, { passive: false });
             el.addEventListener('touchcancel', end, { passive: false });
