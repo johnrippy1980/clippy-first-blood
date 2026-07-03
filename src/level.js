@@ -3342,6 +3342,16 @@ export class Level {
         return (tx * this.arcRippleStep) % 120;
     }
 
+    // R685: static-ground probe for the mid-stage checkpoint capture. True
+    // only when the grid tile itself is permanent standable terrain. A lift
+    // car (moving solid) or a crumble tile is solid at the moment of capture
+    // but can vanish afterwards — banking on one turns the respawn point
+    // into a mid-air drop over whatever the tile used to bridge.
+    isStaticGround(px, py) {
+        const t = this.tileAt(px, py);
+        return t === TILE.SOLID || t === TILE.PLATFORM;
+    }
+
     isExit(px, py) {
         return this.tileAt(px, py) === TILE.EXIT;
     }

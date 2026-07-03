@@ -2019,6 +2019,19 @@ export class Game {
         if (this._checkpoint || !this.player || !this.level) return;
         if (!this.player.onGround || this.player.isDead()) return;
         if (this.player.x < this.level.width * 0.5) return;
+        // R685: bank only on STATIC, harmless ground. onGround is also true
+        // on a lift car or a crumble tile, both of which can vanish after
+        // capture — the banked spot then respawns the player mid-air over
+        // the shaft the tile used to bridge. A hazard at the feet would
+        // respawn them straight into damage. Skipping is free: capture
+        // stays armed and banks on the next safe grounded tick.
+        const p = this.player, lvl = this.level;
+        const footY = p.y + p.h + 2;
+        if (!lvl.isStaticGround(p.x + 1, footY) ||
+            !lvl.isStaticGround(p.x + p.w - 1, footY)) return;
+        if (lvl.isHazard(p.x + 1, footY) || lvl.isHazard(p.x + p.w - 1, footY) ||
+            lvl.isHazard(p.x + 1, p.y + p.h - 1) ||
+            lvl.isHazard(p.x + p.w - 1, p.y + p.h - 1)) return;
         this._checkpoint = { x: this.player.x, y: this.player.y };
         const cx = this.player.x + this.player.w / 2;
         particles.floatingText(cx, this.player.y - 10, 'CHECKPOINT', '#7cf49a', 60, -0.5, 1);
