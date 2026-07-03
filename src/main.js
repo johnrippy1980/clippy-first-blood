@@ -102,11 +102,12 @@ window.addEventListener('error', (ev) => {
     console.error('Window error:', ev.error || ev.message);
     _paintCrashOverlay(ev.error || ev.message);
 });
+// R660: unhandled promise rejections are NOT fatal. A failed async asset
+// fetch or audio decode used to paint the full CRASH overlay over a
+// perfectly healthy game loop. Log it and keep playing — the loop's own
+// try/catch is the real crash detector.
 window.addEventListener('unhandledrejection', (ev) => {
-    if (_crashed) return;
-    _crashed = true;
-    console.error('Unhandled rejection:', ev.reason);
-    _paintCrashOverlay(ev.reason);
+    console.error('Unhandled rejection (non-fatal):', ev.reason);
 });
 
 // Tab/window visibility — auto-pause the game and suspend music when
