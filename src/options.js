@@ -31,6 +31,10 @@ const DEFAULTS = {
     // HP for newcomers; 'hard' raises both for veterans. Non-'normal' runs are
     // excluded from the Any%/weekly leaderboards (non-comparable, like Daily).
     difficulty: 'normal',
+    // R691: key-rebind overrides — { action: key } set from the CONTROLS
+    // menu. Empty = shipped defaults. An override REPLACES that action's
+    // whole default key set (input.js rebuilds the effective keymap).
+    keyBinds: {},
 };
 
 class Options {

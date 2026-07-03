@@ -2,7 +2,7 @@
 
 import { GAME, STAGES, WEAPON, AMBIENT, TRACK_MANIFEST } from './constants.js';
 import { RELEASE } from './version.js';
-import { input } from './input.js';
+import { input, REBINDABLE_ACTIONS, keysForAction, rebindKey, resetKeyBindings } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { Camera } from './camera.js';
@@ -42,6 +42,7 @@ const SCENE = {
     PLAY: 'play',
     PAUSE: 'pause',
     OPTIONS: 'options',
+    CONTROLS: 'controls',        // R691: key-rebind submenu under OPTIONS
     ACHIEVEMENTS: 'achievements',
     SOUNDTRACK: 'soundtrack',
     GALLERY: 'gallery',          // painted-scene gallery — view all unlocked cutscenes
@@ -118,8 +119,29 @@ const PAUSE_OPTIONS = ['RESUME', 'RESTART STAGE', 'OPTIONS', 'ACHIEVEMENTS', 'SC
 // options.js DEFAULTS but weren't selectable from the menu. CRT curve
 // is a visual preference some players hate (motion sickness), and
 // veterans want to skip the READY screen on repeat runs.
-const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'DIFFICULTY', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'REDUCED MOTION', 'SHOW READY', 'SHOW GHOST', 'BACK'];
-const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'difficulty', 'scanlines', 'crtCurve',  'shakeScale',     'reducedMotion',  'showReady',  'showGhost',  'BACK'];
+const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'DIFFICULTY', 'SCANLINES', 'CRT CURVE', 'SHAKE INTENSITY', 'REDUCED MOTION', 'SHOW READY', 'SHOW GHOST', 'CONTROLS', 'BACK'];
+const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'difficulty', 'scanlines', 'crtCurve',  'shakeScale',     'reducedMotion',  'showReady',  'showGhost',  'CONTROLS', 'BACK'];
+
+// R691: CONTROLS submenu rows — the 12 rebindable actions + reset + back.
+// Display labels are menu-facing; the action ids drive keysForAction/rebind.
+const CONTROLS_ROWS = [
+    ['left',    'MOVE LEFT'],  ['right',  'MOVE RIGHT'],
+    ['up',      'MOVE UP'],    ['down',   'MOVE DOWN'],
+    ['jump',    'JUMP'],       ['shoot',  'SHOOT'],
+    ['special', 'SPECIAL'],    ['grenade','GRENADE'],
+    ['shield',  'SHIELD'],     ['aimlock','AIM LOCK'],
+    ['cycle',   'WEAPON SWAP'],['tag',    'TAG SWAP'],
+    ['RESET',   'RESET DEFAULTS'],
+    ['BACK',    'BACK'],
+];
+
+// R691: menu-facing names for non-printable key values.
+const KEY_LABELS = {
+    ' ': 'SPACE', 'ArrowLeft': 'LEFT', 'ArrowRight': 'RIGHT',
+    'ArrowUp': 'UP', 'ArrowDown': 'DOWN', 'Shift': 'SHIFT', 'Tab': 'TAB',
+    'Control': 'CTRL', 'Alt': 'ALT', 'CapsLock': 'CAPS', 'Backspace': 'BKSP',
+};
+function keyLabel(k) { return KEY_LABELS[k] || k.toUpperCase(); }
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 // R690: DIFFICULTY_ORDER / DIFFICULTY_MULTS / difficultyMults moved to
@@ -573,6 +595,7 @@ export class Game {
                 break;
             case SCENE.PAUSE:        this._tickPause(); break;
             case SCENE.OPTIONS:      this._tickOptions(); break;
+            case SCENE.CONTROLS:     this._tickControls(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
             case SCENE.SOUNDTRACK:   this._tickSoundtrack(); break;
             case SCENE.GALLERY:      this._tickGallery(); break;
@@ -707,6 +730,7 @@ export class Game {
             // (via _drawMainMenu) underneath, not _drawPlay — the latter
             // renders a black void since player/level are null.
             case SCENE.OPTIONS:      this._drawSubMenuBackdrop(); this._drawOptions(); break;
+            case SCENE.CONTROLS:     this._drawSubMenuBackdrop(); this._drawControls(); break;
             case SCENE.ACHIEVEMENTS: this._drawSubMenuBackdrop(); this._drawAchievements(); break;
             case SCENE.SOUNDTRACK:   this._drawSubMenuBackdrop(); this._drawSoundtrack(); break;
             case SCENE.GALLERY:      this._drawSubMenuBackdrop(); this._drawGallery(); break;
@@ -1755,12 +1779,21 @@ export class Game {
         // density. 7px row pitch, label dim / key bright pattern.
         const colL = panelX + 18, colR = panelX + panelW - 18;
         const rowH = 9;
+        // R691: labels come from the live keymap so rebinds show here.
+        // With no overrides this renders byte-identical to the old
+        // hardcoded table.
+        const kb = a => keysForAction(a).slice(0, 2).map(keyLabel).join(' / ') || '?';
+        const pk = a => keyLabel(keysForAction(a)[0] || '?');
+        const binds = options.get('keyBinds') || {};
+        const moveLabel = ['left', 'right', 'up', 'down'].some(a => binds[a])
+            ? [pk('up'), pk('left'), pk('down'), pk('right')].join('/')
+            : 'WASD / ARROWS';
         const rows = [
-            ['MOVE',   'WASD / ARROWS', 'SHOOT',   'X'],
-            ['JUMP',   'SPACE / Z',     'GRENADE', 'V'],
-            ['AIM',    'SHIFT',         'SHIELD',  'B'],
-            ['SWAP',   'TAB / Q',       'SPECIAL', 'C'],
-            ['CHARGE', 'DOWN + X (MG)', 'PAUSE',   'P'],
+            ['MOVE',   moveLabel,     'SHOOT',   kb('shoot')],
+            ['JUMP',   kb('jump'),    'GRENADE', kb('grenade')],
+            ['AIM',    kb('aimlock'), 'SHIELD',  kb('shield')],
+            ['SWAP',   kb('cycle'),   'SPECIAL', kb('special')],
+            ['CHARGE', 'DOWN + ' + pk('shoot') + ' (MG)', 'PAUSE', 'P'],
         ];
         const startY = panelY + 50;
         for (let i = 0; i < rows.length; i++) {
@@ -1789,7 +1822,7 @@ export class Game {
                 ctx.fillStyle = '#60c0ff';
                 ctx.fillRect(boxX + 2, toggleY + 1, 3, 3);
             }
-            drawText(ctx, "DON'T SHOW AGAIN  (C TO TOGGLE)",
+            drawText(ctx, "DON'T SHOW AGAIN  (" + pk('special') + ' TO TOGGLE)',
                      boxX + 11, toggleY, '#c0a0d0', 1, 'left');
         }
 
@@ -1805,7 +1838,7 @@ export class Game {
         // Footer hint — "PRESS X TO START" pulsing yellow
         const footPulse = 0.6 + 0.4 * Math.sin(t * 0.22);
         ctx.globalAlpha = footPulse;
-        drawText(ctx, 'PRESS X / SPACE / ENTER TO START',
+        drawText(ctx, 'PRESS ' + pk('shoot') + ' / ' + pk('jump') + ' / ENTER TO START',
                  GAME.W / 2, panelY + panelH - 12, '#ffe070', 1, 'center');
         ctx.globalAlpha = 1;
     }
@@ -3174,6 +3207,7 @@ export class Game {
         // The PAUSE menu has its own framed overlay so the HUD doesn't
         // intrude there, but it's a freebie to suppress consistently.
         const subMenuOpen = this.scene === SCENE.OPTIONS
+            || this.scene === SCENE.CONTROLS
             || this.scene === SCENE.ACHIEVEMENTS
             || this.scene === SCENE.SOUNDTRACK
             || this.scene === SCENE.GALLERY;
@@ -4060,7 +4094,97 @@ export class Game {
         }
         if (input.isPressed('shoot') || input.isPressed('jump')) {
             if (OPTIONS_ITEMS[this.optionsIndex] === 'BACK') { this.scene = this._menuReturnScene || SCENE.PAUSE; audio.sfx('pause'); }
+            // R691: open the key-rebind submenu. Returns to OPTIONS, which
+            // keeps _menuReturnScene armed for the eventual back-out.
+            else if (OPTIONS_KEYS[this.optionsIndex] === 'CONTROLS') {
+                this.controlsIndex = 0;
+                this._rebindAction = null;
+                this.scene = SCENE.CONTROLS;
+                audio.sfx('menu');
+            }
         }
+    }
+
+    // ============== R691: CONTROLS (key rebinding) ==============
+    _tickControls() {
+        // While capturing, the next keydown is consumed by input.js and
+        // routed to the callback — freeze menu nav so pad/held input can't
+        // move the cursor mid-capture. Keyboard ESC cancels via the capture
+        // callback; pad START cancels here (pad buttons never reach the
+        // keyboard capture, so a pad-only player must not get stuck).
+        if (this._rebindAction) {
+            if (input.isPressed('pause')) {
+                input.cancelKeyCapture();
+                this._rebindAction = null;
+                audio.sfx('pause');
+            }
+            return;
+        }
+        if (input.isPressed('pause')) { this.scene = SCENE.OPTIONS; audio.sfx('pause'); return; }
+        const n = CONTROLS_ROWS.length;
+        if (input.isPressed('up'))   { this.controlsIndex = (this.controlsIndex + n - 1) % n; audio.sfx('select'); }
+        if (input.isPressed('down')) { this.controlsIndex = (this.controlsIndex + 1) % n; audio.sfx('select'); }
+        if (input.isPressed('shoot') || input.isPressed('jump')) {
+            const [action] = CONTROLS_ROWS[this.controlsIndex];
+            if (action === 'BACK') {
+                this.scene = SCENE.OPTIONS; audio.sfx('pause');
+            } else if (action === 'RESET') {
+                resetKeyBindings();
+                audio.sfx('unlock');
+            } else {
+                this._rebindAction = action;
+                input.beginKeyCapture(key => {
+                    const a = this._rebindAction;
+                    this._rebindAction = null;
+                    if (!a) return;   // capture outlived the menu — ignore
+                    if (key === 'Escape') { audio.sfx('pause'); return; }
+                    if (rebindKey(a, key)) audio.sfx('unlock');
+                    else audio.sfx('hudLowAmmo');   // reserved key — refused
+                });
+                audio.sfx('menu');
+            }
+        }
+    }
+    _drawControls() {
+        const ctx = this.ctx;
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        const panelX = 30, panelY = 14, panelW = GAME.W - 60, panelH = GAME.H - 28;
+        ctx.fillStyle = '#0a0612';
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+        ctx.fillStyle = '#604030';
+        ctx.fillRect(panelX, panelY, panelW, 1);
+        ctx.fillRect(panelX, panelY + panelH - 1, panelW, 1);
+        ctx.fillRect(panelX, panelY, 1, panelH);
+        ctx.fillRect(panelX + panelW - 1, panelY, 1, panelH);
+
+        drawTextOutlined(ctx, 'CONTROLS', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 2, 'center');
+
+        // 14 rows — pitch 11 keeps RESET/BACK above the footer hint.
+        const startY = panelY + 24;
+        this._optionsPulse = (this._optionsPulse || 0) + 1;
+        for (let i = 0; i < CONTROLS_ROWS.length; i++) {
+            const [action, label] = CONTROLS_ROWS[i];
+            const y = startY + i * 11;
+            const sel = i === this.controlsIndex;
+            if (sel) {
+                const phase = Math.sin(this._optionsPulse * 0.18) * 0.5 + 0.5;
+                ctx.fillStyle = `rgb(${160 + Math.floor(phase * 40)},${16},${32})`;
+                ctx.fillRect(panelX + 8, y - 2, panelW - 16, 11);
+                drawText(ctx, '>', panelX + 12, y, '#ffe070', 1, 'left');
+            }
+            drawText(ctx, label, panelX + 22, y, sel ? '#fff' : '#c0a0d0', 1, 'left');
+            if (action === 'RESET' || action === 'BACK') continue;
+            if (sel && this._rebindAction === action) {
+                const blink = ((this._optionsPulse >> 4) & 1) === 0;
+                drawText(ctx, blink ? 'PRESS A KEY' : '', panelX + panelW - 14, y, '#60c0ff', 1, 'right');
+            } else {
+                const keys = keysForAction(action).slice(0, 2).map(keyLabel).join('/') || '---';
+                drawText(ctx, keys, panelX + panelW - 14, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
+            }
+        }
+        drawText(ctx, this._rebindAction ? 'ESC CANCEL' : 'X REBIND  P BACK',
+                 GAME.W / 2, panelY + panelH - 10, '#604068', 1, 'center');
     }
     _drawOptions() {
         const ctx = this.ctx;
@@ -4078,12 +4202,13 @@ export class Game {
 
         drawTextOutlined(ctx, 'OPTIONS', GAME.W / 2, panelY + 6, '#ffe070', '#a82020', 2, 'center');
 
-        // R648/R649: row pitch tightened to 14 + startY raised so all 11
-        // options (incl. DIFFICULTY) fit above the footer hint.
+        // R648/R649: row pitch tightened + startY raised so everything fits
+        // above the footer hint. R691: pitch 14 -> 13 for the 12th row
+        // (CONTROLS).
         const startY = panelY + 28;
         this._optionsPulse = (this._optionsPulse || 0) + 1;
         for (let i = 0; i < OPTIONS_ITEMS.length; i++) {
-            const y = startY + i * 14;
+            const y = startY + i * 13;
             const sel = i === this.optionsIndex;
             if (sel) {
                 const phase = Math.sin(this._optionsPulse * 0.18) * 0.5 + 0.5;
@@ -4123,6 +4248,9 @@ export class Game {
                 const d = options.get('difficulty');
                 const tint = d === 'hard' ? '#ff6048' : d === 'easy' ? '#70d060' : (sel ? '#ffe070' : '#80a0c0');
                 drawText(ctx, d.toUpperCase(), panelX + panelW - 26, y, tint, 1, 'right');
+            } else if (key === 'CONTROLS') {
+                // R691: submenu row — arrow cue instead of a value.
+                drawText(ctx, '...', panelX + panelW - 26, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
             }
         }
         drawText(ctx, 'LEFT/RIGHT CHANGE  X CONFIRM  P BACK', GAME.W / 2, panelY + panelH - 10, '#604068', 1, 'center');

@@ -2,9 +2,11 @@
 // Tracks pressed (current frame), held (continuous), and buffered (press in last N ms)
 // so sub-tick taps still register. This is critical for tight Contra-style controls.
 
+import { options } from './options.js';
+
 const PRESS_BUFFER_MS = 100;
 
-const KEYMAP = {
+const DEFAULT_KEYMAP = {
     'ArrowLeft': 'left',   'a': 'left',  'A': 'left',
     'ArrowRight': 'right', 'd': 'right', 'D': 'right',
     'ArrowUp': 'up',       'w': 'up',    'W': 'up',
@@ -24,6 +26,91 @@ const KEYMAP = {
     // here so input.isPressed('tag') works.
     't': 'tag',            'T': 'tag',
 };
+
+// ============== R691: key rebinding ==============
+// The CONTROLS menu writes { action: key } overrides into options
+// ('keyBinds'); the effective keymap is rebuilt from defaults + overrides.
+// An override replaces the action's ENTIRE default key set, and steals the
+// chosen key from whatever action currently holds it.
+
+// Menu/system actions stay fixed so a bad bind can't lock the player out.
+export const REBINDABLE_ACTIONS = [
+    'left', 'right', 'up', 'down', 'jump', 'shoot',
+    'special', 'grenade', 'shield', 'aimlock', 'cycle', 'tag',
+];
+
+// Keys of the non-rebindable actions — can never be stolen or assigned.
+export const RESERVED_KEYS = new Set(['Enter', 'Escape', 'p', 'P', 'm', 'M']);
+
+// Letter keys register as both cases (shift held / caps lock).
+function keyVariants(key) {
+    if (key.length === 1 && key.toLowerCase() !== key.toUpperCase()) {
+        return [key.toLowerCase(), key.toUpperCase()];
+    }
+    return [key];
+}
+
+let keymap = { ...DEFAULT_KEYMAP };
+
+function rebuildKeymap() {
+    const overrides = options.get('keyBinds') || {};
+    const m = {};
+    for (const [k, a] of Object.entries(DEFAULT_KEYMAP)) {
+        // A remapped action drops all of its default keys.
+        if (overrides[a] !== undefined) continue;
+        m[k] = a;
+    }
+    for (const key of Object.values(overrides)) {
+        // Steal pass — free the chosen keys from default owners first so
+        // assignment order can't matter.
+        for (const v of keyVariants(key)) delete m[v];
+    }
+    for (const [a, key] of Object.entries(overrides)) {
+        for (const v of keyVariants(key)) m[v] = a;
+    }
+    keymap = m;
+}
+
+// Effective keys for an action, case-deduped ('a'/'A' -> 'A'), in a stable
+// order. Used by the CONTROLS menu + READY-screen keymap card.
+export function keysForAction(action) {
+    const out = [];
+    for (const [k, a] of Object.entries(keymap)) {
+        if (a !== action) continue;
+        const canon = k.length === 1 ? k.toUpperCase() : k;
+        if (!out.includes(canon)) out.push(canon);
+    }
+    return out;
+}
+
+// Bind `key` as the sole keyboard key for `action`. Returns false (no-op)
+// for reserved keys / non-rebindable actions.
+export function rebindKey(action, key) {
+    if (!REBINDABLE_ACTIONS.includes(action)) return false;
+    if (RESERVED_KEYS.has(key)) return false;
+    const next = { ...(options.get('keyBinds') || {}) };
+    // Steal from any other override that holds this key — that action
+    // falls back to its defaults.
+    for (const [a, k] of Object.entries(next)) {
+        if (a !== action && keyVariants(k).some(v => keyVariants(key).includes(v))) {
+            delete next[a];
+        }
+    }
+    next[action] = key;
+    options.set('keyBinds', next);
+    rebuildKeymap();
+    input.releaseAll();
+    return true;
+}
+
+export function resetKeyBindings() {
+    options.set('keyBinds', {});
+    rebuildKeymap();
+    input.releaseAll();
+}
+
+// Apply persisted overrides at load.
+rebuildKeymap();
 
 class Input {
     constructor() {
@@ -57,14 +144,27 @@ class Input {
         // key silently released a held left-button autofire).
         this._ptrHeld = new Set();
 
+        // R691: one-shot key capture for the CONTROLS rebind menu. When
+        // armed, the next keydown goes to the callback INSTEAD of the
+        // action dispatch (so pressing the current shoot key to rebind it
+        // doesn't also fire a shot).
+        this._captureCb = null;
+
         window.addEventListener('keydown', e => {
-            const a = KEYMAP[e.key];
+            if (this._captureCb) {
+                e.preventDefault();
+                const cb = this._captureCb;
+                this._captureCb = null;
+                cb(e.key);
+                return;
+            }
+            const a = keymap[e.key];
             if (!a) return;
             this._kbHeld.add(a);
             this._down(a);
         });
         window.addEventListener('keyup', e => {
-            const a = KEYMAP[e.key];
+            const a = keymap[e.key];
             if (!a) return;
             this._kbHeld.delete(a);
             if (!this._padHeld.has(a) && !this._ptrHeld.has(a)) this._up(a);
@@ -270,6 +370,10 @@ class Input {
         this._padHeld.clear();
         this._ptrHeld.clear();
     }
+
+    // R691: arm/disarm the one-shot rebind capture (see keydown handler).
+    beginKeyCapture(cb) { this._captureCb = cb; }
+    cancelKeyCapture()  { this._captureCb = null; }
 
     // Was it pressed in the last PRESS_BUFFER_MS? Useful for forgiving jump input.
     isBuffered(a) {
