@@ -257,6 +257,7 @@ class Audio {
         // hardcoded 0.65 — pre-fix, toggleMute always slammed master back
         // to 0.65 regardless of user's slider position.
         if (this.master) this.master.gain.value = this.muted ? 0 : (this._masterVol ?? 1.0);
+        this._applyDirectFileVolume();
     }
 
     // R288: volume API — values are 0..1. Persisted via options.set.
@@ -264,6 +265,7 @@ class Audio {
         this._musicVol = Math.max(0, Math.min(1, v));
         if (this.musicBus) this.musicBus.gain.value = this._musicVol;
         this.sidechainBase = this._musicVol;
+        this._applyDirectFileVolume();
     }
     setSfxVolume(v) {
         this._sfxVol = Math.max(0, Math.min(1, v));
@@ -272,6 +274,7 @@ class Audio {
     setMasterVolume(v) {
         this._masterVol = Math.max(0, Math.min(1, v));
         if (this.master && !this.muted) this.master.gain.value = this._masterVol;
+        this._applyDirectFileVolume();
     }
     getMusicVolume() { return this._musicVol ?? 1.0; }
     getSfxVolume()   { return this._sfxVol ?? 1.0; }
@@ -3632,6 +3635,18 @@ class Audio {
             console.warn('Music file blocked by autoplay policy:', err);
         });
         this._fileEl = el;
+        this._applyDirectFileVolume();
+    }
+
+    // R673: when createMediaElementSource threw in _playFile, the element
+    // plays outside the Web Audio graph — musicBus/master gain and mute
+    // can't touch it (it ran raw at 1.0 regardless of sliders). Mirror
+    // those controls onto the element's own volume instead. No-op on the
+    // normal routed path (_fileGainNode set → graph handles it).
+    _applyDirectFileVolume() {
+        if (!this._fileEl || this._fileGainNode) return;
+        this._fileEl.volume = this.muted ? 0
+            : (this._musicVol ?? 1.0) * (this._masterVol ?? 1.0);
     }
     _scheduleBeat(track) {
         const stepMs = 60000 / this.bpm / 4;
