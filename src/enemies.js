@@ -1245,9 +1245,24 @@ class Enemy {
             audio.sfx('explode');
             // R639: dead man's switch — a killed sapper leaves a live mine.
             if (this.tpl.deathMine) this._dropDeathMine();
+            this._leaveBossCorpse();
             return true;
         }
         return false;
+    }
+
+    // R662: if this is a boss with a painted death frame, leave a fading
+    // corpse where it died. No-op for everything else.
+    _leaveBossCorpse() {
+        if (this.behavior !== 'boss') return;
+        const key = 'boss_' + this.kind + '_death';
+        if (!sprites.has(key)) return;
+        bossCorpses.push({
+            key,
+            cx: this.x + this.w / 2,
+            groundY: this.y + this.h,
+            t: 120,
+        });
     }
 
     _tickStatus() {
@@ -1272,6 +1287,7 @@ class Enemy {
                 audio.sfx('explode');
                 // R639: dead man's switch fires on a burn-death too.
                 if (this.tpl.deathMine) this._dropDeathMine();
+                this._leaveBossCorpse();
             }
         }
         // Knock stun — block AI updates briefly
@@ -1665,6 +1681,9 @@ class Boss extends Enemy {
     update(level, player) {
         this.timer++;
         if (this.hitFlash > 0) this.hitFlash--;
+        // R662: fire-pose window — set when a pattern actually fires so the
+        // boss_<KIND>_fire frame (if painted) shows for a beat.
+        if (this._fireFlash > 0) this._fireFlash--;
         // R512: tick down JOBS "ONE MORE THING" telegraph counter so the
         // pre-fire yellow halo only shows during the 30-frame windup
         if (this._oneMoreThingTelegraph > 0) this._oneMoreThingTelegraph--;
@@ -1893,6 +1912,7 @@ class Boss extends Enemy {
             }
         }
         if (this.attackTimer <= 0) {
+            this._fireFlash = 14;
             this._runPattern(level, player);
         }
     }
@@ -2536,6 +2556,15 @@ class Boss extends Enemy {
             spriteKey = enemyKey;
         } else {
             spriteKey = 'boss_' + this.kind;
+        }
+        // R662: state variants. boss_<KIND>_fire/_hurt frames (Spindler's
+        // shipped in R225) were manifest-registered but never selected —
+        // the boss always drew its static base pose. Fire pose wins over
+        // hurt so an attack read isn't masked by chip damage.
+        if (this._fireFlash > 0 && sprites.has(spriteKey + '_fire')) {
+            spriteKey += '_fire';
+        } else if (this.hitFlash > 0 && sprites.has(spriteKey + '_hurt')) {
+            spriteKey += '_hurt';
         }
         if (sprites.has(spriteKey)) {
             // Use PNG, anchored to bottom-center of hitbox
@@ -3197,6 +3226,11 @@ const BOSS_TEMPLATES = {
 
 export const globalEnemyBullets = [];
 
+// R662: fading boss corpses. Bosses with a painted death frame
+// (boss_<KIND>_death — Spindler's shipped in R225) leave it on the floor
+// for ~2s after the kill explosion instead of vanishing instantly.
+const bossCorpses = [];
+
 export class EnemyManager {
     constructor() {
         this.enemies = [];
@@ -3218,6 +3252,7 @@ export class EnemyManager {
     clear() {
         this.enemies.length = 0;
         this.bullets.length = 0;
+        bossCorpses.length = 0;
         _lostBubblesFired = 0;
     }
     // Owl hoot: enemies within radius briefly look up — attack timers freeze
@@ -3335,6 +3370,10 @@ export class EnemyManager {
 
     update(level, player) {
         if (this._whizzCooldown > 0) this._whizzCooldown--;
+        // R662: fade out boss corpses.
+        for (let i = bossCorpses.length - 1; i >= 0; i--) {
+            if (--bossCorpses[i].t <= 0) bossCorpses.splice(i, 1);
+        }
         // Pounce target scan — while the player is hidden (grass/water/cover),
         // find the nearest activated enemy within 72px and stash it as
         // player._pounceTarget. Player tick consumes it on `special` press.
@@ -3852,6 +3891,17 @@ export class EnemyManager {
     }
 
     draw(ctx, camera) {
+        // R662: boss corpses render under live enemies, fading over the
+        // last 45 frames.
+        for (const c of bossCorpses) {
+            const dims = getSpriteDims(c.key);
+            const dx = Math.round(c.cx - dims.w / 2 - camera.viewX);
+            const dy = Math.round(c.groundY - dims.h - camera.viewY);
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, c.t / 45);
+            sprites.draw(ctx, c.key, dx, dy, false);
+            ctx.restore();
+        }
         for (const e of this.enemies) e.draw(ctx, camera);
         for (const b of this.bullets) b.draw(ctx, camera);
     }
