@@ -3616,11 +3616,13 @@ class Audio {
         if (!t) return;
         this.bpm = t.bpm;
         this.beat = 0;
+        this._beatTime = 0;  // R680: fresh beat clock for the new track
         this._scheduleBeat(t);
     }
     stopTrack() {
         if (this._timer) clearTimeout(this._timer);
         this._timer = null;
+        this._beatTime = 0;  // R680
         this.currentTrack = null;
         this._bufToken++;   // R675: abandon any in-flight gapless decode
         if (this._fileEl) {
@@ -3756,13 +3758,26 @@ class Audio {
         const stepMs = 60000 / this.bpm / 4;
         if (!this.ctx || this.muted) {
             this.beat = (this.beat + 1) % track.pattern.length;
+            this._beatTime = 0;   // R680: resync the beat clock on unmute
             this._timer = setTimeout(() => this._scheduleBeat(track), stepMs);
             return;
         }
         const i = this.beat % track.pattern.length;
         const row = track.pattern[i];
-        const now = this.ctx.currentTime;
         const stepSec = stepMs / 1000;
+        // R680: drift-corrected beat clock. setTimeout fires LATE by a few
+        // ms every step and the old code scheduled each row at "whenever the
+        // timer fired" — the errors accumulated, audibly slurring the groove
+        // over a long stage. Track the beat's ideal time in AudioContext
+        // time instead: schedule events AT that time (Web Audio is sample-
+        // accurate for future times), advance it by exactly one step, and
+        // aim the next timer ~20ms early so late fires stop compounding.
+        // The 0.2s resync guard handles background-tab throttling — after a
+        // long stall we restart the clock at "now" rather than machine-
+        // gunning catch-up beats (delay would clamp to 0 otherwise).
+        const nowT = this.ctx.currentTime;
+        if (!this._beatTime || this._beatTime < nowT - 0.2) this._beatTime = nowT;
+        const now = this._beatTime;
         const [kick, snare, hat, bassNote, padNote, leadNote] = row;
 
         // Sidechain pump if kick present
@@ -3776,7 +3791,9 @@ class Audio {
         if (leadNote && leadNote !== '-') this._leadNote(now, hz(leadNote), stepSec * (track.leadLen || 0.9));
 
         this.beat++;
-        this._timer = setTimeout(() => this._scheduleBeat(track), stepMs);
+        this._beatTime = now + stepSec;
+        const delayMs = Math.max(0, (this._beatTime - this.ctx.currentTime) * 1000 - 20);
+        this._timer = setTimeout(() => this._scheduleBeat(track), delayMs);
     }
 
     _pumpMusic(t, dur) {
