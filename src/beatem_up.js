@@ -26,6 +26,7 @@ import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { particles } from './particles.js';
 import { RAGE_BARKS } from './player.js';
+import { options } from './options.js';
 
 // Playable street region — Clippy moves WITHIN this band, no jumping.
 //   STREET_TOP    = far edge of the street (smaller y = "further away")
@@ -1844,7 +1845,8 @@ export class BeatEmUp {
                     ctx.save();
                     ctx.imageSmoothingEnabled = false;
                     const fx = GAME.W - 28 - 4, fy = 38;
-                    const shake = (p.iframes > 30) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+                    // R667: face-panel hurt jitter respects reduced-motion.
+                    const shake = (p.iframes > 30 && !options.get('reducedMotion')) ? ((Math.random() - 0.5) * 2) | 0 : 0;
                     ctx.drawImage(faceImg, fx + shake, fy + shake, 24, 24);
                     ctx.restore();
                 }

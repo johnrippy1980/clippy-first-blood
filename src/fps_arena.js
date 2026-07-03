@@ -26,6 +26,7 @@ import { sprites } from './sprites.js';
 import { particles } from './particles.js';
 import { RAGE_BARKS } from './player.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
+import { options } from './options.js';
 
 // ============== Layout ==============
 const RAIL_Y       = GAME.H - 28;            // ground rail y
@@ -986,7 +987,12 @@ export class FpsArena {
     // R314: optional camera shake. Caller passes ampFrames; positive amp,
     // decays linearly to zero. Reads in draw() to offset the whole canvas.
     _shake(amp = 4, frames = 14) {
-        this._shakeAmp = Math.max(this._shakeAmp || 0, amp);
+        // R667: honor SHAKE INTENSITY + reduced-motion. game.js pushes the
+        // preference into camera.shakeScale every frame (reducedMotion → 0);
+        // this engine's private shake was the one path that bypassed it.
+        const s = this.game?.camera?.shakeScale ?? 1;
+        if (s <= 0) return;
+        this._shakeAmp = Math.max(this._shakeAmp || 0, amp * s);
         this._shakeT = Math.max(this._shakeT || 0, frames);
     }
 
@@ -1403,7 +1409,8 @@ export class FpsArena {
                     ctx.save();
                     ctx.imageSmoothingEnabled = false;
                     const fx = GAME.W - 28 - 4, fy = 38;
-                    const shake = (p.iframes > 30) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+                    // R667: face-panel hurt jitter respects reduced-motion.
+                    const shake = (p.iframes > 30 && !options.get('reducedMotion')) ? ((Math.random() - 0.5) * 2) | 0 : 0;
                     ctx.drawImage(faceImg, fx + shake, fy + shake, 24, 24);
                     ctx.restore();
                 }

@@ -13,6 +13,7 @@ import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { achievements } from './achievements.js';
+import { options } from './options.js';
 
 const W = GAME.W;
 const H = GAME.H;
@@ -2353,7 +2354,8 @@ export class DoomEngine {
             const faceSize = 32;
             const fx = (centerX + (centerW - faceSize) / 2) | 0;
             const fy = y + (HUD_H - faceSize) / 2 | 0;
-            const shake = (p.iframes > 50) ? ((Math.random() - 0.5) * 2) | 0 : 0;
+            // R667: face-panel hurt jitter respects reduced-motion.
+            const shake = (p.iframes > 50 && !options.get('reducedMotion')) ? ((Math.random() - 0.5) * 2) | 0 : 0;
             ctx.drawImage(faceImg, fx + shake, fy + shake, faceSize, faceSize);
             // R496: white hit-flash overlay during first 8 frames of iframes
             // so each damage event visibly pops on the face panel.

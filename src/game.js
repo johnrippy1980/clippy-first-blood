@@ -1930,6 +1930,10 @@ export class Game {
     // orange), etc. Multiple calls within the same frame OR before previous
     // expired: longer-lived + higher-alpha wins.
     triggerScreenFlash(frames = 8, color = '#ffffff', alpha = 0.5) {
+        // R667: reduced-motion suppresses full-screen color washes — they're
+        // the closest thing the game has to a strobe. Slow-mo (R648) and
+        // shake (camera.shakeScale) were already gated; this was the gap.
+        if (options.get('reducedMotion')) return;
         if (frames > this._flashFrames || alpha > this._flashAlphaPeak) {
             this._flashFrames = Math.max(this._flashFrames, frames);
             this._flashTotal = Math.max(this._flashTotal, frames);
