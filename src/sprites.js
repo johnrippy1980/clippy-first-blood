@@ -568,6 +568,9 @@ export const CLIPPY_MANIFEST = {
     // wasn't. Use the neutral pose so non-firing falls match non-firing
     // jumps. Shooting-while-falling still hits the 'jump_aim' branch.
     'fall':            'friend/jump_fall.png',
+    // R668: dedicated apex pose — on disk since the pose pack landed but
+    // never wired; the jump arc reused jump_rise at the peak.
+    'jump_peak':       'friend/jump_peak.png',
     // R601: real spin-jump rotation from the friend's Jump-Double sequence
     // (frames 4/5 = the tucked mid-flip and inverted beats). The engine
     // cycles ['jump', spin_1, spin_2, spin_1] off spinAngle, so these two
@@ -587,6 +590,10 @@ export const CLIPPY_MANIFEST = {
     'prone':           'friend/crawl_1.png',
     'prone_shoot':     'friend/crawl_shoot_1.png',
     'prone_heavy':     'friend/crawl_shoot_1.png',
+    // R668: second crawl beats — on disk since the pose pack landed but
+    // never wired, so crawling was a static single frame.
+    'prone_2':         'friend/crawl_2.png',
+    'prone_shoot_2':   'friend/crawl_shoot_2.png',
     // R602: dedicated slide pose from the friend's pack (slide-2 = the low
     // streaked slide). Previously SLIDE/ROLL collapsed onto the flat prone
     // crawl frame, which read as "lying down" rather than "sliding". slide
@@ -640,6 +647,9 @@ export const CLIPPY_MANIFEST = {
     // lowhp_down is the staggered/recoil read used for the hit + first death
     // beat; lowhp_up the upright wince used for the lingering hurt pose.
     'hurt':            'friend/lowhp_up.png',
+    // R668: the staggered/recoil read for the first beat of a hit —
+    // R645 freed it from death-frame duty and left it unreferenced.
+    'hurt_stagger':    'friend/lowhp_down.png',
     // R602: backdash uses the friend's gun-up brace pose (the facing flip
     // mirrors it for the dash direction) instead of the old v2_backdash
     // frame, which carried an un-knocked-out grey background box.

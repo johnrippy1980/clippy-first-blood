@@ -4679,6 +4679,7 @@ export class Player {
             // --- Jump / fall / spin ---
             'jump':            'bonzi_jump',
             'jump_aim':        'bonzi_aim_up',
+            'jump_peak':       'bonzi_jump',
             'fall':            'bonzi_fall',
             'spin_1':          'bonzi_spin_1',
             'spin_2':          'bonzi_spin_2',
@@ -4691,10 +4692,13 @@ export class Player {
             'prone':           'bonzi_charge',
             'prone_shoot':     'bonzi_charge',
             'prone_heavy':     'bonzi_charge',
+            'prone_2':         'bonzi_charge',
+            'prone_shoot_2':   'bonzi_charge',
             // --- Backdash ---
             'backdash':        'bonzi_backdash',
             // --- Hurt / death ---
             'hurt':            'bonzi_hurt',
+            'hurt_stagger':    'bonzi_hurt',
             'death_hit':       'bonzi_death_hit',
             'death_explode':   'bonzi_death_explode',
             'death_burning':   'bonzi_death_burning',
@@ -4793,7 +4797,8 @@ export class Player {
                 if (input.isHeld('shoot') && sprites.has('jump_aim')) return 'jump_aim';
                 if (this.vy < -1.5) return 'jump';                // rising
                 if (this.vy > 1.5) return sprites.has('fall') ? 'fall' : 'jump';
-                return 'jump';                                     // peak
+                // R668: dedicated apex pose completes the 3-beat jump arc.
+                return sprites.has('jump_peak') ? 'jump_peak' : 'jump';
             }
             case STATE.SPIN_JUMP:
             case STATE.POUNCE: {
@@ -4809,7 +4814,17 @@ export class Player {
             case STATE.SLIDE:
             case STATE.ROLL: return sprites.has('slide') ? 'slide' : 'prone';
             case STATE.PRONE: return shooting && sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
-            case STATE.CRAWL: return sprites.has('prone_shoot') ? 'prone_shoot' : 'prone';
+            case STATE.CRAWL: {
+                // R668: 2-beat hand-over-hand crawl cycle (crawl_1/crawl_2,
+                // shoot pair while firing). Previously CRAWL pinned the
+                // gun-extended shoot frame — static, and it read as firing
+                // even when the trigger wasn't held.
+                const alt = Math.floor(this.animFrame) % 2 === 1;
+                if (shooting && sprites.has('prone_shoot')) {
+                    return alt && sprites.has('prone_shoot_2') ? 'prone_shoot_2' : 'prone_shoot';
+                }
+                return alt && sprites.has('prone_2') ? 'prone_2' : 'prone';
+            }
             case STATE.BACKDASH: return 'backdash';
             // R602: real hand-over-hand climb art (climb_1/climb_2) instead of
             // recycling the run cycle, which made ladder-climbing look like
@@ -4828,7 +4843,11 @@ export class Player {
                 if (sprites.has('ledge_climb_1')) return 'ledge_climb_1';
                 return 'jump';
             }
-            case STATE.HURT: return 'hurt';
+            // R668: two-beat hurt read — the staggered/recoil pose for the
+            // first ~14 frames of the 36-frame hurt window, then the upright
+            // lingering wince. hurtTimer counts down from HURT_FRAMES (36).
+            case STATE.HURT:
+                return this.hurtTimer > 22 && sprites.has('hurt_stagger') ? 'hurt_stagger' : 'hurt';
             case STATE.DIE: {
                 if (this.deathTimer < 30) return 'death_hit';
                 if (this.deathTimer < 60) return 'death_explode';
