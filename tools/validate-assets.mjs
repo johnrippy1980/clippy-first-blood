@@ -91,4 +91,24 @@ if (missing.length) {
     }
     process.exit(1);
 }
+
+// R664: release-stamp drift check. The on-screen stamp (src/version.js
+// RELEASE) must not fall behind the newest R-tag in git history — the old
+// hardcoded stamp in game.js drifted R477 -> R658 unnoticed. RELEASE may be
+// AHEAD of git (the release commit itself isn't committed while tests run).
+try {
+    const { execSync } = await import('node:child_process');
+    const versionSrc = readFileSync(resolve(root, 'src/version.js'), 'utf8');
+    const stamped = versionSrc.match(/RELEASE\s*=\s*'R(\d+)'/)?.[1];
+    const log = execSync('git log --oneline -100', { cwd: root, encoding: 'utf8' });
+    const latest = log.match(/\bR(\d{3,})\b/)?.[1];
+    if (stamped && latest && Number(stamped) < Number(latest)) {
+        console.error(`\n❌ Release stamp drift: src/version.js says R${stamped} but git history is at R${latest}. Bump RELEASE in the release commit.`);
+        process.exit(1);
+    }
+    console.log(`✅ Release stamp R${stamped} is current (git: R${latest}).`);
+} catch (e) {
+    console.warn(`⚠️  Release-stamp check skipped: ${e.message}`);
+}
+
 console.log('✅ All required manifest entries resolve to files on disk.');

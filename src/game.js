@@ -1,6 +1,7 @@
 // Top-level scene state machine + loop. Title → Story → Stage → Boss → Clear.
 
 import { GAME, STAGES, WEAPON, AMBIENT, TRACK_MANIFEST } from './constants.js';
+import { RELEASE } from './version.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
@@ -1007,11 +1008,12 @@ export class Game {
             ctx.globalAlpha = 1;
         }
         // R477: version stamp bottom-right corner — tiny, dim, but visible.
-        // Uses the latest R-tag committed (R477 as of this commit).
+        // R664: reads src/version.js (validate-assets fails on drift) — the
+        // hardcoded stamp here sat at R477 while the repo reached R658.
         if (this.scene !== SCENE.MAIN_MENU) {
             ctx.save();
             ctx.globalAlpha = 0.45;
-            drawText(ctx, 'R477', GAME.W - 4, GAME.H - 4, '#604068', 1, 'right');
+            drawText(ctx, RELEASE, GAME.W - 4, GAME.H - 4, '#604068', 1, 'right');
             ctx.restore();
         }
         // Edge fade — paint short black gradients at the left + right ends
