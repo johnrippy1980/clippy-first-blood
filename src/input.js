@@ -43,11 +43,38 @@ class Input {
         // mousemove, consumed (zeroed) by getMouseDelta() once per frame.
         this.mouseDx = 0; this.mouseDy = 0;
         this.pointerLocked = false;
+        // R659: per-source held tracking. The gamepad poll used to call
+        // _up() for every unpressed button EVERY tick, so a connected but
+        // idle controller released keyboard-held actions continuously —
+        // keyboard play was broken the moment a pad was plugged in. Keyboard
+        // and gamepad each track their own held set; an action only truly
+        // releases when neither source still holds it.
+        this._kbHeld = new Set();
+        this._padHeld = new Set();
 
-        window.addEventListener('keydown', e => this._down(KEYMAP[e.key]));
-        window.addEventListener('keyup', e => this._up(KEYMAP[e.key]));
+        window.addEventListener('keydown', e => {
+            const a = KEYMAP[e.key];
+            if (!a) return;
+            this._kbHeld.add(a);
+            this._down(a);
+        });
+        window.addEventListener('keyup', e => {
+            const a = KEYMAP[e.key];
+            if (!a) return;
+            this._kbHeld.delete(a);
+            if (!this._padHeld.has(a)) this._up(a);
+        });
         window.addEventListener('gamepadconnected', e => { this.gamepadIndex = e.gamepad.index; });
-        window.addEventListener('gamepaddisconnected', () => { this.gamepadIndex = null; });
+        window.addEventListener('gamepaddisconnected', () => {
+            this.gamepadIndex = null;
+            // R659: polling stops on disconnect, so anything the pad was
+            // holding would stay stuck in `held` forever. Release it all
+            // (unless the keyboard also holds it).
+            for (const a of this._padHeld) {
+                if (!this._kbHeld.has(a)) this._up(a);
+            }
+            this._padHeld.clear();
+        });
 
         // R198: browsers don't fire keyup for held keys when the window
         // loses focus, so a key held during a tab-switch / minimize stays
@@ -203,6 +230,8 @@ class Input {
         this.pressed.clear();
         this.released.clear();
         this.pressTimes.clear();
+        this._kbHeld.clear();
+        this._padHeld.clear();
     }
 
     // Was it pressed in the last PRESS_BUFFER_MS? Useful for forgiving jump input.
@@ -273,8 +302,18 @@ class Input {
     }
 
     _set(action, pressed) {
-        if (pressed) this._down(action);
-        else this._up(action);
+        // R659: edge-triggered per source. Only touch the shared held set on
+        // actual pad transitions, and never release an action the keyboard
+        // still holds.
+        if (pressed) {
+            if (!this._padHeld.has(action)) {
+                this._padHeld.add(action);
+                this._down(action);
+            }
+        } else if (this._padHeld.has(action)) {
+            this._padHeld.delete(action);
+            if (!this._kbHeld.has(action)) this._up(action);
+        }
     }
 
     _setupTouch() {
