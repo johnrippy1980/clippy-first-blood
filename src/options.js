@@ -29,7 +29,7 @@ const DEFAULTS = {
     // R649: campaign difficulty. 'normal' is the tuned baseline (1.0× damage
     // taken / 1.0× enemy HP). 'easy' halves incoming damage + softens enemy
     // HP for newcomers; 'hard' raises both for veterans. Non-'normal' runs are
-    // excluded from the Any%/weekly leaderboards (non-comparable, like Daily).
+    // excluded from the Any%/weekly/endless boards (non-comparable, like Daily).
     difficulty: 'normal',
     // R691: key-rebind overrides — { action: key } set from the CONTROLS
     // menu. Empty = shipped defaults. An override REPLACES that action's

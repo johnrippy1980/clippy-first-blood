@@ -7,6 +7,9 @@ import { validateRun, MODES, PARTITIONED_MODES, MAX_CHECKPOINTS, partitionKey } 
 
 // Score-ranked boards sort high→low; time-ranked boards sort fast→slow.
 const TIME_RANKED = new Set(['timeTrial']);
+// R692: wave-ranked boards (endless) sort by depth — stages_cleared carries
+// the wave count, so deeper runs beat grindier shallow ones; score breaks ties.
+const WAVE_RANKED = new Set(['endless']);
 
 // Reject oversized POST bodies before parsing — a legit submission is well
 // under 8KB (a 64-entry checkpoint trail is a few hundred bytes). Anything
@@ -86,6 +89,13 @@ export default async function handler(req, res) {
                     FROM cfb_runs
                     WHERE mode = ${mode} AND verified = true
                     ORDER BY time_frames ASC
+                    LIMIT ${limit}`
+                : WAVE_RANKED.has(mode)
+                ? await sql`
+                    SELECT name, score, time_frames, stages_cleared, verified, created_at
+                    FROM cfb_runs
+                    WHERE mode = ${mode} AND verified = true
+                    ORDER BY stages_cleared DESC, score DESC
                     LIMIT ${limit}`
                 : await sql`
                     SELECT name, score, time_frames, stages_cleared, verified, created_at

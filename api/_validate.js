@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 // secret (it ships in the bundle) — it only raises the bar past trivial.
 const SIGN_SALT = process.env.CFB_SIGN_SALT || 'clippy-bonzi-1997';
 
-const MODES = new Set(['any', 'hundred', 'bossRush', 'timeTrial', 'daily', 'weekly']);
+const MODES = new Set(['any', 'hundred', 'bossRush', 'timeTrial', 'daily', 'weekly', 'endless']);
 
 // Modes whose runs are partitioned onto a sub-board by a routing key.
 // daily → YYYYMMDD, weekly → <isoYear>W<ww>. Kept here so the API and
@@ -40,6 +40,11 @@ const MAX_SCORE_PER_FRAME = 1200;
 const MODE_MAX_STAGES = {
     any: 13, hundred: 13, daily: 13, weekly: 13,
     bossRush: 13, timeTrial: 13,
+    // R692: endless carries WAVES in stagesCleared. A wave cycle is ≥~400
+    // frames (spawn drip + 150-frame breather), so TIME_MAX already bounds a
+    // real run to ~1600 waves; 500 sits far above any human run while still
+    // rejecting "wave 99999" junk.
+    endless: 500,
 };
 const DEFAULT_MAX_STAGES = 30;              // covers side/post-game tiles
 // A checkpoint trail has at most a few entries per stage (stage-enter + boss,

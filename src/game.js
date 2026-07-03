@@ -46,7 +46,7 @@ const SCENE = {
     ACHIEVEMENTS: 'achievements',
     SOUNDTRACK: 'soundtrack',
     GALLERY: 'gallery',          // painted-scene gallery — view all unlocked cutscenes
-    LEADERBOARD: 'leaderboard',  // online high-score boards (Any% / Time Trial) + name entry
+    LEADERBOARD: 'leaderboard',  // online high-score boards (Any%/TT/Endless/Weekly/Daily) + name entry
     STAGE_SELECT: 'stageSelect',
     STAGE_CARD: 'stageCard',     // cinematic painted card between stages
     BOSS_INTRO: 'bossIntro',     // cinematic slide before main boss spawn
@@ -4782,12 +4782,13 @@ export class Game {
     }
 
     // ---- Leaderboard scene ---------------------------------------------
-    // Online high-score boards. Two tabs (Any% / Time Trial), an arcade-style
-    // 3-letter name-entry widget at the top (initials persist via the
-    // leaderboard client's localStorage), and a top-20 list fetched on entry.
+    // Online high-score boards (Any% / Time Trial / Endless / Weekly / Daily),
+    // an arcade-style 3-letter name-entry widget at the top (initials persist
+    // via the leaderboard client's localStorage), and a top-20 list fetched
+    // per tab on entry/switch.
     _enterLeaderboard() {
         this.scene = SCENE.LEADERBOARD;
-        this._lbTab = 0;                 // 0 Any% · 1 Time Trial · 2 Weekly · 3 Daily
+        this._lbTab = 0;   // index into _lbTabs below
         // Today's daily challenge supplies the DAILY board's day key (which
         // partitions the board) and its name for the subtitle. The weekly board
         // is partitioned by ISO-week key and rolls over every Monday.
@@ -4796,6 +4797,8 @@ export class Game {
         this._lbTabs = [
             { mode: 'any',       title: 'ANY%',       ranked: 'score' },
             { mode: 'timeTrial', title: 'TIME TRIAL', ranked: 'time'  },
+            // R692: endless ranks by wave depth — stages_cleared carries waves.
+            { mode: 'endless',   title: 'ENDLESS',    ranked: 'waves' },
             { mode: 'weekly',    title: 'WEEKLY: ' + week, ranked: 'score', day: week },
             { mode: 'daily',     title: 'DAILY: ' + today.name, ranked: 'score', day: today.day },
         ];
@@ -4895,7 +4898,10 @@ export class Game {
                 : (cache.status === 'error' ? 'BOARD UNAVAILABLE' : 'NO SCORES YET');
             drawText(ctx, msg, GAME.W / 2, listTop + 20, '#806890', 1, 'center');
         } else if (cache.entries.length === 0) {
-            drawText(ctx, 'BE THE FIRST — BEAT THE GAME!', GAME.W / 2, listTop + 20, '#806890', 1, 'center');
+            const empty = tab.mode === 'endless'
+                ? 'BE THE FIRST — SURVIVE THE WAVES!'
+                : 'BE THE FIRST — BEAT THE GAME!';
+            drawText(ctx, empty, GAME.W / 2, listTop + 20, '#806890', 1, 'center');
         } else {
             const rows = cache.entries.slice(0, maxRows);
             for (let i = 0; i < rows.length; i++) {
@@ -4906,6 +4912,9 @@ export class Game {
                 drawText(ctx, (e.name || 'AAA').slice(0, 8), listX + 18, y, '#fff', 1, 'left');
                 const val = tab.ranked === 'time'
                     ? this._lbFmtTime(e.time_frames)
+                    // R692: endless rows show wave depth, the board's rank key.
+                    : tab.ranked === 'waves'
+                    ? 'WAVE ' + (e.stages_cleared || 0)
                     : String(e.score).padStart(6, ' ');
                 drawText(ctx, val, GAME.W - listX, y, '#ffd060', 1, 'right');
             }
@@ -5832,7 +5841,12 @@ export class Game {
             pendingSpawns: 0,     // grunts still to spawn this wave (drip-fed)
             spawnCd: 0,           // frames until next drip spawn
             cleared: 0,           // waves fully survived (the score)
+            trail: [],            // R692: {key,frame} per wave clear — the run's
+                                  // signed checkpoint trail for the endless board
         };
+        // R692: one board submit per attempt. A game-over CONTINUE re-enters
+        // stage 27 through _startStage → here, so the flag re-arms with the run.
+        this._endlessSubmitted = false;
         // Seed difficulty at the easiest rung; ramped per wave in _advanceWave.
         this.enemies.setStageDifficulty(1);
     }
@@ -5892,6 +5906,9 @@ export class Game {
             // Wave cleared once every spawned grunt is dead.
             if (aliveGrunts === 0) {
                 e.cleared = e.wave;
+                // R692: stamp the wave clear onto the run's checkpoint trail
+                // (same clock the campaign trail uses) for the endless board.
+                e.trail.push({ key: 'wave' + e.wave, frame: this.totalTime });
                 this._endlessPersistBest();
                 // Between-wave payoff: heal a little, and every 3rd wave drop a
                 // LIFE + a weapon pickup so a long run can sustain.
@@ -5933,6 +5950,41 @@ export class Game {
             achievements._save();
             this._modeNewBest = true;
         }
+    }
+    // R692: Endless joins the hosted boards. Fires once per attempt, on the
+    // first game-over frame. Ranked by wave depth server-side (stagesCleared
+    // carries the wave count); score is only the tiebreak. Non-Normal
+    // difficulty scales damage taken (R690), so those runs are excluded the
+    // same way R649 excludes them from Any%/weekly. The signed trail is one
+    // checkpoint per wave cleared plus a terminal death stamp; deep runs keep
+    // the newest waves so the trail stays under the server's 64-entry cap.
+    _submitEndlessRun() {
+        if (this._endlessSubmitted) return;
+        this._endlessSubmitted = true;
+        const waves = this._endless?.cleared || 0;
+        if (waves < 1) return;   // died in wave 1 — nothing to rank
+        if (options.get('difficulty') !== 'normal') {
+            this._pushUnlockToast('WAVE ' + waves + ' REACHED',
+                options.get('difficulty').toUpperCase() + ' — NOT RANKED');
+            return;
+        }
+        const trail = (this._endless.trail || []).slice(-63);
+        trail.push({ key: 'death', frame: this.totalTime });
+        leaderboard.submit({
+            runId: leaderboard.newRunId(),
+            name: leaderboard.name || 'AAA',
+            mode: 'endless',
+            score: this.player?.score || 0,
+            timeFrames: this.totalTime,
+            stagesCleared: waves,
+            checkpoints: trail,
+        }).then((r) => {
+            if (r.ok && r.verified) {
+                this._pushUnlockToast('WAVE ' + waves + ' SUBMITTED', 'ENDLESS BOARD UPDATED');
+            } else if (r.ok) {
+                this._pushUnlockToast('WAVE ' + waves + ' SUBMITTED', 'PENDING VERIFICATION');
+            }
+        });
     }
 
     // R610: Relic / mutator system. ------------------------------------------
@@ -7358,6 +7410,9 @@ export class Game {
     _tickGameOver() {
         this.storyTimer++;
         if (this.gameOverIndex == null) this.gameOverIndex = 0;
+        // R692: an Endless run ends here (death is the only exit), so the
+        // death screen is its submit point. Best-effort, never blocks the UI.
+        if (this.storyTimer === 1 && this.endlessMode) this._submitEndlessRun();
         // 10-second auto-quit countdown begins after the 1.5s dramatic pause.
         // Adds Contra-style urgency: pick a choice or the run ends.
         if (this.storyTimer > 90) {
