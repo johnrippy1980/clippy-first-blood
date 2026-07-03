@@ -25,7 +25,7 @@ import { leaderboard } from './leaderboard.js';
 import { downloadShareCard } from './sharecard.js';
 import { dailyChallenge } from './daily.js';
 import { ghost } from './ghost.js';
-import { options } from './options.js';
+import { options, DIFFICULTY_ORDER, difficultyMults } from './options.js';
 
 // Flip to true once the painted projectile/FX sprites (PROJECTILE_MANIFEST)
 // are delivered into assets/sprites/. Until then the game uses procedural
@@ -122,19 +122,9 @@ const OPTIONS_ITEMS = ['MASTER VOLUME', 'MUSIC VOLUME', 'SFX VOLUME', 'DIFFICULT
 const OPTIONS_KEYS  = ['masterVol',     'musicVol',     'sfxVol',     'difficulty', 'scanlines', 'crtCurve',  'shakeScale',     'reducedMotion',  'showReady',  'showGhost',  'BACK'];
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
-// R649: campaign difficulty multipliers. `taken` scales damage the PLAYER
-// receives (folded into damageTakenMult); `enemyHp` scales every enemy's HP
-// (and the boss). Normal is the shipped baseline (1.0/1.0) so existing balance
-// is byte-identical. Order drives the EASY→NORMAL→HARD menu cycle.
-const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
-const DIFFICULTY_MULTS = {
-    easy:   { taken: 0.5, enemyHp: 0.75 },
-    normal: { taken: 1.0, enemyHp: 1.0 },
-    hard:   { taken: 1.5, enemyHp: 1.4 },
-};
-function difficultyMults() {
-    return DIFFICULTY_MULTS[options.get('difficulty')] || DIFFICULTY_MULTS.normal;
-}
+// R690: DIFFICULTY_ORDER / DIFFICULTY_MULTS / difficultyMults moved to
+// options.js so the doom/fps/beatem sub-engines can apply the same campaign
+// difficulty table without a circular import of game.js.
 
 // Inter-stage cinematic dialog. Two short narrative beats per upcoming stage,
 // shown over the painted card as Clippy progresses through his hit list.

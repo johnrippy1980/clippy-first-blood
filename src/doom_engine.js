@@ -13,7 +13,7 @@ import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { achievements } from './achievements.js';
-import { options } from './options.js';
+import { options, DIFFICULTY_MULTS, difficultyMults } from './options.js';
 
 const W = GAME.W;
 const H = GAME.H;
@@ -95,6 +95,19 @@ export class DoomEngine {
         this.data = stageData;
         this.t = 0;
 
+        // R690: campaign difficulty, same table the platformer applies (R649).
+        // `taken` maps to integer survivability (maxHp = 6/taken → easy 12 /
+        // normal 6 / hard 4) instead of fractional per-hit damage: this engine's
+        // 1-2dmg heart model and the rage-at-last-bar trigger both assume
+        // integer HP. Daily runs pin normal so fixed mods stay comparable
+        // across players (same rule as game.js).
+        const diff = game?.dailyMode ? DIFFICULTY_MULTS.normal : difficultyMults();
+        this._diffEnemyHp = diff.enemyHp;
+        // Bosses scale at half strength — mirrors the platformer's boss rule
+        // (enemies.js) so hard mode doesn't turn them into HP sponges.
+        this._diffBossHp = 1 + (diff.enemyHp - 1) * 0.5;
+        this._playerMaxHp = Math.max(2, Math.round(6 / diff.taken));
+
         this.map = stageData.doomMap || DEFAULT_MAP;
         this.mapW = this.map[0].length;
         this.mapH = this.map.length;
@@ -110,8 +123,8 @@ export class DoomEngine {
             x: startX,
             y: startY,
             angle: 0,
-            hp: 6,
-            maxHp: 6,
+            hp: this._playerMaxHp,
+            maxHp: this._playerMaxHp,
             lives: 3,
             iframes: 0,
             score: 0,
@@ -547,9 +560,15 @@ export class DoomEngine {
         const p = this.player;
         const isBoss = e.kind === 'boss';
         // R439: boss HP scaled per kind. UZIS = 40, WHEELCHAIR = 70 (tougher).
+        // R690: campaign difficulty folds in — same Math.ceil formula as the
+        // platformer's spawn path, bosses at the half-strength rate.
         if (e.hp == null) {
-            if (isBoss) e.hp = (this.bossKind === 'SPINDLER_WHEELCHAIR') ? 70 : 40;
-            else e.hp = 4;
+            if (isBoss) {
+                const base = (this.bossKind === 'SPINDLER_WHEELCHAIR') ? 70 : 40;
+                e.hp = Math.max(1, Math.ceil(base * this._diffBossHp));
+            } else {
+                e.hp = Math.max(1, Math.ceil(4 * this._diffEnemyHp));
+            }
             e.maxHp = e.hp;
         }
         if (e.fireCD == null) e.fireCD = 60 + (Math.random() * 60) | 0;
@@ -2292,14 +2311,18 @@ export class DoomEngine {
         drawText(ctx, 'HEALTH', leftX + 4, y + 4, '#a0a0b0', 1, 'left');
         // HP bar — bigger chunks, brighter
         const hpBarY = y + 13;
+        // R690: easy difficulty runs 12 cells — tighten the pitch so they
+        // still fit the 86px left panel (9 is the max at the 8px pitch).
+        const pitch = p.maxHp > 9 ? 6 : 8;
+        const cellW = pitch - 2;
         for (let i = 0; i < p.maxHp; i++) {
             const filled = i < p.hp;
             ctx.fillStyle = filled ? '#ff4040' : '#400808';
-            ctx.fillRect(leftX + 4 + i * 8, hpBarY, 6, 10);
+            ctx.fillRect(leftX + 4 + i * pitch, hpBarY, cellW, 10);
             // Top highlight on filled cells
             if (filled) {
                 ctx.fillStyle = '#ff8080';
-                ctx.fillRect(leftX + 4 + i * 8, hpBarY, 6, 1);
+                ctx.fillRect(leftX + 4 + i * pitch, hpBarY, cellW, 1);
             }
         }
         // Heart icon + numeric HP for instant read

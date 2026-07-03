@@ -57,3 +57,19 @@ class Options {
 }
 
 export const options = new Options();
+
+// R649 (moved here R690): campaign difficulty multipliers. `taken` scales
+// damage the PLAYER receives; `enemyHp` scales every enemy's HP. Normal is
+// the shipped baseline (1.0/1.0) so existing balance is byte-identical.
+// Order drives the EASY→NORMAL→HARD menu cycle. Lives here (not game.js)
+// so the doom/fps/beatem sub-engines can consume the same table without
+// importing game.js (circular).
+export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
+export const DIFFICULTY_MULTS = {
+    easy:   { taken: 0.5, enemyHp: 0.75 },
+    normal: { taken: 1.0, enemyHp: 1.0 },
+    hard:   { taken: 1.5, enemyHp: 1.4 },
+};
+export function difficultyMults() {
+    return DIFFICULTY_MULTS[options.get('difficulty')] || DIFFICULTY_MULTS.normal;
+}

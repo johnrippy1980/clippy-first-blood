@@ -26,7 +26,7 @@ import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { particles } from './particles.js';
 import { RAGE_BARKS } from './player.js';
-import { options } from './options.js';
+import { options, DIFFICULTY_MULTS, difficultyMults } from './options.js';
 
 // Playable street region — Clippy moves WITHIN this band, no jumping.
 //   STREET_TOP    = far edge of the street (smaller y = "further away")
@@ -69,14 +69,25 @@ export class BeatEmUp {
         this.data = stageData;
         this.t = 0;
 
+        // R690: campaign difficulty. Sub-engines keep their integer heart
+        // model (rage-at-last-bar triggers on hp<=1), so instead of fractional
+        // damage-taken scaling we scale player maxHp by 1/taken — easy 12,
+        // normal 6, hard 4 — which is exact parity with the main engine's
+        // damage multipliers. Enemy HP scales at spawn; bosses at half
+        // strength like the main engine. Daily runs pin normal for fairness.
+        const diff = game?.dailyMode ? DIFFICULTY_MULTS.normal : difficultyMults();
+        this._diffEnemyHp = diff.enemyHp;
+        this._diffBossHp = 1 + (diff.enemyHp - 1) * 0.5;
+        this._playerMaxHp = Math.max(2, Math.round(6 / diff.taken));
+
         // Player on the street plane — starts left-center
         this.player = {
             x: 24,
             y: (STREET_TOP + STREET_BOTTOM) / 2,
             w: PLAYER_W, h: PLAYER_H,
             vx: 0, vy: 0,
-            hp: 6,
-            maxHp: 6,
+            hp: this._playerMaxHp,
+            maxHp: this._playerMaxHp,
             lives: 3,
             iframes: 0,
             shootCD: 0,
@@ -724,7 +735,10 @@ export class BeatEmUp {
         // enemies get an HP multiplier, an HP bar at the bottom of the
         // screen (rendered separately), and a name banner. Defaults
         // preserve all existing spawn calls (isBoss=false, hpMul=1).
-        const hp = Math.ceil(stats.hp * hpMul);
+        // R690: difficulty scaling on top of the spawn-spec multiplier —
+        // bosses at half strength, same rounding as the main engine.
+        const diffMul = isBoss ? this._diffBossHp : this._diffEnemyHp;
+        const hp = Math.max(1, Math.ceil(stats.hp * hpMul * diffMul));
         const e = {
             type,
             x: spawnX, y: spawnY,
@@ -2434,13 +2448,15 @@ export class BeatEmUp {
         // R313: bezeled HP cells with low-HP pulse, matching the FPS arena.
         const lowHp = this.player.hp <= 2;
         const pulse = lowHp && ((this.t >> 3) & 1) === 0;
+        // R690: cell count follows maxHp (difficulty scales it 4/6/12)
+        const cells = this.player.maxHp;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillRect(4, 4, 8 + 6 * 8, 10);
+        ctx.fillRect(4, 4, 8 + cells * 8, 10);
         ctx.fillStyle = 'rgba(255, 200, 100, 0.55)';
-        ctx.fillRect(4, 4, 8 + 6 * 8, 1);
+        ctx.fillRect(4, 4, 8 + cells * 8, 1);
         ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(4, 13, 8 + 6 * 8, 1);
-        for (let i = 0; i < 6; i++) {
+        ctx.fillRect(4, 13, 8 + cells * 8, 1);
+        for (let i = 0; i < cells; i++) {
             const hot = i < this.player.hp;
             if (hot) {
                 ctx.fillStyle = lowHp ? (pulse ? '#ffe070' : '#ff4040') : '#ff4040';

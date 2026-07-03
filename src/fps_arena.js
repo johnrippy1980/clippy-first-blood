@@ -26,7 +26,7 @@ import { sprites } from './sprites.js';
 import { particles } from './particles.js';
 import { RAGE_BARKS } from './player.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
-import { options } from './options.js';
+import { options, DIFFICULTY_MULTS, difficultyMults } from './options.js';
 
 // ============== Layout ==============
 const RAIL_Y       = GAME.H - 28;            // ground rail y
@@ -75,6 +75,17 @@ export class FpsArena {
         this.data = stageData;
         this.t = 0;
 
+        // R690: campaign difficulty. Sub-engines keep their integer heart
+        // model (rage-at-last-bar triggers on hp<=1), so instead of fractional
+        // damage-taken scaling we scale player maxHp by 1/taken — easy 12,
+        // normal 6, hard 4 — which is exact parity with the main engine's
+        // damage multipliers. Enemy HP scales at spawn; bosses at half
+        // strength like the main engine. Daily runs pin normal for fairness.
+        const diff = game?.dailyMode ? DIFFICULTY_MULTS.normal : difficultyMults();
+        this._diffEnemyHp = diff.enemyHp;
+        this._diffBossHp = 1 + (diff.enemyHp - 1) * 0.5;
+        this._playerMaxHp = Math.max(2, Math.round(6 / diff.taken));
+
         // Progression — R280: startSegment lets stages skip ahead (e.g.
         // BALLMER ARENA boots straight into segment 3 with no corridor waves).
         this.segment = stageData.startSegment || 0;
@@ -89,8 +100,8 @@ export class FpsArena {
             x: GAME.W / 2 - PLAYER_W / 2,
             y: RAIL_Y - PLAYER_H,
             w: PLAYER_W, h: PLAYER_H,
-            hp: 6,
-            maxHp: 6,
+            hp: this._playerMaxHp,
+            maxHp: this._playerMaxHp,
             lives: 3,                  // R262: was effectively 1 — give 3 retries
             iframes: 0,
             shootCD: 0,
@@ -211,12 +222,12 @@ export class FpsArena {
             this.turrets.push({
                 originX: 36, t: 0.45,
                 w: TURRET_W, h: TURRET_H,
-                hp: TURRET_HP, alive: true, fireT: 0, hitFlash: 0,
+                hp: this._scaledHp(TURRET_HP), alive: true, fireT: 0, hitFlash: 0,
             });
             this.turrets.push({
                 originX: GAME.W - 36, t: 0.45,
                 w: TURRET_W, h: TURRET_H,
-                hp: TURRET_HP, alive: true, fireT: 30, hitFlash: 0,
+                hp: this._scaledHp(TURRET_HP), alive: true, fireT: 30, hitFlash: 0,
             });
         } else if (n === 1) {
             // SEGMENT 2 — grunt charge. 3 grunts spawn from vanishing point.
@@ -225,7 +236,7 @@ export class FpsArena {
                     originX: 80 + i * 48,    // staggered lanes
                     spawnDelay: i * 40,
                     runT: 0,
-                    hp: GRUNT_HP,
+                    hp: this._scaledHp(GRUNT_HP),
                     alive: true,
                     fireT: 60 + i * 20,
                     hitFlash: 0,
@@ -238,12 +249,12 @@ export class FpsArena {
             this.turrets.push({
                 originX: 56, t: 0.5,
                 w: TURRET_W, h: TURRET_H,
-                hp: TURRET_HP, alive: true, fireT: 20, hitFlash: 0,
+                hp: this._scaledHp(TURRET_HP), alive: true, fireT: 20, hitFlash: 0,
             });
             this.turrets.push({
                 originX: GAME.W - 56, t: 0.5,
                 w: TURRET_W, h: TURRET_H,
-                hp: TURRET_HP, alive: true, fireT: 50, hitFlash: 0,
+                hp: this._scaledHp(TURRET_HP), alive: true, fireT: 50, hitFlash: 0,
             });
         } else if (n === 3) {
             // R280: segment 3 behavior depends on endingStyle.
@@ -255,11 +266,12 @@ export class FpsArena {
                 this.doorT = 0;
             } else {
                 // Default — boss fight with core + 3 orbiting shields.
+                const coreHp = this._scaledBossHp(CORE_HP);
                 this.core = {
                     x: GAME.W / 2,
                     y: BACK_WALL_Y + 18,
                     w: 32, h: 24,
-                    hp: CORE_HP, maxHp: CORE_HP, alive: true,
+                    hp: coreHp, maxHp: coreHp, alive: true,
                     fireT: 0, hitFlash: 0,
                 };
                 // R567j: boss-approach telegraph — same pattern as turret
@@ -272,7 +284,7 @@ export class FpsArena {
                     this.shields.push({
                         angle: (i / 3) * Math.PI * 2,
                         radius,
-                        hp: SHIELD_HP, alive: true, hitFlash: 0,
+                        hp: this._scaledHp(SHIELD_HP), alive: true, hitFlash: 0,
                     });
                 }
                 this.phase = 'bossEntry';
@@ -280,6 +292,11 @@ export class FpsArena {
             }
         }
     }
+
+    // R690: difficulty HP scaling — same rounding as the main engine
+    // (enemies.js spawn formula). Bosses scale at half strength.
+    _scaledHp(base)     { return Math.max(1, Math.ceil(base * this._diffEnemyHp)); }
+    _scaledBossHp(base) { return Math.max(1, Math.ceil(base * this._diffBossHp)); }
 
     _refreshBg() {
         const key = this.bgKeys[Math.min(this.segment, this.bgKeys.length - 1)];
@@ -1079,12 +1096,13 @@ export class FpsArena {
         audio.sfx?.('bossSpotted');
         this._bossNameplateT = 90;
         this._bossNameplateLabel = 'GATES';
+        const p2Hp = this._scaledBossHp(Math.max(8, Math.floor(CORE_HP * 0.45)));
         this.core = {
             x: GAME.W / 2,
             y: BACK_WALL_Y + 22,
             w: 18, h: 22,
-            hp: Math.max(8, Math.floor(CORE_HP * 0.45)),
-            maxHp: Math.max(8, Math.floor(CORE_HP * 0.45)),
+            hp: p2Hp,
+            maxHp: p2Hp,
             alive: true,
             fireT: 0, hitFlash: 0,
             isPhase2: true,
@@ -2080,16 +2098,18 @@ export class FpsArena {
         // designed element, not raw debug rects.
         const lowHp = this.player.hp <= 2;
         const pulse = lowHp && ((this.t >> 3) & 1) === 0;
+        // R690: cell count follows maxHp (difficulty scales it 4/6/12)
+        const cells = this.player.maxHp;
         // Bezel — dark backplate slightly larger than the cells
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillRect(4, 4, 8 + 6 * 8, 10);
+        ctx.fillRect(4, 4, 8 + cells * 8, 10);
         // Top + bottom highlight + shadow
         ctx.fillStyle = 'rgba(255, 200, 100, 0.55)';
-        ctx.fillRect(4, 4, 8 + 6 * 8, 1);
+        ctx.fillRect(4, 4, 8 + cells * 8, 1);
         ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(4, 13, 8 + 6 * 8, 1);
+        ctx.fillRect(4, 13, 8 + cells * 8, 1);
         // Cells
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < cells; i++) {
             const hot = i < this.player.hp;
             if (hot) {
                 ctx.fillStyle = lowHp ? (pulse ? '#ffe070' : '#ff4040') : '#ff4040';
