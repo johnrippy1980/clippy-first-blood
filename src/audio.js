@@ -100,6 +100,21 @@ const FILE_TRACKS = {
     sweat:        'assets/audio/sweat.mp3',                    // stage 7 BALLMER ARENA
 };
 
+// R665: SFX excluded from the ±5% humanizing pitch variation — melodic
+// stingers, chimes, and UI cues whose pitch IS their identity. Everything
+// else (gunshots, impacts, footsteps, explosions) gets a per-call detune
+// so rapid repeats don't machine-gun the identical waveform.
+const SFX_NO_VAR = new Set([
+    'pickup', 'powerup', 'secretFound', 'unlock', 'attract', 'respawn',
+    'select', 'menu', 'pause', 'pauseEnter', 'pauseExit',
+    'die', 'playerDeath', 'stageClear', 'bossDefeated', 'bossSpotted',
+    'achievement', 'heartbeat', 'clippyTagIn', 'bonziTagIn',
+    'pickup_health', 'pickup_armor', 'pickup_ammo',
+    'pickup_mg', 'pickup_shotgun', 'pickup_chainsaw', 'pickup_bfg',
+    'pickup_laser', 'pickup_flame', 'pickup_thunder', 'pickup_homing',
+    'pickup_spread', 'hudLowAmmo', 'hudWeaponCycle',
+]);
+
 class Audio {
     constructor() {
         this.ctx = null;
@@ -167,6 +182,28 @@ class Audio {
         this._musicMakeup.connect(this._musicComp);
         this._musicComp.connect(this.master);
         this.sfxBus.connect(this.master);
+
+        // R665: humanized SFX pitch — one choke point instead of editing
+        // ~100 synth methods. sfx() sets _sfxDetune (±85 cents ≈ ±5%) for
+        // the synchronous dispatch; every oscillator/noise source created
+        // during it picks the value up here at creation. All oscillators
+        // within one sound share the call's detune so layered voices stay
+        // in tune with each other. Music/sequencer paths never run inside
+        // the dispatch (flag stays 0), and the few synths that set their
+        // own detune (chorus voices) simply overwrite the variation.
+        this._sfxDetune = 0;
+        const rawOsc = this.ctx.createOscillator.bind(this.ctx);
+        this.ctx.createOscillator = () => {
+            const o = rawOsc();
+            if (this._sfxDetune) o.detune.value = this._sfxDetune;
+            return o;
+        };
+        const rawBufSrc = this.ctx.createBufferSource.bind(this.ctx);
+        this.ctx.createBufferSource = () => {
+            const s = rawBufSrc();
+            if (this._sfxDetune) s.playbackRate.value = Math.pow(2, this._sfxDetune / 1200);
+            return s;
+        };
 
         // Soft limiter via WaveShaper
         const lim = this.ctx.createWaveShaper();
@@ -245,6 +282,19 @@ class Audio {
     // click. Total ~120-200ms with proper envelope, not 50ms square waves.
     sfx(name, arg) {
         if (!this.ctx || this.muted) return;
+        // R665: pick this call's pitch variation, dispatch, then reset so
+        // nothing outside the dispatch (music synth, ambient loops started
+        // elsewhere) inherits it. finally runs even though every case
+        // returns directly.
+        this._sfxDetune = SFX_NO_VAR.has(name) ? 0 : (Math.random() * 170 - 85);
+        try {
+            return this._sfxDispatch(name, arg);
+        } finally {
+            this._sfxDetune = 0;
+        }
+    }
+
+    _sfxDispatch(name, arg) {
         const t = this.ctx.currentTime;
         switch (name) {
             // R251: MG — sharper rifle bark. Higher crack (5000 -> 6200) for
