@@ -667,7 +667,11 @@ export class Game {
                 // turret) reaches GAME_OVER through this snap — one hook
                 // covers all entry points. The stage track used to keep
                 // looping under the death screen.
-                if (this.scene === SCENE.GAME_OVER) audio.stopTrack();
+                if (this.scene === SCENE.GAME_OVER) {
+                    audio.stopTrack();
+                    // R674: re-arm the NEW BEST ding for this panel.
+                    this._newBestDinged = false;
+                }
             }
         } else if (this.transition < 0) {
             this.transition++;
@@ -6625,6 +6629,7 @@ export class Game {
         // their stageTime (frames) to achievements stats. 0 means no time
         // set yet, so any clear is automatically a new best the first time.
         this._modeNewBest = false;
+        this._newBestDinged = false;
         if (this.bossRushMode) {
             const prev = achievements.stats.bestBossRushTime || 0;
             if (prev === 0 || this.stageTime < prev) {
@@ -6974,6 +6979,7 @@ export class Game {
             // beats their previous best for this stage. Only appears once
             // the score count-up has finished so the reveal lands.
             if (k === 'SCORE' && this._stageNewBest && scoreT >= 1) {
+                this._dingNewBest();
                 const pulse = (Math.sin(panelT * 0.18) + 1) * 0.5;
                 ctx.save();
                 ctx.globalAlpha = 0.65 + pulse * 0.35;
@@ -7013,6 +7019,7 @@ export class Game {
             // time on clear; this is the only place the player learns they
             // beat their PB.
             if (this._modeNewBest && killRowT > 30) {
+                this._dingNewBest();
                 const pulse = (Math.sin((killRowT - 30) * 0.2) + 1) * 0.5;
                 ctx.save();
                 ctx.globalAlpha = 0.6 + pulse * 0.4;
@@ -7178,6 +7185,17 @@ export class Game {
         return best;
     }
 
+    // R674: one-shot sting when a NEW BEST badge first appears. The three
+    // badge sites (campaign SCORE row, mode best-time, endless wave) are all
+    // timed reveals inside draw code, so the flag fires the sound exactly
+    // once at the reveal frame instead of at persist time (which would
+    // collide with the stage-clear fanfare seconds before the badge shows).
+    _dingNewBest() {
+        if (this._newBestDinged) return;
+        this._newBestDinged = true;
+        audio.sfx('unlock');
+    }
+
     _tickGameOver() {
         this.storyTimer++;
         if (this.gameOverIndex == null) this.gameOverIndex = 0;
@@ -7332,6 +7350,7 @@ export class Game {
             // by _endlessPersistBest during the run and survives the death path).
             // Sits at panelY-9 so it never collides with the WAVE REACHED row.
             if (this.endlessMode && this._modeNewBest && rowReveal >= 0) {
+                this._dingNewBest();
                 const phase = Math.sin(this.storyTimer * 0.2) * 0.5 + 0.5;
                 const col = `rgb(255,${180 + Math.floor(phase * 75)},64)`;
                 drawText(ctx, 'NEW BEST!', GAME.W / 2, panelY - 9, col, 1, 'center');
