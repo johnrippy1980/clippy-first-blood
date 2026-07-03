@@ -670,6 +670,11 @@ export class Game {
                 this.scene = this.transitionTarget;
                 this.transitionTarget = null;
                 this.transition = -30; // start fade-in
+                // R669: every engine (platformer, FPS, beat-em-up, doom,
+                // turret) reaches GAME_OVER through this snap — one hook
+                // covers all entry points. The stage track used to keep
+                // looping under the death screen.
+                if (this.scene === SCENE.GAME_OVER) audio.stopTrack();
             }
         } else if (this.transition < 0) {
             this.transition++;
