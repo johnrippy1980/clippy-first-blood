@@ -192,6 +192,7 @@ class Audio {
         // the dispatch (flag stays 0), and the few synths that set their
         // own detune (chorus voices) simply overwrite the variation.
         this._sfxDetune = 0;
+        this._sfxLast = new Map();
         const rawOsc = this.ctx.createOscillator.bind(this.ctx);
         this.ctx.createOscillator = () => {
             const o = rawOsc();
@@ -282,6 +283,16 @@ class Audio {
     // click. Total ~120-200ms with proper envelope, not 50ms square waves.
     sfx(name, arg) {
         if (!this.ctx || this.muted) return;
+        // R672: same-name retrigger guard. Copies of one synth started at
+        // the same currentTime are phase-identical and sum straight to
+        // double/triple amplitude (one shotgun blast hitting 5 enemies =
+        // 5 stacked 'hit's = clipping). Within ~2 frames, keep the first
+        // and drop the rest; different names still layer freely. 30ms is
+        // below any legitimate retrigger rate (fastest weapon ≈ 66ms).
+        const nowT = this.ctx.currentTime;
+        const lastT = this._sfxLast.get(name);
+        if (lastT !== undefined && nowT - lastT < 0.03) return;
+        this._sfxLast.set(name, nowT);
         // R665: pick this call's pitch variation, dispatch, then reset so
         // nothing outside the dispatch (music synth, ambient loops started
         // elsewhere) inherits it. finally runs even though every case
