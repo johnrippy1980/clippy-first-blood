@@ -132,7 +132,10 @@ const OUTLINE_CACHE_MAX = 128;
 export function drawTextOutlined(ctx, s, x, y, color, outline, scale = 1, align = 'left') {
     const text = String(s).toUpperCase();
     const w = textWidth(text, scale);
-    const key = `${text}|${color}|${outline}|${scale}`;
+    // R688: NUL delimiter — '|' can appear in a text argument (the font has
+    // no '|' glyph today, but a key collision would silently render the
+    // WRONG cached text). No renderable string contains \x00.
+    const key = `${text}\x00${color}\x00${outline}\x00${scale}`;
     let cv = _outlineCache.get(key);
     if (cv) {
         // LRU touch — re-insert so eviction hits the stalest entry.

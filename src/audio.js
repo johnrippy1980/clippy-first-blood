@@ -317,7 +317,8 @@ class Audio {
         // double/triple amplitude (one shotgun blast hitting 5 enemies =
         // 5 stacked 'hit's = clipping). Within ~2 frames, keep the first
         // and drop the rest; different names still layer freely. 30ms is
-        // below any legitimate retrigger rate (fastest weapon ≈ 66ms).
+        // below any legitimate retrigger rate (fastest weapon = 50ms,
+        // FLAME/CHAINSAW at fireRate 3 ticks).
         const nowT = this.ctx.currentTime;
         const lastT = this._sfxLast.get(name);
         if (lastT !== undefined && nowT - lastT < 0.03) return;
