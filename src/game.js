@@ -475,6 +475,10 @@ export class Game {
         this._modeNewBest = false;
         // Per-stage stats (resets on _startStage)
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
+        // R684: mid-stage checkpoint ({x,y} or null). Captured once per stage
+        // when the player is grounded past 50% of the level; _respawn prefers
+        // it over playerStart so a late death doesn't replay the whole stage.
+        this._checkpoint = null;
         // Run-level achievement progress (built up across stages)
         this.runStats = { stagesCleared: new Set(), noDamageStages: 0, maxCombo: 0, weaponDamage: {}, bulletTimeUses: 0, enemiesLost: 0, grenadeUses: 0, grenadeKills: 0 };
         // R568f (slice 6): co-op stat trackers. Reset per stage in _startStage
@@ -1997,8 +2001,28 @@ export class Game {
         // but the actual boss enemy doesn't exist yet, which would
         // mis-trigger _tickPlayHandleStageClear and end the stage.
         if (this.scene !== SCENE.PLAY) return;
+        this._tickPlayCaptureCheckpoint();
         this._tickPlayHandleStageClear();
         this._tickPlayHandleDeath();
+    }
+
+    // R684: single Mega Man-style mid-stage checkpoint. The first time the
+    // player stands on solid ground past 50% of the level's width, stash
+    // that spot; _respawn uses it instead of playerStart so a late death
+    // costs the back half of the stage, not the whole thing. One per stage
+    // (reset in _startStage), grounded-only so a mid-air 50% crossing over
+    // a pit can't bank an unsafe spot, and endless mode never reaches this
+    // call so arenas are unaffected. Boss deaths respawn here too — the
+    // spawn triggers are latched (bossSpawned/miniBossSpawned), so walking
+    // back through them can't re-fire the intro.
+    _tickPlayCaptureCheckpoint() {
+        if (this._checkpoint || !this.player || !this.level) return;
+        if (!this.player.onGround || this.player.isDead()) return;
+        if (this.player.x < this.level.width * 0.5) return;
+        this._checkpoint = { x: this.player.x, y: this.player.y };
+        const cx = this.player.x + this.player.w / 2;
+        particles.floatingText(cx, this.player.y - 10, 'CHECKPOINT', '#7cf49a', 60, -0.5, 1);
+        audio.sfx?.('unlock');
     }
 
     // R568+R568b co-op tag-swap helper. Three trigger paths:
@@ -5960,9 +5984,12 @@ export class Game {
     _respawn() {
         // R315/R318: route through shared _findSafeSpawn so respawn never
         // lands inside solid terrain.
+        // R684: prefer the mid-stage checkpoint when one was banked — the
+        // capture site guarantees it was a grounded, in-bounds position.
+        const start = this._checkpoint || this.level.data.playerStart;
         const { x: sx, y: sy } = this._findSafeSpawn(
-            this.level.data.playerStart.x,
-            this.level.data.playerStart.y,
+            start.x,
+            start.y,
             this.player.w, this.player.h
         );
         this.player.x = sx;
@@ -6017,6 +6044,7 @@ export class Game {
         }
         // Reset per-stage counters
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
+        this._checkpoint = null;   // R684: fresh stage, fresh checkpoint
         // R568f (slice 6): per-stage co-op stat trackers reset alongside stageStats.
         // _killBaseline captures each slot's lifetime kill count at stage start
         // so end-of-stage diffs give per-character per-stage kill totals.
