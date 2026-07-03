@@ -539,14 +539,19 @@ export const CLIPPY_MANIFEST = {
     'bg_microsoft_hq_dark': 'bg_microsoft_hq_dark.png',
     // R202: per-weapon painted Clippy poses (single static frame each).
     // _frameForState routes RUN/idle to the right one when this.weapon !== 'MG'.
-    // CHAINSAW pending — its asset is the last gen still running.
-    'v6_shotgun':      'v6_shotgun.png',
-    'v6_spread':       'v6_spread.png',
-    'v6_laser':        'v6_laser.png',
-    'v6_flame':        'v6_flame.png',
-    'v6_homing':       'v6_homing.png',
-    'v6_thunder':      'v6_thunder.png',
-    'v6_chainsaw':     'v6_chainsaw.png',
+    // R689: repointed at grafts of the friend/ (Milos-style) firing_1 body
+    // with each v6 weapon front recolored to the friend palette and pasted
+    // at the grip — so holding a non-MG weapon no longer snaps the whole
+    // body back to the old lighter-grey v6 art style. Keys stay 'v6_*' so
+    // player.js weaponPose routing is untouched. Interim until native
+    // per-weapon redraws land (MILOS_SPRITE_GAPS #2).
+    'v6_shotgun':      'friend/weapon_shotgun.png',
+    'v6_spread':       'friend/weapon_spread.png',
+    'v6_laser':        'friend/weapon_laser.png',
+    'v6_flame':        'friend/weapon_flame.png',
+    'v6_homing':       'friend/weapon_homing.png',
+    'v6_thunder':      'friend/weapon_thunder.png',
+    'v6_chainsaw':     'friend/weapon_chainsaw.png',
     // R204: painted mid-air Clippy holding the rifle. v5_jump.png was
     // armless; the new v6_jump.png keeps the rifle visible mid-air so
     // jump-shooting matches the run/idle/aim states. Used for rising,
