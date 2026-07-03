@@ -119,15 +119,46 @@ export function drawText(ctx, s, x, y, color = '#fff', scale = 1, align = 'left'
     }
 }
 
+// R677: outlined text is the hottest text path (HUD scores, banners,
+// menus) and each call used to stamp drawText 9× — 8 outline directions
+// plus the fill — re-running the per-pixel fillRect loop every frame for
+// strings that rarely change. Cache the composed result on an offscreen
+// canvas keyed by text|color|outline|scale and blit it in one drawImage.
+// LRU-capped so churny strings (scores) recycle slots instead of growing
+// the map unbounded; a miss costs the same 9 stamps as before, once.
+const _outlineCache = new Map();
+const OUTLINE_CACHE_MAX = 128;
+
 export function drawTextOutlined(ctx, s, x, y, color, outline, scale = 1, align = 'left') {
-    // Draw outline first by stamping in 8 directions, then the main text.
-    const orig = ctx.fillStyle;
-    for (let dy = -scale; dy <= scale; dy += scale) {
-        for (let dx = -scale; dx <= scale; dx += scale) {
-            if (dx === 0 && dy === 0) continue;
-            drawText(ctx, s, x + dx, y + dy, outline, scale, align);
+    const text = String(s).toUpperCase();
+    const w = textWidth(text, scale);
+    const key = `${text}|${color}|${outline}|${scale}`;
+    let cv = _outlineCache.get(key);
+    if (cv) {
+        // LRU touch — re-insert so eviction hits the stalest entry.
+        _outlineCache.delete(key);
+        _outlineCache.set(key, cv);
+    } else {
+        cv = document.createElement('canvas');
+        cv.width = Math.max(1, w + scale * 2);
+        cv.height = CHAR_H * scale + scale * 2;
+        const c2 = cv.getContext('2d');
+        for (let dy = -scale; dy <= scale; dy += scale) {
+            for (let dx = -scale; dx <= scale; dx += scale) {
+                if (dx === 0 && dy === 0) continue;
+                drawText(c2, text, scale + dx, scale + dy, outline, scale, 'left');
+            }
         }
+        drawText(c2, text, scale, scale, color, scale, 'left');
+        if (_outlineCache.size >= OUTLINE_CACHE_MAX) {
+            _outlineCache.delete(_outlineCache.keys().next().value);
+        }
+        _outlineCache.set(key, cv);
     }
-    drawText(ctx, s, x, y, color, scale, align);
-    ctx.fillStyle = orig;
+    // Same alignment math drawText applies, so the blit lands exactly
+    // where the direct stamps used to.
+    let bx = x;
+    if (align === 'center') bx = Math.round(x - w / 2);
+    else if (align === 'right') bx = Math.round(x - w);
+    ctx.drawImage(cv, bx - scale, y - scale);
 }
