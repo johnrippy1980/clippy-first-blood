@@ -37,6 +37,7 @@ game.preload();
 let lastTime = performance.now();
 let accumulator = 0;
 let _crashed = false;
+let _renderedOnce = false; // R676: first-paint guard for the zero-tick skip
 
 // R364: Steam-ship error boundary. If anything in tick/render throws
 // uncaught, freeze the loop + paint a friendly "CRASH" overlay so the
@@ -84,7 +85,16 @@ function loop(now) {
         if (ticks === GAME.MAX_TICKS_PER_FRAME) {
             accumulator = 0; // drop spike, don't spiral
         }
-        game.render();
+        // R676: skip the render when no tick ran. ticks===0 only happens on
+        // displays faster than 60Hz (the accumulator hasn't filled), and with
+        // a fixed-timestep, non-interpolated renderer the game state — and
+        // therefore every pixel — is identical to the previous frame. The
+        // _renderedOnce guard keeps the very first frames painting before
+        // the accumulator produces its first tick.
+        if (ticks > 0 || !_renderedOnce) {
+            game.render();
+            _renderedOnce = true;
+        }
     } catch (err) {
         _crashed = true;
         console.error('Game loop crashed:', err);
