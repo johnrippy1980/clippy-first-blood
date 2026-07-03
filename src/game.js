@@ -552,13 +552,6 @@ export class Game {
         // Reduced-motion forces it to 0 (no shake at all). This is the one
         // place the previously-dead shakeScale option actually takes effect.
         this.camera.shakeScale = options.get('reducedMotion') ? 0 : options.get('shakeScale');
-        // R200: music duck disabled per user direction — "should be set
-        // to 100% everywhere." The previous side-chain dropped music on
-        // STORY/STAGE_CARD/STAGE_INTRO/BOSS_INTRO so dialog/exposition
-        // text would read clearer over the bed, but the user noticed the
-        // opening cinematic was quieter than the title screen and called
-        // that wrong. Keep music at full bus level on every scene.
-        audio.setDuck?.(false);
         switch (this.scene) {
             case SCENE.BOOT:         this._tickBoot(); break;
             case SCENE.TITLE:        this._tickTitle(); break;
