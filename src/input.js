@@ -175,6 +175,22 @@ class Input {
         return this.gamepadTurnX || 0;
     }
 
+    // R666: fire-and-forget dual-rumble pulse. Silently no-ops without a
+    // connected pad or actuator support (Chrome: vibrationActuator,
+    // Firefox: hapticActuators[0]). strong = low-frequency motor (body
+    // thump), weak = high-frequency motor (texture buzz).
+    rumble(strong = 1.0, weak = 0.5, ms = 120) {
+        if (this.gamepadIndex == null) return;
+        const gp = navigator.getGamepads?.()[this.gamepadIndex];
+        const act = gp?.vibrationActuator || gp?.hapticActuators?.[0];
+        if (!act?.playEffect) return;
+        act.playEffect('dual-rumble', {
+            duration: ms,
+            strongMagnitude: Math.min(1, Math.max(0, strong)),
+            weakMagnitude: Math.min(1, Math.max(0, weak)),
+        }).catch(() => {});
+    }
+
     // R423b: request pointer-lock on the canvas. Browsers require this be
     // called from a user gesture; the Doom engine calls it from a click
     // handler. Safe to call when already locked — browser no-ops.

@@ -6389,6 +6389,7 @@ export class Game {
             // + sustained pad + cymbal). Fires alongside the explosion so
             // the audio reads "boss IS dying, here's your victory."
             audio.sfx('bossDefeated');
+            input.rumble(1.0, 0.5, 350);   // R666: boss-kill payoff rumble
         } else {
             // R566n: stageClear fanfare (1.0s rising C major arpeggio +
             // sustained pad + sub thump). Replaces generic `powerup` chime.

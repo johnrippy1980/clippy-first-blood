@@ -2988,6 +2988,7 @@ export class Player {
         this._ledgeCooldown = 18;
         this._grappleCooldown = 12;
         audio.sfx('hurt');
+        input.rumble(0.7, 0.3, 140);   // R666: damage thump on gamepad
         particles.blood(this.x + this.w / 2, this.y + 6, knockDir > 0 ? -1 : 1);
         // Big game-feel: hit-pause + heavy screen shake on player damage
         this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_HURT_F);
@@ -3021,6 +3022,7 @@ export class Player {
         // enemy `die` deathStinger. Also ducks the music bus so the
         // sting cuts through. YOU DIED moment finally has weight.
         audio.sfx('playerDeath');
+        input.rumble(1.0, 1.0, 450);   // R666: long full-body death rumble
         const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
         // Triple-burst explosion — initial red blast, then orange + smoke
         particles.explosion(cx, cy,         '#a01020', 30);
