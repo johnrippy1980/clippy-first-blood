@@ -100,6 +100,29 @@ const FILE_TRACKS = {
     sweat:        'assets/audio/sweat.mp3',                    // stage 7 BALLMER ARENA
 };
 
+// R675: short tracks decoded into an AudioBuffer and looped sample-
+// accurately. HTML5 <audio loop> restarts its decoder at the seam —
+// an audible hiccup that a 27s loop (conduit) hits twice a minute.
+// Buffer looping is gapless, and a silence scan at decode time sets
+// loopStart/loopEnd past the MP3 encoder padding. Only tracks ≤ ~64s
+// qualify: decoded PCM costs ~350KB/s (hope at 64s ≈ 22MB, held only
+// while playing), so the long ~85s stage tracks — which already end
+// in authored 6s tail fades that soften their seam — stay on the
+// element path.
+const GAPLESS_FILES = new Set([
+    'assets/audio/conduit.mp3',         // 27s — the worst seam offender
+    'assets/audio/steel-tongues.mp3',   // 33s
+    'assets/audio/indirect.mp3',        // 40s
+    'assets/audio/metro.mp3',           // 42s
+    'assets/audio/gears.mp3',           // 43s
+    'assets/audio/backstage.mp3',       // 44s
+    'assets/audio/dont-go.mp3',         // 44s
+    'assets/audio/never-the-same.mp3',  // 54s
+    'assets/audio/bonus-2.mp3',         // 54s
+    'assets/audio/evolution.mp3',       // 57s
+    'assets/audio/hope.mp3',            // 64s
+]);
+
 // R665: SFX excluded from the ±5% humanizing pitch variation — melodic
 // stingers, chimes, and UI cues whose pitch IS their identity. Everything
 // else (gunshots, impacts, footsteps, explosions) gets a per-call detune
@@ -131,6 +154,9 @@ class Audio {
         this._fileEl = null;
         this._fileGainNode = null;
         this._fileSource = null;
+        // R675: buffer-looped music (gapless short tracks)
+        this._bufSrc = null;
+        this._bufToken = 0;
     }
 
     init() {
@@ -3523,9 +3549,9 @@ class Audio {
         // recreating — that preserves currentTime so no audible restart.
         const newFile = FILE_TRACKS[name];
         const curFile = FILE_TRACKS[this.currentTrack];
-        if (newFile && curFile && newFile === curFile && this._fileEl) {
+        if (newFile && curFile && newFile === curFile && (this._fileEl || this._bufSrc)) {
             this.currentTrack = name;
-            if (this._fileEl.paused) {
+            if (this._fileEl && this._fileEl.paused) {
                 this._fileEl.play().catch(() => {});
             }
             return;
@@ -3539,10 +3565,13 @@ class Audio {
         // than linear especially for stems with sustained content.
         const FADE_S = 0.6;
         if (this._timer) { clearTimeout(this._timer); this._timer = null; }
-        if (this.ctx && this._fileEl && this._fileGainNode) {
+        // R675: invalidate any decode still in flight for the outgoing track
+        this._bufToken++;
+        if (this.ctx && (this._fileEl || this._bufSrc) && this._fileGainNode) {
             const now = this.ctx.currentTime;
             const node = this._fileGainNode;
             const el = this._fileEl;
+            const bs = this._bufSrc;
             try {
                 node.gain.cancelScheduledValues(now);
                 node.gain.setValueAtTime(node.gain.value, now);
@@ -3558,16 +3587,24 @@ class Audio {
                 }
             } catch (e) {}
             setTimeout(() => {
-                try { el.pause(); } catch (e) {}
+                try { if (el) el.pause(); } catch (e) {}
+                try { if (bs) bs.stop(); } catch (e) {}
                 try { node.disconnect(); } catch (e) {}
             }, FADE_S * 1000 + 50);
             // Drop refs so the next _playFile creates a fresh chain
             this._fileEl = null;
             this._fileGainNode = null;
             this._fileSource = null;
-        } else if (this._fileEl) {
-            try { this._fileEl.pause(); } catch (e) {}
-            this._fileEl = null;
+            this._bufSrc = null;
+        } else {
+            if (this._fileEl) {
+                try { this._fileEl.pause(); } catch (e) {}
+                this._fileEl = null;
+            }
+            if (this._bufSrc) {
+                try { this._bufSrc.stop(); } catch (e) {}
+                this._bufSrc = null;
+            }
         }
         this.currentTrack = name;
         // Prefer real file if mapped
@@ -3585,9 +3622,14 @@ class Audio {
         if (this._timer) clearTimeout(this._timer);
         this._timer = null;
         this.currentTrack = null;
+        this._bufToken++;   // R675: abandon any in-flight gapless decode
         if (this._fileEl) {
             try { this._fileEl.pause(); } catch (e) {}
             this._fileEl = null;
+        }
+        if (this._bufSrc) {
+            try { this._bufSrc.stop(); } catch (e) {}
+            this._bufSrc = null;
         }
         if (this._fileGainNode) {
             try { this._fileGainNode.disconnect(); } catch (e) {}
@@ -3597,6 +3639,16 @@ class Audio {
     }
 
     _playFile(path, fadeIn = 0) {
+        // R675: short loops go the gapless buffer route; decode failure
+        // falls back to the element path below.
+        if (GAPLESS_FILES.has(path)) {
+            this._playFileBuffer(path, fadeIn);
+            return;
+        }
+        this._playFileElement(path, fadeIn);
+    }
+
+    _playFileElement(path, fadeIn = 0) {
         const el = new window.Audio(path);
         el.loop = true;
         // R294: was el.volume = 0.7 + per-track gain 0.85 — combined 0.595×
@@ -3636,6 +3688,58 @@ class Audio {
         });
         this._fileEl = el;
         this._applyDirectFileVolume();
+    }
+
+    // R675: fetch + decode + AudioBufferSourceNode with loop=true. Sample-
+    // accurate looping with no decoder restart at the seam. The silence
+    // scan sets loopStart/loopEnd past MP3 encoder padding (~50ms of lead
+    // silence every encoder inserts) so the seam is musically clean, not
+    // just gap-free. Async: the ~50-300ms fetch+decode happens under the
+    // outgoing track's 600ms crossfade, and _bufToken aborts the start if
+    // playTrack/stopTrack moved on mid-decode.
+    async _playFileBuffer(path, fadeIn = 0) {
+        const token = ++this._bufToken;
+        let buf;
+        try {
+            const resp = await fetch(path);
+            const raw = await resp.arrayBuffer();
+            buf = await this.ctx.decodeAudioData(raw);
+        } catch (e) {
+            console.warn('Gapless decode failed, using element fallback:', e);
+            if (token === this._bufToken) this._playFileElement(path, fadeIn);
+            return;
+        }
+        if (token !== this._bufToken) return;   // switched away during decode
+        // Trim leading/trailing silence (below -60dB) on channel 0.
+        const ch = buf.getChannelData(0);
+        const TH = 0.001;
+        let s = 0, e = ch.length - 1;
+        while (s < e && Math.abs(ch[s]) < TH) s++;
+        while (e > s && Math.abs(ch[e]) < TH) e--;
+        const targetGain = 1.0;
+        const node = this.ctx.createGain();
+        const startVal = fadeIn > 0 ? 0.0001 : targetGain;
+        node.gain.setValueAtTime(startVal, this.ctx.currentTime);
+        node.connect(this.musicBus);
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.loopStart = s / buf.sampleRate;
+        src.loopEnd = (e + 1) / buf.sampleRate;
+        src.connect(node);
+        if (fadeIn > 0) {
+            // Same equal-power sine-in as the element path (R566q).
+            const STEPS = 24;
+            const now = this.ctx.currentTime;
+            for (let i = 1; i <= STEPS; i++) {
+                const f = i / STEPS;
+                const v = targetGain * Math.sin(f * Math.PI / 2);
+                node.gain.linearRampToValueAtTime(v, now + fadeIn * f);
+            }
+        }
+        src.start(0, src.loopStart);
+        this._bufSrc = src;
+        this._fileGainNode = node;
     }
 
     // R673: when createMediaElementSource threw in _playFile, the element
