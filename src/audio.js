@@ -293,6 +293,9 @@ class Audio {
             case 'respawn':  return this._respawnReady(t);
             case 'unlock':   return this._unlockDing(t);
             case 'crateHit': return this._crateHit(t);
+            // R661: was called from enemies.js (intercepted mortar/mine pop,
+            // deflected hits) since R631 but never had a case — silent no-op.
+            case 'hitSpark': return this._hitSpark(t);
             case 'climbRung': return this._climbRung(t);
             case 'grenadeThrow': return this._grenadeThrow(t);
             case 'shotgun':  return this._shotgunBlast(t);
@@ -1108,6 +1111,34 @@ class Audio {
         og.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
         o.connect(og).connect(this.sfxBus);
         o.start(t); o.stop(t + 0.08);
+    }
+
+    // R661: small metallic spark tick — harmless pops (intercepted mortar
+    // shells / shot mines) and deflect feedback. Bright HPF noise snap plus
+    // a tiny descending ping. Deliberately quiet: it fires often.
+    _hitSpark(t) {
+        const dur = 0.05;
+        const buf = this.ctx.createBuffer(1, (this.ctx.sampleRate * dur) | 0, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const filt = this.ctx.createBiquadFilter();
+        filt.type = 'highpass';
+        filt.frequency.setValueAtTime(4800, t);
+        const ng = this.ctx.createGain();
+        this._envOn(ng, 0.07, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(filt).connect(ng).connect(this.sfxBus);
+        src.start(t); src.stop(t + dur + 0.02);
+        const o = this.ctx.createOscillator();
+        const og = this.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(2600, t);
+        o.frequency.exponentialRampToValueAtTime(1400, t + 0.04);
+        this._envOn(og, 0.05, t);
+        og.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+        o.connect(og).connect(this.sfxBus);
+        o.start(t); o.stop(t + 0.06);
     }
 
     // Three-note ascending triangle arpeggio (E5 → G#5 → B5) — golden
