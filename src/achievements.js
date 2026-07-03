@@ -327,15 +327,20 @@ class Achievements {
                 if (a.gate(this.stats)) {
                     this.unlocked.add(a.id);
                     this.banner.push({ id: a.id, age: 0 });
-                    // R364: play the unlock chime so the banner has audio
-                    // feedback — silent achievement unlocks were easy to
-                    // miss during action.
-                    try { audio.sfx?.('unlock'); } catch (_) {}
                     newly.push(a);
                 }
             } catch (e) {}
         }
-        if (newly.length) this._save();
+        if (newly.length) {
+            this._save();
+            // R364/R670: one 'achievement' sting per update() batch — the
+            // banner queue (R562) reveals entries one at a time, so per-entry
+            // chimes just stacked into a louder blob. Firing it here (not at
+            // call sites) means every unlock path sounds identical; the
+            // stage-clear path in game.js used to layer its own 'achievement'
+            // on top of a per-unlock 'unlock' from this loop.
+            try { audio.sfx?.('achievement'); } catch (_) {}
+        }
         return newly;
     }
 

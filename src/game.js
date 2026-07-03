@@ -6604,12 +6604,8 @@ export class Game {
                     bonziDefeated: achievements.stats.bonziDefeated === true,
                 });
                 this._newlyUnlocked = newlyUnlocked;  // shown on stage-clear screen
-                // Fanfare when at least one achievement unlocks this clear. Single
-                // ding regardless of count — the banner queue handles per-entry display.
-                // R566o: was `unlock` (simple 3-note triangle arpeggio). Now
-                // `achievement` — rising 4-note climb + bell shimmer + light
-                // music duck. Celebrates the achievement properly.
-                if (newlyUnlocked.length > 0) audio.sfx('achievement');
+                // R670: the unlock sting now fires inside achievements.update()
+                // so every unlock path sounds the same — no extra layer here.
 
                 // Save high score (R470: null-safe — ap was resolved above)
                 const apScore = ap.score || 0;
