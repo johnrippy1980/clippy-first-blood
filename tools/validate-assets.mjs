@@ -101,7 +101,12 @@ try {
     const versionSrc = readFileSync(resolve(root, 'src/version.js'), 'utf8');
     const stamped = versionSrc.match(/RELEASE\s*=\s*'R(\d+)'/)?.[1];
     const log = execSync('git log --oneline -100', { cwd: root, encoding: 'utf8' });
-    const latest = log.match(/\bR(\d{3,})\b/)?.[1];
+    // R687: take the MAX R-number in the window, not the first match. The
+    // newest commit can legitimately mention an older release ("revert
+    // R650 tweak") — first-match would compare against that stale number
+    // and let real stamp drift slide by.
+    const rNums = [...log.matchAll(/\bR(\d{3,})\b/g)].map(m => Number(m[1]));
+    const latest = rNums.length ? String(Math.max(...rNums)) : undefined;
     if (stamped && latest && Number(stamped) < Number(latest)) {
         console.error(`\n❌ Release stamp drift: src/version.js says R${stamped} but git history is at R${latest}. Bump RELEASE in the release commit.`);
         process.exit(1);
