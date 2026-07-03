@@ -4,6 +4,12 @@ export class Camera {
     constructor() {
         this.x = 0; this.y = 0;
         this.shakeX = 0; this.shakeY = 0;
+        // R679: effective view origin (x/y + shake, rounded). Plain fields
+        // recomputed in update()/snapTo() — the only places x/y/shakeX/Y
+        // ever change (shake() just raises intensity for the next update).
+        // Was a getter pair; render loops read these hundreds of times a
+        // frame, paying a call + Math.round each read.
+        this.viewX = 0; this.viewY = 0;
         this.shakeIntensity = 0;
         // Multiplier applied to every shake request. The game sets this each
         // frame from the SHAKE INTENSITY option and the reduced-motion toggle
@@ -66,6 +72,7 @@ export class Camera {
         this.y = Math.max(this.bounds.minY, Math.min(this.bounds.maxY, this.targetY));
         this._leadX = 0;
         this._leadY = 0;
+        this._recomputeView();
     }
 
     shake(intensity, decay = CAMERA.SHAKE_DECAY) {
@@ -109,9 +116,11 @@ export class Camera {
             this.shakeIntensity = 0;
             this._shakeSustain = 0;
         }
+        this._recomputeView();
     }
 
-    // Effective view origin including shake.
-    get viewX() { return Math.round(this.x + this.shakeX); }
-    get viewY() { return Math.round(this.y + this.shakeY); }
+    _recomputeView() {
+        this.viewX = Math.round(this.x + this.shakeX);
+        this.viewY = Math.round(this.y + this.shakeY);
+    }
 }
