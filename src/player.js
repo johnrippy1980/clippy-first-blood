@@ -149,6 +149,10 @@ export class Player {
         this.vx = 0; this.vy = 0;
         this.facing = 1;
         this.character = character;
+        // R697: injectable input source. Defaults to the main singleton so
+        // single-player and tag co-op are untouched; duo mode assigns
+        // input2 to the second live player.
+        this.input = input;
         this._profile = CHARACTER_PROFILE[character] || CHARACTER_PROFILE.clippy;
         this.state = STATE.IDLE;
         this.onGround = false;
@@ -580,14 +584,14 @@ export class Player {
             }
             if (this.slideTimer <= 0) this._endSlide();
             // Allow shooting during slide
-            if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
+            if (this.input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
             // SLIDE-CANCEL: pressing special (C) mid-slide pivots into the
             // knife-strike dash. Preserves forward momentum, transfers most
             // of the slide's i-frames into the dash window, and rewards skilled
             // chaining — slide under a sniper's bullet, cancel into a knife
             // strike on the enemy behind. Costs the rest of the slide window
             // but adds the full dash damage frame.
-            if (input.isPressed('special') && this.state !== STATE.DASH_ATTACK) {
+            if (this.input.isPressed('special') && this.state !== STATE.DASH_ATTACK) {
                 this._endSlide();
                 this.state = STATE.DASH_ATTACK;
                 this.dashAtkTimer = DASH_ATK_FRAMES;
@@ -650,7 +654,7 @@ export class Player {
                 }
             }
             // Can shoot while backdashing — Contra style
-            if (input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
+            if (this.input.isHeld('shoot') && this.fireCooldown <= 0) this._shoot();
         } else if (this.state === STATE.CLIMB) {
             this._handleClimb(level);
         } else if (this.state === STATE.GRAPPLE) {
@@ -668,7 +672,7 @@ export class Player {
             // fade out as Clippy "steps inside" the door/cave.
             this._coverT = (this._coverT || 0) + 1;
             // Pounce from cover — special button launches the stealth attack.
-            if (input.isPressed('special') && this._pounceTarget) {
+            if (this.input.isPressed('special') && this._pounceTarget) {
                 this._startPounce(this._pounceTarget);
                 return;
             }
@@ -680,10 +684,10 @@ export class Player {
             // original bug let players stick in COVER until they manually
             // released UP, which a pause→resume cycle was the only way out
             // of in some input edge-cases.
-            const wantsToMove = input.isPressed('left') || input.isPressed('right')
-                || input.isPressed('down') || input.isPressed('jump')
-                || input.isPressed('shoot');
-            if (!input.isHeld('up') || wantsToMove || !this._coverAvailable(level) || this.coverHp <= 0) {
+            const wantsToMove = this.input.isPressed('left') || this.input.isPressed('right')
+                || this.input.isPressed('down') || this.input.isPressed('jump')
+                || this.input.isPressed('shoot');
+            if (!this.input.isHeld('up') || wantsToMove || !this._coverAvailable(level) || this.coverHp <= 0) {
                 this.state = STATE.IDLE;
                 this.onCover = false;
                 this._coverT = 0;
@@ -802,7 +806,7 @@ export class Player {
                 this.requestShake = Math.max(this.requestShake || 0, 1.0);
             }
             // Hold-DOWN duck-hide while standing in water
-            const isHoldingDown = input.isHeld('down');
+            const isHoldingDown = this.input.isHeld('down');
             this.waterHidden = isHoldingDown && this.waterFeet;
             // Occasional frog croak from the surrounding swamp
             this._frogTick = (this._frogTick || 0) + 1;
@@ -944,7 +948,7 @@ export class Player {
     }
 
     _handleInput(level) {
-        const ax = input.axis();
+        const ax = this.input.axis();
         const lookY = ax.y;
         const lookX = ax.x;
 
@@ -953,12 +957,12 @@ export class Player {
         // boss/enemy combat pressing in. Any input touches reset to 0.
         // When threshold hits, _idleBarkTimer arms the floating-text
         // bark above Clippy's head.
-        const anyInput = input.isHeld('left') || input.isHeld('right')
-            || input.isHeld('up') || input.isHeld('down')
-            || input.isHeld('jump') || input.isHeld('shoot')
-            || input.isHeld('special') || input.isHeld('grenade')
-            || input.isHeld('shield') || input.isHeld('cycle')
-            || input.isHeld('pause');
+        const anyInput = this.input.isHeld('left') || this.input.isHeld('right')
+            || this.input.isHeld('up') || this.input.isHeld('down')
+            || this.input.isHeld('jump') || this.input.isHeld('shoot')
+            || this.input.isHeld('special') || this.input.isHeld('grenade')
+            || this.input.isHeld('shield') || this.input.isHeld('cycle')
+            || this.input.isHeld('pause');
         const canBark = this.onGround && !anyInput && this.bullets.length === 0
             && this.state !== STATE.HURT && this.state !== STATE.DIE;
         if (canBark) {
@@ -1010,7 +1014,7 @@ export class Player {
         // MG stays in slot 0; pickups append to slots 1-3. Skipping back to
         // MG is intentional — gives the player an "emergency tap-fire" exit
         // from the overheat-able power weapons.
-        if (input.isPressed('cycle') && this.weaponInventory && this.weaponInventory.length > 1) {
+        if (this.input.isPressed('cycle') && this.weaponInventory && this.weaponInventory.length > 1) {
             const idx = this.weaponInventory.indexOf(this.weapon);
             const next = this.weaponInventory[(idx + 1) % this.weaponInventory.length];
             if (next !== this.weapon) {
@@ -1028,7 +1032,7 @@ export class Player {
         // the opposite side. Refreshes one air-jump so the vault can recover
         // from pit landings.
         const hidden = this.grassHidden || this.waterHidden || this.state === STATE.COVER;
-        if (input.isPressed('special') && hidden && this._pounceTarget && this.state !== STATE.POUNCE) {
+        if (this.input.isPressed('special') && hidden && this._pounceTarget && this.state !== STATE.POUNCE) {
             this._startPounce(this._pounceTarget);
             return;
         }
@@ -1036,7 +1040,7 @@ export class Player {
         // Grapple hook: SPECIAL (C) while airborne fires a line in the aim
         // direction. If it finds a solid tile within 80px, Clippy reels in
         // with i-frames during the pull. Boss-fight reposition tool.
-        if (input.isPressed('special') && !this.onGround && this._grappleCooldown <= 0
+        if (this.input.isPressed('special') && !this.onGround && this._grappleCooldown <= 0
             && this.state !== STATE.GRAPPLE && this.state !== STATE.HURT) {
             if (this._fireGrapple(level)) return;
         }
@@ -1048,9 +1052,9 @@ export class Player {
         //      previously only accessible via double-tap-forward, which most
         //      players never discovered; backdash was eating every C press.
         //      Down+C keeps the defensive option for skilled play.
-        if (input.isPressed('special') && this.onGround
+        if (this.input.isPressed('special') && this.onGround
             && this.state !== STATE.BACKDASH && this.state !== STATE.DASH_ATTACK) {
-            if (input.isHeld('down')) {
+            if (this.input.isHeld('down')) {
                 this.state = STATE.BACKDASH;
                 this.backdashTimer = BACKDASH_FRAMES;
                 this.iFrames = Math.max(this.iFrames, BACKDASH_FRAMES);
@@ -1073,14 +1077,14 @@ export class Player {
         // Camera-space position of the player so mouse aim works correctly.
         const playerScreenX = this.x + this.w / 2 - this._cameraX;
         const playerScreenY = this.y + this.h / 2 - this._cameraY;
-        const aimInfo = input.aimFor(playerScreenX, playerScreenY);
+        const aimInfo = this.input.aimFor(playerScreenX, playerScreenY);
         this.aim = { x: aimInfo.x, y: aimInfo.y };
         this.aimAngle = aimInfo.angle;
         // Facing auto-follows horizontal aim component (so you turn toward your target)
-        if (!input.isHeld('aimlock') && Math.abs(aimInfo.x) > 0.2) {
+        if (!this.input.isHeld('aimlock') && Math.abs(aimInfo.x) > 0.2) {
             this.facing = aimInfo.x > 0 ? 1 : -1;
         }
-        if (input.isHeld('aimlock')) {
+        if (this.input.isHeld('aimlock')) {
             this.aimLocked = true;
             this.vx *= GAME.FRICTION;
         } else {
@@ -1115,7 +1119,7 @@ export class Player {
 
         // Crouch / Prone / Crawl
         if (lookY > 0 && this.onGround && !this.aimLocked) {
-            if (input.isPressed('jump') && Math.abs(this.vx) > 0.8) {
+            if (this.input.isPressed('jump') && Math.abs(this.vx) > 0.8) {
                 this._startSlide();
             } else if (Math.abs(this.vx) > 0.1) {
                 // Crawl: prone + moving
@@ -1128,8 +1132,8 @@ export class Player {
         }
 
         // Jump (with buffer + coyote). Super Contra style: ALWAYS spin in air.
-        if ((input.isPressed('jump') || input.isBuffered('jump')) && this.coyote > 0 && this.state !== STATE.SLIDE) {
-            input.consume('jump');
+        if ((this.input.isPressed('jump') || this.input.isBuffered('jump')) && this.coyote > 0 && this.state !== STATE.SLIDE) {
+            this.input.consume('jump');
             this.vy = JUMP_V * this._profile.jumpMul;
             this.onGround = false;
             this.coyote = 0;
@@ -1142,7 +1146,7 @@ export class Player {
         // `else if` branches, so the wall-jump branch matched the
         // condition but bailed without firing OR falling through —
         // double-jump never ran. Now they share one branch.
-        else if (input.isPressed('jump') && !this.onGround
+        else if (this.input.isPressed('jump') && !this.onGround
                  && this.state !== STATE.SLIDE && this.state !== STATE.BACKDASH
                  && this.state !== STATE.GRAPPLE) {
             let wallJumped = false;
@@ -1151,7 +1155,7 @@ export class Player {
                 const leftWall = level.isSolid(this.x - 2, chestY);
                 const rightWall = level.isSolid(this.x + this.w + 2, chestY);
                 if (leftWall || rightWall) {
-                    input.consume('jump');
+                    this.input.consume('jump');
                     const kickDir = leftWall ? 1 : -1;  // away from wall
                     this.vx = kickDir * 2.6;
                     this.vy = JUMP_V * 0.88;
@@ -1167,7 +1171,7 @@ export class Player {
             }
             // Double-jump — fires only if wall-jump didn't claim the press.
             if (!wallJumped && (this.airJumpsLeft || 0) > 0) {
-                input.consume('jump');
+                this.input.consume('jump');
                 this.airJumpsLeft--;
                 this.vy = JUMP_V * 0.85;
                 this.state = STATE.SPIN_JUMP;
@@ -1188,7 +1192,7 @@ export class Player {
         }
 
         // Jump cut on release
-        if (input.isReleased('jump') && this.vy < 0) {
+        if (this.input.isReleased('jump') && this.vy < 0) {
             this.vy *= JUMP_CUT;
         }
 
@@ -1203,7 +1207,7 @@ export class Player {
             && this.onGround
             && ax.y > 0.5
             && this.mgVentLock <= 0;
-        if (eligible && input.isHeld('shoot')) {
+        if (eligible && this.input.isHeld('shoot')) {
             // Charging — don't spam-fire while building up.
             this._chargeTimer++;
             if (this._chargeTimer >= CHARGE_FULL && !this._chargeActive) {
@@ -1214,7 +1218,7 @@ export class Player {
             return;
         }
         // Released or invalidated — fire charged shot if we were full.
-        if (this._chargeActive && input.isReleased('shoot')) {
+        if (this._chargeActive && this.input.isReleased('shoot')) {
             this._fireChargedMG();
             this._chargeTimer = 0;
             this._chargeActive = false;
@@ -1226,15 +1230,15 @@ export class Player {
             this._chargeTimer = 0;
             this._chargeActive = false;
         }
-        if (input.isHeld('shoot') && this.fireCooldown <= 0) {
+        if (this.input.isHeld('shoot') && this.fireCooldown <= 0) {
             this._shoot();
         }
     }
 
     _trackTaps() {
-        const ax = input.axis();
-        if (input.isPressed('right')) this.tapHistory.push({ dir: 1, t: 0 });
-        if (input.isPressed('left'))  this.tapHistory.push({ dir: -1, t: 0 });
+        const ax = this.input.axis();
+        if (this.input.isPressed('right')) this.tapHistory.push({ dir: 1, t: 0 });
+        if (this.input.isPressed('left'))  this.tapHistory.push({ dir: -1, t: 0 });
         // R321 perf: in-place tick + shift instead of `.filter()` which
         // allocates a new array every frame. tapHistory is tiny (~2-3
         // entries) but this fires 60 times/sec; cheap allocation × 60 ×
@@ -1267,7 +1271,7 @@ export class Player {
     }
 
     _handleClimb(level) {
-        const ax = input.axis();
+        const ax = this.input.axis();
         this.vy = ax.y * CLIMB_SPEED;
         this.vx = ax.x * CLIMB_SPEED * 0.4;
         // Animation cycles only while moving
@@ -1284,7 +1288,7 @@ export class Player {
             this._climbTick = 0;
         }
         // Jump while climbing detaches
-        if (input.isPressed('jump')) {
+        if (this.input.isPressed('jump')) {
             this.state = STATE.JUMP;
             this.vy = JUMP_V * 0.7;
             this.onLadder = false;
@@ -1296,7 +1300,7 @@ export class Player {
             this.onLadder = false;
         }
         // Shoot while climbing (Contra)
-        if (input.isHeld('shoot') && this.fireCooldown <= 0) {
+        if (this.input.isHeld('shoot') && this.fireCooldown <= 0) {
             this._shoot();
         }
     }
@@ -1902,7 +1906,7 @@ export class Player {
                      || this.state === STATE.POUNCE
                      || this.state === STATE.DASH_ATTACK
                      || this.shieldCharge <= 0;
-        const held = (typeof input !== 'undefined') && input.held && input.held.has('shield');
+        const held = this.input.held.has('shield');
         this.shieldActive = held && !blocked;
     }
 
@@ -2091,7 +2095,7 @@ export class Player {
         const cy = this.y + this.h / 2 - 2;
         const facing = this.facing >= 0 ? 1 : -1;
         // Slight upward arc — throw responds to aim if held high/low
-        const aimUp = input.isHeld('up') ? -1 : (input.isHeld('down') ? 0.4 : 0);
+        const aimUp = this.input.isHeld('up') ? -1 : (this.input.isHeld('down') ? 0.4 : 0);
         const vx = AMBIENT.GRENADE_THROW_VX * facing;
         const vy = AMBIENT.GRENADE_THROW_VY + aimUp * 1.4;
         this.thrownGrenades.push({
@@ -2114,7 +2118,7 @@ export class Player {
             this._handleBonziSpecials();
             return;
         }
-        if (input.isPressed('grenade') && this._grenadeCooldown <= 0) {
+        if (this.input.isPressed('grenade') && this._grenadeCooldown <= 0) {
             // Block during death / cinematic states
             if (this.state === STATE.DIE || this.state === STATE.POUNCE
                 || this.state === STATE.GRAPPLE) return;
@@ -2142,14 +2146,14 @@ export class Player {
 
         const HOLD_THRESHOLD = 22;   // ~370ms feels deliberate but not laggy
         // Detect press / hold / release
-        if (input.isPressed('grenade')) {
+        if (this.input.isPressed('grenade')) {
             this._bonziHoldStart = this._bonziHoldFrames || 0;
             this._bonziHoldFrames = 0;
             this._bonziKeyHeld = true;
         }
         if (this._bonziKeyHeld) this._bonziHoldFrames++;
         // Release detected: key was held last frame, not pressed/held now
-        const released = this._bonziKeyHeld && !input.isHeld('grenade');
+        const released = this._bonziKeyHeld && !this.input.isHeld('grenade');
         if (released) {
             this._bonziKeyHeld = false;
             const held = this._bonziHoldFrames || 0;
@@ -2158,7 +2162,7 @@ export class Player {
                 if (this._popupCooldown <= 0) this._popupStorm();
             } else {
                 // Tap. Aimed = GAZE; otherwise = DIAL-UP SCREAM.
-                const aiming = input.aimActive || input.isHeld('shoot');
+                const aiming = this.input.aimActive || this.input.isHeld('shoot');
                 if (aiming) {
                     if (this._gazeCooldown <= 0) this._gaze();
                 } else {
@@ -2988,7 +2992,7 @@ export class Player {
         this._ledgeCooldown = 18;
         this._grappleCooldown = 12;
         audio.sfx('hurt');
-        input.rumble(0.7, 0.3, 140);   // R666: damage thump on gamepad
+        this.input.rumble(0.7, 0.3, 140);   // R666: damage thump on gamepad
         particles.blood(this.x + this.w / 2, this.y + 6, knockDir > 0 ? -1 : 1);
         // Big game-feel: hit-pause + heavy screen shake on player damage
         this.hitPauseFrames = Math.max(this.hitPauseFrames || 0, AMBIENT.HIT_PAUSE_HURT_F);
@@ -3022,7 +3026,7 @@ export class Player {
         // enemy `die` deathStinger. Also ducks the music bus so the
         // sting cuts through. YOU DIED moment finally has weight.
         audio.sfx('playerDeath');
-        input.rumble(1.0, 1.0, 450);   // R666: long full-body death rumble
+        this.input.rumble(1.0, 1.0, 450);   // R666: long full-body death rumble
         const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
         // Triple-burst explosion — initial red blast, then orange + smoke
         particles.explosion(cx, cy,         '#a01020', 30);
@@ -3625,8 +3629,8 @@ export class Player {
         // Aim crosshair at actual cursor. The lead-line from player-to-cursor
         // was previously drawn here but it added visual noise without helping
         // the player aim (the crosshair already shows the target); removed.
-        if (input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
-            const mx = input.mouseX, my = input.mouseY;
+        if (this.input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
+            const mx = this.input.mouseX, my = this.input.mouseY;
             // Crosshair: 4 bars + center dot, with a pulsing outer ring so the
             // reticle stays findable against busy painted bgs.
             const cx = Math.round(mx), cy = Math.round(my);
@@ -4102,7 +4106,7 @@ export class Player {
         if (moved < 0.4) this._grappleStuck = (this._grappleStuck || 0) + 1;
         else this._grappleStuck = 0;
         const wallStuck = this._grappleStuck > 6;
-        if (d < 10 || stuck || wallStuck || input.isPressed('jump') || input.isPressed('special')) {
+        if (d < 10 || stuck || wallStuck || this.input.isPressed('jump') || this.input.isPressed('special')) {
             // Release: meaningful upward kick so the arrival lands on top of
             // the grappled surface instead of pinging off and falling. Also
             // grant a fresh air-jump so the player has an out if the anchor
@@ -4176,14 +4180,14 @@ export class Player {
         // Re-anchor: in case of camera shake or jitter, keep snapping back.
         this.x = this._ledgeAnchor.x;
         this.y = this._ledgeAnchor.y;
-        if (input.isPressed('jump') || input.isHeld('up')) {
+        if (this.input.isPressed('jump') || this.input.isHeld('up')) {
             // Start the climb-up animation
             this.state = STATE.LEDGE_CLIMB;
             this._ledgeClimbT = 0;
             audio.sfx('select');
             return;
         }
-        if (input.isHeld('down')) {
+        if (this.input.isHeld('down')) {
             // Drop off the ledge
             this.state = STATE.FALL;
             this._ledgeAnchor = null;
@@ -4794,7 +4798,7 @@ export class Player {
                 // "jump with gun" even after R353. Tighten to only show
                 // jump_aim when the shoot button is CURRENTLY HELD
                 // (intent-based, not recoil-tail).
-                if (input.isHeld('shoot') && sprites.has('jump_aim')) return 'jump_aim';
+                if (this.input.isHeld('shoot') && sprites.has('jump_aim')) return 'jump_aim';
                 if (this.vy < -1.5) return 'jump';                // rising
                 if (this.vy > 1.5) return sprites.has('fall') ? 'fall' : 'jump';
                 // R668: dedicated apex pose completes the 3-beat jump arc.

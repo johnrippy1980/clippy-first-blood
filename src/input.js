@@ -27,6 +27,27 @@ const DEFAULT_KEYMAP = {
     't': 'tag',            'T': 'tag',
 };
 
+// ============== R697: duo co-op input split ==============
+// Simultaneous 2-player needs two action namespaces. While duo is active,
+// P2 owns the WASD cluster + F/G/H/R/E (split keyboard) AND the connected
+// gamepad; P1 keeps arrows + Z/X/C/V/B + mouse. With duo off (default),
+// everything below is inert and P1 owns every key + the pad — exactly the
+// pre-R697 behavior. P2 gets no cycle/aimlock/tag: Bonzi carries a single
+// weapon, and duo replaces tag-swapping outright.
+const P2_KEYMAP = {
+    'a': 'left',    'A': 'left',
+    'd': 'right',   'D': 'right',
+    'w': 'up',      'W': 'up',
+    's': 'down',    'S': 'down',
+    'f': 'jump',    'F': 'jump',
+    'g': 'shoot',   'G': 'shoot',
+    'h': 'special', 'H': 'special',
+    'r': 'grenade', 'R': 'grenade',
+    'e': 'shield',  'E': 'shield',
+};
+
+let _duoActive = false;
+
 // ============== R691: key rebinding ==============
 // The CONTROLS menu writes { action: key } overrides into options
 // ('keyBinds'); the effective keymap is rebuilt from defaults + overrides.
@@ -68,6 +89,9 @@ function rebuildKeymap() {
     for (const [a, key] of Object.entries(overrides)) {
         for (const v of keyVariants(key)) m[v] = a;
     }
+    // R697: while duo co-op is live, P2 owns its key cluster — strip those
+    // keys from P1's map, including any rebind override that landed on them.
+    if (_duoActive) for (const k of Object.keys(P2_KEYMAP)) delete m[k];
     keymap = m;
 }
 
@@ -362,6 +386,9 @@ class Input {
     // Firefox: hapticActuators[0]). strong = low-frequency motor (body
     // thump), weak = high-frequency motor (texture buzz).
     rumble(strong = 1.0, weak = 0.5, ms = 120) {
+        // R697: in duo the pad is P2's controller — P1 (keyboard/mouse)
+        // events shouldn't buzz the partner's hands. input2.rumble owns it.
+        if (_duoActive) return;
         if (this.gamepadIndex == null) return;
         const gp = navigator.getGamepads?.()[this.gamepadIndex];
         const act = gp?.vibrationActuator || gp?.hapticActuators?.[0];
@@ -474,15 +501,23 @@ class Input {
 
     update() {
         this._pollGamepad();
+        // R697: the duo source rides the same per-tick clock. Inert when
+        // duo is off, so main.js doesn't need to know input2 exists.
+        input2.update();
     }
 
     // Called at the END of each frame to clear per-frame state.
     endFrame() {
         this.pressed.clear();
         this.released.clear();
+        input2.endFrame();
     }
 
     _pollGamepad() {
+        // R697: while duo is live the pad belongs to P2 (input2 polls it);
+        // P1 is keyboard/mouse only. Pad rebind capture is parked too — the
+        // CONTROLS menu is reachable with duo off.
+        if (_duoActive) return;
         if (this.gamepadIndex == null) return;
         const gp = navigator.getGamepads?.()[this.gamepadIndex];
         if (!gp) return;
@@ -603,3 +638,193 @@ class Input {
 }
 
 export const input = new Input();
+
+// R697: second local input source for duo co-op. Mirrors the read surface
+// player.js consumes (isPressed/isHeld/isReleased/isBuffered/consume/axis/
+// aimFor/rumble/held/aimActive/mouseX/mouseY) but is fed only by its own
+// sources: the P2 split-keyboard cluster and the connected gamepad (which
+// the main Input stops polling while duo is active). Pad button/action
+// layout intentionally reuses padmap so P2 inherits the player's rebinds.
+class SecondInput {
+    constructor() {
+        this.held = new Set();
+        this.pressed = new Set();
+        this.released = new Set();
+        this.pressTimes = new Map();
+        this._kbHeld = new Set();
+        this._padHeld = new Set();
+        this._padStartWas = false;
+        this.aimVec = { x: 1, y: 0 };
+        this.aimAngle = 0;
+        this.aimActive = false;
+        // player.js reads these for the mouse reticule; P2 has no mouse.
+        this.mouseX = 0;
+        this.mouseY = 0;
+
+        window.addEventListener('keydown', e => {
+            if (!_duoActive) return;
+            const a = P2_KEYMAP[e.key];
+            if (!a) return;
+            this._kbHeld.add(a);
+            this._down(a);
+        });
+        window.addEventListener('keyup', e => {
+            if (!_duoActive) return;
+            const a = P2_KEYMAP[e.key];
+            if (!a) return;
+            this._kbHeld.delete(a);
+            if (!this._padHeld.has(a)) this._up(a);
+        });
+        // Same stuck-key protection as the main source (R198).
+        window.addEventListener('blur', () => this.releaseAll());
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) this.releaseAll();
+        });
+    }
+
+    _down(a) {
+        if (!this.held.has(a)) {
+            this.pressed.add(a);
+            this.pressTimes.set(a, performance.now());
+        }
+        this.held.add(a);
+    }
+
+    _up(a) {
+        if (this.held.has(a)) this.released.add(a);
+        this.held.delete(a);
+    }
+
+    isPressed(a) { return this.pressed.has(a); }
+    isHeld(a) { return this.held.has(a); }
+    isReleased(a) { return this.released.has(a); }
+
+    isBuffered(a) {
+        const t = this.pressTimes.get(a);
+        if (t == null) return false;
+        return performance.now() - t < PRESS_BUFFER_MS;
+    }
+
+    consume(a) { this.pressTimes.delete(a); }
+
+    axis() {
+        const x = (this.isHeld('right') ? 1 : 0) - (this.isHeld('left') ? 1 : 0);
+        const y = (this.isHeld('down') ? 1 : 0) - (this.isHeld('up') ? 1 : 0);
+        return { x, y };
+    }
+
+    // Same contract as Input.aimFor but with no mouse source — right stick
+    // when live, else key direction. Positional args accepted + ignored.
+    aimFor() {
+        if (this.aimActive) {
+            return { x: this.aimVec.x, y: this.aimVec.y, angle: this.aimAngle };
+        }
+        const x = (this.isHeld('right') ? 1 : 0) - (this.isHeld('left') ? 1 : 0);
+        const y = (this.isHeld('down') ? 1 : 0) - (this.isHeld('up') ? 1 : 0);
+        if (x === 0 && y === 0) return { x: 1, y: 0, angle: 0 };
+        const d = Math.hypot(x, y);
+        return { x: x / d, y: y / d, angle: Math.atan2(y, x) };
+    }
+
+    rumble(strong = 1.0, weak = 0.5, ms = 120) {
+        if (!_duoActive || input.gamepadIndex == null) return;
+        const gp = navigator.getGamepads?.()[input.gamepadIndex];
+        const act = gp?.vibrationActuator || gp?.hapticActuators?.[0];
+        if (!act?.playEffect) return;
+        act.playEffect('dual-rumble', {
+            duration: ms,
+            strongMagnitude: Math.min(1, Math.max(0, strong)),
+            weakMagnitude: Math.min(1, Math.max(0, weak)),
+        }).catch(() => {});
+    }
+
+    releaseAll() {
+        this.held.clear();
+        this.pressed.clear();
+        this.released.clear();
+        this.pressTimes.clear();
+        this._kbHeld.clear();
+        this._padHeld.clear();
+        this._padStartWas = false;
+        this.aimActive = false;
+    }
+
+    update() {
+        if (!_duoActive) return;
+        this._pollGamepad();
+    }
+
+    endFrame() {
+        this.pressed.clear();
+        this.released.clear();
+    }
+
+    _pollGamepad() {
+        const idx = input.gamepadIndex;
+        if (idx == null) return;
+        const gp = navigator.getGamepads?.()[idx];
+        if (!gp) return;
+        const dz = 0.35;
+        const ax = gp.axes[0] || 0;
+        const ay = gp.axes[1] || 0;
+        this._set('left',  ax < -dz || gp.buttons[14]?.pressed);
+        this._set('right', ax >  dz || gp.buttons[15]?.pressed);
+        this._set('up',    ay < -dz || gp.buttons[12]?.pressed);
+        this._set('down',  ay >  dz || gp.buttons[13]?.pressed);
+        // START on P2's pad still pauses the shared game — forward the edge
+        // into the MAIN input so pause/menu logic (which reads P1) sees it.
+        const startDown = !!gp.buttons[9]?.pressed;
+        if (startDown && !this._padStartWas) {
+            input._down('start');
+            input._down('pause');
+        } else if (!startDown && this._padStartWas) {
+            for (const a of ['start', 'pause']) {
+                if (!input._kbHeld.has(a) && !input._padHeld.has(a) && !input._ptrHeld.has(a)) {
+                    input._up(a);
+                }
+            }
+        }
+        this._padStartWas = startDown;
+        const actDown = {};
+        for (const [b, a] of Object.entries(padmap)) {
+            if (gp.buttons[b]?.pressed) actDown[a] = true;
+        }
+        for (const a of PAD_REBINDABLE_ACTIONS) this._set(a, !!actDown[a]);
+        // Right stick for 360 aim.
+        const rx = gp.axes[2] || 0;
+        const ry = gp.axes[3] || 0;
+        if (Math.hypot(rx, ry) > dz) {
+            const d = Math.hypot(rx, ry);
+            this.aimVec.x = rx / d;
+            this.aimVec.y = ry / d;
+            this.aimAngle = Math.atan2(ry, rx);
+            this.aimActive = true;
+        }
+    }
+
+    _set(action, pressed) {
+        if (pressed) {
+            if (!this._padHeld.has(action)) {
+                this._padHeld.add(action);
+                this._down(action);
+            }
+        } else if (this._padHeld.has(action)) {
+            this._padHeld.delete(action);
+            if (!this._kbHeld.has(action)) this._up(action);
+        }
+    }
+}
+
+export const input2 = new SecondInput();
+
+export function isDuoActive() { return _duoActive; }
+
+// Flip the duo split on/off. Rebuilds P1's keymap (dropping/restoring the
+// P2 cluster) and wipes both sources so no action carries a stale hold
+// across the boundary.
+export function setDuoActive(on) {
+    _duoActive = !!on;
+    rebuildKeymap();
+    input.releaseAll();
+    input2.releaseAll();
+}
