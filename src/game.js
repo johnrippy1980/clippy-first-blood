@@ -407,6 +407,20 @@ const BONZI_DEFEAT_PAGES = [
     ],
 ];
 
+// R696: Endless wave mutators. Every 5th wave (the relic-draft waves) carries
+// a modifier that changes how the wave plays, so deep runs stay spiky instead
+// of a flat grind. Selection is deterministic by wave number — every player
+// faces the same sequence, keeping the endless board comparable. Effects are
+// spawn-time stat mutations on that wave's grunts (or draw-only for
+// blackout); the server-side trail validation only checks checkpoint
+// monotonicity, so pace changes can't break run verification.
+const ENDLESS_MUTATORS = [
+    { id: 'swarm',    name: 'SWARM',    desc: 'MORE ENEMIES, FASTER SPAWNS' },
+    { id: 'iron',     name: 'IRONCLAD', desc: 'ENEMIES HAVE 50% MORE HP' },
+    { id: 'blackout', name: 'BLACKOUT', desc: 'DARKNESS BEYOND YOUR LIGHT' },
+    { id: 'frenzy',   name: 'FRENZY',   desc: 'ENEMIES FIRE FASTER' },
+];
+
 export class Game {
     constructor(canvas) {
         this.canvas = canvas;
@@ -3155,6 +3169,20 @@ export class Game {
         // Grass tips paint OVER player + enemies so the hidden read is sold.
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);
+        // R696: BLACKOUT endless mutator — draw-only darkness with a light
+        // pocket that follows the player. Only while the mutated wave is
+        // live; breathers/relic drafts get the lights back. Sits under the
+        // flash overlay + HUD so hits and readouts still read.
+        if (this.endlessMode && this._endless?.mutator?.id === 'blackout'
+            && this._endless.state === 'active') {
+            const px = this.player.x + this.player.w / 2 - this.camera.x;
+            const py = this.player.y + this.player.h / 2 - this.camera.y;
+            const g = ctx.createRadialGradient(px, py, 26, px, py, 92);
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(1, 'rgba(0,0,0,0.86)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, GAME.W, GAME.H);
+        }
         // R421/R422: screen-flash overlay — colored full-screen wash that
         // fades from peak alpha → 0 across its lifetime.
         if (this._flashFrames > 0) {
@@ -3253,6 +3281,7 @@ export class Game {
                     state: this._endless?.state,
                     bannerT: this._endless?.bannerT || 0,
                     best: achievements.stats?.bestEndlessWave || 0,
+                    mutator: this._endless?.mutator || null,
                 } : null,
             });
             // Ghost pace delta — a tiny "+1.2s / −0.8s vs your best" readout so
@@ -6018,6 +6047,8 @@ export class Game {
             bannerT: 0,           // wave-start banner countdown (draw only)
             pendingSpawns: 0,     // grunts still to spawn this wave (drip-fed)
             spawnCd: 0,           // frames until next drip spawn
+            spawnInterval: 18,    // R696: drip cadence (SWARM tightens it)
+            mutator: null,        // R696: active wave mutator, or null
             cleared: 0,           // waves fully survived (the score)
             trail: [],            // R692: {key,frame} per wave clear — the run's
                                   // signed checkpoint trail for the endless board
@@ -6046,7 +6077,17 @@ export class Game {
         const desiredX = (px > lvlW / 2) ? leftX : rightX;
         const groundY = this.level.height - 3 * T;
         const { x, y } = this._findSafeSpawn(desiredX, groundY, 16, 16);
-        this.enemies.spawn(x, y + 16, type);
+        const en = this.enemies.spawn(x, y + 16, type);
+        // R696: mutator stat effects apply per spawned grunt, on top of the
+        // stage scaling spawn() already did. FRENZY multiplies by <1 because
+        // lower _fireRateMult = faster enemy fire (see enemies.js stageFireRate).
+        const m = this._endless?.mutator;
+        if (m?.id === 'iron') {
+            en.hp = Math.ceil(en.hp * 1.5);
+            en.maxHp = en.hp;
+        } else if (m?.id === 'frenzy') {
+            en._fireRateMult = (en._fireRateMult || 1) * 0.65;
+        }
     }
     _advanceWave() {
         const e = this._endless;
@@ -6057,7 +6098,18 @@ export class Game {
         // climbing past the campaign cap (waves get genuinely hard late).
         const pseudoStage = Math.min(22, 1 + Math.floor((e.wave - 1) * 0.7));
         this.enemies.setStageDifficulty(pseudoStage);
+        // R696: every 5th wave rotates through the mutator table. Deterministic
+        // by wave number so runs stay comparable on the board; pairs with the
+        // wave%5 relic draft (survive the mutated wave -> relic reward).
+        e.mutator = (e.wave % 5 === 0)
+            ? ENDLESS_MUTATORS[((e.wave / 5) - 1) % ENDLESS_MUTATORS.length]
+            : null;
         e.pendingSpawns = this._endlessWaveSize(e.wave);
+        e.spawnInterval = 18;
+        if (e.mutator?.id === 'swarm') {
+            e.pendingSpawns = Math.min(18, Math.ceil(e.pendingSpawns * 1.5));
+            e.spawnInterval = 12;
+        }
         e.spawnCd = 0;
         e.state = 'active';
         e.bannerT = 90;
@@ -6078,7 +6130,7 @@ export class Game {
             // Drip-feed the wave's grunts so they don't all pop in one frame.
             if (e.pendingSpawns > 0) {
                 if (e.spawnCd > 0) { e.spawnCd--; }
-                else { this._spawnEndlessGrunt(); e.pendingSpawns--; e.spawnCd = 18; }
+                else { this._spawnEndlessGrunt(); e.pendingSpawns--; e.spawnCd = e.spawnInterval || 18; }
                 return;
             }
             // Wave cleared once every spawned grunt is dead.

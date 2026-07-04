@@ -664,12 +664,23 @@ export function drawHUD(ctx, state) {
         if (endless.best > 0) {
             drawText(ctx, 'BEST ' + endless.best, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
         }
+        // R696: active mutator tag under the wave readout — persistent
+        // reminder of what's twisting the current wave.
+        if (endless.mutator && endless.state === 'active') {
+            drawText(ctx, endless.mutator.name, GAME.W - 4, 46, '#ff6040', 1, 'right');
+        }
         // Center wave-start banner.
         if (endless.bannerT > 0 && endless.state === 'active') {
             const a = Math.min(1, endless.bannerT / 30);
             ctx.save();
             ctx.globalAlpha = a;
             drawTextOutlined(ctx, 'WAVE ' + endless.wave, GAME.W / 2, 40, '#ffd040', '#1a0800', 2, 'center');
+            // R696: mutator callout rides the wave banner so the twist is
+            // announced the moment the wave starts.
+            if (endless.mutator) {
+                drawTextOutlined(ctx, endless.mutator.name, GAME.W / 2, 58, '#ff6040', '#1a0800', 1, 'center');
+                drawText(ctx, endless.mutator.desc, GAME.W / 2, 68, '#c0a0d0', 1, 'center');
+            }
             ctx.restore();
         }
     }
