@@ -28,6 +28,10 @@ class Leaderboard {
         // Last fetched board, keyed by mode, for the LEADERBOARD scene to draw
         // without re-requesting every frame. { entries, status, fetchedAt }.
         this._cache = new Map();
+        // R694: rank of this session's last VERIFIED submit, keyed by mode —
+        // { rank, total, day }. Session-only on purpose: a persisted rank goes
+        // stale as other players submit, so we never show one across reloads.
+        this._lastRank = new Map();
     }
 
     // Stable per-run id. crypto.randomUUID where available, else a cheap fallback.
@@ -81,7 +85,19 @@ class Leaderboard {
             });
             if (!res.ok) return { ok: false, error: 'http_' + res.status };
             const data = await res.json();
-            return { ok: true, verified: data.verified, reason: data.reason };
+            // R694: the server returns this run's board rank (verified runs
+            // only). Remember it so the LEADERBOARD scene can show "your last
+            // run" on the matching tab. Keyed by day for partitioned boards so
+            // yesterday's daily rank never shows against today's board.
+            if (data.verified && data.rank) {
+                this._lastRank.set(mode, {
+                    rank: data.rank,
+                    total: data.total || data.rank,
+                    day: Leaderboard.PARTITIONED.has(mode) && dailyKey ? String(dailyKey) : null,
+                });
+            }
+            return { ok: true, verified: data.verified, reason: data.reason,
+                     rank: data.rank ?? null, total: data.total ?? null };
         } catch (err) {
             return { ok: false, error: String(err?.message || err) };
         }
@@ -114,6 +130,15 @@ class Leaderboard {
     cached(mode, day = null) {
         const key = Leaderboard.PARTITIONED.has(mode) && day ? `${mode}:${day}` : mode;
         return this._cache.get(key) || null;
+    }
+
+    // R694: rank of this session's last verified submit on a board, or null.
+    // For partitioned boards the stored day must match the requested one.
+    lastRank(mode, day = null) {
+        const r = this._lastRank.get(mode);
+        if (!r) return null;
+        if (Leaderboard.PARTITIONED.has(mode) && r.day !== (day ? String(day) : null)) return null;
+        return r;
     }
 }
 

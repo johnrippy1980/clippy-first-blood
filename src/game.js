@@ -4955,6 +4955,15 @@ export class Game {
             }
         }
 
+        // R694: this session's last verified submit on this board — the "you
+        // are here" line a top-20 list can't give a mid-pack player. Pinned
+        // above the footer (row 16 of the list ends at y=214, footer at 232).
+        const mine = leaderboard.lastRank(tab.mode, tab.day);
+        if (mine) {
+            drawText(ctx, 'YOUR LAST RUN: #' + mine.rank + ' OF ' + mine.total,
+                GAME.W / 2, GAME.H - 18, '#80c080', 1, 'center');
+        }
+
         drawText(ctx, 'ARROWS NAME  X SAVE  TAB BOARD  P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
 
@@ -6015,7 +6024,9 @@ export class Game {
             checkpoints: trail,
         }).then((r) => {
             if (r.ok && r.verified) {
-                this._pushUnlockToast('WAVE ' + waves + ' SUBMITTED', 'ENDLESS BOARD UPDATED');
+                // R694: the submit response carries this run's board rank.
+                this._pushUnlockToast('WAVE ' + waves + ' SUBMITTED',
+                    r.rank ? 'ENDLESS RANK #' + r.rank + ' OF ' + r.total : 'ENDLESS BOARD UPDATED');
             } else if (r.ok) {
                 this._pushUnlockToast('WAVE ' + waves + ' SUBMITTED', 'PENDING VERIFICATION');
             }
@@ -6904,6 +6915,14 @@ export class Game {
                 timeFrames: ttFrames,
                 stagesCleared: 1,
                 checkpoints: [{ key: 'timeTrial', frame: ttFrames }],
+            }).then((r) => {
+                // R694: time trial submits used to be silent — now the arcade
+                // payoff lands right on the clear screen. Rank only (no plain
+                // "submitted" toast) so every-clear submits stay low-noise.
+                if (r.ok && r.verified && r.rank) {
+                    this._pushUnlockToast('TIME SUBMITTED',
+                        'BOARD RANK #' + r.rank + ' OF ' + r.total);
+                }
             });
         }
         // R568m-fix: after achievement roll-up has run, override the scene
@@ -7707,8 +7726,10 @@ export class Game {
                     dailyKey: isDaily ? this.dailyChallenge.day : undefined,
                 }).then((r) => {
                     if (r.ok && r.verified) {
+                        // R694: show where the run landed on its board.
+                        const where = r.rank ? 'RANK #' + r.rank + ' OF ' + r.total : null;
                         this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED',
-                            isDaily ? "TODAY'S BOARD UPDATED" : 'LEADERBOARD UPDATED');
+                            where || (isDaily ? "TODAY'S BOARD UPDATED" : 'LEADERBOARD UPDATED'));
                     } else if (r.ok) {
                         this._pushUnlockToast(isDaily ? 'DAILY SUBMITTED' : 'SCORE SUBMITTED', 'PENDING VERIFICATION');
                     }
@@ -7733,6 +7754,14 @@ export class Game {
                     stagesCleared: stages,
                     checkpoints: this.runCheckpoints,
                     dailyKey: dailyChallenge.weeklyKey(),
+                }).then((r) => {
+                    // R694: weekly rank rides in as a second queued toast after
+                    // the Any% one. Rank-only (fresh board each week — this is
+                    // the rank players actually have a shot at).
+                    if (r.ok && r.verified && r.rank) {
+                        this._pushUnlockToast('WEEKLY BOARD',
+                            'RANK #' + r.rank + ' OF ' + r.total);
+                    }
                 });
             }
         }

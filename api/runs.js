@@ -170,7 +170,42 @@ export default async function handler(req, res) {
                     daily_key = EXCLUDED.daily_key
                 RETURNING id, verified`;
 
-            return res.status(200).json({ ok: true, verified: saved.verified, reason });
+            // R694: board rank for the just-saved run. Strictly-better count + 1
+            // = standard competition ranking (ties share the best rank); total
+            // includes this run since it's already upserted. One FILTER query
+            // per board ordering. Only for verified runs — an unverified run
+            // isn't on the board, so a rank would be a lie.
+            let rank = null, total = null;
+            if (saved.verified) {
+                const [r] = TIME_RANKED.has(run.mode)
+                    ? await sql`
+                        SELECT COUNT(*) FILTER (WHERE time_frames < ${run.timeFrames})::int AS better,
+                               COUNT(*)::int AS total
+                        FROM cfb_runs
+                        WHERE mode = ${run.mode} AND verified = true`
+                    : WAVE_RANKED.has(run.mode)
+                    ? await sql`
+                        SELECT COUNT(*) FILTER (WHERE stages_cleared > ${run.stagesCleared}
+                                   OR (stages_cleared = ${run.stagesCleared} AND score > ${run.score}))::int AS better,
+                               COUNT(*)::int AS total
+                        FROM cfb_runs
+                        WHERE mode = ${run.mode} AND verified = true`
+                    : dailyKey
+                    ? await sql`
+                        SELECT COUNT(*) FILTER (WHERE score > ${run.score})::int AS better,
+                               COUNT(*)::int AS total
+                        FROM cfb_runs
+                        WHERE mode = ${run.mode} AND daily_key = ${dailyKey} AND verified = true`
+                    : await sql`
+                        SELECT COUNT(*) FILTER (WHERE score > ${run.score})::int AS better,
+                               COUNT(*)::int AS total
+                        FROM cfb_runs
+                        WHERE mode = ${run.mode} AND verified = true`;
+                rank = r.better + 1;
+                total = r.total;
+            }
+
+            return res.status(200).json({ ok: true, verified: saved.verified, reason, rank, total });
         }
 
         return res.status(405).json({ error: 'method_not_allowed' });
