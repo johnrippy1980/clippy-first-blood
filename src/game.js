@@ -2,7 +2,8 @@
 
 import { GAME, STAGES, WEAPON, AMBIENT, TRACK_MANIFEST } from './constants.js';
 import { RELEASE } from './version.js';
-import { input, REBINDABLE_ACTIONS, keysForAction, rebindKey, resetKeyBindings } from './input.js';
+import { input, REBINDABLE_ACTIONS, keysForAction, rebindKey, resetKeyBindings,
+         PAD_REBINDABLE_ACTIONS, padButtonsForAction, rebindPadButton, resetPadBindings } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
 import { Camera } from './camera.js';
@@ -142,6 +143,11 @@ const KEY_LABELS = {
     'Control': 'CTRL', 'Alt': 'ALT', 'CapsLock': 'CAPS', 'Backspace': 'BKSP',
 };
 function keyLabel(k) { return KEY_LABELS[k] || k.toUpperCase(); }
+
+// R693: menu-facing names for standard-mapping gamepad buttons.
+const PAD_LABELS = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT',
+                    'BK', 'ST', 'LS', 'RS', 'DU', 'DD', 'DL', 'DR'];
+function padLabel(b) { return PAD_LABELS[b] || 'B' + b; }
 const GAME_OVER_OPTIONS = ['CONTINUE', 'QUIT TO TITLE'];
 
 // R690: DIFFICULTY_ORDER / DIFFICULTY_MULTS / difficultyMults moved to
@@ -4113,8 +4119,13 @@ export class Game {
         // callback; pad START cancels here (pad buttons never reach the
         // keyboard capture, so a pad-only player must not get stuck).
         if (this._rebindAction) {
+            // R693: this path now only fires for direction rows (pad capture
+            // isn't armed there, so pad START still dispatches 'pause');
+            // during pad capture the poll is frozen and START arrives as
+            // capture button 9 instead.
             if (input.isPressed('pause')) {
                 input.cancelKeyCapture();
+                input.cancelPadCapture();
                 this._rebindAction = null;
                 audio.sfx('pause');
             }
@@ -4130,17 +4141,33 @@ export class Game {
                 this.scene = SCENE.OPTIONS; audio.sfx('pause');
             } else if (action === 'RESET') {
                 resetKeyBindings();
+                resetPadBindings();
                 audio.sfx('unlock');
             } else {
                 this._rebindAction = action;
                 input.beginKeyCapture(key => {
                     const a = this._rebindAction;
                     this._rebindAction = null;
+                    input.cancelPadCapture();
                     if (!a) return;   // capture outlived the menu — ignore
                     if (key === 'Escape') { audio.sfx('pause'); return; }
                     if (rebindKey(a, key)) audio.sfx('unlock');
                     else audio.sfx('hudLowAmmo');   // reserved key — refused
                 });
+                // R693: pad capture armed in parallel — whichever source
+                // fires first wins and disarms the other. Directions stay
+                // keyboard-capture only (the d-pad/stick drives them).
+                if (PAD_REBINDABLE_ACTIONS.includes(action)) {
+                    input.beginPadCapture(btn => {
+                        const a = this._rebindAction;
+                        this._rebindAction = null;
+                        input.cancelKeyCapture();
+                        if (!a) return;
+                        if (btn === 9) { audio.sfx('pause'); return; }   // START = cancel
+                        if (rebindPadButton(a, btn)) audio.sfx('unlock');
+                        else audio.sfx('hudLowAmmo');   // reserved button — refused
+                    });
+                }
                 audio.sfx('menu');
             }
         }
@@ -4177,13 +4204,21 @@ export class Game {
             if (action === 'RESET' || action === 'BACK') continue;
             if (sel && this._rebindAction === action) {
                 const blink = ((this._optionsPulse >> 4) & 1) === 0;
-                drawText(ctx, blink ? 'PRESS A KEY' : '', panelX + panelW - 14, y, '#60c0ff', 1, 'right');
+                const prompt = PAD_REBINDABLE_ACTIONS.includes(action)
+                    ? 'KEY OR BUTTON' : 'PRESS A KEY';
+                drawText(ctx, blink ? prompt : '', panelX + panelW - 14, y, '#60c0ff', 1, 'right');
             } else {
+                // R693: two bind columns — keyboard, then pad. Directions
+                // show a fixed DPAD tag (stick/d-pad isn't rebindable).
                 const keys = keysForAction(action).slice(0, 2).map(keyLabel).join('/') || '---';
-                drawText(ctx, keys, panelX + panelW - 14, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
+                drawText(ctx, keys, panelX + panelW - 58, y, sel ? '#ffe070' : '#80a0c0', 1, 'right');
+                const pad = PAD_REBINDABLE_ACTIONS.includes(action)
+                    ? (padButtonsForAction(action).slice(0, 2).map(padLabel).join('/') || '---')
+                    : 'DPAD';
+                drawText(ctx, pad, panelX + panelW - 14, y, sel ? '#ffe070' : '#5c8060', 1, 'right');
             }
         }
-        drawText(ctx, this._rebindAction ? 'ESC CANCEL' : 'X REBIND  P BACK',
+        drawText(ctx, this._rebindAction ? 'ESC/START CANCEL' : 'X REBIND  P BACK',
                  GAME.W / 2, panelY + panelH - 10, '#604068', 1, 'center');
     }
     _drawOptions() {

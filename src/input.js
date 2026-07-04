@@ -109,8 +109,82 @@ export function resetKeyBindings() {
     input.releaseAll();
 }
 
+// ============== R693: gamepad button rebinding ==============
+// Same override model as keyBinds: the CONTROLS menu writes
+// { action: buttonIndex } into options ('padBinds'); the effective pad
+// map is rebuilt from defaults + overrides. An override replaces the
+// action's ENTIRE default button set and steals the chosen button from
+// whatever action currently holds it.
+
+const DEFAULT_PADMAP = {
+    jump:    [0],       // A
+    special: [1],       // B
+    shoot:   [2],       // X
+    grenade: [3],       // Y
+    shield:  [4],       // LB
+    aimlock: [5],       // RB
+    // Pad players had NO tag button before R693 — the R568 comment above
+    // promised a gamepad-2 START poll that was never built. LT was unused.
+    tag:     [6],
+    cycle:   [8, 10],   // Back/Select + left-stick click (some pads omit Back)
+};
+
+// Directions ride the d-pad/left stick and START drives pause/start —
+// fixed so a bad bind can't strand menu navigation.
+export const PAD_REBINDABLE_ACTIONS = Object.keys(DEFAULT_PADMAP);
+export const RESERVED_PAD_BUTTONS = new Set([9, 12, 13, 14, 15]);
+
+let padmap = {};    // buttonIndex -> action
+
+function rebuildPadmap() {
+    const overrides = options.get('padBinds') || {};
+    const m = {};
+    for (const [a, btns] of Object.entries(DEFAULT_PADMAP)) {
+        // A remapped action drops all of its default buttons.
+        if (overrides[a] !== undefined) continue;
+        for (const b of btns) m[b] = a;
+    }
+    // Steal pass — free the chosen buttons from default owners first so
+    // assignment order can't matter.
+    for (const b of Object.values(overrides)) delete m[b];
+    for (const [a, b] of Object.entries(overrides)) m[b] = a;
+    padmap = m;
+}
+
+// Effective buttons for an action, ascending. Used by the CONTROLS menu.
+export function padButtonsForAction(action) {
+    const out = [];
+    for (const [b, a] of Object.entries(padmap)) {
+        if (a === action) out.push(Number(b));
+    }
+    return out.sort((x, y) => x - y);
+}
+
+// Bind `btn` as the sole pad button for `action`. Returns false (no-op)
+// for reserved buttons / non-pad-rebindable actions.
+export function rebindPadButton(action, btn) {
+    if (!PAD_REBINDABLE_ACTIONS.includes(action)) return false;
+    if (RESERVED_PAD_BUTTONS.has(btn)) return false;
+    const next = { ...(options.get('padBinds') || {}) };
+    for (const [a, b] of Object.entries(next)) {
+        if (a !== action && b === btn) delete next[a];
+    }
+    next[action] = btn;
+    options.set('padBinds', next);
+    rebuildPadmap();
+    input.releaseAll();
+    return true;
+}
+
+export function resetPadBindings() {
+    options.set('padBinds', {});
+    rebuildPadmap();
+    input.releaseAll();
+}
+
 // Apply persisted overrides at load.
 rebuildKeymap();
+rebuildPadmap();
 
 class Input {
     constructor() {
@@ -149,6 +223,9 @@ class Input {
         // action dispatch (so pressing the current shoot key to rebind it
         // doesn't also fire a shot).
         this._captureCb = null;
+        // R693: pad-button counterpart, serviced by _pollGamepad.
+        this._padCaptureCb = null;
+        this._padCapturePrev = null;
 
         window.addEventListener('keydown', e => {
             if (this._captureCb) {
@@ -375,6 +452,10 @@ class Input {
     beginKeyCapture(cb) { this._captureCb = cb; }
     cancelKeyCapture()  { this._captureCb = null; }
 
+    // R693: arm/disarm the one-shot pad-button capture (see _pollGamepad).
+    beginPadCapture(cb) { this._padCaptureCb = cb; this._padCapturePrev = null; }
+    cancelPadCapture()  { this._padCaptureCb = null; }
+
     // Was it pressed in the last PRESS_BUFFER_MS? Useful for forgiving jump input.
     isBuffered(a) {
         const t = this.pressTimes.get(a);
@@ -405,6 +486,32 @@ class Input {
         if (this.gamepadIndex == null) return;
         const gp = navigator.getGamepads?.()[this.gamepadIndex];
         if (!gp) return;
+
+        // R693: one-shot button capture for the CONTROLS rebind menu.
+        // Mirrors the keyboard capture: while armed, a fresh button press
+        // goes to the callback INSTEAD of action dispatch, and normal pad
+        // input is frozen so pressing the current shoot button to rebind
+        // it doesn't also fire a shot.
+        if (this._padCaptureCb) {
+            const down = new Set();
+            for (let i = 0; i < gp.buttons.length; i++) {
+                if (gp.buttons[i]?.pressed) down.add(i);
+            }
+            // Snapshot on the first armed poll so a button already held
+            // when capture started can't instantly bind itself.
+            if (this._padCapturePrev === null) { this._padCapturePrev = down; return; }
+            for (const i of down) {
+                if (!this._padCapturePrev.has(i)) {
+                    const cb = this._padCaptureCb;
+                    this._padCaptureCb = null;
+                    cb(i);
+                    return;
+                }
+            }
+            this._padCapturePrev = down;
+            return;
+        }
+
         const dz = 0.35;
         const ax = gp.axes[0] || 0;
         const ay = gp.axes[1] || 0;
@@ -412,20 +519,17 @@ class Input {
         this._set('right', ax >  dz || gp.buttons[15]?.pressed);
         this._set('up',    ay < -dz || gp.buttons[12]?.pressed);
         this._set('down',  ay >  dz || gp.buttons[13]?.pressed);
-        this._set('jump',  gp.buttons[0]?.pressed);     // A
-        this._set('shoot', gp.buttons[2]?.pressed);     // X
-        this._set('special', gp.buttons[1]?.pressed);   // B
-        this._set('grenade', gp.buttons[3]?.pressed);   // Y
-        this._set('aimlock', gp.buttons[5]?.pressed);   // RB
-        this._set('shield',  gp.buttons[4]?.pressed);   // LB
         this._set('start', gp.buttons[9]?.pressed);
         this._set('pause', gp.buttons[9]?.pressed);
-        // R215: gamepad weapon-swap. Was missing entirely — keyboard
-        // binds TAB/Q to 'cycle' but gamepad players had no way to swap
-        // weapons mid-run. Maps to Back/Select (button 8) which is
-        // otherwise unused, plus left-stick-click (button 10) as a
-        // backup since some controllers omit Back.
-        this._set('cycle', gp.buttons[8]?.pressed || gp.buttons[10]?.pressed);
+        // R693: rebindable actions dispatch through the effective padmap
+        // (was hardcoded A/B/X/Y/LB/RB + R215's Back/LS for cycle — those
+        // live on as DEFAULT_PADMAP). An action with several buttons is
+        // held while ANY of them is down.
+        const actDown = {};
+        for (const [b, a] of Object.entries(padmap)) {
+            if (gp.buttons[b]?.pressed) actDown[a] = true;
+        }
+        for (const a of PAD_REBINDABLE_ACTIONS) this._set(a, !!actDown[a]);
         // Right stick for 360 aim
         const rx = gp.axes[2] || 0;
         const ry = gp.axes[3] || 0;

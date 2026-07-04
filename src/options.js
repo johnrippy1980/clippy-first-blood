@@ -35,6 +35,10 @@ const DEFAULTS = {
     // menu. Empty = shipped defaults. An override REPLACES that action's
     // whole default key set (input.js rebuilds the effective keymap).
     keyBinds: {},
+    // R693: gamepad-button overrides — { action: buttonIndex }, same
+    // override model as keyBinds. Directions (d-pad/stick) and START
+    // stay fixed so a bad bind can't strand menu navigation.
+    padBinds: {},
 };
 
 class Options {
