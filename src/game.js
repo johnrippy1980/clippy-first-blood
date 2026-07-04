@@ -45,6 +45,7 @@ const SCENE = {
     OPTIONS: 'options',
     CONTROLS: 'controls',        // R691: key-rebind submenu under OPTIONS
     ACHIEVEMENTS: 'achievements',
+    STATS: 'stats',              // R695: lifetime-totals screen under EXTRAS
     SOUNDTRACK: 'soundtrack',
     GALLERY: 'gallery',          // painted-scene gallery — view all unlocked cutscenes
     LEADERBOARD: 'leaderboard',  // online high-score boards (Any%/TT/Endless/Weekly/Daily) + name entry
@@ -603,6 +604,7 @@ export class Game {
             case SCENE.OPTIONS:      this._tickOptions(); break;
             case SCENE.CONTROLS:     this._tickControls(); break;
             case SCENE.ACHIEVEMENTS: this._tickAchievements(); break;
+            case SCENE.STATS:        this._tickStats(); break;
             case SCENE.SOUNDTRACK:   this._tickSoundtrack(); break;
             case SCENE.GALLERY:      this._tickGallery(); break;
             case SCENE.LEADERBOARD:  this._tickLeaderboard(); break;
@@ -616,6 +618,13 @@ export class Game {
             case SCENE.GAME_COMPLETE:this._tickGameComplete(); break;
             case SCENE.EPILOGUE:     this._tickEpilogue(); break;
             case SCENE.CREDITS:      this._tickCredits(); break;
+        }
+        // R695: lifetime STATS accrual — only while actually playing, so
+        // menu idling never inflates playtime.
+        if (this.scene === SCENE.PLAY || this.scene === SCENE.FPS_PLAY ||
+            this.scene === SCENE.BEAT_PLAY || this.scene === SCENE.DOOM_PLAY ||
+            this.scene === SCENE.TURRET_PLAY) {
+            this._sampleLifeStats();
         }
         // Global hotkeys
         if (input.isPressed('mute')) { audio.toggleMute(); audio.sfx('select'); }
@@ -738,6 +747,7 @@ export class Game {
             case SCENE.OPTIONS:      this._drawSubMenuBackdrop(); this._drawOptions(); break;
             case SCENE.CONTROLS:     this._drawSubMenuBackdrop(); this._drawControls(); break;
             case SCENE.ACHIEVEMENTS: this._drawSubMenuBackdrop(); this._drawAchievements(); break;
+            case SCENE.STATS:        this._drawSubMenuBackdrop(); this._drawStats(); break;
             case SCENE.SOUNDTRACK:   this._drawSubMenuBackdrop(); this._drawSoundtrack(); break;
             case SCENE.GALLERY:      this._drawSubMenuBackdrop(); this._drawGallery(); break;
             case SCENE.LEADERBOARD:  this._drawLeaderboard(); break;
@@ -1131,6 +1141,7 @@ export class Game {
             { label: 'LEADERBOARD',    action: 'leaderboard',  group: 'EXTRAS' },
             { label: 'OPTIONS',        action: 'options',      group: 'EXTRAS' },
             { label: 'ACHIEVEMENTS',   action: 'achievements', group: 'EXTRAS' },
+            { label: 'STATS',          action: 'stats',        group: 'EXTRAS' },
             { label: 'SCENE GALLERY',  action: 'gallery',      group: 'EXTRAS' },
             { label: 'SOUNDTRACK',     action: 'soundtrack',   group: 'EXTRAS' },
             { label: 'BACK TO TITLE',  action: 'back' },
@@ -1238,6 +1249,10 @@ export class Game {
                     this._menuReturnScene = SCENE.MAIN_MENU;
                     this.achievementsIndex = 0;
                     this.scene = SCENE.ACHIEVEMENTS;
+                    break;
+                case 'stats':
+                    this._menuReturnScene = SCENE.MAIN_MENU;
+                    this.scene = SCENE.STATS;
                     break;
                 case 'gallery':
                     this._menuReturnScene = SCENE.MAIN_MENU;
@@ -2984,6 +2999,7 @@ export class Game {
         }
         if (!this.player.isDead()) return;
         this.totalDeaths++;
+        achievements.countLifeDeath();   // R695: lifetime STATS counter
         // R568b: death-cancel — in coopMode, if the partner is alive,
         // force a tag-in instead of respawning the dead character. The
         // shared lives pool drains by 1; the partner takes over with
@@ -4400,6 +4416,124 @@ export class Game {
             drawText(ctx, detail, GAME.W / 2, GAME.H - 20, detailColor, 1, 'center');
         }
         drawText(ctx, 'ARROWS NAV   P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
+    }
+
+    // ============== Stats screen (R695) ==============
+    // Lifetime totals + personal records, read straight out of the
+    // achievements store. Passive screen — no cursor, any menu button exits.
+    _tickStats() {
+        if (input.isPressed('pause') || input.isPressed('jump') || input.isPressed('shoot')) {
+            this.scene = this._menuReturnScene || SCENE.MAIN_MENU;
+            audio.sfx('pause');
+        }
+    }
+
+    // R695: per-frame delta sampler for lifetime kills + weapon damage.
+    // Every engine keeps a monotonic per-run kills/dmgDealt on its player
+    // object, but those reset each run and the object is REPLACED on engine
+    // swaps. Sampling deltas keyed on player object identity means: new
+    // object → rebase silently (no spurious count), same object → accrue
+    // only the increase. One chokepoint covers platformer/doom/fps/beatem/
+    // turret and any future engine that follows the same convention.
+    // Called from tick() only during actual play scenes.
+    _sampleLifeStats() {
+        const life = achievements.stats.life;
+        life.frames++;
+        const p = this.player || this._doomEngine?.player || this._beatEmUp?.player
+            || this._fpsArena?.player || this._turretArena?.player;
+        if (!p) {
+            this._lifePrev = null;
+        } else if (!this._lifePrev || this._lifePrev.obj !== p) {
+            this._lifePrev = { obj: p, kills: p.kills | 0, dmg: { ...(p.dmgDealt || {}) } };
+        } else {
+            const prev = this._lifePrev;
+            const k = p.kills | 0;
+            if (k > prev.kills) { life.kills += k - prev.kills; prev.kills = k; }
+            const dd = p.dmgDealt;
+            if (dd) {
+                for (const w of Object.keys(dd)) {
+                    const cur = dd[w] || 0;
+                    const was = prev.dmg[w] || 0;
+                    if (cur > was) {
+                        life.weaponDamage[w] = (life.weaponDamage[w] || 0) + (cur - was);
+                        prev.dmg[w] = cur;
+                    }
+                }
+            }
+        }
+        // Throttled persist — a crash/refresh loses at most ~30s of accrual.
+        // (Deaths and stage starts save immediately at their own hooks.)
+        this._lifeSaveT = (this._lifeSaveT || 0) + 1;
+        if (this._lifeSaveT >= 1800) {
+            this._lifeSaveT = 0;
+            achievements._save();
+        }
+    }
+
+    _drawStats() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, GAME.W, GAME.H);
+        drawTextOutlined(ctx, 'LIFETIME STATS', GAME.W / 2, 8, '#ffe070', '#a82020', 1, 'center');
+
+        const s = achievements.stats;
+        const life = s.life;
+        // Playtime in h:mm:ss — lifetime totals outgrow the MM:SS helper.
+        const totalS = Math.floor(life.frames / 60);
+        const hh = Math.floor(totalS / 3600);
+        const mm = Math.floor((totalS % 3600) / 60);
+        const ss = totalS % 60;
+        const playtime = hh + ':' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+        const argmax = (obj) => {
+            let bestK = null, bestV = -Infinity;
+            for (const k of Object.keys(obj || {})) {
+                if (obj[k] > bestV) { bestV = obj[k]; bestK = k; }
+            }
+            return bestK;
+        };
+        const favWeapon = argmax(life.weaponDamage) || '---';
+        const favStageId = argmax(life.stagePlays);
+        const favStage = favStageId ? (STAGES[parseInt(favStageId, 10)]?.name || '---') : '---';
+        const achTotal = ACHIEVEMENT_LIST.length;
+        const achGot = achievements.unlocked.size;
+        const achPct = achTotal ? Math.floor((achGot / achTotal) * 100) : 0;
+
+        // Counters begin at zero on the release that added them (R695) —
+        // there's no historical data to backfill, records below predate them.
+        const rows = [
+            ['LIFETIME', null],
+            ['PLAYTIME',        playtime],
+            ['TOTAL KILLS',     String(life.kills)],
+            ['DEATHS',          String(life.deaths)],
+            ['FAVORITE WEAPON', favWeapon],
+            ['FAVORITE STAGE',  favStage],
+            ['RECORDS', null],
+            ['BEST SCORE',      String(s.bestScore || 0)],
+            ['BEST CAMPAIGN',   s.bestCampaignTime
+                ? _formatTime(s.bestCampaignTime) + (s.bestCampaignRank ? '  RANK ' + s.bestCampaignRank : '')
+                : '---'],
+            ['BOSS RUSH BEST',  s.bestBossRushTime ? _formatTime(s.bestBossRushTime) : '---'],
+            ['TIME TRIAL BEST', s.bestTimeTrialTime ? _formatTime(s.bestTimeTrialTime) : '---'],
+            ['BEST ENDLESS WAVE', s.bestEndlessWave ? 'WAVE ' + s.bestEndlessWave : '---'],
+            ['DAILY STREAK',    s.dailyStreak + '  BEST ' + s.dailyStreakBest],
+            ['RELICS DRAFTED',  String(s.relicsDrafted || 0)],
+            ['PAPERCLIP TAGS',  s.tagsFound + ' / 7'],
+            ['ACHIEVEMENTS',    achGot + ' / ' + achTotal + '  (' + achPct + '%)'],
+        ];
+        let y = 24;
+        for (const [label, value] of rows) {
+            if (value === null) {
+                // Section header — dim, with a thin rule to its right.
+                drawText(ctx, label, 24, y, '#604068', 1, 'left');
+                ctx.fillStyle = '#241830';
+                ctx.fillRect(24 + textWidth(label) + 6, y + 3, GAME.W - 48 - textWidth(label) - 6, 1);
+            } else {
+                drawText(ctx, label, 24, y, '#80a0c0', 1, 'left');
+                drawText(ctx, value, GAME.W - 24, y, '#fff', 1, 'right');
+            }
+            y += 12;
+        }
+        drawText(ctx, 'P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
 
     // ============== Soundtrack gallery ==============
@@ -6274,6 +6408,12 @@ export class Game {
         // Reset per-stage counters
         this.stageStats = { kills: 0, deaths: 0, damageTaken: 0, secrets: 0, weaponDamage: {}, shotsFired: 0 };
         this._checkpoint = null;   // R684: fresh stage, fresh checkpoint
+        // R695: lifetime attempt counter (drives FAVORITE STAGE). Counts
+        // every start including retries/restarts — "most played" means
+        // attempts, not clears. Saved immediately; it's one write per stage.
+        const lifePlays = achievements.stats.life.stagePlays;
+        lifePlays[n] = (lifePlays[n] || 0) + 1;
+        achievements._save();
         // R568f (slice 6): per-stage co-op stat trackers reset alongside stageStats.
         // _killBaseline captures each slot's lifetime kill count at stage start
         // so end-of-stage diffs give per-character per-stage kill totals.
@@ -6848,7 +6988,14 @@ export class Game {
                     secretStageDiscovered: achievements.stats.secretStageDiscovered === true
                         || this.runStats.stagesCleared.has(14),
                     bulletTimeUses: this.runStats.bulletTimeUses,
-                    bestScore: ap.score || 0,
+                    // R695: high-water guard. update() Object.assigns the
+                    // snapshot, so passing the raw run score REGRESSED the
+                    // persisted lifetime best in memory on any worse run —
+                    // and the next _save() (rare pre-R695: same-frame unlock;
+                    // common post-R695: per-stage/death/30s life-stat writes)
+                    // made the loss permanent. The bump below only repairs
+                    // upward, never downward.
+                    bestScore: Math.max(achievements.stats.bestScore || 0, ap.score || 0),
                     enemiesLost: this.runStats.enemiesLost,
                     pounceKills: (ap.pounceKills || 0),
                     grenadeKills: this.runStats.grenadeKills,

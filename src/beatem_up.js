@@ -22,6 +22,7 @@
 import { GAME } from './constants.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
+import { achievements } from './achievements.js';
 import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
 import { particles } from './particles.js';
@@ -1501,6 +1502,7 @@ export class BeatEmUp {
 
     _onPlayerDeath() {
         this.player.lives--;
+        achievements.countLifeDeath();   // R695: lifetime STATS counter
         this.enemyBullets = [];
         if (this.player.lives < 0) {
             this.game._fadeTo('gameOver');

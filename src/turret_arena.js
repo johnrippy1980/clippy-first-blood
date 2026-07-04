@@ -18,6 +18,7 @@
 //        3 stacked screens.
 
 import { GAME } from './constants.js';
+import { achievements } from './achievements.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
 import { sprites } from './sprites.js';
@@ -749,6 +750,7 @@ export class TurretArena {
                 audio.sfx?.('playerHit');
                 if (this.player.hp <= 0) {
                     audio.sfx?.('die');
+                    achievements.countLifeDeath();   // R695: lifetime STATS counter
                     if (this.game) this.game._fadeTo?.('gameOver');
                 }
             }
@@ -770,6 +772,7 @@ export class TurretArena {
         if (p.hp <= 0) {
             // R566m: dramatic player-death sting (replaces generic enemy `die`).
             audio.sfx?.('playerDeath');
+            achievements.countLifeDeath();   // R695: lifetime STATS counter
             if (this.game) this.game._fadeTo?.('gameOver');
         }
     }
@@ -869,6 +872,7 @@ export class TurretArena {
         if (p.hp <= 0) {
             // R566m: dramatic player-death sting (replaces generic enemy `die`).
             audio.sfx?.('playerDeath');
+            achievements.countLifeDeath();   // R695: lifetime STATS counter
             if (this.game) this.game._fadeTo?.('gameOver');
         }
     }

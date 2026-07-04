@@ -888,6 +888,7 @@ export class DoomEngine {
     _onPlayerDeath() {
         const p = this.player;
         p.lives--;
+        achievements.countLifeDeath();   // R695: lifetime STATS counter
         if (p.lives < 0) {
             const game = (typeof window !== 'undefined') ? window.__game : null;
             game?._fadeTo?.('gameOver');

@@ -161,6 +161,21 @@ class Achievements {
             // THE COMPETITION (stage 26). Gates co-op menu visibility AND
             // the BONZI gallery entries.
             bonziDefeated: false,
+            // R695: lifetime totals for the STATS screen. Unlike the
+            // run-cumulative snapshot fields above (totalKills etc., which
+            // reset every run and are NOT persisted), everything in here is
+            // additive across all sessions. Counters start at zero on the
+            // R695 install — there's no historical data to backfill from.
+            // kills/frames/weaponDamage accrue via the per-frame delta
+            // sampler in game.js; deaths via countLifeDeath(); stagePlays
+            // via _startStage.
+            life: {
+                kills: 0,
+                deaths: 0,
+                frames: 0,          // frames spent in actual play scenes (60/s)
+                weaponDamage: {},   // { MG: dmg, SPREAD: dmg, ... } lifetime
+                stagePlays: {},     // { stageId: attempts } lifetime
+            },
         };
         this._load();
     }
@@ -262,6 +277,20 @@ class Achievements {
                 this.stats.coopBestScore         = data.stats.coopBestScore | 0;
                 this.stats.coopFlawlessCampaign  = data.stats.coopFlawlessCampaign === true;
                 this.stats.bonziDefeated         = data.stats.bonziDefeated === true;
+                // R695: lifetime STATS-screen totals. Type-guard each field —
+                // a save written by a pre-695 build simply has no life block.
+                if (data.stats.life && typeof data.stats.life === 'object') {
+                    const l = data.stats.life;
+                    this.stats.life.kills  = Math.max(0, l.kills | 0);
+                    this.stats.life.deaths = Math.max(0, l.deaths | 0);
+                    this.stats.life.frames = Math.max(0, Math.floor(Number(l.frames) || 0));
+                    if (l.weaponDamage && typeof l.weaponDamage === 'object') {
+                        this.stats.life.weaponDamage = { ...l.weaponDamage };
+                    }
+                    if (l.stagePlays && typeof l.stagePlays === 'object') {
+                        this.stats.life.stagePlays = { ...l.stagePlays };
+                    }
+                }
             }
             // Persist with the new schema version on next _save() so we don't
             // re-run the migration. _load doesn't write directly.
@@ -274,7 +303,7 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 617,
+                schemaVersion: 695,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -311,9 +340,20 @@ class Achievements {
                     coopBestScore:         this.stats.coopBestScore | 0,
                     coopFlawlessCampaign:  this.stats.coopFlawlessCampaign === true,
                     bonziDefeated:         this.stats.bonziDefeated === true,
+                    // R695: lifetime STATS-screen totals.
+                    life: this.stats.life,
                 },
             }));
         } catch (e) {}
+    }
+
+    // R695: one lifetime death for the STATS screen. Called at every
+    // player-death site (platformer, doom, fps, beat-em-up, turret). Saves
+    // immediately — deaths are rare enough that a write per death is cheap,
+    // and it means a death right before closing the tab still counts.
+    countLifeDeath() {
+        this.stats.life.deaths++;
+        this._save();
     }
 
     // Update stats and check unlocks. Returns array of newly unlocked entries.
