@@ -175,6 +175,11 @@ class Achievements {
                 frames: 0,          // frames spent in actual play scenes (60/s)
                 weaponDamage: {},   // { MG: dmg, SPREAD: dmg, ... } lifetime
                 stagePlays: {},     // { stageId: attempts } lifetime
+                // R702: play frames split by co-op mode. Buckets sum to
+                // (roughly) `frames` from R702 onward — frames accrued
+                // before R702 live only in the total, so the split can
+                // undercount history but never invents it.
+                modeFrames: { solo: 0, tag: 0, duo: 0 },
             },
         };
         this._load();
@@ -290,6 +295,14 @@ class Achievements {
                     if (l.stagePlays && typeof l.stagePlays === 'object') {
                         this.stats.life.stagePlays = { ...l.stagePlays };
                     }
+                    // R702: mode split — merge only the three known buckets
+                    // so pre-702 saves (no modeFrames) keep the zero default.
+                    if (l.modeFrames && typeof l.modeFrames === 'object') {
+                        for (const k of ['solo', 'tag', 'duo']) {
+                            this.stats.life.modeFrames[k] =
+                                Math.max(0, Math.floor(Number(l.modeFrames[k]) || 0));
+                        }
+                    }
                 }
             }
             // Persist with the new schema version on next _save() so we don't
@@ -303,7 +316,9 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                schemaVersion: 695,
+                // R702 adds life.modeFrames — additive with a zero default,
+                // so no _load migration keys off this bump.
+                schemaVersion: 702,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,

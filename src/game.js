@@ -4756,6 +4756,12 @@ export class Game {
     _sampleLifeStats() {
         const life = achievements.stats.life;
         life.frames++;
+        // R702: the same frame also lands in its co-op mode bucket. On the
+        // single-player mini-game engines _duoLive() is false even with duo
+        // flags set — those frames really are played as tag, so they count
+        // there. Pre-R702 frames exist only in the total (see achievements).
+        const mode = this._duoLive() ? 'duo' : (this.coopMode ? 'tag' : 'solo');
+        life.modeFrames[mode]++;
         const p = this.player || this._doomEngine?.player || this._beatEmUp?.player
             || this._fpsArena?.player || this._turretArena?.player;
         if (!p) {
@@ -4801,6 +4807,13 @@ export class Game {
         const mm = Math.floor((totalS % 3600) / 60);
         const ss = totalS % 60;
         const playtime = hh + ':' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+        // R702: per-mode split in compact h:mm (seconds would make the
+        // three-value row overflow its right-aligned column).
+        const hmm = (fr) => {
+            const t = Math.floor((fr || 0) / 60);
+            return Math.floor(t / 3600) + ':' + String(Math.floor((t % 3600) / 60)).padStart(2, '0');
+        };
+        const mf = life.modeFrames;
         const argmax = (obj) => {
             let bestK = null, bestV = -Infinity;
             for (const k of Object.keys(obj || {})) {
@@ -4820,6 +4833,7 @@ export class Game {
         const rows = [
             ['LIFETIME', null],
             ['PLAYTIME',        playtime],
+            ['SOLO / TAG / DUO', hmm(mf.solo) + ' / ' + hmm(mf.tag) + ' / ' + hmm(mf.duo)],
             ['TOTAL KILLS',     String(life.kills)],
             ['DEATHS',          String(life.deaths)],
             ['FAVORITE WEAPON', favWeapon],
@@ -4848,7 +4862,10 @@ export class Game {
                 drawText(ctx, label, 24, y, '#80a0c0', 1, 'left');
                 drawText(ctx, value, GAME.W - 24, y, '#fff', 1, 'right');
             }
-            y += 12;
+            // R702: pitch tightened 12 -> 11 to make room for the mode-split
+            // row — 17 rows at 12px would run the last row into the P CLOSE
+            // footer at GAME.H-8.
+            y += 11;
         }
         drawText(ctx, 'P CLOSE', GAME.W / 2, GAME.H - 8, '#604068', 1, 'center');
     }
