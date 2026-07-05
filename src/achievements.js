@@ -78,6 +78,17 @@ export const ACHIEVEMENT_LIST = [
     { id: 'coop_combo_20', name: 'COMBINED ARMS',    desc: 'CHAIN 20 KILLS IN CO-OP',               icon: 'C',  coopOnly: true, gate: s => (s.coopBestCombo || 0) >= 20, progress: s => [Math.min(s.coopBestCombo || 0, 20), 20] },
     { id: 'coop_no_death', name: 'NO ONE LEFT BEHIND', desc: 'CLEAR THE CAMPAIGN IN CO-OP, ZERO DEATHS', icon: 'O', coopOnly: true, gate: s => s.coopFlawlessCampaign === true },
     { id: 'coop_high_score', name: 'DREAM TEAM',     desc: 'SCORE OVER 100,000 IN CO-OP',           icon: '$',  coopOnly: true, gate: s => (s.coopBestScore || 0) >= 100000 },
+    // R705: duo-mode achievements (R698 both-on-screen co-op). Gated on
+    // duo-only counters so tag co-op and solo can't trip them. Stage credit
+    // uses duoStagesCleared (only added when _duoLive() — engine stages that
+    // degrade duo to tag land in coopStagesCleared instead). Touch-revives
+    // count only deliberate partner contact (boosted burn), not the passive
+    // countdown that self-revives every downed player.
+    { id: 'duo_stage_1',   name: 'BOTH BARRELS',     desc: 'CLEAR STAGE 1 IN DUO',                  icon: '2',  coopOnly: true, gate: s => s.duoStagesCleared?.has?.(1) },
+    { id: 'duo_campaign',  name: 'SIDE BY SIDE',     desc: 'CLEAR THE FULL CAMPAIGN IN DUO',        icon: '#',  coopOnly: true, gate: s => s.duoStagesCleared?.has?.(13) },
+    { id: 'duo_revive',    name: 'HANDS-ON RESCUE',  desc: 'TOUCH-REVIVE A DOWNED PARTNER',         icon: 'V',  coopOnly: true, gate: s => (s.duoTouchRevives || 0) >= 1 },
+    { id: 'duo_revive_10', name: 'FIELD MEDIC',      desc: 'TOUCH-REVIVE 10 DOWNED PARTNERS',       icon: 'M',  coopOnly: true, gate: s => (s.duoTouchRevives || 0) >= 10, progress: s => [Math.min(s.duoTouchRevives || 0, 10), 10] },
+    { id: 'duo_endless_10',name: 'DOUBLE OVERTIME',  desc: 'SURVIVE TO WAVE 10 IN DUO ENDLESS',     icon: 'X',  coopOnly: true, gate: s => (s.bestDuoEndlessWave || 0) >= 10, progress: s => [Math.min(s.bestDuoEndlessWave || 0, 10), 10] },
     // R568h (slice 7): NEW MANAGEMENT — defeat Bonzi as the boss of stage 26.
     // This is the *unlock prereq* for co-op mode itself, not a coop-only
     // achievement. Single-player can earn it; co-op mode becomes available
@@ -157,6 +168,14 @@ class Achievements {
             coopBestCombo: 0,
             coopBestScore: 0,
             coopFlawlessCampaign: false,
+            // R705: duo-mode counters. duoStagesCleared mirrors the coop Set
+            // (persisted as an Array); duoTouchRevives is additive lifetime;
+            // bestDuoEndlessWave is a high-water mark kept SEPARATE from
+            // bestEndlessWave so duo runs don't feed the solo endless
+            // achievements (or vice versa).
+            duoStagesCleared: new Set(),
+            duoTouchRevives: 0,
+            bestDuoEndlessWave: 0,
             // R568h (slice 7): set once when the player defeats Bonzi in
             // THE COMPETITION (stage 26). Gates co-op menu visibility AND
             // the BONZI gallery entries.
@@ -281,6 +300,13 @@ class Achievements {
                 this.stats.coopBestCombo         = data.stats.coopBestCombo | 0;
                 this.stats.coopBestScore         = data.stats.coopBestScore | 0;
                 this.stats.coopFlawlessCampaign  = data.stats.coopFlawlessCampaign === true;
+                // R705: duo stats — same shape as the coop block above.
+                // Pre-705 saves have none of these; defaults stand.
+                if (Array.isArray(data.stats.duoStagesCleared)) {
+                    this.stats.duoStagesCleared = new Set(data.stats.duoStagesCleared);
+                }
+                this.stats.duoTouchRevives       = Math.max(0, data.stats.duoTouchRevives | 0);
+                this.stats.bestDuoEndlessWave    = Math.max(0, data.stats.bestDuoEndlessWave | 0);
                 this.stats.bonziDefeated         = data.stats.bonziDefeated === true;
                 // R695: lifetime STATS-screen totals. Type-guard each field —
                 // a save written by a pre-695 build simply has no life block.
@@ -316,9 +342,9 @@ class Achievements {
     _save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                // R702 adds life.modeFrames — additive with a zero default,
-                // so no _load migration keys off this bump.
-                schemaVersion: 702,
+                // R705 adds the duo stat block — additive with zero/empty
+                // defaults, so no _load migration keys off this bump.
+                schemaVersion: 705,
                 unlocked: Array.from(this.unlocked),
                 stats: {
                     bestScore: this.stats.bestScore,
@@ -354,6 +380,10 @@ class Achievements {
                     coopBestCombo:         this.stats.coopBestCombo | 0,
                     coopBestScore:         this.stats.coopBestScore | 0,
                     coopFlawlessCampaign:  this.stats.coopFlawlessCampaign === true,
+                    // R705: duo stat counters.
+                    duoStagesCleared: Array.from(this.stats.duoStagesCleared || []),
+                    duoTouchRevives:       this.stats.duoTouchRevives | 0,
+                    bestDuoEndlessWave:    this.stats.bestDuoEndlessWave | 0,
                     bonziDefeated:         this.stats.bonziDefeated === true,
                     // R695: lifetime STATS-screen totals.
                     life: this.stats.life,

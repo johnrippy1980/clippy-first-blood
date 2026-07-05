@@ -3209,7 +3209,18 @@ export class Game {
             if (touching && (this.stageTime & 7) === 0) {
                 particles.dust(pl.x + pl.w / 2, pl.y + pl.h - 2);
             }
-            if (pl._duoDownT === 0) this._duoRespawnPlayer(pl);
+            if (pl._duoDownT === 0) {
+                // R705: credit a touch-revive only when the partner was on
+                // the body at the finishing frame — the passive countdown
+                // revives every downed player, so counting those would make
+                // HANDS-ON RESCUE / FIELD MEDIC free.
+                if (touching) {
+                    achievements.stats.duoTouchRevives++;
+                    achievements.update({});
+                    achievements._save();
+                }
+                this._duoRespawnPlayer(pl);
+            }
         }
         if (pls[0]._duoDownT === -1 && pls[1]._duoDownT === -1) {
             this.gameOverIndex = 0;
@@ -3540,7 +3551,10 @@ export class Game {
                     wave: this._endless?.wave || 0,
                     state: this._endless?.state,
                     bannerT: this._endless?.bannerT || 0,
-                    best: achievements.stats?.bestEndlessWave || 0,
+                    // R705: duo endless has its own best-wave ladder.
+                    best: (this.coopMode && this.duoMode)
+                        ? (achievements.stats?.bestDuoEndlessWave || 0)
+                        : (achievements.stats?.bestEndlessWave || 0),
                     mutator: this._endless?.mutator || null,
                 } : null,
                 // R701: the duo corner HUD owns the top-right y=24..44 band,
@@ -6500,11 +6514,18 @@ export class Game {
         }
     }
     _endlessPersistBest() {
-        const best = achievements.stats.bestEndlessWave || 0;
+        // R705: duo runs track their own high-water mark. Keeps duo depth
+        // out of bestEndlessWave (which feeds the solo/tag endless
+        // achievements, the STATS row, and the HUD best) and gives DOUBLE
+        // OVERTIME its own ladder. Tag co-op stays on the shared key —
+        // one fighter at a time is board-equivalent (R701/R703 precedent).
+        const key = (this.coopMode && this.duoMode) ? 'bestDuoEndlessWave' : 'bestEndlessWave';
+        const best = achievements.stats[key] || 0;
         if (this._endless.cleared > best) {
-            achievements.stats.bestEndlessWave = this._endless.cleared;
+            achievements.stats[key] = this._endless.cleared;
             // R611: re-check unlocks so OVERTIME / UNPAID HOURS / LAST ONE
-            // STANDING pop the moment their wave threshold is crossed.
+            // STANDING (or DOUBLE OVERTIME) pop the moment their wave
+            // threshold is crossed.
             achievements.update({});
             achievements._save();
             this._modeNewBest = true;
@@ -7313,6 +7334,13 @@ export class Game {
                 achievements.stats.coopStagesCleared.add(this.currentStage);
                 const coopAfter = achievements.stats.coopStagesCleared.size;
                 if (coopAfter > coopBefore) this._maybeBarrageUpgradeToast(coopBefore, coopAfter);
+                // R705: duo stage credit. _duoLive() (not just the duoMode
+                // flag) so engine stages that degrade duo to tag land in the
+                // coop set only — BOTH BARRELS / SIDE BY SIDE mean both
+                // fighters were actually on screen.
+                if (this._duoLive()) {
+                    achievements.stats.duoStagesCleared.add(this.currentStage);
+                }
                 // ANNOYING ASSISTANT — clear the stage with Bonzi doing all kills
                 if (css.bonziKills > 0 && css.clippyKills === 0) {
                     achievements.stats.coopBonziSoloStages++;
