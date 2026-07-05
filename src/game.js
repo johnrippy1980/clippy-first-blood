@@ -2107,25 +2107,34 @@ export class Game {
     // back through them can't re-fire the intro.
     _tickPlayCaptureCheckpoint() {
         if (this._checkpoint || !this.player || !this.level) return;
-        if (!this.player.onGround || this.player.isDead()) return;
-        if (this.player.x < this.level.width * 0.5) return;
-        // R685: bank only on STATIC, harmless ground. onGround is also true
-        // on a lift car or a crumble tile, both of which can vanish after
-        // capture — the banked spot then respawns the player mid-air over
-        // the shaft the tile used to bridge. A hazard at the feet would
-        // respawn them straight into damage. Skipping is free: capture
-        // stays armed and banks on the next safe grounded tick.
-        const p = this.player, lvl = this.level;
-        const footY = p.y + p.h + 2;
-        if (!lvl.isStaticGround(p.x + 1, footY) ||
-            !lvl.isStaticGround(p.x + p.w - 1, footY)) return;
-        if (lvl.isHazard(p.x + 1, footY) || lvl.isHazard(p.x + p.w - 1, footY) ||
-            lvl.isHazard(p.x + 1, p.y + p.h - 1) ||
-            lvl.isHazard(p.x + p.w - 1, p.y + p.h - 1)) return;
-        this._checkpoint = { x: this.player.x, y: this.player.y };
-        const cx = this.player.x + this.player.w / 2;
-        particles.floatingText(cx, this.player.y - 10, 'CHECKPOINT', '#7cf49a', 60, -0.5, 1);
-        audio.sfx?.('unlock');
+        // R699: in duo, EITHER live player can bank the checkpoint — with P1
+        // down it used to be uncapturable, so P1's death near the exit cost
+        // the whole stage. Countdown-down partners (_duoDownT != null) are
+        // excluded: their frozen position isn't somewhere anyone stood safely.
+        const candidates = this._duoLive()
+            ? [this.player, this.players[1]].filter(pl => pl._duoDownT == null)
+            : [this.player];
+        const lvl = this.level;
+        for (const p of candidates) {
+            if (!p.onGround || p.isDead()) continue;
+            if (p.x < lvl.width * 0.5) continue;
+            // R685: bank only on STATIC, harmless ground. onGround is also true
+            // on a lift car or a crumble tile, both of which can vanish after
+            // capture — the banked spot then respawns the player mid-air over
+            // the shaft the tile used to bridge. A hazard at the feet would
+            // respawn them straight into damage. Skipping is free: capture
+            // stays armed and banks on the next safe grounded tick.
+            const footY = p.y + p.h + 2;
+            if (!lvl.isStaticGround(p.x + 1, footY) ||
+                !lvl.isStaticGround(p.x + p.w - 1, footY)) continue;
+            if (lvl.isHazard(p.x + 1, footY) || lvl.isHazard(p.x + p.w - 1, footY) ||
+                lvl.isHazard(p.x + 1, p.y + p.h - 1) ||
+                lvl.isHazard(p.x + p.w - 1, p.y + p.h - 1)) continue;
+            this._checkpoint = { x: p.x, y: p.y };
+            particles.floatingText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', '#7cf49a', 60, -0.5, 1);
+            audio.sfx?.('unlock');
+            return;
+        }
     }
 
     // R568+R568b co-op tag-swap helper. Three trigger paths:
@@ -6829,6 +6838,16 @@ export class Game {
         // fixed mods stay comparable across players. Set BEFORE loadFromLevel so
         // every spawn in this stage picks it up.
         this.enemies.difficultyHpMult = this.dailyMode ? 1 : difficultyMults().enemyHp;
+        // R699: duo co-op fields two simultaneous fighters, so grunts get +50%
+        // HP (bosses half that, applied in spawnBoss). Mode flags, not
+        // _duoLive() — the player slots aren't populated yet at this point.
+        // Engine stages (fps/beat/doom/turret) returned above and run their
+        // own enemy models, so they never see this. data.endlessMode, NOT
+        // this.endlessMode: the instance flag is only synced from stage data
+        // further down, so it still holds the PREVIOUS stage's value here —
+        // endless degrades duo to tag (single fighter) and must stay 1x.
+        this.enemies.duoHpMult =
+            (this.coopMode && this.duoMode && !data.endlessMode) ? 1.5 : 1;
         this.pickups.clear();
         // Daily Challenge BARE HANDS / AUSTERITY: suppress weapon/powerup drops
         // for the whole run. Must be set BEFORE loadFromLevel below so stage

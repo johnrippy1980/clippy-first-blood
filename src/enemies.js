@@ -3243,6 +3243,10 @@ export class EnemyManager {
         // Scales only HP — NOT score — so an Easy run can't be score-farmed and
         // a Hard run isn't double-rewarded. Skipped (left at 1) in Daily mode.
         this.difficultyHpMult = 1;
+        // R699: duo co-op enemy-HP multiplier. 1 = solo/tag baseline, 1.5 when
+        // two players fight simultaneously (set by the game per stage). HP only —
+        // score untouched, so duo isn't a farming mode.
+        this.duoHpMult = 1;
         this.lostCount = 0;         // # of new "target lost" bubbles this stage
         this._whizzCooldown = 0;    // cap whizz SFX retriggers in dense barrages
     }
@@ -3302,7 +3306,7 @@ export class EnemyManager {
         const e = new Enemy(x, y - TYPES[type].h, type);
         // Apply stage scaling (R649: + campaign difficulty on HP only).
         // max(1,...) so a soft Easy multiplier can never round a 1-HP grunt to 0.
-        e.hp = Math.max(1, Math.ceil(e.hp * this.stageScale * this.difficultyHpMult));
+        e.hp = Math.max(1, Math.ceil(e.hp * this.stageScale * this.difficultyHpMult * this.duoHpMult));
         e.maxHp = e.hp;
         e.score = Math.round(e.score * this.stageScale);
         e.contactDmg += this.stageContactBonus;
@@ -3322,7 +3326,9 @@ export class EnemyManager {
         // a Hard boss isn't a slog and an Easy boss still feels like a fight.
         const bossScale = 1 + (this.stageScale - 1) * 0.5;
         const bossDiff = 1 + (this.difficultyHpMult - 1) * 0.5;
-        boss.hp = Math.max(1, Math.ceil(boss.hp * bossScale * bossDiff));
+        // R699: duo scaling also applies at half strength to bosses.
+        const bossDuo = 1 + (this.duoHpMult - 1) * 0.5;
+        boss.hp = Math.max(1, Math.ceil(boss.hp * bossScale * bossDiff * bossDuo));
         boss.maxHp = boss.hp;
         this.enemies.push(boss);
         return boss;

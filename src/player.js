@@ -3654,6 +3654,30 @@ export class Player {
             ctx.fillRect(cx, cy + 2, 1, 3);
             ctx.fillStyle = '#ffe070';
             ctx.fillRect(cx, cy, 1, 1);
+        } else if (!this.input.hasMouse && this.input.aimActive
+                   && this.state !== STATE.DIE && this.state !== STATE.HURT) {
+            // R699: duo P2 aims with the right stick — no cursor position, so
+            // float a small reticle a fixed distance from the player along the
+            // aim direction. aimVec is sticky after release, which is correct:
+            // aimFor() keeps returning it, so shots still go where this shows.
+            const ax = Math.round(this.x + this.w / 2 + this.input.aimVec.x * 24 - camera.viewX);
+            const ay = Math.round(this.y + this.h / 2 + this.input.aimVec.y * 24 - camera.viewY);
+            const pulse = (Math.sin(performance.now() * 0.012) + 1) * 0.5; // 0..1
+            // Same palette as the mouse crosshair (opaque red ticks + yellow
+            // center + pulsing accents) so both reticles read as one language;
+            // translucent ticks vanished against busy painted backgrounds.
+            ctx.fillStyle = `rgba(255, 224, 112, ${0.18 + pulse * 0.22})`;
+            ctx.fillRect(ax - 4, ay - 4, 1, 1);
+            ctx.fillRect(ax + 4, ay - 4, 1, 1);
+            ctx.fillRect(ax - 4, ay + 4, 1, 1);
+            ctx.fillRect(ax + 4, ay + 4, 1, 1);
+            ctx.fillStyle = '#ff5050';
+            ctx.fillRect(ax - 3, ay, 2, 1);
+            ctx.fillRect(ax + 2, ay, 2, 1);
+            ctx.fillRect(ax, ay - 3, 1, 2);
+            ctx.fillRect(ax, ay + 2, 1, 2);
+            ctx.fillStyle = '#ffe070';
+            ctx.fillRect(ax, ay, 1, 1);
         }
 
         // Bullets
