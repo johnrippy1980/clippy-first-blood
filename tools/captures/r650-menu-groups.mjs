@@ -40,7 +40,7 @@ check('opened MAIN MENU', scene === 'mainMenu', 'scene=' + scene);
 
 // --- Group integrity: read the live filtered list ---
 const items = await page.evaluate(() => window.__game._mainMenuItems().map(it => ({ label: it.label, action: it.action, group: it.group || null })));
-check('fully-unlocked list has 14 rows', items.length === 14, 'n=' + items.length);
+check('fully-unlocked list has 15 rows', items.length === 15, 'n=' + items.length);
 
 // Every non-BACK row must carry a group; BACK must be group-less.
 const back = items[items.length - 1];
@@ -60,8 +60,8 @@ const byGroup = g => grouped.filter(it => it.group === g).map(it => it.action);
 check('PLAY = start/toggleCoop/stageSelect', byGroup('PLAY').join(',') === 'start,toggleCoop,stageSelect', byGroup('PLAY').join(','));
 check('MODES = training/bossRush/timeTrial/endless/daily',
   byGroup('MODES').join(',') === 'training,bossRush,timeTrial,endless,daily', byGroup('MODES').join(','));
-check('EXTRAS = leaderboard/options/achievements/gallery/soundtrack',
-  byGroup('EXTRAS').join(',') === 'leaderboard,options,achievements,gallery,soundtrack', byGroup('EXTRAS').join(','));
+check('EXTRAS = leaderboard/options/achievements/stats/gallery/soundtrack',
+  byGroup('EXTRAS').join(',') === 'leaderboard,options,achievements,stats,gallery,soundtrack', byGroup('EXTRAS').join(','));
 
 // --- Navigation teeth: arrowing DOWN visits each selectable row in order and
 // never lands on a header. mainMenuIndex must equal the loop counter and the

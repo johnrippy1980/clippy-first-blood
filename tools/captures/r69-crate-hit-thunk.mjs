@@ -35,9 +35,9 @@ const result = await page.evaluate(async () => {
     const fire = () => {
         player.bullets.push({ x: 65, y: 65, vx: 0, vy: 0, damage: 1, alive: true });
     };
-    fire(); crate.update(g.level, player);  // hit 1 → crateHit
-    fire(); crate.update(g.level, player);  // hit 2 → crateHit
-    fire(); crate.update(g.level, player);  // hit 3 → explode (no crateHit)
+    fire(); crate.update(g.level, [player]);  // hit 1 → crateHit
+    fire(); crate.update(g.level, [player]);  // hit 2 → crateHit
+    fire(); crate.update(g.level, [player]);  // hit 3 → explode (no crateHit)
 
     audio.sfx = orig;
     return {

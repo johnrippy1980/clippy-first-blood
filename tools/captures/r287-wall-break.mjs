@@ -35,7 +35,7 @@ const result = await page.evaluate(() => {
         color: '#fff',
         hits: new Set(),
     });
-    wall.update(g.level, g.player);
+    wall.update(g.level, [g.player]);
     const hpAfter = wall.hp;
     return { hpBefore, hpAfter, took: hpBefore - hpAfter, hitFlash: wall.hitFlash };
 });
