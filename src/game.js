@@ -7423,15 +7423,25 @@ export class Game {
         // Mode best-time persistence — boss rush + time trial both save
         // their stageTime (frames) to achievements stats. 0 means no time
         // set yet, so any clear is automatically a new best the first time.
+        // R703: duo fields two simultaneous guns + touch-revive, so its
+        // times aren't comparable to the solo/tag values these stats hold
+        // (same precedent as duo endless, R701) — a duo clear neither
+        // writes a best time nor submits to the time-trial board. Tag
+        // co-op stays counted: one fighter at a time is time-equivalent.
+        const duoRun = this.coopMode && this.duoMode;
         this._modeNewBest = false;
         this._newBestDinged = false;
-        if (this.bossRushMode) {
+        if (this.bossRushMode && duoRun) {
+            this._pushUnlockToast('GAUNTLET CLEARED', 'DUO — NOT RANKED');
+        } else if (this.bossRushMode) {
             const prev = achievements.stats.bestBossRushTime || 0;
             if (prev === 0 || this.stageTime < prev) {
                 achievements.stats.bestBossRushTime = this.stageTime;
                 achievements._save();
                 this._modeNewBest = true;
             }
+        } else if (this.timeTrialMode && duoRun) {
+            this._pushUnlockToast('TRIAL CLEARED', 'DUO — NOT RANKED');
         } else if (this.timeTrialMode) {
             const prev = achievements.stats.bestTimeTrialTime || 0;
             if (prev === 0 || this.stageTime < prev) {
@@ -8252,7 +8262,15 @@ export class Game {
             // Daily always posts to its per-day board; a campaign run posts to
             // Any% only on Normal difficulty (R649). A non-Normal campaign clear
             // skips the board submit but still shows a local "RUN COMPLETE" note.
-            if (isDaily || isNormalDifficulty) {
+            // R703: a duo clear submits to no board at all — two simultaneous
+            // guns + touch-revive aren't comparable to solo/tag runs (same
+            // precedent as duo endless, R701). The daily streak above still
+            // advances: it's a personal completion streak, not a board. Tag
+            // co-op stays ranked — one fighter at a time is board-equivalent.
+            const isDuoRun = this.coopMode && this.duoMode;
+            if (isDuoRun) {
+                this._pushUnlockToast('RUN COMPLETE', 'DUO — NOT RANKED');
+            } else if (isDaily || isNormalDifficulty) {
                 leaderboard.submit({
                     runId: this.runId,
                     name: leaderboard.name || 'AAA',
@@ -8280,9 +8298,10 @@ export class Game {
             }
             // A clean Any% clear ALSO enters this week's rolling board. Daily
             // runs are excluded — their modifiers make the score non-comparable.
-            // Non-Normal difficulty is excluded too (R649). Distinct run id
-            // ('-w' suffix) so it doesn't collide with the Any% row on upsert.
-            if (!isDaily && isNormalDifficulty) {
+            // Non-Normal difficulty is excluded too (R649), duo too (R703).
+            // Distinct run id ('-w' suffix) so it doesn't collide with the
+            // Any% row on upsert.
+            if (!isDaily && isNormalDifficulty && !isDuoRun) {
                 leaderboard.submit({
                     runId: this.runId + '-w',
                     name: leaderboard.name || 'AAA',
