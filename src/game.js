@@ -3195,9 +3195,21 @@ export class Game {
             }
         }
         for (const pl of pls) {
-            if (pl._duoDownT > 0 && --pl._duoDownT === 0) {
-                this._duoRespawnPlayer(pl);
+            if (!(pl._duoDownT > 0)) continue;
+            // R700: touch-revive — the live partner standing over the downed
+            // body (marked by the pulsing soul) burns the countdown 4x
+            // faster, turning the 2.5s wait into ~0.6s of deliberate risk:
+            // the body froze wherever the death happened, often mid-fight.
+            const other = pl === pls[0] ? pls[1] : pls[0];
+            const touching = other._duoDownT == null && other.hp > 0 &&
+                other.x < pl.x + pl.w + 6 && other.x + other.w > pl.x - 6 &&
+                other.y < pl.y + pl.h + 6 && other.y + other.h > pl.y - 6;
+            pl._duoReviveBoost = touching;
+            pl._duoDownT = Math.max(0, pl._duoDownT - (touching ? 4 : 1));
+            if (touching && (this.stageTime & 7) === 0) {
+                particles.dust(pl.x + pl.w / 2, pl.y + pl.h - 2);
             }
+            if (pl._duoDownT === 0) this._duoRespawnPlayer(pl);
         }
         if (pls[0]._duoDownT === -1 && pls[1]._duoDownT === -1) {
             this.gameOverIndex = 0;
@@ -3356,6 +3368,27 @@ export class Game {
         this._drawGhost(ctx);
         // R698: duo second player draws UNDER P1 (P1 wins overlap disputes).
         // Down players skip the draw — their respawn ring announces re-entry.
+        // R700: instead of the invisible frozen body, a counting-down player
+        // leaves a pulsing soul marker: it shows the partner where to stand
+        // for the touch-revive and turns green while actively boosting.
+        if (this._duoLive()) {
+            for (const pl of this.players) {
+                if (!(pl._duoDownT > 0)) continue;
+                const mx = Math.round(pl.x + pl.w / 2 - this.camera.viewX);
+                const my = Math.round(pl.y + pl.h / 2 - this.camera.viewY);
+                const pulse = (Math.sin(performance.now() * 0.008) + 1) * 0.5;
+                const col = pl._duoReviveBoost ? '#7cf49a' : '#a8d4ff';
+                ctx.globalAlpha = 0.35 + pulse * 0.45;
+                ctx.fillStyle = col;
+                ctx.fillRect(mx - 1, my - 4, 2, 2);
+                ctx.fillRect(mx - 1, my + 2, 2, 2);
+                ctx.fillRect(mx - 4, my - 1, 2, 2);
+                ctx.fillRect(mx + 2, my - 1, 2, 2);
+                ctx.globalAlpha = 1;
+                ctx.fillRect(mx - 1, my - 1, 2, 2);
+                drawText(ctx, `${Math.ceil(pl._duoDownT / 60)}`, mx, my - 14, col, 1, 'center');
+            }
+        }
         if (this._duoLive() && this.players[1]._duoDownT == null) {
             this.players[1].draw(ctx, this.camera, this.level);
         }
@@ -3513,7 +3546,9 @@ export class Game {
                 if (pB._duoDownT != null) {
                     const label = pB._duoDownT > 0
                         ? `P2 IN ${Math.ceil(pB._duoDownT / 60)}s` : 'P2 DOWN';
-                    drawText(ctx, label, x, y, '#ff6080', 1, 'right');
+                    // R700: green while the partner is on the soul reviving.
+                    const boost = pB._duoDownT > 0 && pB._duoReviveBoost;
+                    drawText(ctx, label, x, y, boost ? '#7cf49a' : '#ff6080', 1, 'right');
                 } else {
                     drawText(ctx, `P2 HP ${Math.max(0, pB.hp)}`,
                              x, y, '#80c0ff', 1, 'right');
@@ -3522,7 +3557,8 @@ export class Game {
                 if (pA._duoDownT != null) {
                     const label = pA._duoDownT > 0
                         ? `P1 IN ${Math.ceil(pA._duoDownT / 60)}s` : 'P1 DOWN';
-                    drawText(ctx, label, x, y + 10, '#ff6080', 1, 'right');
+                    const boost = pA._duoDownT > 0 && pA._duoReviveBoost;
+                    drawText(ctx, label, x, y + 10, boost ? '#7cf49a' : '#ff6080', 1, 'right');
                 }
                 drawText(ctx, `LIVES x${this.sharedLives}`,
                          x, y + 20, '#fff', 1, 'right');
