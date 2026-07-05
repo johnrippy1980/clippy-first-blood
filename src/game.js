@@ -4669,9 +4669,20 @@ export class Game {
         const gridX = Math.floor((GAME.W - gridW) / 2);
         const gridY = 38;
         const cursor = this.achievementsIndex || 0;
+        // R704: the fixed grid stopped fitting long ago — 6 cols at a 32px
+        // row pitch gives 5 rows (30 tiles) above the detail strip, but the
+        // list has grown to 54: rows 6-9 drew off-canvas / under the strip
+        // and the cursor could select tiles the player couldn't see. Scroll
+        // a 5-row window that keeps the cursor row centered when possible.
+        const VIS_ROWS = 5;
+        const totalRows = Math.ceil(ACHIEVEMENT_LIST.length / cols);
+        let scroll = Math.floor(cursor / cols) - Math.floor(VIS_ROWS / 2);
+        if (scroll > totalRows - VIS_ROWS) scroll = totalRows - VIS_ROWS;
+        if (scroll < 0) scroll = 0;
         for (let idx = 0; idx < ACHIEVEMENT_LIST.length; idx++) {
             const a = ACHIEVEMENT_LIST[idx];
-            const r = Math.floor(idx / cols);
+            const r = Math.floor(idx / cols) - scroll;
+            if (r < 0 || r >= VIS_ROWS) continue;
             const c = idx % cols;
             const x = gridX + c * (tileW + 3);
             const y = gridY + r * (tileH + 4);
@@ -4701,6 +4712,9 @@ export class Game {
             const truncated = shortName.length > 6 ? shortName.substring(0, 5) + '.' : shortName;
             drawText(ctx, truncated, x + tileW / 2, y + 18, unlocked ? '#fff' : '#403048', 1, 'center');
         }
+        // R704: edge hints so hidden rows are discoverable.
+        if (scroll > 0) drawText(ctx, '^', GAME.W - 10, gridY + 2, '#806080', 1, 'center');
+        if (scroll < totalRows - VIS_ROWS) drawText(ctx, 'v', GAME.W - 10, gridY + (VIS_ROWS - 1) * 32 + 14, '#806080', 1, 'center');
         // Detail strip at the bottom — selected achievement name + description.
         // Sits above the help row so they don't collide.
         // R514: locked tiles now show the achievement NAME (so players can
