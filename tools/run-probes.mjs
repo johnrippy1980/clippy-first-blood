@@ -20,6 +20,13 @@ const capturesDir = join(__dirname, 'captures');
 const DEFAULT_TIMEOUT_MS = 30000;
 const TIMEOUT_RX = /@probe-timeout\s+(\d+)/;
 
+// Playwright teardown flake: under batch load the browser/context dies
+// mid-probe with this signature, but the same probe passes clean in
+// isolation (seen on r34-stun-stars and r415-depth in back-to-back suite
+// runs). One retry on a fresh browser separates that noise from real
+// failures — a probe that fails twice in a row is still reported.
+const FLAKE_RX = /Target page, context or browser has been closed|[Bb]rowser has been disconnected/;
+
 async function timeoutFor(file) {
     try {
         const src = await readFile(file, 'utf8');
@@ -63,12 +70,19 @@ const all = (await readdir(capturesDir))
 
 let passed = 0, failed = 0;
 const failures = [];
+const flakeRetries = [];
 for (const f of all) {
     const full = join(capturesDir, f);
-    const { code, err } = await runOne(full, await timeoutFor(full));
+    const budget = await timeoutFor(full);
+    let { code, err } = await runOne(full, budget);
+    let retriedPass = false;
+    if (code !== 0 && FLAKE_RX.test(err)) {
+        ({ code, err } = await runOne(full, budget));
+        if (code === 0) { retriedPass = true; flakeRetries.push(f); }
+    }
     if (code === 0) {
         passed++;
-        process.stdout.write('.');
+        process.stdout.write(retriedPass ? 'r' : '.');
     } else {
         failed++;
         process.stdout.write('F');
@@ -77,6 +91,9 @@ for (const f of all) {
 }
 process.stdout.write('\n');
 console.log(`\n${passed} passed, ${failed} failed`);
+if (flakeRetries.length) {
+    console.log(`(${flakeRetries.length} teardown flake${flakeRetries.length === 1 ? '' : 's'} passed on retry: ${flakeRetries.join(', ')})`);
+}
 if (failures.length) {
     console.log('\n=== FAILURES ===');
     for (const f of failures) {
