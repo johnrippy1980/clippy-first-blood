@@ -62,6 +62,21 @@ export class Camera {
         this.targetY = midY - GAME.H / 2 - 8;
     }
 
+    // R698: duo co-op — frame the midpoint between both live players.
+    // Velocity lookahead decays to zero (two players pulling opposite
+    // directions would make the lead thrash); the leash clamp in game.js
+    // keeps a runaway player from dragging their partner off-screen.
+    followDuo(p1, p2) {
+        this._leadX += (0 - this._leadX) * 0.12;
+        this._leadY += (0 - this._leadY) * 0.12;
+        const ax = p1.x + (p1.w || 0) / 2;
+        const bx = p2.x + (p2.w || 0) / 2;
+        this.targetX = (ax + bx) / 2 - GAME.W / 2;
+        const ay = p1.y + (p1.h || 0) / 2;
+        const by = p2.y + (p2.h || 0) / 2;
+        this.targetY = (ay + by) / 2 - GAME.H / 2 - 16;
+    }
+
     // R315: hard-snap the camera to a world point so the next follow()
     // doesn't lerp in from the previous position. Used on respawn/scene
     // transitions where a smooth slide is wrong.

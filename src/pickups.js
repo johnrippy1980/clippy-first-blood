@@ -13,26 +13,29 @@ class Crate {
         this.drop = drop;
         this.hitFlash = 0;
     }
-    update(level, player) {
+    // R698: `players` is an array — duo co-op checks both players' bullets.
+    update(level, players) {
         if (this.hitFlash > 0) this.hitFlash--;
         // Check player bullets
-        for (let i = player.bullets.length - 1; i >= 0; i--) {
-            const b = player.bullets[i];
-            if (b.stuck) continue; // Wall-stuck bullets are inert decoration
-            if (b.x > this.x && b.x < this.x + this.w && b.y > this.y && b.y < this.y + this.h) {
-                this.hp -= b.damage;
-                this.hitFlash = 4;
-                particles.hitSpark(b.x, b.y, '#a07050');
-                if (!b.piercing) player.bullets.splice(i, 1);
-                if (this.hp <= 0) {
-                    this.alive = false;
-                    particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#604030', 12);
-                    audio.sfx('explode');
-                    return this.drop;
+        for (const player of players) {
+            for (let i = player.bullets.length - 1; i >= 0; i--) {
+                const b = player.bullets[i];
+                if (b.stuck) continue; // Wall-stuck bullets are inert decoration
+                if (b.x > this.x && b.x < this.x + this.w && b.y > this.y && b.y < this.y + this.h) {
+                    this.hp -= b.damage;
+                    this.hitFlash = 4;
+                    particles.hitSpark(b.x, b.y, '#a07050');
+                    if (!b.piercing) player.bullets.splice(i, 1);
+                    if (this.hp <= 0) {
+                        this.alive = false;
+                        particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#604030', 12);
+                        audio.sfx('explode');
+                        return this.drop;
+                    }
+                    // Per-hit wood thunk so the player feels hits land before the
+                    // crate breaks. Final hit is punctuated by 'explode' above.
+                    audio.sfx('crateHit');
                 }
-                // Per-hit wood thunk so the player feels hits land before the
-                // crate breaks. Final hit is punctuated by 'explode' above.
-                audio.sfx('crateHit');
             }
         }
         return null;
@@ -118,28 +121,31 @@ class BreakableWall {
         this._shimmerPhase = Math.random() * Math.PI * 2;
         this._tick = 0;
     }
-    update(level, player) {
+    // R698: `players` is an array — duo co-op checks both players' bullets.
+    update(level, players) {
         if (this.hitFlash > 0) this.hitFlash--;
         this._tick++;
         if (!this.alive) return null;
-        for (let i = player.bullets.length - 1; i >= 0; i--) {
-            const b = player.bullets[i];
-            if (b.stuck) continue;
-            if (b.x > this.x && b.x < this.x + this.w
-                && b.y > this.y && b.y < this.y + this.h) {
-                this.hp -= b.damage;
-                this.hitFlash = 5;
-                // Crack tier scales linearly with damage taken.
-                this.cracks = Math.min(3, Math.floor((6 - this.hp) / 2));
-                particles.hitSpark(b.x, b.y, '#8a6850');
-                if (!b.piercing) player.bullets.splice(i, 1);
-                if (this.hp <= 0) {
-                    this.alive = false;
-                    particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#604030', 16);
-                    audio.sfx('explode');
-                    return this.drop;
+        for (const player of players) {
+            for (let i = player.bullets.length - 1; i >= 0; i--) {
+                const b = player.bullets[i];
+                if (b.stuck) continue;
+                if (b.x > this.x && b.x < this.x + this.w
+                    && b.y > this.y && b.y < this.y + this.h) {
+                    this.hp -= b.damage;
+                    this.hitFlash = 5;
+                    // Crack tier scales linearly with damage taken.
+                    this.cracks = Math.min(3, Math.floor((6 - this.hp) / 2));
+                    particles.hitSpark(b.x, b.y, '#8a6850');
+                    if (!b.piercing) player.bullets.splice(i, 1);
+                    if (this.hp <= 0) {
+                        this.alive = false;
+                        particles.explosion(this.x + this.w / 2, this.y + this.h / 2, '#604030', 16);
+                        audio.sfx('explode');
+                        return this.drop;
+                    }
+                    audio.sfx('crateHit');
                 }
-                audio.sfx('crateHit');
             }
         }
         return null;
@@ -222,7 +228,7 @@ class Pickup {
         this.bob = Math.random() * Math.PI * 2;
         this.vy = -1.5;
     }
-    update(level, player) {
+    update(level, player, partner = null) {
         this.bob += 0.1;
         if (this.vy < 1.5) this.vy += 0.06;
         this.y += this.vy * 0.5;
@@ -242,14 +248,24 @@ class Pickup {
         // Magnet: tight always-on pull within 28px so brushing past a pickup
         // grabs it instead of needing a pixel-perfect touch. Stronger long-
         // range pull (64px) only kicks in at low HP as an emergency assist.
-        const dx = (player.x + player.w / 2) - (this.x + this.w / 2);
-        const dy = (player.y + player.h / 2) - (this.y + this.h / 2);
+        // R698: duo — the magnet targets whichever live player is nearer
+        // (emergency pull keys off THAT player's hp).
+        let target = player;
+        if (partner) {
+            const pd = Math.hypot((player.x + player.w / 2) - (this.x + this.w / 2),
+                                  (player.y + player.h / 2) - (this.y + this.h / 2));
+            const qd = Math.hypot((partner.x + partner.w / 2) - (this.x + this.w / 2),
+                                  (partner.y + partner.h / 2) - (this.y + this.h / 2));
+            if (qd < pd) target = partner;
+        }
+        const dx = (target.x + target.w / 2) - (this.x + this.w / 2);
+        const dy = (target.y + target.h / 2) - (this.y + this.h / 2);
         const d = Math.hypot(dx, dy);
         if (d > 0.1) {
             let pull = 0;
             if (d < 28) {
                 pull = 0.7 + (1 - d / 28) * 0.9;
-            } else if (player.hp <= 1 && d < 64) {
+            } else if (target.hp <= 1 && d < 64) {
                 pull = 1.0;
             }
             if (pull > 0 && !this._attracting) {
@@ -291,11 +307,14 @@ class Pickup {
                 this._attracting = false;
             }
         }
-        // Pickup collision
-        if (this.x < player.x + player.w && this.x + this.w > player.x &&
-            this.y < player.y + player.h && this.y + this.h > player.y) {
-            player.pickup(this.type);
-            this.alive = false;
+        // Pickup collision — R698: either live player collects.
+        for (const pl of (partner ? [player, partner] : [player])) {
+            if (this.x < pl.x + pl.w && this.x + this.w > pl.x &&
+                this.y < pl.y + pl.h && this.y + this.h > pl.y) {
+                pl.pickup(this.type);
+                this.alive = false;
+                break;
+            }
         }
     }
     draw(ctx, camera) {
@@ -577,15 +596,17 @@ export class PickupManager {
             this.spawnWall(w.x, w.y, w.w, w.h, w.drop, data.theme);
         }
     }
-    update(level, player) {
+    // R698: `partner` is the second live player in duo co-op (null otherwise).
+    update(level, player, partner = null) {
+        const duoPls = partner ? [player, partner] : [player];
         for (let i = this.pickups.length - 1; i >= 0; i--) {
             const p = this.pickups[i];
-            p.update(level, player);
+            p.update(level, player, partner);
             if (!p.alive) this.pickups.splice(i, 1);
         }
         for (let i = this.crates.length - 1; i >= 0; i--) {
             const c = this.crates[i];
-            const drop = c.update(level, player);
+            const drop = c.update(level, duoPls);
             if (drop) this.spawn(c.x + c.w / 2 - 6, c.y, drop);
             if (!c.alive) this.crates.splice(i, 1);
         }
@@ -595,7 +616,7 @@ export class PickupManager {
         // check per isWallSolid call and avoids array shifts mid-frame.
         for (let i = this.walls.length - 1; i >= 0; i--) {
             const w = this.walls[i];
-            const drop = w.update(level, player);
+            const drop = w.update(level, duoPls);
             if (drop) this.spawn(w.x + w.w / 2 - 6, w.y + w.h / 2 - 6, drop);
             if (!w.alive) this.walls.splice(i, 1);
         }

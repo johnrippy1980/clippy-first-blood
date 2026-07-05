@@ -2,7 +2,8 @@
 
 import { GAME, STAGES, WEAPON, AMBIENT, TRACK_MANIFEST } from './constants.js';
 import { RELEASE } from './version.js';
-import { input, REBINDABLE_ACTIONS, keysForAction, rebindKey, resetKeyBindings,
+import { input, input2, isDuoActive, setDuoActive,
+         REBINDABLE_ACTIONS, keysForAction, rebindKey, resetKeyBindings,
          PAD_REBINDABLE_ACTIONS, padButtonsForAction, rebindPadButton, resetPadBindings } from './input.js';
 import { audio } from './audio.js';
 import { particles } from './particles.js';
@@ -440,6 +441,12 @@ export class Game {
         // `sharedLives` is the pool that drains on EITHER character's death
         // (doubled from 3→6 per the plan when coopMode === true).
         this.coopMode = false;
+        // R698: duo sub-mode of co-op. When true (and coopMode true), both
+        // players are on screen simultaneously — P1 on kb/mouse, P2 on
+        // gamepad or the WASD split keymap (see input.js SecondInput).
+        // Tag-swap is disabled; sharedLives still pools. duoMode implies
+        // coopMode so all shared-lives/stats plumbing comes for free.
+        this.duoMode = false;
         this.players = [null, null];
         this.activePlayerIdx = 0;
         this.tagCooldownT = 0;
@@ -589,6 +596,19 @@ export class Game {
         // Reduced-motion forces it to 0 (no shake at all). This is the one
         // place the previously-dead shakeScale option actually takes effect.
         this.camera.shakeScale = options.get('reducedMotion') ? 0 : options.get('shakeScale');
+        // R698: sync the duo input split every frame. Active ONLY while
+        // actually playing duo — any other scene (pause, menus, game over)
+        // restores P1's full keyboard+pad so menu navigation always works.
+        // On flip, rewire P2's input source so a duo player dropped back to
+        // tag/single never reads the split device.
+        const wantDuo = this.scene === SCENE.PLAY && this._duoLive();
+        if (wantDuo !== isDuoActive()) setDuoActive(wantDuo);
+        // Enforce (not just on flip) — _startStage can rebuild the partner
+        // Player mid-run, and a fresh instance defaults to P1's input.
+        if (this.players[1]) {
+            const want = wantDuo ? input2 : input;
+            if (this.players[1].input !== want) this.players[1].input = want;
+        }
         switch (this.scene) {
             case SCENE.BOOT:         this._tickBoot(); break;
             case SCENE.TITLE:        this._tickTitle(); break;
@@ -1144,7 +1164,10 @@ export class Game {
             // R568h (slice 7): gated by bonziDefeated — beating Bonzi in
             // THE COMPETITION (stage 26) unlocks the toggle. Konami also
             // surfaces it pre-defeat for testing.
-            { label: this.coopMode ? 'CO-OP: ON' : 'CO-OP: OFF', action: 'toggleCoop', group: 'PLAY',
+            // R698: 3-state cycle — OFF → TAG (classic swap co-op) → DUO
+            // (both players simultaneously, P2 on pad/WASD split).
+            { label: !this.coopMode ? 'CO-OP: OFF' : (this.duoMode ? 'CO-OP: DUO' : 'CO-OP: TAG'),
+              action: 'toggleCoop', group: 'PLAY',
               gate: () => !!achievements.stats.bonziDefeated || !!this._konamiUnlocked },
             { label: 'STAGE SELECT',   action: 'stageSelect',  group: 'PLAY',   gate: () => stageSelectAvail },
             { label: 'TRAINING',       action: 'training',     group: 'MODES' },
@@ -1209,19 +1232,28 @@ export class Game {
                     this._menuReturnScene = SCENE.MAIN_MENU;
                     this.scene = SCENE.DAILY_BRIEF;
                     break;
-                // R568 co-op slice 1: toggle coopMode + bump shared lives
-                // pool. Doesn't leave the menu — the player sees the label
-                // update ("CO-OP: ON" / "CO-OP: OFF") and stays here so they
-                // can then START GAME with the flag set.
+                // R568 co-op slice 1 / R698: cycle OFF → TAG → DUO → OFF.
+                // Doesn't leave the menu — the player sees the label update
+                // and stays here so they can then START GAME with the flag set.
                 case 'toggleCoop':
-                    this.coopMode = !this.coopMode;
+                    if (!this.coopMode) {
+                        this.coopMode = true;   // → TAG
+                        this.duoMode = false;
+                    } else if (!this.duoMode) {
+                        this.duoMode = true;    // → DUO
+                    } else {
+                        this.coopMode = false;  // → OFF
+                        this.duoMode = false;
+                    }
                     this.sharedLives = this.coopMode ? 6 : 3;
                     // Reset player 2 slot when toggling off so future single-
                     // player runs don't carry a stale Bonzi reference.
                     if (!this.coopMode) {
                         this.players[1] = null;
-                        this.activePlayerIdx = 0;
                     }
+                    // Duo drives both players from fixed slots — P1 is
+                    // always the active/lead index.
+                    this.activePlayerIdx = 0;
                     // Don't break out of the menu — let the player see the
                     // updated label and continue to START GAME if they want.
                     return;
@@ -2107,11 +2139,25 @@ export class Game {
     // The swap fires an animation (R568b): 30f outgoing salute/fade + 60f
     // incoming drop-in. During the 90-frame window, input to the active
     // character is gated (player.update skips when game._swapAnimT > 0).
+    // R698: true when duo (simultaneous 2-player) is actually running this
+    // stage. Duo only supports the platformer engine — the mini-game
+    // engines (beat/fps/turret/doom) and endless drive a single player, so
+    // duo silently degrades to tag there. Both slots must be populated.
+    _duoLive() {
+        return this.coopMode && this.duoMode &&
+            !this._beatMode && !this._fpsMode && !this._turretMode && !this._doomMode &&
+            !this.endlessMode &&
+            !!this.players[0] && !!this.players[1];
+    }
+
     _tryTagSwap() {
         if (this.tagCooldownT > 0) this.tagCooldownT--;
         if (this._swapAnimT > 0) this._tickSwapAnim();
         if (this._doomSupportT > 0) this._doomSupportT--;
         if (!this.coopMode) return;
+        // R698: duo mode replaces tag-swap — both players are already on
+        // screen, there is nobody to swap in.
+        if (this._duoLive()) return;
         // R568n: Doom-engine special path. Doom doesn't populate this.players
         // (player+partner spawn is platformer-only) so the slot check below
         // would always early-return in Doom stages. Handle the tag-input
@@ -2746,7 +2792,26 @@ export class Game {
             }
         }
         if (this._ghostFinishFlash > 0) this._ghostFinishFlash--;
-        this.level.update(this.player);
+        // R698: duo bookkeeping. `lead` = first ALIVE player (world anchor
+        // for managers/camera/level), `mate` = second alive player or null.
+        // A player is "down" once their death resolved (_duoDownT set by
+        // _tickDuoDeaths) — down players freeze in place until respawn.
+        const duo = this._duoLive();
+        const p2 = duo ? this.players[1] : null;
+        const p1Down = duo && this.player._duoDownT != null;
+        const p2Down = duo && p2._duoDownT != null;
+        let lead = this.player, mate = null;
+        if (duo) {
+            if (p1Down && !p2Down) lead = p2;
+            else if (!p1Down && !p2Down) mate = p2;
+        }
+        // R698: the exit key is a team item — mirror it so every existing
+        // `this.player.hasExitKey` check works no matter who grabbed it.
+        if (duo && (this.player.hasExitKey || p2.hasExitKey)) {
+            this.player.hasExitKey = true;
+            p2.hasExitKey = true;
+        }
+        this.level.update(lead);
         // R655: keep the EXIT's locked-badge state in sync each frame so the
         // padlock overlay shows exactly while a keyed exit is still locked.
         this.level._exitLocked = !!(this.level.data?.exitKey && this.player && !this.player.hasExitKey);
@@ -2780,12 +2845,15 @@ export class Game {
                 }
                 this._bossLair = null;
             }
-            // Clamp player x to lair's left wall while active
+            // Clamp player x to lair's left wall while active (R698: both
+            // duo players — neither can back out of the arena)
             if (this._bossLair && this.player) {
                 const wall = this._bossLair.leftWall();
-                if (this.player.x < wall) {
-                    this.player.x = wall;
-                    if (this.player.vx < 0) this.player.vx = 0;
+                for (const pl of (p2 ? [this.player, p2] : [this.player])) {
+                    if (pl.x < wall) {
+                        pl.x = wall;
+                        if (pl.vx < 0) pl.vx = 0;
+                    }
                 }
             }
         }
@@ -2799,12 +2867,19 @@ export class Game {
             // their drop-in target. Velocity already zero from _beginTagSwap.
             this.player.vx = 0;
             this.player.vy = 0;
-        } else {
+        } else if (!p1Down) {
             this.player.update(this.level, this.camera);
         }
-        const hitPause = (this.player.hitPauseFrames || 0) > 0;
+        // R698: second duo player runs the same full update (input2 was
+        // injected as their input source by the tick() duo sync).
+        if (duo && !p2Down) p2.update(this.level, this.camera);
+        // R698: EITHER player's hit-pause freezes the world for both —
+        // per-player freezes would desync the shared enemy tick.
+        const hitPause = (this.player.hitPauseFrames || 0) > 0
+            || (p2 && (p2.hitPauseFrames || 0) > 0);
         if (hitPause) {
-            this.player.hitPauseFrames--;
+            if (this.player.hitPauseFrames > 0) this.player.hitPauseFrames--;
+            if (p2 && p2.hitPauseFrames > 0) p2.hitPauseFrames--;
         } else if (slowMoSkipEnemies) {
             // R232: use boss-arena camera if boss is active so it stays framed.
             // R334: chase bosses (HELICOPTER) use the regular player-follow
@@ -2812,28 +2887,53 @@ export class Game {
             // Arena bosses use the midpoint camera so both stay framed.
             const chaseBoss = this.boss && this.boss.kind === 'HELICOPTER';
             if (this.boss && this.boss.alive && !chaseBoss) {
-                this.camera.followBossArena(this.player, this.boss);
+                this.camera.followBossArena(lead, this.boss);
+            } else if (mate) {
+                this.camera.followDuo(lead, mate);
             } else {
-                this.camera.follow(this.player, this.player.facing);
+                this.camera.follow(lead, lead.facing);
             }
             this.camera.update();
         } else {
-            this.enemies.update(this.level, this.player);
-            this.pickups.update(this.level, this.player);
+            this.enemies.update(this.level, lead, mate);
+            this.pickups.update(this.level, lead, mate);
             // R334: chase bosses (HELICOPTER) use the regular player-follow
             // camera so the player can scroll forward through the stage.
             // Arena bosses use the midpoint camera so both stay framed.
             const chaseBoss = this.boss && this.boss.kind === 'HELICOPTER';
             if (this.boss && this.boss.alive && !chaseBoss) {
-                this.camera.followBossArena(this.player, this.boss);
+                this.camera.followBossArena(lead, this.boss);
+            } else if (mate) {
+                this.camera.followDuo(lead, mate);
             } else {
-                this.camera.follow(this.player, this.player.facing);
+                this.camera.follow(lead, lead.facing);
             }
             this.camera.update();
+        }
+        // R698: duo leash — hard-clamp both live players into the horizontal
+        // view so a runaway can't push their partner off-screen (classic
+        // beat-em-up rule). The midpoint camera splits the difference; this
+        // stops the runaway at the screen edge.
+        if (mate) {
+            const minX = this.camera.x + 6;
+            const maxX = this.camera.x + GAME.W - 6;
+            for (const pl of [lead, mate]) {
+                if (pl.x < minX) {
+                    pl.x = minX;
+                    if (pl.vx < 0) pl.vx = 0;
+                } else if (pl.x + pl.w > maxX) {
+                    pl.x = maxX - pl.w;
+                    if (pl.vx > 0) pl.vx = 0;
+                }
+            }
         }
         if (this.player.requestShake) {
             this.camera.shake(this.player.requestShake);
             this.player.requestShake = 0;
+        }
+        if (p2 && p2.requestShake) {
+            this.camera.shake(p2.requestShake);
+            p2.requestShake = 0;
         }
     }
 
@@ -2892,11 +2992,19 @@ export class Game {
             this.boss = this.enemies.activeBoss();
             return false;
         }
+        // R698: in duo, triggers fire off the FURTHEST live player — either
+        // one reaching the arena starts the fight for both.
+        let px = this.player.x;
+        if (this._duoLive()) {
+            const p2 = this.players[1];
+            if (this.player._duoDownT != null) px = p2.x;
+            else if (p2._duoDownT == null) px = Math.max(px, p2.x);
+        }
         const miniTrigger = this.level.data.miniBossTrigger;
-        if (!this.miniBossSpawned && miniTrigger != null && this.player.x > miniTrigger) {
+        if (!this.miniBossSpawned && miniTrigger != null && px > miniTrigger) {
             this._spawnMiniBoss();
         }
-        if (!this.bossSpawned && this.player.x > bossTrigger.x) {
+        if (!this.bossSpawned && px > bossTrigger.x) {
             this._spawnBoss();
         }
         this.boss = this.enemies.activeBoss();
@@ -2940,9 +3048,16 @@ export class Game {
             }
             this._onStageClear();
         }
-        const ex = this.player.x + this.player.w / 2;
-        const ey = this.player.y + this.player.h;
-        if (this.level.isExit(ex, ey)) {
+        // R698: in duo, ANY live player can trigger the exit — the run
+        // shouldn't dead-end because P1 is down and only Bonzi can walk out.
+        const exitCandidates = this._duoLive()
+            ? [this.player, this.players[1]].filter(p => p._duoDownT == null)
+            : [this.player];
+        let exitPl = null;
+        for (const pl of exitCandidates) {
+            if (this.level.isExit(pl.x + pl.w / 2, pl.y + pl.h)) { exitPl = pl; break; }
+        }
+        if (exitPl) {
             // Training ground exits straight back to TITLE — no stage-clear
             // panel because nothing was earned. _restartRun resets player
             // state and currentStage cleanly.
@@ -2966,8 +3081,8 @@ export class Game {
                     this._exitWarnCD = 90;   // 1.5s cooldown
                     if (particles.floatingText) {
                         particles.floatingText(
-                            this.player.x + this.player.w / 2,
-                            this.player.y - 8,
+                            exitPl.x + exitPl.w / 2,
+                            exitPl.y - 8,
                             'BOSS NOT DEFEATED',
                             '#ff6080', 60, -0.4, 1,
                         );
@@ -2981,13 +3096,13 @@ export class Game {
             // pickup — a VISIBLE key-gated progression door. Mirrors the
             // boss-gate feedback (throttled floating tag + denial sfx) so the
             // player learns WHY the door won't open.
-            if (this.level?.data?.exitKey && !this.player.hasExitKey) {
+            if (this.level?.data?.exitKey && !exitPl.hasExitKey) {
                 if ((this._exitWarnCD || 0) <= 0) {
                     this._exitWarnCD = 90;
                     if (particles.floatingText) {
                         particles.floatingText(
-                            this.player.x + this.player.w / 2,
-                            this.player.y - 8,
+                            exitPl.x + exitPl.w / 2,
+                            exitPl.y - 8,
                             'NEED EXIT KEY',
                             '#ffd040', 60, -0.4, 1,
                         );
@@ -3004,6 +3119,12 @@ export class Game {
     // Death handler: decrement lives, route to GAME_OVER if exhausted,
     // otherwise respawn at the stage's playerStart.
     _tickPlayHandleDeath() {
+        // R698: duo runs its own per-player down/respawn rules — the
+        // single-slot lives/tag flow below assumes one on-screen character.
+        if (this._duoLive()) {
+            this._tickDuoDeaths();
+            return;
+        }
         // God-mode respawn path — pit-fall in training mode flags the player
         // for a silent teleport-back without touching lives/totalDeaths.
         if (this.player._godModeRespawn) {
@@ -3033,6 +3154,76 @@ export class Game {
         } else {
             this._respawn();
         }
+    }
+
+    // R698: duo death/respawn rules. Each player carries an independent
+    // down counter (_duoDownT):
+    //   null = normal (alive, or still playing the death animation)
+    //   >0   = down; counts down to a respawn (a shared life was spent)
+    //   -1   = permanently down (lives pool empty) — spectating
+    // A death drains sharedLives and respawns the player at their living
+    // partner. Both permanently down → GAME OVER (mirrors the solo path).
+    _tickDuoDeaths() {
+        const pls = [this.players[0], this.players[1]];
+        for (const pl of pls) {
+            // Training god-mode pit-fall: silent teleport-back, no life spent.
+            if (pl._godModeRespawn) {
+                pl._godModeRespawn = false;
+                this._duoRespawnPlayer(pl);
+                continue;
+            }
+            if (pl._duoDownT != null) continue;   // already down
+            if (!pl.isDead()) continue;
+            // Death animation just finished — mark down + spend a life.
+            this.totalDeaths++;
+            achievements.countLifeDeath();
+            if (this.coopStageStats) this.coopStageStats.partnerDeathsThisStage++;
+            if (this.sharedLives > 0) {
+                this.sharedLives--;
+                pl._duoDownT = 150;   // 2.5s until the partner-side respawn
+            } else {
+                pl._duoDownT = -1;    // pool empty — down for good
+            }
+        }
+        for (const pl of pls) {
+            if (pl._duoDownT > 0 && --pl._duoDownT === 0) {
+                this._duoRespawnPlayer(pl);
+            }
+        }
+        if (pls[0]._duoDownT === -1 && pls[1]._duoDownT === -1) {
+            this.gameOverIndex = 0;
+            this.storyTimer = 0;
+            ghost.abortRecording();
+            this._ghostActive = false;
+            this._fadeTo(SCENE.GAME_OVER);
+        }
+    }
+
+    // R698: respawn a downed duo player at their living partner's side
+    // (fall back to checkpoint/stage start when the partner is gone too).
+    // Mirrors _respawn but never snaps the camera — the partner is still
+    // playing and owns the framing.
+    _duoRespawnPlayer(pl) {
+        const other = pl === this.players[0] ? this.players[1] : this.players[0];
+        const otherLive = other && other._duoDownT == null && other.hp > 0;
+        const start = otherLive
+            ? { x: other.x, y: other.y }
+            : (this._checkpoint || this.level.data.playerStart);
+        const { x: sx, y: sy } = this._findSafeSpawn(start.x, start.y, pl.w, pl.h);
+        pl.x = sx;
+        pl.y = sy;
+        pl.vx = 0;
+        pl.vy = 0;
+        pl.state = 'idle';
+        pl.resetForStage();
+        pl._duoDownT = null;
+        // Generous re-entry window — the fight kept going around this spot.
+        pl.iFrames = 90;
+        const cx = pl.x + pl.w / 2;
+        const cy = pl.y + pl.h / 2;
+        particles.shockRing(cx, cy, 18, 16, '#a8d4ff');
+        particles.dust(cx, pl.y + pl.h - 2);
+        audio.sfx('respawn');
     }
 
     // Ghost replay silhouette. Reads the interpolated best-run position for the
@@ -3154,9 +3345,16 @@ export class Game {
         // Ghost replay silhouette — drawn behind the live player so it never
         // occludes the character you're controlling. No-op when no ghost.
         this._drawGhost(ctx);
+        // R698: duo second player draws UNDER P1 (P1 wins overlap disputes).
+        // Down players skip the draw — their respawn ring announces re-entry.
+        if (this._duoLive() && this.players[1]._duoDownT == null) {
+            this.players[1].draw(ctx, this.camera, this.level);
+        }
         // Active player. During 'in' phase, the incoming character renders
         // with a drop-in offset Y + landing flash via _drawSwapIncoming.
-        this.player.draw(ctx, this.camera, this.level);
+        if (!(this._duoLive() && this.player._duoDownT != null)) {
+            this.player.draw(ctx, this.camera, this.level);
+        }
         if (this._swapAnimPhase === 'in') {
             this._drawSwapIncoming(ctx);
         }
@@ -3297,7 +3495,29 @@ export class Game {
             // or "TAG: Ns" countdown in the upper-right under the score.
             // Tiny — just so the player knows when they can tag. Slice 2
             // upgrades to a full P2 portrait + HP bar.
-            if (this.coopMode) {
+            // R698: duo HUD — replaces the tag block (no tagging in duo).
+            // P2 status + shared lives + down countdowns in the same corner.
+            if (this._duoLive()) {
+                const x = GAME.W - 4;
+                const y = 24;
+                const [pA, pB] = this.players;
+                if (pB._duoDownT != null) {
+                    const label = pB._duoDownT > 0
+                        ? `P2 IN ${Math.ceil(pB._duoDownT / 60)}s` : 'P2 DOWN';
+                    drawText(ctx, label, x, y, '#ff6080', 1, 'right');
+                } else {
+                    drawText(ctx, `P2 HP ${Math.max(0, pB.hp)}`,
+                             x, y, '#80c0ff', 1, 'right');
+                }
+                // Main HUD shows P1's empty HP bar but not WHY — say it.
+                if (pA._duoDownT != null) {
+                    const label = pA._duoDownT > 0
+                        ? `P1 IN ${Math.ceil(pA._duoDownT / 60)}s` : 'P1 DOWN';
+                    drawText(ctx, label, x, y + 10, '#ff6080', 1, 'right');
+                }
+                drawText(ctx, `LIVES x${this.sharedLives}`,
+                         x, y + 20, '#fff', 1, 'right');
+            } else if (this.coopMode) {
                 const x = GAME.W - 4;
                 const y = 24;
                 const ready = this.tagCooldownT === 0;
@@ -6633,6 +6853,9 @@ export class Game {
         const safeStart = this._findSafeSpawn(
             data.playerStart.x, data.playerStart.y, pw, ph
         );
+        // R698: duo always leads with P1/Clippy in slot 0 — a prior tag run
+        // could have left activePlayerIdx on the Bonzi slot.
+        if (this.duoMode) this.activePlayerIdx = 0;
         if (!this.player) {
             // Active slot character: slot 0 is always Clippy. Slot 1 (if active
             // at spawn) is Bonzi. Caller toggling coopMode + activePlayerIdx
@@ -6681,6 +6904,9 @@ export class Game {
             this.players[1] = null;
             this.activePlayerIdx = 0;
         }
+        // R698: everyone starts a stage on their feet.
+        if (this.players[0]) this.players[0]._duoDownT = null;
+        if (this.players[1]) this.players[1]._duoDownT = null;
         this.bossSpawned = false;
         this.miniBossSpawned = false;
         this.boss = null;

@@ -224,6 +224,9 @@ class Input {
         this.aimAngle = 0;
         this.aimActive = false;       // true when mouse moved or stick non-zero
         this.mouseX = 0; this.mouseY = 0;
+        // R698: mouse-backed source flag. player.js gates the screen-space
+        // crosshair on this — the duo P2 source has no cursor to draw at.
+        this.hasMouse = true;
         // R423b: relative mouse motion for Doom-mode look. Accumulated each
         // mousemove, consumed (zeroed) by getMouseDelta() once per frame.
         this.mouseDx = 0; this.mouseDy = 0;
@@ -660,6 +663,7 @@ class SecondInput {
         // player.js reads these for the mouse reticule; P2 has no mouse.
         this.mouseX = 0;
         this.mouseY = 0;
+        this.hasMouse = false;
 
         window.addEventListener('keydown', e => {
             if (!_duoActive) return;

@@ -3629,7 +3629,9 @@ export class Player {
         // Aim crosshair at actual cursor. The lead-line from player-to-cursor
         // was previously drawn here but it added visual noise without helping
         // the player aim (the crosshair already shows the target); removed.
-        if (this.input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
+        // R698: hasMouse gate — duo P2's stick aim sets aimActive but has no
+        // cursor position, so the crosshair would pin at (0,0).
+        if (this.input.hasMouse && this.input.aimActive && this.state !== STATE.DIE && this.state !== STATE.HURT) {
             const mx = this.input.mouseX, my = this.input.mouseY;
             // Crosshair: 4 bars + center dot, with a pulsing outer ring so the
             // reticle stays findable against busy painted bgs.

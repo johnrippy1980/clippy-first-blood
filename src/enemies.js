@@ -3368,41 +3368,229 @@ export class EnemyManager {
         return detonated;
     }
 
-    update(level, player) {
+    // Pounce target scan — while the player is hidden (grass/water/cover),
+    // find the nearest activated enemy within 72px and stash it as
+    // player._pounceTarget. Player tick consumes it on `special` press.
+    // Bosses excluded — too cheesy.
+    _scanPounce(player) {
+        const isHidden = player.grassHidden || player.waterHidden || player.state === 'cover';
+        if (!isHidden) { player._pounceTarget = null; return; }
+        // Two-pass scan: prefer fresh (non-stunned) enemies. Only fall
+        // back to a stunned enemy if no fresh ones are in range.
+        const MAX_D2 = 72 * 72;
+        const px = player.x + player.w / 2;
+        const py = player.y + player.h / 2;
+        let bestFresh = null, bestFreshD = MAX_D2;
+        let bestStunned = null, bestStunnedD = MAX_D2;
+        for (const e of this.enemies) {
+            if (!e.alive || !e.activated) continue;
+            if (e.behavior === 'boss') continue;
+            const dx = (e.x + e.w / 2) - px;
+            const dy = (e.y + e.h / 2) - py;
+            const d2 = dx * dx + dy * dy;
+            if ((e._stunTimer || 0) > 0) {
+                if (d2 < bestStunnedD) { bestStunnedD = d2; bestStunned = e; }
+            } else {
+                if (d2 < bestFreshD) { bestFreshD = d2; bestFresh = e; }
+            }
+        }
+        player._pounceTarget = bestFresh || bestStunned;
+    }
+
+    // R698: everything one enemy does to/with ONE player in a tick — dash
+    // melee, contact damage, bonzi charge, player-bullet hits. Extracted
+    // verbatim from the update() enemy loop so duo co-op can run it once per
+    // live player. No `level` refs and no enemy-loop control flow inside, so
+    // the cut is behavior-preserving for single player.
+    _enemyPlayerInteractions(e, player) {
+        if (!e.alive) return;
+        // Dash-attack melee: knife slash hits any enemy the player intersects during the dash.
+        // Each enemy can only be hit once per dash via dashAtkHits set.
+        if (player.state === STATE.DASH_ATTACK && e.intersects(player)) {
+            if (!player.dashAtkHits.has(e)) {
+                player.dashAtkHits.add(e);
+                const killed = e.hurt(3, player.facing, { knockBack: 1.8 });
+                particles.hitBurst?.(e.x + e.w / 2, e.y + e.h / 2, '#ffe070');
+                player.dmgDealt['MELEE'] = (player.dmgDealt['MELEE'] || 0) + 3;
+                if (killed) {
+                    player.kills++;
+                    player.tauntKill(e.maxHp >= 10);
+                    player.combo++;
+                    player.maxCombo = Math.max(player.maxCombo, player.combo);
+                    const points = 150 + player.combo * 10;
+                    player.score += points;
+                    player.requestShake = Math.max(player.requestShake || 0, 2.5);
+                    // Score popup so the dash-attack kill reads — matches
+                    // the bullet-kill popup style, including tier-scaled size.
+                    const tier = player.combo >= 20 ? '#ff60ff'
+                               : player.combo >= 10 ? '#ff8050'
+                               : player.combo >= 5  ? '#ffe070' : '#fff';
+                    const popScale = player.combo >= 20 ? 2 : player.combo >= 10 ? 1.6 : player.combo >= 5 ? 1.3 : 1;
+                    const popLife = player.combo >= 20 ? 70 : player.combo >= 10 ? 60 : 45;
+                    particles.floatingText(e.x + e.w / 2, e.y - 2, '+' + points, tier, popLife, -0.8, popScale);
+                }
+            }
+        }
+        // Contact damage (skip during dash i-frames already handled by player.iFrames)
+        if (player.iFrames === 0 && e.intersects(player)) {
+            player.hurt(e.contactDmg, e.x < player.x ? 1 : -1, e.x + e.w / 2, e.y + e.h / 2);
+            // R220: mockHit bark — boss-only, 90f cooldown. If this
+            // is a boss and they have a mockHit pool, float a random
+            // taunt line over them. Rotates rather than randomizes
+            // so the player hears every line over a long fight.
+            if (e.behavior === 'boss' && BOSS_TEMPLATES[e.kind]?.barks?.mockHit
+                && (e._mockBarkCD || 0) <= 0) {
+                const lines = BOSS_TEMPLATES[e.kind].barks.mockHit;
+                const idx = (e._mockBarkIndex = ((e._mockBarkIndex || 0) + 1)) % lines.length;
+                particles.floatingText(
+                    e.x + e.w / 2, e.y - 8,
+                    lines[idx], '#ff8060', 70, -0.35, 1,
+                );
+                e._mockBarkCD = 90;
+            }
+            // Training/godMode soft-separate: hurt() short-circuited, but
+            // the bodies are still overlapping. Without a push, the player
+            // appears "stuck" against the dummy. Nudge the player away so
+            // contact resolves visually each frame.
+            if (player.godMode && e.intersects(player)) {
+                const dir = (e.x + e.w / 2) < (player.x + player.w / 2) ? 1 : -1;
+                player.x += dir * 1.2;
+            }
+        }
+
+        // R568e: Bonzi's shoulder-charge (= slide for him) does contact
+        // damage with i-frames, replacing Clippy's purely-defensive slide.
+        // CRYING TANTRUM (hp <= 2) doubles the damage.
+        if (player.character === 'bonzi'
+            && (player.state === STATE.SLIDE || player.state === STATE.ROLL)
+            && e.intersects(player)) {
+            if (!player._chargeHits) player._chargeHits = new Set();
+            if (!player._chargeHits.has(e)) {
+                player._chargeHits.add(e);
+                const baseDmg = 3;
+                const dmg = player._tantrum ? baseDmg * 2 : baseDmg;
+                const knockDir = (e.x + e.w / 2) < (player.x + player.w / 2) ? -1 : 1;
+                const killed = e.hurt(dmg, knockDir, { knockBack: 2.0 });
+                if (player._tantrum) {
+                    particles.floatingText(
+                        e.x + e.w / 2, e.y - 6, 'RAGE!', '#ff5050', 30, -0.5, 1
+                    );
+                }
+                if (killed) {
+                    player.kills++;
+                    player.combo++;
+                    player.maxCombo = Math.max(player.maxCombo, player.combo);
+                    const points = 150 + player.combo * 10;
+                    player.score += points;
+                }
+            }
+        }
+
+        // Player bullets vs enemy
+        for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
+            const b = player.bullets[bi];
+            if (b.stuck) continue; // Wall-stuck bullets are inert decoration
+            if (b.piercing && b.hits.has(e)) continue;
+            // R325: shielder front-shield deflection. Front of the
+            // enemy = facing direction; a 12x16 shield in front blocks
+            // bullets while shieldUp is true. Bullets bounce off with
+            // a spark; deal no damage. Player must time the shield-down
+            // window or flank from behind.
+            if (e.behavior === 'shielded_walk' && e.shieldUp) {
+                const sW = e.tpl.shieldW || 12;
+                const sH = e.tpl.shieldH || 16;
+                const sX = e.facing > 0 ? (e.x + e.w) : (e.x - sW);
+                const sY = e.y + 2;
+                if (b.x > sX && b.x < sX + sW && b.y > sY && b.y < sY + sH) {
+                    // Deflect: reverse bullet, mark deflected so it
+                    // doesn't damage same enemy again immediately.
+                    particles.hitSpark(b.x, b.y, '#a0a0c0');
+                    audio.sfx?.('bossHit');
+                    b.vx = -b.vx * 0.7;
+                    b.vy = (Math.random() - 0.5) * 1.2;
+                    b.damage = 0;  // deflected bullets become harmless
+                    player.bullets.splice(bi, 1);
+                    continue;
+                }
+            }
+            if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+                // Mini-boss parry: if guardActive, deflect this bullet back
+                // toward the player instead of taking damage. Move it from
+                // player.bullets → this.bullets (enemy bullet list) so it
+                // can damage the player on contact.
+                // Mini-boss parry: cap at 2 reflections per guard window.
+                // Without the cap, holding shoot into a parry-active boss
+                // turns every bullet into incoming fire and the player
+                // can't escape the loop. Past the cap, bullets just pass
+                // through and damage the boss normally — the player gets
+                // rewarded for keeping pressure on instead of being
+                // punished by their own fire.
+                if (e.isMini && e._guardActive && !b._enemyParried) {
+                    e._parryCount = (e._parryCount || 0) + 1;
+                    if (e._parryCount <= 2) {
+                        // Player bullets are plain objects with no
+                        // .update() method. The enemy bullet update loop
+                        // (line ~1533) calls b.update(level) every frame,
+                        // so pushing a player bullet directly crashes the
+                        // tick with "b.update is not a function" — bug
+                        // shipped since the parry mechanic landed in
+                        // task #233. Wrap into a real Bullet so the enemy
+                        // bullet pipeline can handle it.
+                        const reflected = new Bullet(b.x, b.y, -b.vx, -b.vy, b.damage ?? 1);
+                        reflected.color = '#80e0ff';
+                        reflected._enemyParried = true;
+                        player.bullets.splice(bi, 1);
+                        this.bullets.push(reflected);
+                        particles.hitSpark(b.x, b.y, '#80e0ff');
+                        particles.floatingText(e.x + e.w / 2, e.y - 4, 'PARRY', '#80e0ff', 36, -0.4, 1);
+                        audio.sfx('bossHit');
+                        continue;
+                    }
+                    // Past the cap: bullet passes through, damages the
+                    // boss as normal (falls through to the regular hit
+                    // path below). Reset parry-cap on next guard cycle.
+                }
+                // Weapon-specific impact opts: knockback / burn DOT
+                const opts = {};
+                if (b.weapon === 'SPREAD') opts.knockBack = 1.4;
+                if (b.weapon === 'THUNDER') opts.knockBack = 2.0;
+                if (b.weapon === 'FLAME')  { opts.burn = 90; opts.burnDPS = 0.08; }
+                const knockDir = b.vx > 0 ? 1 : (b.vx < 0 ? -1 : (e.x < player.x ? 1 : -1));
+                // R627: pass the shot's travel direction so directional
+                // weak points (turret blind side) can read it in hurt().
+                opts.fromDir = knockDir;
+                // Stun-bonus: follow-up hits on a pounce-stunned target
+                // deal 1.5x damage. Yellow "STUN+" float telegraphs the
+                // reward so the pounce→shoot loop has clear payoff.
+                const stunned = (e._stunTimer || 0) > 0;
+                const dmg = stunned ? b.damage * 1.5 : b.damage;
+                if (stunned) {
+                    particles.floatingText(
+                        e.x + e.w / 2, e.y - 6,
+                        'STUN+', '#ffe070', 30, -0.5, 1
+                    );
+                }
+                const killed = e.hurt(dmg, knockDir, opts);
+                player.onBulletHit(b, e, killed);
+                if (b.homing) b._target = null;
+                if (killed) break;
+            }
+        }
+    }
+
+    update(level, player, partner = null) {
+        // R698: duo co-op — `partner` is the second live player (null outside
+        // duo or while a player is down). Enemy AI chases whichever is nearer;
+        // every player-facing interaction (melee, contact, bullets, mines)
+        // runs for both. One-shot manager effects (whizz SFX, cull score,
+        // punt-flight kill credit) stay anchored to the first arg.
+        const duoPls = partner ? [player, partner] : [player];
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         // R662: fade out boss corpses.
         for (let i = bossCorpses.length - 1; i >= 0; i--) {
             if (--bossCorpses[i].t <= 0) bossCorpses.splice(i, 1);
         }
-        // Pounce target scan — while the player is hidden (grass/water/cover),
-        // find the nearest activated enemy within 72px and stash it as
-        // player._pounceTarget. Player tick consumes it on `special` press.
-        // Bosses excluded — too cheesy.
-        const isHidden = player.grassHidden || player.waterHidden || player.state === 'cover';
-        if (isHidden) {
-            // Two-pass scan: prefer fresh (non-stunned) enemies. Only fall
-            // back to a stunned enemy if no fresh ones are in range.
-            const MAX_D2 = 72 * 72;
-            const px = player.x + player.w / 2;
-            const py = player.y + player.h / 2;
-            let bestFresh = null, bestFreshD = MAX_D2;
-            let bestStunned = null, bestStunnedD = MAX_D2;
-            for (const e of this.enemies) {
-                if (!e.alive || !e.activated) continue;
-                if (e.behavior === 'boss') continue;
-                const dx = (e.x + e.w / 2) - px;
-                const dy = (e.y + e.h / 2) - py;
-                const d2 = dx * dx + dy * dy;
-                if ((e._stunTimer || 0) > 0) {
-                    if (d2 < bestStunnedD) { bestStunnedD = d2; bestStunned = e; }
-                } else {
-                    if (d2 < bestFreshD) { bestFreshD = d2; bestFresh = e; }
-                }
-            }
-            player._pounceTarget = bestFresh || bestStunned;
-        } else {
-            player._pounceTarget = null;
-        }
+        for (const pl of duoPls) this._scanPounce(pl);
         // Tick enemy stun timers
         for (const e of this.enemies) {
             if ((e._stunTimer || 0) > 0) {
@@ -3418,7 +3606,15 @@ export class EnemyManager {
                 player.score += e.score;
                 continue;
             }
-            e.update(level, player);
+            // R698: enemy AI targets whichever live player is nearer.
+            let target = player;
+            if (partner) {
+                const ecx = e.x + e.w / 2, ecy = e.y + e.h / 2;
+                const d1x = (player.x + player.w / 2) - ecx, d1y = (player.y + player.h / 2) - ecy;
+                const d2x = (partner.x + partner.w / 2) - ecx, d2y = (partner.y + partner.h / 2) - ecy;
+                if (d2x * d2x + d2y * d2y < d1x * d1x + d1y * d1y) target = partner;
+            }
+            e.update(level, target);
 
             // R325: summoner spawn request. The behavior method sets
             // _pendingSummon when it wants the manager to spawn a child.
@@ -3430,180 +3626,15 @@ export class EnemyManager {
                 e._pendingSummon = null;
             }
 
-            // Dash-attack melee: knife slash hits any enemy the player intersects during the dash.
-            // Each enemy can only be hit once per dash via dashAtkHits set.
-            if (player.state === STATE.DASH_ATTACK && e.intersects(player)) {
-                if (!player.dashAtkHits.has(e)) {
-                    player.dashAtkHits.add(e);
-                    const killed = e.hurt(3, player.facing, { knockBack: 1.8 });
-                    particles.hitBurst?.(e.x + e.w / 2, e.y + e.h / 2, '#ffe070');
-                    player.dmgDealt['MELEE'] = (player.dmgDealt['MELEE'] || 0) + 3;
-                    if (killed) {
-                        player.kills++;
-                        player.tauntKill(e.maxHp >= 10);
-                        player.combo++;
-                        player.maxCombo = Math.max(player.maxCombo, player.combo);
-                        const points = 150 + player.combo * 10;
-                        player.score += points;
-                        player.requestShake = Math.max(player.requestShake || 0, 2.5);
-                        // Score popup so the dash-attack kill reads — matches
-                        // the bullet-kill popup style, including tier-scaled size.
-                        const tier = player.combo >= 20 ? '#ff60ff'
-                                   : player.combo >= 10 ? '#ff8050'
-                                   : player.combo >= 5  ? '#ffe070' : '#fff';
-                        const popScale = player.combo >= 20 ? 2 : player.combo >= 10 ? 1.6 : player.combo >= 5 ? 1.3 : 1;
-                        const popLife = player.combo >= 20 ? 70 : player.combo >= 10 ? 60 : 45;
-                        particles.floatingText(e.x + e.w / 2, e.y - 2, '+' + points, tier, popLife, -0.8, popScale);
-                    }
-                }
-            }
-            // Contact damage (skip during dash i-frames already handled by player.iFrames)
-            if (player.iFrames === 0 && e.intersects(player)) {
-                player.hurt(e.contactDmg, e.x < player.x ? 1 : -1, e.x + e.w / 2, e.y + e.h / 2);
-                // R220: mockHit bark — boss-only, 90f cooldown. If this
-                // is a boss and they have a mockHit pool, float a random
-                // taunt line over them. Rotates rather than randomizes
-                // so the player hears every line over a long fight.
-                if (e.behavior === 'boss' && BOSS_TEMPLATES[e.kind]?.barks?.mockHit
-                    && (e._mockBarkCD || 0) <= 0) {
-                    const lines = BOSS_TEMPLATES[e.kind].barks.mockHit;
-                    const idx = (e._mockBarkIndex = ((e._mockBarkIndex || 0) + 1)) % lines.length;
-                    particles.floatingText(
-                        e.x + e.w / 2, e.y - 8,
-                        lines[idx], '#ff8060', 70, -0.35, 1,
-                    );
-                    e._mockBarkCD = 90;
-                }
-                // Training/godMode soft-separate: hurt() short-circuited, but
-                // the bodies are still overlapping. Without a push, the player
-                // appears "stuck" against the dummy. Nudge the player away so
-                // contact resolves visually each frame.
-                if (player.godMode && e.intersects(player)) {
-                    const dir = (e.x + e.w / 2) < (player.x + player.w / 2) ? 1 : -1;
-                    player.x += dir * 1.2;
-                }
+            // R698: run the full melee/contact/bullet interaction set against
+            // each live player. Bail once the enemy dies mid-pass so the
+            // partner doesn't hit a corpse.
+            for (const pl of duoPls) {
+                if (!e.alive) break;
+                this._enemyPlayerInteractions(e, pl);
             }
             // R220: decrement mock-bark cooldown each tick on boss enemies.
             if (e.behavior === 'boss' && (e._mockBarkCD || 0) > 0) e._mockBarkCD--;
-
-            // R568e: Bonzi's shoulder-charge (= slide for him) does contact
-            // damage with i-frames, replacing Clippy's purely-defensive slide.
-            // CRYING TANTRUM (hp <= 2) doubles the damage.
-            if (player.character === 'bonzi'
-                && (player.state === STATE.SLIDE || player.state === STATE.ROLL)
-                && e.intersects(player)) {
-                if (!player._chargeHits) player._chargeHits = new Set();
-                if (!player._chargeHits.has(e)) {
-                    player._chargeHits.add(e);
-                    const baseDmg = 3;
-                    const dmg = player._tantrum ? baseDmg * 2 : baseDmg;
-                    const knockDir = (e.x + e.w / 2) < (player.x + player.w / 2) ? -1 : 1;
-                    const killed = e.hurt(dmg, knockDir, { knockBack: 2.0 });
-                    if (player._tantrum) {
-                        particles.floatingText(
-                            e.x + e.w / 2, e.y - 6, 'RAGE!', '#ff5050', 30, -0.5, 1
-                        );
-                    }
-                    if (killed) {
-                        player.kills++;
-                        player.combo++;
-                        player.maxCombo = Math.max(player.maxCombo, player.combo);
-                        const points = 150 + player.combo * 10;
-                        player.score += points;
-                    }
-                }
-            }
-
-            // Player bullets vs enemy
-            for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
-                const b = player.bullets[bi];
-                if (b.stuck) continue; // Wall-stuck bullets are inert decoration
-                if (b.piercing && b.hits.has(e)) continue;
-                // R325: shielder front-shield deflection. Front of the
-                // enemy = facing direction; a 12x16 shield in front blocks
-                // bullets while shieldUp is true. Bullets bounce off with
-                // a spark; deal no damage. Player must time the shield-down
-                // window or flank from behind.
-                if (e.behavior === 'shielded_walk' && e.shieldUp) {
-                    const sW = e.tpl.shieldW || 12;
-                    const sH = e.tpl.shieldH || 16;
-                    const sX = e.facing > 0 ? (e.x + e.w) : (e.x - sW);
-                    const sY = e.y + 2;
-                    if (b.x > sX && b.x < sX + sW && b.y > sY && b.y < sY + sH) {
-                        // Deflect: reverse bullet, mark deflected so it
-                        // doesn't damage same enemy again immediately.
-                        particles.hitSpark(b.x, b.y, '#a0a0c0');
-                        audio.sfx?.('bossHit');
-                        b.vx = -b.vx * 0.7;
-                        b.vy = (Math.random() - 0.5) * 1.2;
-                        b.damage = 0;  // deflected bullets become harmless
-                        player.bullets.splice(bi, 1);
-                        continue;
-                    }
-                }
-                if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
-                    // Mini-boss parry: if guardActive, deflect this bullet back
-                    // toward the player instead of taking damage. Move it from
-                    // player.bullets → this.bullets (enemy bullet list) so it
-                    // can damage the player on contact.
-                    // Mini-boss parry: cap at 2 reflections per guard window.
-                    // Without the cap, holding shoot into a parry-active boss
-                    // turns every bullet into incoming fire and the player
-                    // can't escape the loop. Past the cap, bullets just pass
-                    // through and damage the boss normally — the player gets
-                    // rewarded for keeping pressure on instead of being
-                    // punished by their own fire.
-                    if (e.isMini && e._guardActive && !b._enemyParried) {
-                        e._parryCount = (e._parryCount || 0) + 1;
-                        if (e._parryCount <= 2) {
-                            // Player bullets are plain objects with no
-                            // .update() method. The enemy bullet update loop
-                            // (line ~1533) calls b.update(level) every frame,
-                            // so pushing a player bullet directly crashes the
-                            // tick with "b.update is not a function" — bug
-                            // shipped since the parry mechanic landed in
-                            // task #233. Wrap into a real Bullet so the enemy
-                            // bullet pipeline can handle it.
-                            const reflected = new Bullet(b.x, b.y, -b.vx, -b.vy, b.damage ?? 1);
-                            reflected.color = '#80e0ff';
-                            reflected._enemyParried = true;
-                            player.bullets.splice(bi, 1);
-                            this.bullets.push(reflected);
-                            particles.hitSpark(b.x, b.y, '#80e0ff');
-                            particles.floatingText(e.x + e.w / 2, e.y - 4, 'PARRY', '#80e0ff', 36, -0.4, 1);
-                            audio.sfx('bossHit');
-                            continue;
-                        }
-                        // Past the cap: bullet passes through, damages the
-                        // boss as normal (falls through to the regular hit
-                        // path below). Reset parry-cap on next guard cycle.
-                    }
-                    // Weapon-specific impact opts: knockback / burn DOT
-                    const opts = {};
-                    if (b.weapon === 'SPREAD') opts.knockBack = 1.4;
-                    if (b.weapon === 'THUNDER') opts.knockBack = 2.0;
-                    if (b.weapon === 'FLAME')  { opts.burn = 90; opts.burnDPS = 0.08; }
-                    const knockDir = b.vx > 0 ? 1 : (b.vx < 0 ? -1 : (e.x < player.x ? 1 : -1));
-                    // R627: pass the shot's travel direction so directional
-                    // weak points (turret blind side) can read it in hurt().
-                    opts.fromDir = knockDir;
-                    // Stun-bonus: follow-up hits on a pounce-stunned target
-                    // deal 1.5x damage. Yellow "STUN+" float telegraphs the
-                    // reward so the pounce→shoot loop has clear payoff.
-                    const stunned = (e._stunTimer || 0) > 0;
-                    const dmg = stunned ? b.damage * 1.5 : b.damage;
-                    if (stunned) {
-                        particles.floatingText(
-                            e.x + e.w / 2, e.y - 6,
-                            'STUN+', '#ffe070', 30, -0.5, 1
-                        );
-                    }
-                    const killed = e.hurt(dmg, knockDir, opts);
-                    player.onBulletHit(b, e, killed);
-                    if (b.homing) b._target = null;
-                    if (killed) break;
-                }
-            }
         }
 
         // R325: drain the summoner spawn queue accumulated above. Spawning here
@@ -3630,17 +3661,20 @@ export class EnemyManager {
             if (!shell._mortar || shell._intercepted || shell.life <= 0) continue;
             // Slightly padded box so a fast bullet doesn't tunnel past the 4px shell.
             const sx = shell.x, sy = shell.y, pad = 4;
-            for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
-                const b = player.bullets[bi];
-                if (b.stuck) continue;
-                if (b.x > sx - pad && b.x < sx + pad && b.y > sy - pad && b.y < sy + pad) {
-                    shell._intercepted = true;
-                    shell._detonateMortar(level);      // harmless pop, no splash
-                    this.bullets.splice(si, 1);        // shell is spent
-                    particles.floatingText(sx, sy - 8, 'INTERCEPT', '#80e0ff', 28, -0.5, 1);
-                    player.onBulletHit?.(b, null, false);
-                    if (!b.piercing) player.bullets.splice(bi, 1);
-                    break;
+            for (const pl of duoPls) {
+                if (shell._intercepted) break;
+                for (let bi = pl.bullets.length - 1; bi >= 0; bi--) {
+                    const b = pl.bullets[bi];
+                    if (b.stuck) continue;
+                    if (b.x > sx - pad && b.x < sx + pad && b.y > sy - pad && b.y < sy + pad) {
+                        shell._intercepted = true;
+                        shell._detonateMortar(level);      // harmless pop, no splash
+                        this.bullets.splice(si, 1);        // shell is spent
+                        particles.floatingText(sx, sy - 8, 'INTERCEPT', '#80e0ff', 28, -0.5, 1);
+                        pl.onBulletHit?.(b, null, false);
+                        if (!b.piercing) pl.bullets.splice(bi, 1);
+                        break;
+                    }
                 }
             }
         }
@@ -3655,9 +3689,9 @@ export class EnemyManager {
         // R634: a player kicking through a deployed mine while sliding / rolling
         // / dash-attacking PUNTS it — turning the hazard into a weapon. The mine
         // becomes a live projectile (_minePunt) flying in the player's facing.
-        const puntState = player.state === STATE.SLIDE
-            || player.state === STATE.ROLL
-            || player.state === STATE.DASH_ATTACK;
+        const inPuntState = (pl) => pl.state === STATE.SLIDE
+            || pl.state === STATE.ROLL
+            || pl.state === STATE.DASH_ATTACK;
         for (let mi = this.bullets.length - 1; mi >= 0; mi--) {
             const mine = this.bullets[mi];
             if (!mine._mine || mine._intercepted || mine.life <= 0) continue;
@@ -3692,55 +3726,66 @@ export class EnemyManager {
                 }
                 continue;     // punted mines ignore the player-trip / shoot checks
             }
-            // (R634) punt check — the player's body crossing a grounded mine.
-            if (puntState
-                && mine.x > player.x - 4 && mine.x < player.x + player.w + 4
-                && mine.y > player.y - 2 && mine.y < player.y + player.h + 4) {
-                mine._minePunt = true;
-                mine._parried = true;               // ownership flipped — can't hit player
-                mine._mineSettled = false;          // it's airborne again
-                mine.vx = (player.facing || 1) * 3.2;
-                mine.vy = -1.4;                     // slight pop off the ground
-                mine._gravity = 0.16;
-                mine.life = 90;                     // travel budget before fizzle
-                mine.color = '#80e0ff';
-                particles.floatingText(mine.x, mine.y - 8, 'PUNT!', '#80e0ff', 26, -0.6, 1);
-                audio.sfx?.('minePunt');     // R641: metallic kick-clang, not a UI blip
-                continue;
-            }
-            // (R633) shootable — check player bullets first so a well-aimed shot
-            // always beats the proximity trip on the same frame.
-            let shot = false;
-            for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
-                const b = player.bullets[bi];
-                if (b.stuck) continue;
-                const pad = 5;
-                if (b.x > mine.x - pad && b.x < mine.x + pad
-                    && b.y > mine.y - pad && b.y < mine.y + pad) {
-                    mine._intercepted = true;
-                    mine._detonateMine(level);     // harmless pop, no splash
-                    this.bullets.splice(mi, 1);
-                    particles.floatingText(mine.x, mine.y - 8, 'CLEAR', '#80e0ff', 26, -0.5, 1);
-                    player.onBulletHit?.(b, null, false);
-                    if (!b.piercing) player.bullets.splice(bi, 1);
-                    shot = true;
+            // (R634) punt check — a player's body crossing a grounded mine.
+            let punted = false;
+            for (const pl of duoPls) {
+                if (inPuntState(pl)
+                    && mine.x > pl.x - 4 && mine.x < pl.x + pl.w + 4
+                    && mine.y > pl.y - 2 && mine.y < pl.y + pl.h + 4) {
+                    mine._minePunt = true;
+                    mine._parried = true;               // ownership flipped — can't hit player
+                    mine._mineSettled = false;          // it's airborne again
+                    mine.vx = (pl.facing || 1) * 3.2;
+                    mine.vy = -1.4;                     // slight pop off the ground
+                    mine._gravity = 0.16;
+                    mine.life = 90;                     // travel budget before fizzle
+                    mine.color = '#80e0ff';
+                    particles.floatingText(mine.x, mine.y - 8, 'PUNT!', '#80e0ff', 26, -0.6, 1);
+                    audio.sfx?.('minePunt');     // R641: metallic kick-clang, not a UI blip
+                    punted = true;
                     break;
                 }
             }
+            if (punted) continue;
+            // (R633) shootable — check player bullets first so a well-aimed shot
+            // always beats the proximity trip on the same frame.
+            let shot = false;
+            for (const pl of duoPls) {
+                for (let bi = pl.bullets.length - 1; bi >= 0; bi--) {
+                    const b = pl.bullets[bi];
+                    if (b.stuck) continue;
+                    const pad = 5;
+                    if (b.x > mine.x - pad && b.x < mine.x + pad
+                        && b.y > mine.y - pad && b.y < mine.y + pad) {
+                        mine._intercepted = true;
+                        mine._detonateMine(level);     // harmless pop, no splash
+                        this.bullets.splice(mi, 1);
+                        particles.floatingText(mine.x, mine.y - 8, 'CLEAR', '#80e0ff', 26, -0.5, 1);
+                        pl.onBulletHit?.(b, null, false);
+                        if (!b.piercing) pl.bullets.splice(bi, 1);
+                        shot = true;
+                        break;
+                    }
+                }
+                if (shot) break;
+            }
             if (shot) continue;
-            // (R632) proximity trip — only once ARMED.
+            // (R632) proximity trip — only once ARMED. Either player trips it.
             if (mine._mineArm <= 0) {
-                const pcx = player.x + player.w / 2;
-                const pcy = player.y + player.h / 2;
                 const r = mine._mineTrigger || 18;
-                const ddx = pcx - mine.x, ddy = pcy - mine.y;
-                if (ddx * ddx + ddy * ddy <= r * r) {
-                    mine._detonateMine(level);     // full shrapnel splash
-                    this.bullets.splice(mi, 1);
-                    // R636: a proximity trip seeds a player-damaging cascade —
-                    // packed sapper clusters ripple, raising the area-denial cost.
-                    this._chainDetonateMines(
-                        [{ x: mine.x, y: mine.y, r: mine._mineChainR, vsEnemies: false }], level);
+                for (const pl of duoPls) {
+                    const pcx = pl.x + pl.w / 2;
+                    const pcy = pl.y + pl.h / 2;
+                    const ddx = pcx - mine.x, ddy = pcy - mine.y;
+                    if (ddx * ddx + ddy * ddy <= r * r) {
+                        mine._detonateMine(level);     // full shrapnel splash
+                        this.bullets.splice(mi, 1);
+                        // R636: a proximity trip seeds a player-damaging cascade —
+                        // packed sapper clusters ripple, raising the area-denial cost.
+                        this._chainDetonateMines(
+                            [{ x: mine.x, y: mine.y, r: mine._mineChainR, vsEnemies: false }], level);
+                        break;
+                    }
                 }
             }
         }
@@ -3796,56 +3841,65 @@ export class EnemyManager {
                 }
                 if (consumed) continue;
             }
-            // Ducked-in-water, inside tall grass / hide spot, OR actively
-            // crouched/prone/sliding: shrink the hittable region to the lower
-            // body only so bullets at chest/head pass over you. Lets the
-            // player actively duck shots, not just hide passively.
-            const ducked = player.waterHidden || player.grassHidden
-                || player.state === STATE.CROUCH
-                || player.state === STATE.PRONE
-                || player.state === STATE.SLIDE
-                || player.state === STATE.ROLL;
-            const hitTop = ducked ? player.y + player.h - 4 : player.y;
-            const inHitBox = !b.stuck && !b._parried
-                && b.x > player.x && b.x < player.x + player.w
-                && b.y > hitTop && b.y < player.y + player.h;
-            // Cover-chip: when the player is in STATE.COVER and a bullet
-            // would have hit, drain cover HP instead of damaging Clippy.
-            // Spark out front to show the cover taking the hit. Bullet
-            // is consumed.
-            if (inHitBox && player.state === STATE.COVER) {
-                player.coverHp = (player.coverHp || 0) - 1;
-                particles.hitSpark(b.x, b.y, '#a08070');
-                this.bullets.splice(i, 1);
-                continue;
+            // R698: resolve the hit against each live player — first one it
+            // connects with consumes (or parries) the bullet.
+            let outcome = null;    // 'consumed' | 'parried'
+            for (const pl of duoPls) {
+                // Ducked-in-water, inside tall grass / hide spot, OR actively
+                // crouched/prone/sliding: shrink the hittable region to the lower
+                // body only so bullets at chest/head pass over you. Lets the
+                // player actively duck shots, not just hide passively.
+                const ducked = pl.waterHidden || pl.grassHidden
+                    || pl.state === STATE.CROUCH
+                    || pl.state === STATE.PRONE
+                    || pl.state === STATE.SLIDE
+                    || pl.state === STATE.ROLL;
+                const hitTop = ducked ? pl.y + pl.h - 4 : pl.y;
+                const inHitBox = !b.stuck && !b._parried
+                    && b.x > pl.x && b.x < pl.x + pl.w
+                    && b.y > hitTop && b.y < pl.y + pl.h;
+                if (!inHitBox) continue;
+                // Cover-chip: when the player is in STATE.COVER and a bullet
+                // would have hit, drain cover HP instead of damaging Clippy.
+                // Spark out front to show the cover taking the hit. Bullet
+                // is consumed.
+                if (pl.state === STATE.COVER) {
+                    pl.coverHp = (pl.coverHp || 0) - 1;
+                    particles.hitSpark(b.x, b.y, '#a08070');
+                    this.bullets.splice(i, 1);
+                    outcome = 'consumed';
+                    break;
+                }
+                // KNIFE PARRY: during DASH_ATTACK the knife deflects incoming
+                // enemy bullets — vector mirrored back at the firing direction,
+                // ownership flipped so it now damages enemies. Reward for
+                // perfectly-timed dash-attacks into a barrage. Skill expression.
+                if (pl.state === STATE.DASH_ATTACK) {
+                    // Reflect: keep magnitude, flip toward where the bullet came from
+                    b.vx = -b.vx * 1.2;
+                    b.vy = -b.vy * 1.2;
+                    b.color = '#ffffff';
+                    b._parried = true;       // Marks for player-bullet collision check
+                    b.dmg = (b.dmg || 1) * 1.5;
+                    particles.hitSpark(b.x, b.y, '#ffffff');
+                    // Brief slow-mo beat to sell the moment.
+                    if (pl.requestHitPause) pl.requestHitPause = Math.max(pl.requestHitPause, 3);
+                    outcome = 'parried';
+                    break;
+                }
+                if (pl.iFrames === 0) {
+                    // Bullet-impact spark at the strike point. The blood splatter
+                    // inside hurt() fires too, but the small spark sells where
+                    // the projectile actually struck (often offset from sprite
+                    // center where blood originates).
+                    particles.hitSpark(b.x, b.y, b.color || '#ff8050');
+                    pl.hurt(b.dmg, b.vx > 0 ? -1 : 1, b.x, b.y);
+                    this.bullets.splice(i, 1);
+                    outcome = 'consumed';
+                    break;
+                }
             }
-            // KNIFE PARRY: during DASH_ATTACK the knife deflects incoming
-            // enemy bullets — vector mirrored back at the firing direction,
-            // ownership flipped so it now damages enemies. Reward for
-            // perfectly-timed dash-attacks into a barrage. Skill expression.
-            if (inHitBox && player.state === STATE.DASH_ATTACK) {
-                const dx = (b.x - (player.x + player.w / 2));
-                // Reflect: keep magnitude, flip toward where the bullet came from
-                b.vx = -b.vx * 1.2;
-                b.vy = -b.vy * 1.2;
-                b.color = '#ffffff';
-                b._parried = true;       // Marks for player-bullet collision check
-                b.dmg = (b.dmg || 1) * 1.5;
-                particles.hitSpark(b.x, b.y, '#ffffff');
-                // Brief slow-mo beat to sell the moment.
-                if (player.requestHitPause) player.requestHitPause = Math.max(player.requestHitPause, 3);
-                continue;
-            }
-            if (inHitBox && player.iFrames === 0) {
-                // Bullet-impact spark at the strike point. The blood splatter
-                // inside hurt() fires too, but the small spark sells where
-                // the projectile actually struck (often offset from sprite
-                // center where blood originates).
-                particles.hitSpark(b.x, b.y, b.color || '#ff8050');
-                player.hurt(b.dmg, b.vx > 0 ? -1 : 1, b.x, b.y);
-                this.bullets.splice(i, 1);
-                continue;
-            }
+            if (outcome) continue;
             // Whizz-by: bullet passed within 18×8px of the player without
             // hitting — play a single soft "whoosh" the first time per bullet
             // to telegraph the near-miss. Bullet-level flag prevents re-trigger
@@ -3877,15 +3931,17 @@ export class EnemyManager {
         }
 
         // Homing target assignment
-        for (const b of player.bullets) {
-            if (b.homing && !b._target) {
-                let bestD = Infinity, best = null;
-                for (const e of this.enemies) {
-                    if (!e.alive) continue;
-                    const d = Math.hypot(e.x - b.x, e.y - b.y);
-                    if (d < bestD) { bestD = d; best = e; }
+        for (const pl of duoPls) {
+            for (const b of pl.bullets) {
+                if (b.homing && !b._target) {
+                    let bestD = Infinity, best = null;
+                    for (const e of this.enemies) {
+                        if (!e.alive) continue;
+                        const d = Math.hypot(e.x - b.x, e.y - b.y);
+                        if (d < bestD) { bestD = d; best = e; }
+                    }
+                    b._target = best;
                 }
-                b._target = best;
             }
         }
     }
