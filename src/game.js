@@ -2150,12 +2150,12 @@ export class Game {
     // character is gated (player.update skips when game._swapAnimT > 0).
     // R698: true when duo (simultaneous 2-player) is actually running this
     // stage. Duo only supports the platformer engine — the mini-game
-    // engines (beat/fps/turret/doom) and endless drive a single player, so
-    // duo silently degrades to tag there. Both slots must be populated.
+    // engines (beat/fps/turret/doom) drive a single player, so duo silently
+    // degrades to tag there. Endless IS platformer-engined, so duo runs
+    // there too (R701). Both slots must be populated.
     _duoLive() {
         return this.coopMode && this.duoMode &&
             !this._beatMode && !this._fpsMode && !this._turretMode && !this._doomMode &&
-            !this.endlessMode &&
             !!this.players[0] && !!this.players[1];
     }
 
@@ -3410,18 +3410,38 @@ export class Game {
         this.level.drawGrassForeground(ctx, this.camera);
         this.parallax.drawFront(ctx, this.camera);
         // R696: BLACKOUT endless mutator — draw-only darkness with a light
-        // pocket that follows the player. Only while the mutated wave is
-        // live; breathers/relic drafts get the lights back. Sits under the
-        // flash overlay + HUD so hits and readouts still read.
+        // pocket per live fighter. Only while the mutated wave is live;
+        // breathers/relic drafts get the lights back. Sits under the flash
+        // overlay + HUD so hits and readouts still read. R701: composed on a
+        // cached offscreen canvas so duo's two pockets UNION (destination-out
+        // punches) instead of two gradient washes stacking into double-dark;
+        // solo output is pixel-identical (0.86*(1-src) is the same ramp).
         if (this.endlessMode && this._endless?.mutator?.id === 'blackout'
             && this._endless.state === 'active') {
-            const px = this.player.x + this.player.w / 2 - this.camera.x;
-            const py = this.player.y + this.player.h / 2 - this.camera.y;
-            const g = ctx.createRadialGradient(px, py, 26, px, py, 92);
-            g.addColorStop(0, 'rgba(0,0,0,0)');
-            g.addColorStop(1, 'rgba(0,0,0,0.86)');
-            ctx.fillStyle = g;
-            ctx.fillRect(0, 0, GAME.W, GAME.H);
+            if (!this._blackoutCnv) {
+                this._blackoutCnv = document.createElement('canvas');
+                this._blackoutCnv.width = GAME.W;
+                this._blackoutCnv.height = GAME.H;
+            }
+            const bctx = this._blackoutCnv.getContext('2d');
+            bctx.globalCompositeOperation = 'source-over';
+            bctx.clearRect(0, 0, GAME.W, GAME.H);
+            bctx.fillStyle = 'rgba(0,0,0,0.86)';
+            bctx.fillRect(0, 0, GAME.W, GAME.H);
+            bctx.globalCompositeOperation = 'destination-out';
+            const fighters = this._duoLive()
+                ? this.players.filter(p => p && p._duoDownT == null)
+                : [this.player];
+            for (const p of fighters) {
+                const px = p.x + p.w / 2 - this.camera.x;
+                const py = p.y + p.h / 2 - this.camera.y;
+                const g = bctx.createRadialGradient(px, py, 26, px, py, 92);
+                g.addColorStop(0, 'rgba(0,0,0,1)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                bctx.fillStyle = g;
+                bctx.fillRect(0, 0, GAME.W, GAME.H);
+            }
+            ctx.drawImage(this._blackoutCnv, 0, 0);
         }
         // R421/R422: screen-flash overlay — colored full-screen wash that
         // fades from peak alpha → 0 across its lifetime.
@@ -3523,6 +3543,9 @@ export class Game {
                     best: achievements.stats?.bestEndlessWave || 0,
                     mutator: this._endless?.mutator || null,
                 } : null,
+                // R701: the duo corner HUD owns the top-right y=24..44 band,
+                // so the endless wave column shifts below it when duo is live.
+                duoHud: this._duoLive(),
             });
             // Ghost pace delta — a tiny "+1.2s / −0.8s vs your best" readout so
             // the ghost is useful even when it's off-screen. Only while the
@@ -6334,9 +6357,13 @@ export class Game {
         const type = pool[(Math.random() * pool.length) | 0];
         // Spawn just inside whichever wall is FARTHER from the player so grunts
         // don't materialize on top of them, then safe-snap onto solid ground.
+        // R701: in duo, reference a LIVE fighter — P1's body freezes in place
+        // while down, and grunts shouldn't keep spawning "away" from a corpse.
         const T = GAME.TILE;
         const lvlW = this.level.width;
-        const px = this.player.x + this.player.w / 2;
+        const ref = (this._duoLive() && this.player._duoDownT != null)
+            ? this.players[1] : this.player;
+        const px = ref.x + ref.w / 2;
         const leftX = 2 * T;
         const rightX = lvlW - 3 * T;
         const desiredX = (px > lvlW / 2) ? leftX : rightX;
@@ -6406,18 +6433,24 @@ export class Game {
                 e.trail.push({ key: 'wave' + e.wave, frame: this.totalTime });
                 this._endlessPersistBest();
                 // Between-wave payoff: heal a little, and every 3rd wave drop a
-                // LIFE + a weapon pickup so a long run can sustain.
-                if (this.player.hp < this.player.maxHp) {
-                    this.player.hp = Math.min(this.player.maxHp, this.player.hp + 1);
+                // LIFE + a weapon pickup so a long run can sustain. R701: in
+                // duo every LIVE fighter gets the heal; drops anchor on the
+                // first live fighter (a down body can't grab pickups anyway).
+                const alive = this._duoLive()
+                    ? this.players.filter(p => p && p._duoDownT == null)
+                    : [this.player];
+                for (const p of alive) {
+                    if (p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + 1);
                 }
-                const dropX = this.player.x + this.player.w / 2;
+                const anchor = alive[0] || this.player;
+                const dropX = anchor.x + anchor.w / 2;
                 const dropY = this.level.height - 3 * GAME.TILE - 10;
                 if (e.wave % 3 === 0) {
                     this.pickups.spawn(dropX - 20, dropY, 'LIFE');
                     const wpns = ['SPREAD', 'SHOTGUN', 'CHAINSAW'];
                     this.pickups.spawn(dropX + 20, dropY, wpns[(e.wave / 3) % wpns.length | 0]);
                 }
-                particles.floatingText(dropX, this.player.y - 14,
+                particles.floatingText(dropX, anchor.y - 14,
                     'WAVE ' + e.wave + ' CLEAR', '#ffd040', 70, -0.5, 1.4);
                 audio.sfx('powerup');
                 e.state = 'breather';
@@ -6463,6 +6496,14 @@ export class Game {
                 options.get('difficulty').toUpperCase() + ' — NOT RANKED');
             return;
         }
+        // R701: duo endless fields two simultaneous guns + touch-revive, so
+        // wave depth isn't comparable to the solo board — unranked, same
+        // precedent as non-Normal difficulty above. Tag co-op stays ranked:
+        // one fighter at a time has always been board-equivalent.
+        if (this.duoMode && this.coopMode) {
+            this._pushUnlockToast('WAVE ' + waves + ' REACHED', 'DUO — NOT RANKED');
+            return;
+        }
         const trail = (this._endless.trail || []).slice(-63);
         trail.push({ key: 'death', frame: this.totalTime });
         leaderboard.submit({
@@ -6489,25 +6530,28 @@ export class Game {
     // Effects are re-applied from a neutral baseline at every stage start so
     // they survive respawns + transitions without compounding each apply.
     _applyRunRelics() {
-        const p = this.player;
-        if (!p) return;
-        // Reset to neutral, then fold every owned relic. maxHp is rebuilt from
-        // the character's base (4) plus the net relic bonus so a -1/+1 relic
-        // can't drift the base across re-applies.
-        p.relicDmgMult = 1;
-        p.relicFireMult = 1;
-        p.relicSpeedMult = 1;
-        p.relicTakenMult = 1;
-        p.relicMaxHpBonus = 0;
-        for (const id of (this.runRelics || [])) {
-            const relic = RELICS.find(r => r.id === id);
-            if (relic) relic.apply(p);
+        // R701: apply to every populated slot so duo's two fighters carry a
+        // symmetric loadout. players[0] IS this.player, so solo is unchanged.
+        for (const p of this.players) {
+            if (!p) continue;
+            // Reset to neutral, then fold every owned relic. maxHp is rebuilt
+            // from the character's base (4) plus the net relic bonus so a
+            // -1/+1 relic can't drift the base across re-applies.
+            p.relicDmgMult = 1;
+            p.relicFireMult = 1;
+            p.relicSpeedMult = 1;
+            p.relicTakenMult = 1;
+            p.relicMaxHpBonus = 0;
+            for (const id of (this.runRelics || [])) {
+                const relic = RELICS.find(r => r.id === id);
+                if (relic) relic.apply(p);
+            }
+            // Rebuild maxHp from the fixed base (4) + net bonus, clamped >=1.
+            const baseMax = 4;
+            const newMax = Math.max(1, baseMax + p.relicMaxHpBonus);
+            p.maxHp = newMax;
+            if (p.hp > p.maxHp) p.hp = p.maxHp;
         }
-        // Rebuild maxHp from the fixed base (4) + net bonus, clamped to >=1.
-        const baseMax = 4;
-        const newMax = Math.max(1, baseMax + p.relicMaxHpBonus);
-        p.maxHp = newMax;
-        if (p.hp > p.maxHp) p.hp = p.maxHp;
     }
 
     // Build a fresh 3-choice relic offer: relics the player doesn't already
@@ -6878,12 +6922,9 @@ export class Game {
         // HP (bosses half that, applied in spawnBoss). Mode flags, not
         // _duoLive() — the player slots aren't populated yet at this point.
         // Engine stages (fps/beat/doom/turret) returned above and run their
-        // own enemy models, so they never see this. data.endlessMode, NOT
-        // this.endlessMode: the instance flag is only synced from stage data
-        // further down, so it still holds the PREVIOUS stage's value here —
-        // endless degrades duo to tag (single fighter) and must stay 1x.
-        this.enemies.duoHpMult =
-            (this.coopMode && this.duoMode && !data.endlessMode) ? 1.5 : 1;
+        // own enemy models, so they never see this. R701: endless runs duo
+        // now, so it takes the same 1.5x its two fighters warrant.
+        this.enemies.duoHpMult = (this.coopMode && this.duoMode) ? 1.5 : 1;
         this.pickups.clear();
         // Daily Challenge BARE HANDS / AUSTERITY: suppress weapon/powerup drops
         // for the whole run. Must be set BEFORE loadFromLevel below so stage

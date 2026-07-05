@@ -9,7 +9,7 @@ import { achievements } from './achievements.js';
 export function drawHUD(ctx, state) {
     const { player, score, time, boss, camera, training,
             bossRush, timeTrial, stageTime,
-            bestBossRushTime, bestTimeTrialTime, daily, endless } = state;
+            bestBossRushTime, bestTimeTrialTime, daily, endless, duoHud } = state;
     // Lazy-build a single radial gradient cached on the function (geometry is constant)
     if (!drawHUD._vignetteGrad) {
         const g = ctx.createRadialGradient(GAME.W / 2, GAME.H / 2, 30, GAME.W / 2, GAME.H / 2, GAME.W * 0.7);
@@ -659,15 +659,17 @@ export function drawHUD(ctx, state) {
         ctx.fillRect(tx, ty + 8, labelW, 1);
         drawText(ctx, 'ENDLESS', tx + labelW / 2, ty + 2, '#ffd040', 1, 'center');
         ctx.restore();
-        // Wave + best on the right column.
-        drawText(ctx, 'WAVE ' + (endless.wave || 0), GAME.W - 4, 30, '#ffd040', 1, 'right');
+        // Wave + best on the right column. R701: duo's corner HUD (P1/P2
+        // labels) owns y=24..44 top-right, so the column drops below it.
+        const ey = duoHud ? 54 : 30;
+        drawText(ctx, 'WAVE ' + (endless.wave || 0), GAME.W - 4, ey, '#ffd040', 1, 'right');
         if (endless.best > 0) {
-            drawText(ctx, 'BEST ' + endless.best, GAME.W - 4, 38, '#c0a0d0', 1, 'right');
+            drawText(ctx, 'BEST ' + endless.best, GAME.W - 4, ey + 8, '#c0a0d0', 1, 'right');
         }
         // R696: active mutator tag under the wave readout — persistent
         // reminder of what's twisting the current wave.
         if (endless.mutator && endless.state === 'active') {
-            drawText(ctx, endless.mutator.name, GAME.W - 4, 46, '#ff6040', 1, 'right');
+            drawText(ctx, endless.mutator.name, GAME.W - 4, ey + 16, '#ff6040', 1, 'right');
         }
         // Center wave-start banner.
         if (endless.bannerT > 0 && endless.state === 'active') {
