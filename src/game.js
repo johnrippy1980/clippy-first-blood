@@ -601,7 +601,8 @@ export class Game {
         // restores P1's full keyboard+pad so menu navigation always works.
         // On flip, rewire P2's input source so a duo player dropped back to
         // tag/single never reads the split device.
-        const wantDuo = (this.scene === SCENE.PLAY || this.scene === SCENE.BEAT_PLAY)
+        const wantDuo = (this.scene === SCENE.PLAY || this.scene === SCENE.BEAT_PLAY ||
+                         this.scene === SCENE.TURRET_PLAY)
             && this._duoLive();
         if (wantDuo !== isDuoActive()) setDuoActive(wantDuo);
         // Enforce (not just on flip) — _startStage can rebuild the partner
@@ -2160,8 +2161,13 @@ export class Game {
             return this.coopMode && this.duoMode &&
                 !!(this._beatEmUp && this._beatEmUp.duo && this._beatEmUp.players?.[1]);
         }
+        if (this._turretMode) {
+            return this.coopMode && this.duoMode &&
+                !!(this._turretArena && this._turretArena.duo &&
+                   this._turretArena.players?.[1]);
+        }
         return this.coopMode && this.duoMode &&
-            !this._fpsMode && !this._turretMode && !this._doomMode &&
+            !this._fpsMode && !this._doomMode &&
             !!this.players[0] && !!this.players[1];
     }
 
@@ -7362,8 +7368,12 @@ export class Game {
                 // R707: engine duos own their players and reset kills per
                 // stage, so no baseline applies — the platformer baseline
                 // was captured from (now stale) platformer players.
-                const engDuo = (this._beatEmUp?.duo && this._beatEmUp.players?.[1])
-                    ? this._beatEmUp.players : null;
+                const engDuo =
+                    (this._beatEmUp?.duo && this._beatEmUp.players?.[1])
+                        ? this._beatEmUp.players :
+                    (this._turretArena?.duo && this._turretArena.players?.[1])
+                        ? this._turretArena.players :
+                    null;
                 const base = engDuo ? [0, 0] : (css._killBaseline || [0, 0]);
                 const pl = engDuo || this.players || [];
                 const k0 = (pl[0]?.kills || 0) - base[0];

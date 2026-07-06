@@ -19,7 +19,7 @@
 
 import { GAME } from './constants.js';
 import { achievements } from './achievements.js';
-import { input } from './input.js';
+import { input, input2 } from './input.js';
 import { audio } from './audio.js';
 import { sprites } from './sprites.js';
 import { drawText, drawTextOutlined } from './pixelfont.js';
@@ -132,28 +132,26 @@ export class TurretArena {
         this.data = stageData || {};
         this.t = 0;
 
-        this.player = {
-            hp: 6,
-            maxHp: 6,
-            lives: 3,
-            iframes: 0,
-            score: 0,
-            kills: 0,
-            // Crosshair screen position
-            aimX: GAME.W / 2,
-            aimY: GAME.H / 2 - 8,
-            fireT: 0,
-            heat: 0,
-            overheated: false,
-            grenades: 3,
-            grenadeCD: 0,
-        };
+        // R708: true duo — two gunners manning the SAME emplacement.
+        // Each gunner owns their aim/fire/heat/grenades (and kill/score
+        // attribution), but the RIG's HP is shared: players[0].hp is the
+        // emplacement's health (this.player stays an ALIAS of players[0]
+        // so every existing hp/iframes reference keeps working). A rig
+        // death in duo spends a shared life (game.sharedLives) as a full
+        // repair; pool empty = game over.
+        this.duo = !!(game && game.coopMode && game.duoMode);
+        this._duoEnemyMul = this.duo ? 1.5 : 1;
+        this._duoBossMul = this.duo ? 1.25 : 1;
+        this._rigRepairT = 0;            // HUD banner after a shared-life repair
+
+        this.players = [this._makeGunner(0)];
+        if (this.duo) this.players.push(this._makeGunner(1));
+        this.player = this.players[0];
 
         this.bullets = [];               // {x, y, t, ax, ay, fromAimX, fromAimY}
         this.monsters = [];
         this.grenadeProjectiles = [];
         this.explosions = [];
-        this.muzzleFlashT = 0;
         this.screenShake = 0;
         // R525: tactical FX — ejected shell casings + persistent muzzle
         // smoke + bullet tracer trails (rendered with the bullets).
@@ -177,15 +175,57 @@ export class TurretArena {
         this._introT = 90;
     }
 
+    // R708: gunner factory — one shape for solo P1 and duo P1/P2. hp/
+    // maxHp/iframes are only meaningful on players[0] (the shared rig);
+    // P2's copies exist for shape parity but are never read.
+    _makeGunner(pIdx) {
+        return {
+            pIdx,
+            hp: 6,
+            maxHp: 6,
+            lives: 3,
+            iframes: 0,
+            score: 0,
+            kills: 0,
+            // Crosshair screen position — duo staggers the two reticles
+            aimX: GAME.W / 2 + (this.duo ? (pIdx ? 40 : -40) : 0),
+            aimY: GAME.H / 2 - 8,
+            fireT: 0,
+            heat: 0,
+            overheated: false,
+            grenades: 3,
+            grenadeCD: 0,
+            muzzleFlashT: 0,   // per-gunner since R708 (two barrels)
+        };
+    }
+
+    // R708: input source for a gunner — P2 reads the duo split (input2).
+    _inputFor(p) {
+        return (this.duo && p.pIdx === 1) ? input2 : input;
+    }
+
+    // R708: barrel pivot X — duo splays the two barrels off the shared
+    // mount so the tracers/casings read as two guns.
+    _pivotXFor(p) {
+        return TURRET_PIVOT_X + (this.duo ? (p.pIdx === 1 ? 7 : -7) : 0);
+    }
+
     update() {
         this.t++;
         if (this._introT > 0) {
             this._introT--;
             return;
         }
-        if (this.player.hp <= 0) return;
+        if (this.player.hp <= 0) {
+            // R708 duo: shared pool empty — the rig is dead for good.
+            // Re-fire _fadeTo every frame (see beatem_up R707: _fadeTo
+            // silently no-ops while a transition is mid-flight, so a
+            // one-shot call could swallow the game over).
+            if (this.duo) this.game?._fadeTo?.('gameOver');
+            return;
+        }
         if (this.phase === 'fight') {
-            this._tickPlayer();
+            for (const p of this.players) this._tickPlayer(p, this._inputFor(p));
             this._tickBullets();
             this._tickGrenades();
             this._tickMonsters();
@@ -200,18 +240,25 @@ export class TurretArena {
             this._checkWaveClear();
         } else if (this.phase === 'clear') {
             this.clearT++;
-            if (this.clearT > 90 && (input.isPressed('shoot') || input.isPressed('jump'))) {
+            // R708: in duo either gunner can advance past the clear screen.
+            const pressAny = (n) => input.isPressed(n) ||
+                (this.duo && input2.isPressed(n));
+            if (this.clearT > 90 && (pressAny('shoot') || pressAny('jump'))) {
                 this._onStageComplete();
             }
         }
-        if (this.muzzleFlashT > 0) this.muzzleFlashT--;
+        for (const p of this.players) {
+            if (p.muzzleFlashT > 0) p.muzzleFlashT--;
+        }
         if (this.screenShake > 0) this.screenShake--;
         if (this.player.iframes > 0) this.player.iframes--;
+        if (this._rigRepairT > 0) this._rigRepairT--;
     }
 
-    _tickPlayer() {
-        const p = this.player;
-        const ax = input.axis();
+    // R708: parameterized on (gunner, input source) so duo ticks P1 on
+    // input and P2 on input2 through the exact same body.
+    _tickPlayer(p, src = input) {
+        const ax = src.axis();
         // Move crosshair via stick / arrows
         const aimSpeed = 2.4;
         p.aimX += ax.x * aimSpeed;
@@ -219,8 +266,9 @@ export class TurretArena {
         p.aimX = Math.max(CROSSHAIR_MIN_X, Math.min(CROSSHAIR_MAX_X, p.aimX));
         p.aimY = Math.max(CROSSHAIR_MIN_Y, Math.min(CROSSHAIR_MAX_Y, p.aimY));
 
-        // Mouse aim (if available via input.mouseX/Y)
-        if (input.mouseX != null) {
+        // Mouse aim (if available via input.mouseX/Y) — P1 only; the duo
+        // split gives P2 keyboard/pad axis, there is no second pointer.
+        if (p.pIdx !== 1 && input.mouseX != null) {
             const sx = input.screenToInternalX?.(input.mouseX);
             const sy = input.screenToInternalY?.(input.mouseY);
             if (sx != null && sy != null) {
@@ -239,8 +287,8 @@ export class TurretArena {
                 audio.sfx?.('select');
             }
         } else {
-            if (input.isHeld('shoot') && p.fireT <= 0) {
-                this._fire();
+            if (src.isHeld('shoot') && p.fireT <= 0) {
+                this._fire(p);
                 p.fireT = FIRE_RATE;
                 p.heat += OVERHEAT_RATE;
                 if (p.heat >= OVERHEAT_MAX) {
@@ -248,31 +296,31 @@ export class TurretArena {
                     p.overheated = true;
                     audio.sfx?.('mgOverheat');
                 }
-            } else if (!input.isHeld('shoot')) {
+            } else if (!src.isHeld('shoot')) {
                 p.heat = Math.max(0, p.heat - OVERHEAT_COOLDOWN);
             }
         }
 
         // Grenade
         if (p.grenadeCD > 0) p.grenadeCD--;
-        if (input.isPressed('grenade') && p.grenades > 0 && p.grenadeCD <= 0) {
-            this._throwGrenade();
+        if (src.isPressed('grenade') && p.grenades > 0 && p.grenadeCD <= 0) {
+            this._throwGrenade(p);
             p.grenades--;
             p.grenadeCD = 24;
         }
     }
 
-    _fire() {
-        const p = this.player;
+    _fire(p = this.player) {
         // R567: bullet origin is the BARREL TIP, computed from the
         // pivot + barrel angle. Previously bullets spawned from inside
         // Clippy's sprite (TURRET_BASE_Y), making them invisible until
         // they cleared his head ~70% through travel.
-        const aimDX = p.aimX - TURRET_PIVOT_X;
+        const pivotX = this._pivotXFor(p);
+        const aimDX = p.aimX - pivotX;
         const aimDY = p.aimY - TURRET_PIVOT_Y;
         const aimAng = Math.atan2(aimDY, aimDX);
         p.barrelAngle = aimAng;
-        const startX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
+        const startX = pivotX + Math.cos(aimAng) * BARREL_LEN;
         const startY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
         const jitter = (p.heat / OVERHEAT_MAX) * 8;
         // Bullet aim point (slightly jittered when overheating)
@@ -286,8 +334,9 @@ export class TurretArena {
             ax: aimX, ay: aimY,
             startX, startY,
             life: 60,
+            _pIdx: p.pIdx || 0,   // R708: kill/score attribution
         });
-        this.muzzleFlashT = 4;
+        p.muzzleFlashT = 4;
         this.screenShake = Math.max(this.screenShake, 1);
         audio.sfx?.('mg');
         // R525+R567g: eject a brass shell casing perpendicular to the
@@ -297,7 +346,7 @@ export class TurretArena {
         const ejectAng = aimAng + Math.PI / 2;
         const ejectFX = Math.cos(ejectAng);
         const ejectFY = Math.sin(ejectAng);
-        const turretCX = TURRET_PIVOT_X + ejectFX * 4;
+        const turretCX = pivotX + ejectFX * 4;
         const turretCY = TURRET_PIVOT_Y + ejectFY * 4;
         const ejectSpeed = 1.6 + Math.random() * 0.8;
         // Add a slight upward bias so the casing always arcs up before falling
@@ -315,7 +364,7 @@ export class TurretArena {
         // Now anchored at the actual rotated muzzle position (was using
         // old GAME.W/2 anchor + 26px barrel — both stale from R567).
         if (Math.random() < 0.55) {
-            const tipX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
+            const tipX = pivotX + Math.cos(aimAng) * BARREL_LEN;
             const tipY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
             this.smokePuffs.push({
                 x: tipX + (Math.random() - 0.5) * 2,
@@ -329,9 +378,8 @@ export class TurretArena {
         }
     }
 
-    _throwGrenade() {
-        const p = this.player;
-        const startX = GAME.W / 2;
+    _throwGrenade(p = this.player) {
+        const startX = this._pivotXFor(p);
         const startY = TURRET_BASE_Y;
         // Arc tossing toward the crosshair — fixed up-vertical, horizontal
         // toward aim x
@@ -346,6 +394,7 @@ export class TurretArena {
             // Detonate at depth that maps to aim Y
             detonateY: p.aimY,
             tumble: 0,
+            _pIdx: p.pIdx || 0,   // R708: kill/score attribution
         });
         audio.sfx?.('grenadeThrow');
     }
@@ -398,7 +447,7 @@ export class TurretArena {
                         value: '1',
                         color: '#ffe070',
                     });
-                    if (m.hp <= 0) this._killMonster(m);
+                    if (m.hp <= 0) this._killMonster(m, b._pIdx || 0);
                     else audio.sfx?.('hit');
                     break;
                 }
@@ -439,7 +488,7 @@ export class TurretArena {
                         big: true,
                     });
                     if (v.hp <= 0) {
-                        this._triggerVoltronDeath();
+                        this._triggerVoltronDeath(b._pIdx || 0);
                     } else {
                         audio.sfx?.('bossHit');
                     }
@@ -480,7 +529,7 @@ export class TurretArena {
             if (Math.hypot(dx, dy) < radius && Math.abs(dt) < 0.15) {
                 m.hp -= 4;
                 m.hitFlash = 8;
-                if (m.hp <= 0) this._killMonster(m);
+                if (m.hp <= 0) this._killMonster(m, g._pIdx || 0);
             }
         }
         this.explosions.push({
@@ -542,14 +591,21 @@ export class TurretArena {
         }
     }
 
-    _triggerVoltronDeath() {
+    _triggerVoltronDeath(pIdx = 0) {
         const v = this.voltron;
         if (!v || v._deathTriggered) return;
         v._deathTriggered = true;
         v.face = FACE_DEAD;
         v.faceLockT = 300;
-        this.player.kills++;
-        this.player.score += 5000;
+        // R708: credit the killing shot's owner + stamp the boss-kill
+        // character for RIDE OR DIE (matches beatem_up R707).
+        const owner = this.players[pIdx] || this.player;
+        owner.kills++;
+        owner.score += 5000;
+        if (this.duo && this.game?.coopStageStats) {
+            this.game.coopStageStats.bossKillCharacter =
+                pIdx === 1 ? 'bonzi' : 'clippy';
+        }
         this.screenShake = Math.max(this.screenShake, 12);
         const vw = VOLTRON_W * v.scale;
         const vh = VOLTRON_H * v.scale;
@@ -750,11 +806,7 @@ export class TurretArena {
                 this.player.iframes = 60;
                 this.screenShake = Math.max(this.screenShake, 10);
                 audio.sfx?.('playerHit');
-                if (this.player.hp <= 0) {
-                    audio.sfx?.('die');
-                    achievements.countLifeDeath();   // R695: lifetime STATS counter
-                    if (this.game) this.game._fadeTo?.('gameOver');
-                }
+                if (this.player.hp <= 0) this._onRigDown();
             }
         }
         // R529: deferred thunder sfx fires on the wave-impact frame
@@ -773,12 +825,35 @@ export class TurretArena {
         p.iframes = 60;
         this.screenShake = Math.max(this.screenShake, 5);
         audio.sfx?.('playerHit');
-        if (p.hp <= 0) {
-            // R566m: dramatic player-death sting (replaces generic enemy `die`).
-            audio.sfx?.('playerDeath');
-            achievements.countLifeDeath();   // R695: lifetime STATS counter
-            if (this.game) this.game._fadeTo?.('gameOver');
+        if (p.hp <= 0) this._onRigDown();
+    }
+
+    // R708: shared rig-death path (was duplicated across the three damage
+    // sites — the BSOD-wave copy still played the generic 'die' sting that
+    // R566m replaced elsewhere; unified on 'playerDeath'). Solo keeps the
+    // instant game over; duo spends a shared life (game.sharedLives) as a
+    // full emplacement repair and only game-overs once the pool is empty
+    // (update() re-fires the fade — see the R707 fade-swallow note).
+    _onRigDown() {
+        audio.sfx?.('playerDeath');
+        achievements.countLifeDeath();   // R695: lifetime STATS counter
+        const g = this.game;
+        if (this.duo && g) {
+            g.totalDeaths++;
+            // CARRY ON parity: a rig down is the whole team down once
+            if (g.coopStageStats) g.coopStageStats.partnerDeathsThisStage++;
+            if (g.sharedLives > 0) {
+                g.sharedLives--;
+                this.player.hp = this.player.maxHp;
+                this.player.iframes = 120;
+                this._rigRepairT = 120;
+                this.screenShake = Math.max(this.screenShake, 10);
+                audio.sfx?.('respawn');
+            }
+            // pool empty: hp stays 0 — update() takes it from here
+            return;
         }
+        if (g) g._fadeTo?.('gameOver');
     }
 
     _tickBossBark() {
@@ -788,11 +863,13 @@ export class TurretArena {
         }
     }
 
-    _killMonster(m) {
+    _killMonster(m, pIdx = 0) {
         m.alive = false;
         m.deathT = 0;
-        this.player.kills++;
-        this.player.score += m.isBoss ? 1000 : 100;
+        // R708: credit the shot's owner (duo P2 fires too)
+        const owner = this.players[pIdx] || this.player;
+        owner.kills++;
+        owner.score += m.isBoss ? 1000 : 100;
         audio.sfx?.('enemyDie');
         const ms = depthScale(m.t);
         const cx = depthX(m.lane, m.t);
@@ -875,12 +952,7 @@ export class TurretArena {
         p.iframes = 60;
         this.screenShake = Math.max(this.screenShake, 6);
         audio.sfx?.('playerHit');
-        if (p.hp <= 0) {
-            // R566m: dramatic player-death sting (replaces generic enemy `die`).
-            audio.sfx?.('playerDeath');
-            achievements.countLifeDeath();   // R695: lifetime STATS counter
-            if (this.game) this.game._fadeTo?.('gameOver');
-        }
+        if (p.hp <= 0) this._onRigDown();
     }
 
     _tickWave() {
@@ -926,8 +998,10 @@ export class TurretArena {
             y: RAIL_Y + 4,                // base y (feet on the floor)
             scale: 0.35,                  // grows over intro
             targetScale: 0.9,
-            hp: VOLTRON_HP,
-            maxHp: VOLTRON_HP,
+            // R708: duo scales the boss 1.25x (half strength vs regulars,
+            // same convention as R699/R707)
+            hp: Math.ceil(VOLTRON_HP * this._duoBossMul),
+            maxHp: Math.ceil(VOLTRON_HP * this._duoBossMul),
             hitFlash: 0,
             face: FACE_ANGRY,
             faceT: 0,
@@ -962,8 +1036,10 @@ export class TurretArena {
             w: isBoss ? 48 : MONSTER_W,
             h: isBoss ? 56 : MONSTER_H,
             speed: MONSTER_BASE_SPEED * wave.speedMul,
-            hp: Math.ceil(MONSTER_HP_BASE * wave.hpMul),
-            maxHp: Math.ceil(MONSTER_HP_BASE * wave.hpMul),
+            // R708: duo scales monster HP 1.5x (same convention as the
+            // platformer's R699 duoHpMult and beatem_up's R707).
+            hp: Math.ceil(MONSTER_HP_BASE * wave.hpMul * this._duoEnemyMul),
+            maxHp: Math.ceil(MONSTER_HP_BASE * wave.hpMul * this._duoEnemyMul),
             hitFlash: 0,
             alive: true,
             isBoss,
@@ -1033,10 +1109,13 @@ export class TurretArena {
     _onStageComplete() {
         if (!this.game) return;
         // Award the kill counts to the global player stats so achievements
-        // tick + post-stage report inherits them.
+        // tick + post-stage report inherits them. R708: sum every gunner
+        // (duo P2's kills would silently vanish otherwise).
         if (this.game.player) {
-            this.game.player.kills = (this.game.player.kills || 0) + this.player.kills;
-            this.game.player.score = (this.game.player.score || 0) + this.player.score;
+            for (const pl of this.players) {
+                this.game.player.kills = (this.game.player.kills || 0) + pl.kills;
+                this.game.player.score = (this.game.player.score || 0) + pl.score;
+            }
         }
         // Route to stage-clear (just falls back to title for this standalone
         // post-game stage; nextStage logic in the stage data overrides if set).
@@ -1214,28 +1293,14 @@ export class TurretArena {
 
     _drawTurret() {
         const ctx = this.ctx;
-        const p = this.player;
-        // R567: Clippy stands BEHIND a painted mounted MG turret rig.
-        // Render order: (1) Clippy small + behind, (2) turret mount sprite
-        // covering his torso/hips, (3) rotating barrel layer on top, (4)
-        // muzzle flash at barrel tip. Free's the upper viewport for
+        // R567: the gunner stands BEHIND a painted mounted MG turret rig.
+        // Render order: (1) operator small + behind, (2) turret mount sprite
+        // covering torso/hips, (3) rotating barrel layer on top, (4)
+        // muzzle flash at barrel tip. Frees the upper viewport for
         // enemies + makes the bullet origin visible at the gun tip.
-        const firing = this.muzzleFlashT > 0;
-        let spriteKey = 'clippy_back_idle';
-        if (firing) {
-            const idx = ((this.t / 3) | 0) % 4 + 1;
-            spriteKey = `clippy_back_run_${idx}`;
-        }
-        const clippyImg = sprites.images.get(spriteKey)
-                       || sprites.images.get('clippy_back_idle');
-        if (clippyImg) {
-            ctx.imageSmoothingEnabled = false;
-            const aimSwayX = ((p.aimX - GAME.W / 2) / GAME.W) * 4 | 0;
-            const recoilY = firing ? -((this.muzzleFlashT || 0) * 0.5 | 0) : 0;
-            ctx.drawImage(clippyImg, 0, 0, clippyImg.width, clippyImg.height,
-                          PLAYER_X + aimSwayX, PLAYER_Y + recoilY,
-                          PLAYER_W, PLAYER_H);
-        }
+        // R708: duo draws both operators behind the shared base, then one
+        // barrel/flash/heat layer per gunner.
+        for (const p of this.players) this._drawOperator(p);
 
         // R567b: split turret rig into BASE (static — sandbags + tripod)
         // and BARREL (rotates to follow crosshair). Draw base first.
@@ -1248,13 +1313,53 @@ export class TurretArena {
                           TURRET_MOUNT_W, TURRET_MOUNT_H);
         }
 
+        for (const p of this.players) this._drawGunnerBarrel(p);
+    }
+
+    // R708: back-view operator sprite — Clippy for P1, Bonzi for P2.
+    // In duo the two stand shoulder-to-shoulder behind the shared mount.
+    _drawOperator(p) {
+        const ctx = this.ctx;
+        const firing = p.muzzleFlashT > 0;
+        let spriteKey, fallbackKey;
+        if (p.pIdx === 1) {
+            fallbackKey = 'bonzi_back_idle';
+            spriteKey = firing
+                ? `bonzi_back_run_${((this.t / 3) | 0) % 2 + 1}`
+                : 'bonzi_back_idle';
+        } else {
+            fallbackKey = 'clippy_back_idle';
+            spriteKey = firing
+                ? `clippy_back_run_${((this.t / 3) | 0) % 4 + 1}`
+                : 'clippy_back_idle';
+        }
+        const img = sprites.images.get(spriteKey)
+                 || sprites.images.get(fallbackKey);
+        if (img) {
+            ctx.imageSmoothingEnabled = false;
+            const duoDX = this.duo ? (p.pIdx === 1 ? 16 : -16) : 0;
+            const aimSwayX = ((p.aimX - GAME.W / 2) / GAME.W) * 4 | 0;
+            const recoilY = firing ? -((p.muzzleFlashT || 0) * 0.5 | 0) : 0;
+            ctx.drawImage(img, 0, 0, img.width, img.height,
+                          PLAYER_X + duoDX + aimSwayX, PLAYER_Y + recoilY,
+                          PLAYER_W, PLAYER_H);
+        }
+    }
+
+    // R708: per-gunner barrel + muzzle flash + heat gauge + overheat steam
+    // (was inlined in _drawTurret for the single player).
+    _drawGunnerBarrel(p) {
+        const ctx = this.ctx;
+        const firing = p.muzzleFlashT > 0;
+        const pivotX = this._pivotXFor(p);
+
         // R567b: rotating barrel sprite. The barrel art is drawn with
         // the muzzle UP and the pivot at the bottom-center of the sprite
         // frame. Compute aim angle, add π/2 to convert from "pointing
         // right (0 rad)" canvas convention to "pointing up" sprite
         // convention. Recoil pushes the barrel slightly back along its
         // OWN axis during firing.
-        const aimDX = p.aimX - TURRET_PIVOT_X;
+        const aimDX = p.aimX - pivotX;
         const aimDY = p.aimY - TURRET_PIVOT_Y;
         const aimAng = Math.atan2(aimDY, aimDX);
         p.barrelAngle = aimAng;
@@ -1267,13 +1372,13 @@ export class TurretArena {
             const BH = 32;
             ctx.save();
             ctx.imageSmoothingEnabled = false;
-            ctx.translate(TURRET_PIVOT_X, TURRET_PIVOT_Y);
+            ctx.translate(pivotX, TURRET_PIVOT_Y);
             // Sprite's natural orientation: muzzle up (-Y), pivot at
             // bottom-center. Aim angle of 0 = pointing right; we want
             // to align sprite-up with aim direction, so add π/2.
             ctx.rotate(aimAng + Math.PI / 2);
             // Recoil along sprite Y (negative = toward muzzle)
-            const recoil = firing ? (this.muzzleFlashT * 0.6 | 0) : 0;
+            const recoil = firing ? (p.muzzleFlashT * 0.6 | 0) : 0;
             // Draw with bottom-center at the pivot
             ctx.drawImage(barrelImg, 0, 0, barrelImg.width, barrelImg.height,
                           -BW / 2, -BH + recoil, BW, BH);
@@ -1288,9 +1393,9 @@ export class TurretArena {
         //   1. Radial glow at the muzzle (white→amber, was the original)
         //   2. Forward flame cone — bright triangle pointing along aim
         //   3. Side-blow puff perpendicular to barrel — gases venting laterally
-        if (this.muzzleFlashT > 0) {
-            const fT = this.muzzleFlashT / 4;
-            const muzzleX = TURRET_PIVOT_X + Math.cos(aimAng) * BARREL_LEN;
+        if (p.muzzleFlashT > 0) {
+            const fT = p.muzzleFlashT / 4;
+            const muzzleX = pivotX + Math.cos(aimAng) * BARREL_LEN;
             const muzzleY = TURRET_PIVOT_Y + Math.sin(aimAng) * BARREL_LEN;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
@@ -1355,8 +1460,11 @@ export class TurretArena {
             ctx.restore();
         }
 
-        // Heat gauge — anchored to right side of turret mount.
-        const hx = TURRET_MOUNT_X + TURRET_MOUNT_W + 2;
+        // Heat gauge — P1's anchored to the right side of the turret
+        // mount; duo P2's mirrors on the left.
+        const hx = p.pIdx === 1
+            ? TURRET_MOUNT_X - 5
+            : TURRET_MOUNT_X + TURRET_MOUNT_W + 2;
         const hy = TURRET_MOUNT_Y + 16;
         ctx.fillStyle = '#0a0a14';
         ctx.fillRect(hx, hy, 3, 14);
@@ -1367,7 +1475,7 @@ export class TurretArena {
         // Steam vent when overheated — rises from the turret receiver,
         // not from Clippy's face (that was the black-face bug from R566).
         if (p.overheated) {
-            const ventX = TURRET_PIVOT_X;
+            const ventX = pivotX;
             const ventY = TURRET_PIVOT_Y - 4;
             for (let i = 0; i < 3; i++) {
                 const sx = ventX + (Math.random() - 0.5) * 12;
@@ -2297,14 +2405,20 @@ export class TurretArena {
     }
 
     _drawCrosshair() {
+        // R708: one reticle per gunner
+        for (const p of this.players) this._drawCrosshairFor(p);
+    }
+
+    _drawCrosshairFor(p) {
         const ctx = this.ctx;
-        const p = this.player;
         const x = Math.round(p.aimX);
         const y = Math.round(p.aimY);
         const pulse = 0.7 + Math.sin(this.t * 0.3) * 0.3;
         // R566b: painted crosshair sprite. Fall back to the procedural
         // bracket reticle if the asset hasn't loaded yet (hot-load safety).
-        const img = sprites.images.get('turret_crosshair');
+        // R708: P2 always uses the procedural reticle in Bonzi purple so
+        // the two crosshairs never read as one gunner's.
+        const img = p.pIdx === 1 ? null : sprites.images.get('turret_crosshair');
         if (img) {
             const W = 24;        // displayed size (native asset is 32×32)
             const H = 24;
@@ -2316,9 +2430,10 @@ export class TurretArena {
             ctx.restore();
             return;
         }
+        const col = p.pIdx === 1 ? '#c060ff' : '#ff4040';
         ctx.save();
         ctx.globalAlpha = pulse;
-        ctx.strokeStyle = '#ff4040';
+        ctx.strokeStyle = col;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x - 8, y); ctx.lineTo(x - 3, y);
@@ -2326,7 +2441,7 @@ export class TurretArena {
         ctx.moveTo(x, y - 8); ctx.lineTo(x, y - 3);
         ctx.moveTo(x, y + 3); ctx.lineTo(x, y + 8);
         ctx.stroke();
-        ctx.fillStyle = '#ff4040';
+        ctx.fillStyle = col;
         ctx.fillRect(x, y, 1, 1);
         ctx.restore();
     }
@@ -2340,6 +2455,14 @@ export class TurretArena {
             ctx.fillStyle = i < p.hp ? '#ff5040' : '#3a1a1a';
             ctx.fillRect(6 + i * 8, 6, 6, 6);
         }
+        // R708: duo shows the shared repair pool next to the rig hearts
+        // (solo has no lives concept on this engine — rig death is final).
+        if (this.duo) {
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(62, 4, 20, 10);
+            drawText(ctx, 'x' + Math.max(0, this.game?.sharedLives ?? 0),
+                     64, 6, '#ffcc80', 1, 'left');
+        }
         const total = WAVES.length;
         const txt = 'WAVE ' + Math.min(this.waveIdx + 1, total) + ' / ' + total;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -2347,18 +2470,47 @@ export class TurretArena {
         drawText(ctx, txt, GAME.W - 6, 6, '#ffcc80', 1, 'right');
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(GAME.W - 56, 16, 54, 10);
-        drawText(ctx, String(p.score).padStart(6, '0'), GAME.W - 6, 18, '#ffe070', 1, 'right');
+        // R708: score bezel shows the team total in duo (per-gunner split
+        // still tracked internally for attribution/achievements).
+        const hudScore = this.duo
+            ? this.players.reduce((s, pl) => s + pl.score, 0)
+            : p.score;
+        drawText(ctx, String(hudScore).padStart(6, '0'), GAME.W - 6, 18, '#ffe070', 1, 'right');
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(4, 16, 30, 10);
         ctx.fillStyle = '#3a4a20';
         ctx.fillRect(7, 19, 4, 4);
         drawText(ctx, 'V', 14, 18, '#a890b0', 1, 'left');
         drawText(ctx, 'x' + p.grenades, 20, 18, '#ffcc80', 1, 'left');
-        if (p.overheated) {
-            const blink = (this.t >> 3) & 1;
-            if (blink) {
+        // R708: P2's grenade count extends the same row in duo.
+        if (this.duo && this.players[1]) {
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(36, 16, 34, 10);
+            drawText(ctx, 'P2', 38, 18, '#c060ff', 1, 'left');
+            drawText(ctx, 'x' + this.players[1].grenades, 52, 18, '#ffcc80', 1, 'left');
+        }
+        // R708: per-gunner overheat banners in duo; solo keeps the classic
+        // single center line.
+        const blink = (this.t >> 3) & 1;
+        if (blink) {
+            if (this.duo) {
+                if (this.players[0].overheated) {
+                    drawTextOutlined(ctx, 'P1 OVERHEATED', GAME.W / 2, GAME.H - 44, '#ff4040', '#1a0a14', 1, 'center');
+                }
+                if (this.players[1]?.overheated) {
+                    drawTextOutlined(ctx, 'P2 OVERHEATED', GAME.W / 2, GAME.H - 36, '#c060ff', '#1a0a14', 1, 'center');
+                }
+            } else if (p.overheated) {
                 drawTextOutlined(ctx, 'OVERHEATED', GAME.W / 2, GAME.H - 36, '#ff4040', '#1a0a14', 1, 'center');
             }
+        }
+        // R708: shared-life repair feedback (duo only — solo can't repair)
+        if (this._rigRepairT > 0) {
+            const a = Math.min(1, this._rigRepairT / 30);
+            ctx.save();
+            ctx.globalAlpha = a;
+            drawTextOutlined(ctx, 'RIG REPAIRED  -1 LIFE', GAME.W / 2, GAME.H - 52, '#7cf49a', '#0a140a', 1, 'center');
+            ctx.restore();
         }
         // Persistent control reminder through wave 1 — the 1.5s intro hint is
         // easy to blink past, and the crosshair-aim scheme reads as "broken"
@@ -2430,7 +2582,13 @@ export class TurretArena {
             ctx.save();
             ctx.globalAlpha = Math.min(1, fade);
             drawTextOutlined(ctx, 'LINE HELD', GAME.W / 2, GAME.H / 2 - 8, '#ffe070', '#a82020', 2, 'center');
-            drawText(ctx, 'TARGETS NEUTRALIZED: ' + this.player.kills, GAME.W / 2, GAME.H / 2 + 8, '#a890b0', 1, 'center');
+            // R708: duo reports the team total + per-gunner breakdown
+            const killsTotal = this.players.reduce((s, pl) => s + pl.kills, 0);
+            drawText(ctx, 'TARGETS NEUTRALIZED: ' + killsTotal, GAME.W / 2, GAME.H / 2 + 8, '#a890b0', 1, 'center');
+            if (this.duo && this.players[1]) {
+                drawText(ctx, 'CLIPPY ' + this.players[0].kills + '   BONZI ' + this.players[1].kills,
+                         GAME.W / 2, GAME.H / 2 + 20, '#80c0ff', 1, 'center');
+            }
             if (this.clearT > 90) {
                 const blink = (this.clearT >> 3) & 1;
                 if (blink) drawText(ctx, 'X TO CONTINUE', GAME.W / 2, GAME.H - 16, '#fff', 1, 'center');
