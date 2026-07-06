@@ -601,7 +601,8 @@ export class Game {
         // restores P1's full keyboard+pad so menu navigation always works.
         // On flip, rewire P2's input source so a duo player dropped back to
         // tag/single never reads the split device.
-        const wantDuo = this.scene === SCENE.PLAY && this._duoLive();
+        const wantDuo = (this.scene === SCENE.PLAY || this.scene === SCENE.BEAT_PLAY)
+            && this._duoLive();
         if (wantDuo !== isDuoActive()) setDuoActive(wantDuo);
         // Enforce (not just on flip) — _startStage can rebuild the partner
         // Player mid-run, and a fresh instance defaults to P1's input.
@@ -2149,13 +2150,18 @@ export class Game {
     // incoming drop-in. During the 90-frame window, input to the active
     // character is gated (player.update skips when game._swapAnimT > 0).
     // R698: true when duo (simultaneous 2-player) is actually running this
-    // stage. Duo only supports the platformer engine — the mini-game
-    // engines (beat/fps/turret/doom) drive a single player, so duo silently
-    // degrades to tag there. Endless IS platformer-engined, so duo runs
-    // there too (R701). Both slots must be populated.
+    // stage. Endless IS platformer-engined, so duo runs there too (R701).
+    // Both slots must be populated.
+    // R707: the beat-em-up engine now runs true duo (engine-owned players
+    // array). The remaining engines (fps/turret/doom) still drive a single
+    // player, so duo silently degrades to tag there.
     _duoLive() {
+        if (this._beatMode) {
+            return this.coopMode && this.duoMode &&
+                !!(this._beatEmUp && this._beatEmUp.duo && this._beatEmUp.players?.[1]);
+        }
         return this.coopMode && this.duoMode &&
-            !this._beatMode && !this._fpsMode && !this._turretMode && !this._doomMode &&
+            !this._fpsMode && !this._turretMode && !this._doomMode &&
             !!this.players[0] && !!this.players[1];
     }
 
@@ -2551,9 +2557,10 @@ export class Game {
     // R568f: SYNCED HEARTBEAT — both at 1 HP simultaneously then both
     // survive a brief window (~1.5s) to count. Re-armable: if either dies
     // before the window expires, the latch clears without crediting.
-    _tickCoopSyncedHeartbeat() {
+    // R707: engine duos (beat-em-up) pass their own player pair — the
+    // default args keep the platformer call site unchanged.
+    _tickCoopSyncedHeartbeat(p0 = this.players?.[0], p1 = this.players?.[1]) {
         if (!this.coopMode || !this.coopStageStats) return;
-        const p0 = this.players?.[0], p1 = this.players?.[1];
         if (!p0 || !p1) return;
         if (!this.coopStageStats.syncedHeartbeatLatched) {
             if (p0.hp === 1 && p1.hp === 1) {
@@ -7352,9 +7359,15 @@ export class Game {
             // this block entirely so coop counters never accidentally fire.
             if (this.coopMode && this.coopStageStats) {
                 const css = this.coopStageStats;
-                const base = css._killBaseline || [0, 0];
-                const k0 = (this.players?.[0]?.kills || 0) - base[0];
-                const k1 = (this.players?.[1]?.kills || 0) - base[1];
+                // R707: engine duos own their players and reset kills per
+                // stage, so no baseline applies — the platformer baseline
+                // was captured from (now stale) platformer players.
+                const engDuo = (this._beatEmUp?.duo && this._beatEmUp.players?.[1])
+                    ? this._beatEmUp.players : null;
+                const base = engDuo ? [0, 0] : (css._killBaseline || [0, 0]);
+                const pl = engDuo || this.players || [];
+                const k0 = (pl[0]?.kills || 0) - base[0];
+                const k1 = (pl[1]?.kills || 0) - base[1];
                 css.clippyKills = Math.max(0, k0);
                 css.bonziKills = Math.max(0, k1);
                 // R618: capture the distinct-co-op-stage count before/after
@@ -7413,9 +7426,11 @@ export class Game {
                     achievements.stats.coopBestCombo || 0,
                     this.runStats.maxCombo || 0,
                 );
+                // R707: ap prefers the engine player — this.player.score is
+                // the stale platformer score on engine stages.
                 achievements.stats.coopBestScore = Math.max(
                     achievements.stats.coopBestScore || 0,
-                    this.player?.score || 0,
+                    ap.score || 0,
                 );
                 // NO ONE LEFT BEHIND — full campaign clear (stage 13) in co-op
                 // with zero deaths the entire run. Latches true once earned.

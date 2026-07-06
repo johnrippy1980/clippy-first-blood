@@ -20,7 +20,7 @@
 //   }
 
 import { GAME } from './constants.js';
-import { input } from './input.js';
+import { input, input2 } from './input.js';
 import { audio } from './audio.js';
 import { achievements } from './achievements.js';
 import { sprites } from './sprites.js';
@@ -81,40 +81,22 @@ export class BeatEmUp {
         this._diffBossHp = 1 + (diff.enemyHp - 1) * 0.5;
         this._playerMaxHp = Math.max(2, Math.round(6 / diff.taken));
 
-        // Player on the street plane — starts left-center
-        this.player = {
-            x: 24,
-            y: (STREET_TOP + STREET_BOTTOM) / 2,
-            w: PLAYER_W, h: PLAYER_H,
-            vx: 0, vy: 0,
-            hp: this._playerMaxHp,
-            maxHp: this._playerMaxHp,
-            lives: 3,
-            iframes: 0,
-            shootCD: 0,
-            facing: 1,            // +1 right, -1 left
-            runFrame: 0,
-            score: 0,
-            kills: 0,    // R489: kill counter for achievements
-            // R409: jump-to-aim — airY is HEIGHT above the street plane
-            // (0 = grounded, positive = airborne). airVy is vertical
-            // velocity. Lets the player shoot at flying enemies
-            // (helicopters) without leaving the depth plane.
-            airY: 0,
-            airVy: 0,
-            // R418: rage mode — see player.js for the parallel implementation
-            rageFrames: 0,
-            rageMaxFrames: 300,
-            rageUsedThisStage: false,
-            // R519: thrown debris/chair for melee mode. Single tool that
-            // reaches flying enemies (helicopter, drone) since punches +
-            // jumpkick can't extend that far vertically. 3 per stage,
-            // refilled at start. Cooldown 30f between throws so the
-            // player can't spam-clear a wave.
-            debrisAmmo: 3,
-            debrisMaxAmmo: 3,
-            debrisCD: 0,
-        };
+        // R707: true duo — both fighters on the street simultaneously.
+        // Mirrors the platformer's R698 semantics: shared lives pool
+        // (game.sharedLives), down/revive on death, enemy HP scaled like
+        // the platformer's R699 duoHpMult (1.5x, bosses at half strength).
+        this.duo = !!(game && game.coopMode && game.duoMode);
+        this._duoEnemyMul = this.duo ? 1.5 : 1;
+        this._duoBossMul = this.duo ? 1.25 : 1;
+
+        // Players on the street plane — P1 starts left-center; duo P2
+        // (Bonzi) staggers in beside him. this.player stays an ALIAS of
+        // players[0]: game-side consumers (_creditStageClear's altPlayer /
+        // _scorePlayer chains, _sampleLifeStats) and the solo code paths
+        // all read it.
+        this.players = [this._makePlayer(0)];
+        if (this.duo) this.players.push(this._makePlayer(1));
+        this.player = this.players[0];
 
         this.bullets = [];        // player shots
         this.enemyBullets = [];
@@ -136,8 +118,6 @@ export class BeatEmUp {
         this._meleeIntroBark = this.meleeMode ? 60 : 0; // delay before bark
         this._meleeIntroShown = false;
         this._meleeGunPickup = null;  // {x, y} once dropped
-        this._punchCombo = 0;          // 0/1/2/3 chain counter
-        this._punchComboT = 0;         // frames until combo resets
 
         // Camera scroll — street advances as the player kills waves
         this.scroll = 0;
@@ -284,6 +264,69 @@ export class BeatEmUp {
 
         // Boot first wave
         this._spawnWave(0);
+    }
+
+    // R707: player factory — one shape for solo P1 and duo P1/P2.
+    _makePlayer(pIdx) {
+        return {
+            pIdx,
+            x: 24 + pIdx * 20,
+            y: (STREET_TOP + STREET_BOTTOM) / 2 + (pIdx ? 14 : 0),
+            w: PLAYER_W, h: PLAYER_H,
+            vx: 0, vy: 0,
+            hp: this._playerMaxHp,
+            maxHp: this._playerMaxHp,
+            lives: 3,             // solo pool; duo uses game.sharedLives
+            iframes: 0,
+            shootCD: 0,
+            facing: 1,            // +1 right, -1 left
+            runFrame: 0,
+            score: 0,
+            kills: 0,    // R489: kill counter for achievements
+            // R409: jump-to-aim — airY is HEIGHT above the street plane
+            // (0 = grounded, positive = airborne). airVy is vertical
+            // velocity. Lets the player shoot at flying enemies
+            // (helicopters) without leaving the depth plane.
+            airY: 0,
+            airVy: 0,
+            // R418: rage mode — see player.js for the parallel implementation
+            rageFrames: 0,
+            rageMaxFrames: 300,
+            rageUsedThisStage: false,
+            // R519: thrown debris/chair for melee mode. Single tool that
+            // reaches flying enemies (helicopter, drone) since punches +
+            // jumpkick can't extend that far vertically. 3 per stage,
+            // refilled at start. Cooldown 30f between throws so the
+            // player can't spam-clear a wave.
+            debrisAmmo: 3,
+            debrisMaxAmmo: 3,
+            debrisCD: 0,
+            // R516 combo counters — per-player so duo chains don't clobber
+            _punchCombo: 0,
+            _punchComboT: 0,
+            // R707 duo down/revive: null = alive, >0 = down counting to a
+            // respawn (a shared life was spent), -1 = down for good.
+            _duoDownT: null,
+            _duoReviveBoost: false,
+        };
+    }
+
+    // R707: input source for a player — P2 reads the duo split (input2).
+    _inputFor(p) {
+        return (this.duo && p.pIdx === 1) ? input2 : input;
+    }
+
+    // R707: nearest living (not downed, hp>0) player to a world point —
+    // enemy steering/facing target. Falls back to P1 so callers always
+    // get an object even while everyone is down.
+    _nearestPlayer(x, y) {
+        let best = null, bd = Infinity;
+        for (const p of this.players) {
+            if (p._duoDownT != null || p.hp <= 0) continue;
+            const d = Math.hypot((p.x + p.w / 2) - x, (p.y + p.h / 2) - y);
+            if (d < bd) { bd = d; best = p; }
+        }
+        return best || this.players[0];
     }
 
     // R307 / R361 — ambient layer helpers
@@ -738,7 +781,10 @@ export class BeatEmUp {
         // preserve all existing spawn calls (isBoss=false, hpMul=1).
         // R690: difficulty scaling on top of the spawn-spec multiplier —
         // bosses at half strength, same rounding as the main engine.
-        const diffMul = isBoss ? this._diffBossHp : this._diffEnemyHp;
+        // R707: duo multiplier stacks the same way the platformer's R699
+        // duoHpMult does (1.5x regulars, 1.25x bosses).
+        const diffMul = (isBoss ? this._diffBossHp : this._diffEnemyHp) *
+                        (isBoss ? this._duoBossMul : this._duoEnemyMul);
         const hp = Math.max(1, Math.ceil(stats.hp * hpMul * diffMul));
         const e = {
             type,
@@ -855,9 +901,12 @@ export class BeatEmUp {
                 this.game.scene = 'stageCard';
                 return;
             }
+            // R707: in duo either player can advance past the clear screen.
+            const pressAny = (n) => input.isPressed(n) ||
+                (this.duo && input2.isPressed(n));
             if (this.clearT > 60 &&
-                (input.isPressed('shoot') || input.isPressed('jump') ||
-                 input.isPressed('start') || input.isPressed('pause'))) {
+                (pressAny('shoot') || pressAny('jump') ||
+                 pressAny('start') || pressAny('pause'))) {
                 if (autoNext) {
                     audio.stopTrack();
                     this.game._pendingStage = autoNext;
@@ -881,7 +930,31 @@ export class BeatEmUp {
             }
             return;
         }
-        this._tickPlayer();
+        // R707: tick every living player against their own input device;
+        // downed duo players tick their revive countdown instead.
+        for (const p of this.players) {
+            if (p._duoDownT != null) continue;
+            this._tickPlayer(p, this._inputFor(p));
+        }
+        if (this.duo) {
+            this._tickDuoDowns();
+            // R568f SYNCED HEARTBEAT — judged on the ENGINE's pair (the
+            // game-side call only runs in the platformer _tickPlay).
+            this.game?._tickCoopSyncedHeartbeat?.(this.players[0], this.players[1]);
+        }
+        // R484: low-HP heartbeat — engine-level so two 1-HP duo players
+        // don't double-rate the ticker (moved out of _tickPlayer in R707).
+        const anyLow = this.players.some(pl =>
+            pl._duoDownT == null && pl.hp === 1);
+        if (anyLow) {
+            this._hbTick = (this._hbTick || 0) + 1;
+            if (this._hbTick >= 50) {
+                audio.sfx?.('heartbeat');
+                this._hbTick = 0;
+            }
+        } else {
+            this._hbTick = 0;
+        }
         this._tickBullets();
         this._tickEnemies();
         this._tickEnemyBullets();
@@ -904,7 +977,8 @@ export class BeatEmUp {
                 // the pickup is fine; visual reward for getting through
                 // unarmed.
                 if (this.meleeMode && !this._meleeGunPickup) {
-                    const p = this.player;
+                    const p = this._nearestPlayer(this.scroll + GAME.W / 2,
+                                                  (STREET_TOP + STREET_BOTTOM) / 2);
                     this._meleeGunPickup = { x: p.x + 80, y: p.y + p.h - 4 };
                     audio.sfx?.('attract');
                 }
@@ -930,9 +1004,10 @@ export class BeatEmUp {
         }
     }
 
-    _tickPlayer() {
-        const ax = input.axis();
-        const p = this.player;
+    // R707: parameterized on (player, input source) so duo ticks P1 on
+    // input and P2 on input2 through the exact same body.
+    _tickPlayer(p, src = input) {
+        const ax = src.axis();
         // R516: melee gun pickup collision — once spawned, walking onto it
         // re-enables ranged fire and clears the pickup.
         if (this._meleeGunPickup) {
@@ -958,7 +1033,7 @@ export class BeatEmUp {
         p.y += p.vy;
         // R409: jump physics. Z = jump (matches global keymap).
         // Initial impulse -4.4 gives ~26px peak rise at gravity 0.32.
-        if (p.airY <= 0 && input.isPressed('jump')) {
+        if (p.airY <= 0 && src.isPressed('jump')) {
             p.airVy = -4.4;
             p.airY = 0.01;   // unstick from ground so airborne checks pass
         }
@@ -1014,37 +1089,27 @@ export class BeatEmUp {
         }
         if (p.iframes > 0) p.iframes--;
         if (p.shootCD > 0) p.shootCD--;
-        // R484: low-HP heartbeat at HP ≤ 1
-        if (p.hp <= 1 && p.hp > 0) {
-            this._hbTick = (this._hbTick || 0) + 1;
-            if (this._hbTick >= 50) {
-                audio.sfx?.('heartbeat');
-                this._hbTick = 0;
-            }
-        } else {
-            this._hbTick = 0;
-        }
         // R516: in melee mode the SHOOT button punches/kicks instead of firing.
         // Press (not hold) to commit a discrete attack; rapid-fire builds combo.
         if (this.meleeMode) {
-            if (this._punchComboT > 0) this._punchComboT--;
-            else this._punchCombo = 0;
-            if (input.isPressed('shoot') && p.shootCD <= 0) {
-                this._melee();
+            if (p._punchComboT > 0) p._punchComboT--;
+            else p._punchCombo = 0;
+            if (src.isPressed('shoot') && p.shootCD <= 0) {
+                this._melee(p, src);
                 p.shootCD = 12;
             }
             // R519: throw debris/chair via the grenade button — reaches
             // flying enemies that punches/jumpkick can't hit. Stage starts
             // with debrisAmmo=3. Cooldown 30f so it's a tactical option.
             if (p.debrisCD > 0) p.debrisCD--;
-            if (input.isPressed('grenade') && p.debrisAmmo > 0 && p.debrisCD <= 0) {
-                this._throwDebris();
+            if (src.isPressed('grenade') && p.debrisAmmo > 0 && p.debrisCD <= 0) {
+                this._throwDebris(p);
                 p.debrisAmmo--;
                 p.debrisCD = 30;
             }
         } else {
-            if (input.isHeld('shoot') && p.shootCD <= 0) {
-                this._fire();
+            if (src.isHeld('shoot') && p.shootCD <= 0) {
+                this._fire(p, src);
                 // R418: rage halves fire cooldown
                 p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
             }
@@ -1054,8 +1119,7 @@ export class BeatEmUp {
     // R519: throw a chair/debris projectile — reaches flying enemies that
     // the punch/jumpkick can't hit. Theme-aware: Ballmer's boardroom (stage
     // 7) throws a chair; apocalypse crater (stage 22) throws rubble.
-    _throwDebris() {
-        const p = this.player;
+    _throwDebris(p) {
         const visY = p.y - (p.airY || 0);
         const isChair = this.data.theme === undefined ? false :
             (this.data.bgKey?.includes('boardroom') || this.data.bgKey?.includes('hq'));
@@ -1067,6 +1131,7 @@ export class BeatEmUp {
             vx: p.facing * 3.5,
             vy: -3.2,
             life: 90,
+            _pIdx: p.pIdx || 0,   // R707: kill/score attribution
             _debris: true,
             _isChair: isChair,
             _rotation: 0,
@@ -1081,9 +1146,8 @@ export class BeatEmUp {
     // Ground + neutral = jab. Ground + holding direction = combo chain
     // (3-hit, last hit has knockback). Airborne = jump-kick. Down+SHOOT
     // = roundhouse sweep (360° hit, hits all enemies within range).
-    _melee() {
-        const p = this.player;
-        const ax = input.axis();
+    _melee(p, src = input) {
+        const ax = src.axis();
         const airborne = (p.airY || 0) > 8;
         let kind, reach, dmg, knockback, hitColor;
         if (airborne) {
@@ -1092,12 +1156,12 @@ export class BeatEmUp {
             // DOWN+shoot — roundhouse sweep, hits in both directions
             kind = 'roundhouse'; reach = 22; dmg = 2; knockback = 2.8; hitColor = '#ff8060';
         } else {
-            // Combo chain: jab → cross → hook
-            this._punchCombo = Math.min(3, this._punchCombo + 1);
-            this._punchComboT = 30;
-            if (this._punchCombo === 1)      { kind = 'jab';   reach = 14; dmg = 1; knockback = 1.0; hitColor = '#ffffff'; }
-            else if (this._punchCombo === 2) { kind = 'cross'; reach = 15; dmg = 1; knockback = 1.4; hitColor = '#ffe070'; }
-            else                              { kind = 'hook';  reach = 16; dmg = 2; knockback = 3.5; hitColor = '#ff6060'; this._punchCombo = 0; }
+            // Combo chain: jab → cross → hook (per-player since R707)
+            p._punchCombo = Math.min(3, p._punchCombo + 1);
+            p._punchComboT = 30;
+            if (p._punchCombo === 1)      { kind = 'jab';   reach = 14; dmg = 1; knockback = 1.0; hitColor = '#ffffff'; }
+            else if (p._punchCombo === 2) { kind = 'cross'; reach = 15; dmg = 1; knockback = 1.4; hitColor = '#ffe070'; }
+            else                           { kind = 'hook';  reach = 16; dmg = 2; knockback = 3.5; hitColor = '#ff6060'; p._punchCombo = 0; }
         }
         // Visual state — set so _drawPlayer can render the attack pose.
         // Punches read better at 14f than the original 10 (hits the
@@ -1133,7 +1197,12 @@ export class BeatEmUp {
             if (e.hp <= 0) {
                 e.alive = false;
                 e.deathT = 0;
-                this.player.kills = (this.player.kills || 0) + 1;
+                p.kills = (p.kills || 0) + 1;
+                // R707: duo boss-kill attribution for RIDE OR DIE
+                if (e.isBoss && this.duo && this.game?.coopStageStats) {
+                    this.game.coopStageStats.bossKillCharacter =
+                        p.pIdx === 1 ? 'bonzi' : 'clippy';
+                }
                 this._lastKillT = this.t;
                 this._comboCount = (this._comboCount || 0) + 1;
                 audio.sfx('enemyDie');
@@ -1158,17 +1227,17 @@ export class BeatEmUp {
                 maxAge: kind === 'hook' ? 60 : 36,
                 color: hitColor,
                 big: kind === 'hook' || kind === 'roundhouse',
+                pIdx: p.pIdx || 0,   // R707: draw above the puncher
             };
         } else {
             audio.sfx('jump'); // whiff — quick whoosh
         }
     }
 
-    _fire() {
-        const p = this.player;
+    _fire(p, src = input) {
         // R409: aim upward when jumping + UP held, downward when DOWN held.
         // Otherwise horizontal in facing direction.
-        const ax = input.axis();
+        const ax = src.axis();
         let vx = p.facing * 4.5, vy = 0;
         const airborne = (p.airY || 0) > 0;
         if (airborne && ax.y < -0.4) {
@@ -1188,6 +1257,7 @@ export class BeatEmUp {
             y: visY + p.h / 2 - 2,
             vx, vy,
             life: 60,
+            _pIdx: p.pIdx || 0,   // R707: kill/score attribution
         });
         audio.sfx('mg');
     }
@@ -1238,9 +1308,15 @@ export class BeatEmUp {
                                            (this._comboCount >= 4) ? 3 :
                                            (this._comboCount >= 3) ? 2 : 1;
                         const base = ENEMY_STATS[e.type]?.score || 100;
-                        this.player.score += base * multiplier;
+                        // R707: credit the bullet's owner (duo P2 fires too)
+                        const owner = this.players[b._pIdx || 0] || this.player;
+                        owner.score += base * multiplier;
                         // R489: kill counter for achievements
-                        this.player.kills = (this.player.kills || 0) + 1;
+                        owner.kills = (owner.kills || 0) + 1;
+                        if (e.isBoss && this.duo && this.game?.coopStageStats) {
+                            this.game.coopStageStats.bossKillCharacter =
+                                (b._pIdx === 1) ? 'bonzi' : 'clippy';
+                        }
                         // Show combo toast when ≥×2
                         if (multiplier > 1) {
                             particles.floatingText?.(
@@ -1281,7 +1357,6 @@ export class BeatEmUp {
     }
 
     _tickEnemies() {
-        const p = this.player;
         for (const e of this.enemies) {
             // R522: dead enemies tick their death animation timer up to 40.
             // Past that they're removed from the draw list (still kept in
@@ -1296,7 +1371,8 @@ export class BeatEmUp {
                 e.hoverPhase += 0.05;
                 e.y = e.baseY + Math.sin(e.hoverPhase) * 6;
             }
-            // Steer toward player
+            // Steer toward the nearest living player (R707: duo-aware)
+            const p = this._nearestPlayer(e.x + e.w / 2, e.y + e.h / 2);
             const dx = (p.x + p.w / 2) - (e.x + e.w / 2);
             const dy = (p.y + p.h / 2) - (e.y + e.h / 2);
             const dist = Math.hypot(dx, dy) || 1;
@@ -1377,7 +1453,7 @@ export class BeatEmUp {
                     e.attackCD = e.fireRange < 30 ? 30 : 60;
                     if (e.fireRange < 30) {
                         // Melee — direct contact damage
-                        this._tryHitPlayer(e.damage);
+                        this._tryHitPlayer(e.damage, e);
                     } else {
                         // Ranged — spawn enemy bullet toward player
                         const speed = 2.0;
@@ -1399,7 +1475,6 @@ export class BeatEmUp {
     }
 
     _tickEnemyBullets() {
-        const p = this.player;
         // R486: whizz cooldown across all bullets in the frame
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
@@ -1420,10 +1495,12 @@ export class BeatEmUp {
                 this.enemyBullets.splice(i, 1);
                 continue;
             }
-            // R486: near-miss whizz SFX — same logic as platformer
+            // R486: near-miss whizz SFX — same logic as platformer.
+            // R707: measured against whichever living player is closest.
+            const pw = this._nearestPlayer(b.x, b.y);
             if (!b._whizzPlayed && (this._whizzCooldown || 0) <= 0) {
-                const pdx = b.x - (p.x + p.w / 2);
-                const pdy = b.y - (p.y + p.h / 2);
+                const pdx = b.x - (pw.x + pw.w / 2);
+                const pdy = b.y - (pw.y + pw.h / 2);
                 const d2 = pdx * pdx + pdy * pdy;
                 if (b._prevD2 != null && d2 > b._prevD2 && b._prevD2 < 16 * 16) {
                     audio.sfx?.('whizz');
@@ -1432,33 +1509,41 @@ export class BeatEmUp {
                 }
                 b._prevD2 = d2;
             }
-            if (p.iframes <= 0 &&
-                b.x >= p.x && b.x <= p.x + p.w &&
-                b.y >= p.y && b.y <= p.y + p.h) {
+            // R707: hit-test every living player, not just P1
+            let hitP = null;
+            for (const p of this.players) {
+                if (p._duoDownT != null || p.hp <= 0 || p.iframes > 0) continue;
+                if (b.x >= p.x && b.x <= p.x + p.w &&
+                    b.y >= p.y && b.y <= p.y + p.h) {
+                    hitP = p;
+                    break;
+                }
+            }
+            if (hitP) {
                 // R456: record bullet velocity for damage indicator
                 this._lastHitAngle = Math.atan2(b.vy || 0, b.vx || 0) + Math.PI;
                 this.enemyBullets.splice(i, 1);
-                this._hitPlayer(b.damage || 1);
+                this._hitPlayer(b.damage || 1, hitP);
             }
         }
     }
 
-    _tryHitPlayer(dmg) {
-        const p = this.player;
-        if (p.iframes > 0) return;
-        // Only land melee if enemy is genuinely overlapping
-        for (const e of this.enemies) {
-            if (!e.alive) continue;
-            if (p.x + p.w >= e.x && p.x <= e.x + e.w &&
-                p.y + p.h >= e.y && p.y <= e.y + e.h) {
-                this._hitPlayer(dmg);
+    // R707: reworked to take the ATTACKER — only lands if that enemy is
+    // genuinely overlapping a living player (pre-R707 it scanned every
+    // enemy for overlap with the single player, so an enemy in range
+    // could land its hit off a different enemy's body contact).
+    _tryHitPlayer(dmg, attacker) {
+        for (const p of this.players) {
+            if (p._duoDownT != null || p.hp <= 0 || p.iframes > 0) continue;
+            if (p.x + p.w >= attacker.x && p.x <= attacker.x + attacker.w &&
+                p.y + p.h >= attacker.y && p.y <= attacker.y + attacker.h) {
+                this._hitPlayer(dmg, p);
                 return;
             }
         }
     }
 
-    _hitPlayer(dmg) {
-        const p = this.player;
+    _hitPlayer(dmg, p = this.player) {
         // R418: rage mode blocks the damage entirely
         if (p.rageFrames > 0) {
             p.iframes = Math.max(p.iframes, 12);
@@ -1475,14 +1560,18 @@ export class BeatEmUp {
         audio.sfx('playerHit');
         // R456: arm directional damage indicator
         this._damageIndicatorT = 30;
-        if (p.hp <= 0) this._onPlayerDeath();
+        // R707: duo deaths route to the down/revive path (shared lives);
+        // solo keeps the instant-respawn path.
+        if (p.hp <= 0) {
+            if (this.duo) this._onDuoPlayerDown(p);
+            else this._onPlayerDeath();
+        }
         // R418: auto-trigger rage on the frame HP drops to last bar
-        else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
+        else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage(p);
     }
 
     // R418: rage trigger — shared between platformer/beatem/fps for feel parity
-    _triggerRage() {
-        const p = this.player;
+    _triggerRage(p = this.player) {
         p.rageFrames = p.rageMaxFrames;
         p.rageUsedThisStage = true;
         audio.sfx?.('powerup');
@@ -1522,6 +1611,81 @@ export class BeatEmUp {
         this.player.iframes = 120;
         this.player.x = 24;
         this.player.y = (STREET_TOP + STREET_BOTTOM) / 2;
+    }
+
+    // R707: duo death — mirrors the platformer's R698 down/revive rules.
+    // A death spends a SHARED life (game.sharedLives) and starts a 2.5s
+    // down counter; the partner standing on the soul burns it 4x faster
+    // (R700 touch-revive). Pool empty = down for good; both down for
+    // good = game over, same as the platformer path.
+    _onDuoPlayerDown(p) {
+        const g = this.game;
+        achievements.countLifeDeath();   // R695: lifetime STATS counter
+        if (g) {
+            g.totalDeaths++;
+            // CARRY ON counts every partner death, matching _tickDuoDeaths
+            if (g.coopStageStats) g.coopStageStats.partnerDeathsThisStage++;
+        }
+        p.rageFrames = 0;
+        if (g && g.sharedLives > 0) {
+            g.sharedLives--;
+            p._duoDownT = 150;   // 2.5s until the partner-side respawn
+        } else {
+            p._duoDownT = -1;    // pool empty — down for good
+        }
+    }
+
+    _tickDuoDowns() {
+        const [a, b] = this.players;
+        for (const pl of this.players) {
+            if (!(pl._duoDownT > 0)) continue;
+            const other = pl === a ? b : a;
+            // R700 touch-revive: live partner standing over the soul burns
+            // the countdown 4x faster (same rect-overlap test, +6px slack).
+            const touching = other && other._duoDownT == null && other.hp > 0 &&
+                other.x < pl.x + pl.w + 6 && other.x + other.w > pl.x - 6 &&
+                other.y < pl.y + pl.h + 6 && other.y + other.h > pl.y - 6;
+            pl._duoReviveBoost = touching;
+            pl._duoDownT = Math.max(0, pl._duoDownT - (touching ? 4 : 1));
+            if (pl._duoDownT === 0) {
+                // R705: only credit the touch-revive achievements when the
+                // partner was on the body at the finishing frame.
+                if (touching) {
+                    achievements.stats.duoTouchRevives++;
+                    achievements.update({});
+                    achievements._save();
+                }
+                this._duoRespawn(pl);
+            }
+        }
+        // _fadeTo silently no-ops while a transition is mid-flight
+        // (transition !== 0), so a one-shot latch here could swallow the
+        // game over entirely. Re-fire every frame instead — the guard in
+        // _fadeTo makes repeats free, and the scene swap stops our update.
+        if (a._duoDownT === -1 && b._duoDownT === -1) {
+            this.game._fadeTo('gameOver');
+        }
+    }
+
+    // R707: respawn a downed duo player at their living partner's side
+    // (fall back to the left screen edge when the partner is gone too).
+    _duoRespawn(pl) {
+        const other = pl === this.players[0] ? this.players[1] : this.players[0];
+        const otherLive = other && other._duoDownT == null && other.hp > 0;
+        pl.x = otherLive ? other.x : this.scroll + 24;
+        pl.y = otherLive ? other.y : (STREET_TOP + STREET_BOTTOM) / 2;
+        // Clamp into the current arena window + street band
+        pl.x = Math.min(Math.max(pl.x, this.scroll + 8),
+                        this.scroll + GAME.W - pl.w - 8);
+        pl.y = Math.min(Math.max(pl.y, STREET_TOP), STREET_BOTTOM - pl.h);
+        pl.hp = pl.maxHp;
+        pl.iframes = 90;   // generous re-entry — the fight kept going here
+        pl.vx = 0; pl.vy = 0;
+        pl.airY = 0; pl.airVy = 0;
+        pl.rageFrames = 0;
+        pl._duoDownT = null;
+        pl._duoReviveBoost = false;
+        audio.sfx?.('respawn');
     }
 
     _tickCamera() {
@@ -1676,17 +1840,23 @@ export class BeatEmUp {
         // R522: include dying enemies (alive=false but within 40-frame death
         // animation window) so the fall-fade-tilt renders.
         const drawList = [...this.enemies.filter(e => e.alive || (e.deathT != null && e.deathT < 40))].sort((a, b) => a.y - b.y);
-        drawList.push({ _isPlayer: true });
+        // R707: one marker per living player (downed duo players render as
+        // a soul marker instead — see _drawDuoSouls below).
+        for (const p of this.players) {
+            if (p._duoDownT != null) continue;
+            drawList.push({ _isPlayer: true, _p: p });
+        }
         // Insertion-sort player so closer-y comes later
         drawList.sort((a, b) => {
-            const ay = a._isPlayer ? this.player.y : a.y;
-            const by = b._isPlayer ? this.player.y : b.y;
+            const ay = a._isPlayer ? a._p.y : a.y;
+            const by = b._isPlayer ? b._p.y : b.y;
             return ay - by;
         });
         for (const e of drawList) {
-            if (e._isPlayer) this._drawPlayer();
+            if (e._isPlayer) this._drawPlayer(e._p);
             else this._drawEnemy(e);
         }
+        if (this.duo) this._drawDuoSouls(ctx);
         // R390: bullets used to be 4x2 yellow rects on the busy
         // painted bgs and got lost. Add a glow underlay + bright core
         // so they read at a glance.
@@ -1952,8 +2122,9 @@ export class BeatEmUp {
                 this._meleeFloater = null;
             } else {
                 const t = f.age / f.maxAge;
-                const drawX = this.player.x - this.scroll + this.player.w / 2;
-                const drawY = this.player.y - (this.player.airY || 0) - 8 - t * 14;
+                const fp = this.players[f.pIdx || 0] || this.player;
+                const drawX = fp.x - this.scroll + fp.w / 2;
+                const drawY = fp.y - (fp.airY || 0) - 8 - t * 14;
                 const alpha = 1 - t * 0.7;
                 ctx.save();
                 ctx.globalAlpha = alpha;
@@ -2047,9 +2218,8 @@ export class BeatEmUp {
         }
     }
 
-    _drawPlayer() {
+    _drawPlayer(p = this.player) {
         const ctx = this.ctx;
-        const p = this.player;
         if (p.iframes > 0 && (p.iframes % 4 < 2)) return;
         // R331: player position is WORLD coords now; subtract scroll
         // when drawing.
@@ -2069,6 +2239,16 @@ export class BeatEmUp {
             key = isMoving
                 ? runFrames[Math.floor(p.runFrame) % runFrames.length]
                 : 'idle';
+        }
+        if (this.duo && p.pIdx === 1) {
+            const bMap = {
+                idle: 'bonzi_idle',
+                run_1: 'bonzi_run_1', run_2: 'bonzi_run_2',
+                run_3: 'bonzi_run_3', run_4: 'bonzi_run_4',
+                jump: 'bonzi_jump', jump_neutral: 'bonzi_jump',
+            };
+            const bk = bMap[key];
+            if (bk && sprites.images.get(bk)) key = bk;
         }
         const img = sprites.images.get(key) || sprites.images.get('run_1');
         if (img) {
@@ -2222,6 +2402,28 @@ export class BeatEmUp {
         }
     }
 
+    // R707: downed duo players leave a pulsing soul marker (mirrors the
+    // platformer's R700 marker) so the partner knows where to stand for
+    // the touch-revive. Green while the boost is active.
+    _drawDuoSouls(ctx) {
+        for (const pl of this.players) {
+            if (!(pl._duoDownT > 0)) continue;
+            const mx = Math.round(pl.x + pl.w / 2 - this.scroll);
+            const my = Math.round(pl.y + pl.h / 2 - (pl.airY || 0));
+            const pulse = (Math.sin(performance.now() * 0.008) + 1) * 0.5;
+            const col = pl._duoReviveBoost ? '#7cf49a' : '#a8d4ff';
+            ctx.globalAlpha = 0.35 + pulse * 0.45;
+            ctx.fillStyle = col;
+            ctx.fillRect(mx - 1, my - 4, 2, 2);
+            ctx.fillRect(mx - 1, my + 2, 2, 2);
+            ctx.fillRect(mx - 4, my - 1, 2, 2);
+            ctx.fillRect(mx + 2, my - 1, 2, 2);
+            ctx.globalAlpha = 1;
+            ctx.fillRect(mx - 1, my - 1, 2, 2);
+            drawText(ctx, `${Math.ceil(pl._duoDownT / 60)}`, mx, my - 14, col, 1, 'center');
+        }
+    }
+
     _drawEnemy(e) {
         const ctx = this.ctx;
         // R522: dying-enemy death animation — runs for 40 frames after
@@ -2231,7 +2433,8 @@ export class BeatEmUp {
         const dying = (!e.alive && e.deathT != null);
         if (dying) {
             const dT = Math.min(40, e.deathT) / 40;
-            const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
+            const tp = this._nearestPlayer(e.x + e.w / 2, e.y + e.h / 2);
+            const facing = (tp.x + tp.w / 2) > (e.x + e.w / 2) ? 1 : -1;
             const fallY = dT * dT * 16;       // quadratic ease-in fall
             const tilt = facing * dT * 1.2;   // ~70° tilt over animation
             const alpha = 1 - dT * 0.85;       // 1.0 → 0.15
@@ -2343,7 +2546,8 @@ export class BeatEmUp {
         // would distort. Anchor at hitbox bottom-center so the painted
         // feet/skids land on the ground line. Hitbox dims (e.w / e.h)
         // continue to drive collision; only the *visual* uses native AR.
-        const facing = (this.player.x + this.player.w / 2) > (e.x + e.w / 2) ? 1 : -1;
+        const tp = this._nearestPlayer(e.x + e.w / 2, e.y + e.h / 2);
+        const facing = (tp.x + tp.w / 2) > (e.x + e.w / 2) ? 1 : -1;
         const hitboxH = e.h * scale;
         // dw/dh default to hitbox dims (used by HP bar + procedural
         // fallback). Painted-image branch overrides them to native AR.
@@ -2481,10 +2685,14 @@ export class BeatEmUp {
                 ctx.fillRect(6 + i * 8, 6, 6, 1);
             }
         }
-        // Lives bezel
+        // Lives bezel — duo draws the shared pool (game.sharedLives),
+        // solo keeps the engine-local per-player count.
+        const livesN = this.duo
+            ? Math.max(0, this.game?.sharedLives ?? 0)
+            : Math.max(0, this.player.lives);
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(4, 18, 18, 8);
-        drawText(ctx, 'x' + Math.max(0, this.player.lives), 6, 20, '#ffcc80', 1, 'left');
+        drawText(ctx, 'x' + livesN, 6, 20, '#ffcc80', 1, 'left');
         // R519: melee-mode debris counter — small icon + count, right of
         // the lives bezel. Tells the player "V THROW" is available and
         // how many they have left. Hidden when meleeMode is off.
@@ -2501,6 +2709,31 @@ export class BeatEmUp {
             }
             drawText(ctx, 'V', dx + 10, dy + 2, '#a890b0', 1, 'left');
             drawText(ctx, 'x' + this.player.debrisAmmo, dx + 16, dy + 2, '#ffcc80', 1, 'left');
+            // R707: P2's debris count extends the same row in duo.
+            if (this.duo && this.players[1]) {
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(dx + 28, dy, 30, 8);
+                drawText(ctx, 'P2', dx + 30, dy + 2, '#80c0ff', 1, 'left');
+                drawText(ctx, 'x' + this.players[1].debrisAmmo, dx + 44, dy + 2, '#ffcc80', 1, 'left');
+            }
+        }
+        // R707: duo status lines — P2 under the wave bezel (right), P1's
+        // down countdown under the left bezels. Mirrors the platformer's
+        // R698 corner HUD colors.
+        if (this.duo && this.players[1]) {
+            const p1 = this.players[0], p2 = this.players[1];
+            if (p2._duoDownT == null) {
+                drawText(ctx, `P2 HP ${p2.hp}`, GAME.W - 6, 18, '#80c0ff', 1, 'right');
+            } else {
+                const txt = p2._duoDownT > 0 ? `P2 IN ${Math.ceil(p2._duoDownT / 60)}s` : 'P2 DOWN';
+                drawText(ctx, txt, GAME.W - 6, 18,
+                         p2._duoReviveBoost ? '#7cf49a' : '#ff6080', 1, 'right');
+            }
+            if (p1._duoDownT != null) {
+                const txt = p1._duoDownT > 0 ? `P1 IN ${Math.ceil(p1._duoDownT / 60)}s` : 'P1 DOWN';
+                drawText(ctx, txt, 6, 28,
+                         p1._duoReviveBoost ? '#7cf49a' : '#ff6080', 1, 'left');
+            }
         }
         // Wave counter bezel
         const total = this.data.waves?.length || 1;
