@@ -602,7 +602,7 @@ export class Game {
         // On flip, rewire P2's input source so a duo player dropped back to
         // tag/single never reads the split device.
         const wantDuo = (this.scene === SCENE.PLAY || this.scene === SCENE.BEAT_PLAY ||
-                         this.scene === SCENE.TURRET_PLAY)
+                         this.scene === SCENE.TURRET_PLAY || this.scene === SCENE.FPS_PLAY)
             && this._duoLive();
         if (wantDuo !== isDuoActive()) setDuoActive(wantDuo);
         // Enforce (not just on flip) — _startStage can rebuild the partner
@@ -2153,9 +2153,9 @@ export class Game {
     // R698: true when duo (simultaneous 2-player) is actually running this
     // stage. Endless IS platformer-engined, so duo runs there too (R701).
     // Both slots must be populated.
-    // R707: the beat-em-up engine now runs true duo (engine-owned players
-    // array). The remaining engines (fps/turret/doom) still drive a single
-    // player, so duo silently degrades to tag there.
+    // R707-R709: beat-em-up, turret and FPS engines now run true duo
+    // (engine-owned players arrays). Doom still drives a single player,
+    // so duo silently degrades to tag there.
     _duoLive() {
         if (this._beatMode) {
             return this.coopMode && this.duoMode &&
@@ -2166,8 +2166,13 @@ export class Game {
                 !!(this._turretArena && this._turretArena.duo &&
                    this._turretArena.players?.[1]);
         }
+        if (this._fpsMode) {
+            return this.coopMode && this.duoMode &&
+                !!(this._fpsArena && this._fpsArena.duo &&
+                   this._fpsArena.players?.[1]);
+        }
         return this.coopMode && this.duoMode &&
-            !this._fpsMode && !this._doomMode &&
+            !this._doomMode &&
             !!this.players[0] && !!this.players[1];
     }
 
@@ -7373,6 +7378,8 @@ export class Game {
                         ? this._beatEmUp.players :
                     (this._turretArena?.duo && this._turretArena.players?.[1])
                         ? this._turretArena.players :
+                    (this._fpsArena?.duo && this._fpsArena.players?.[1])
+                        ? this._fpsArena.players :
                     null;
                 const base = engDuo ? [0, 0] : (css._killBaseline || [0, 0]);
                 const pl = engDuo || this.players || [];

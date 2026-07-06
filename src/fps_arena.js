@@ -20,7 +20,7 @@
 // straight up (or diag with horizontal input). X = shoot. No jump.
 
 import { GAME } from './constants.js';
-import { input } from './input.js';
+import { input, input2 } from './input.js';
 import { audio } from './audio.js';
 import { achievements } from './achievements.js';
 import { sprites } from './sprites.js';
@@ -96,25 +96,19 @@ export class FpsArena {
         // or 'door' (segment 3 is empty corridor that clears the stage).
         this.endingStyle = stageData.endingStyle || 'core';
 
-        // Player
-        this.player = {
-            x: GAME.W / 2 - PLAYER_W / 2,
-            y: RAIL_Y - PLAYER_H,
-            w: PLAYER_W, h: PLAYER_H,
-            hp: this._playerMaxHp,
-            maxHp: this._playerMaxHp,
-            lives: 3,                  // R262: was effectively 1 — give 3 retries
-            iframes: 0,
-            shootCD: 0,
-            facing: 0,
-            runFrame: 0,
-            score: 0,
-            kills: 0,    // R489: kill counter for achievements
-            // R418: rage mode parity with platformer + beatem
-            rageFrames: 0,
-            rageMaxFrames: 300,
-            rageUsedThisStage: false,
-        };
+        // R709: true duo — mirrors beat R707 / turret R708. Shared lives
+        // pool (game.sharedLives), down/revive on death (FPS players can
+        // move, so the beat down-soul model applies — not the turret's
+        // shared-rig repair), enemy HP scaled 1.5x / bosses 1.25x.
+        this.duo = !!(game && game.coopMode && game.duoMode);
+        this._duoEnemyMul = this.duo ? 1.5 : 1;
+        this._duoBossMul = this.duo ? 1.25 : 1;
+
+        // Players on the ground rail — this.player stays an ALIAS of
+        // players[0]: game-side consumers and all solo code paths read it.
+        this.players = [this._makePlayer(0)];
+        if (this.duo) this.players.push(this._makePlayer(1));
+        this.player = this.players[0];
 
         // Entity pools — populated per segment
         this.turrets = [];
@@ -296,8 +290,55 @@ export class FpsArena {
 
     // R690: difficulty HP scaling — same rounding as the main engine
     // (enemies.js spawn formula). Bosses scale at half strength.
-    _scaledHp(base)     { return Math.max(1, Math.ceil(base * this._diffEnemyHp)); }
-    _scaledBossHp(base) { return Math.max(1, Math.ceil(base * this._diffBossHp)); }
+    // R709: duo multipliers fold in here so every spawn site (turrets,
+    // grunts, shields, core, mecha phase-2) scales without local edits.
+    _scaledHp(base)     { return Math.max(1, Math.ceil(base * this._diffEnemyHp * this._duoEnemyMul)); }
+    _scaledBossHp(base) { return Math.max(1, Math.ceil(base * this._diffBossHp * this._duoBossMul)); }
+
+    // R709: player factory — P1 (Clippy) and duo P2 (Bonzi) share the
+    // same shape; duo staggers spawn x so they don't overlap.
+    _makePlayer(pIdx) {
+        return {
+            pIdx,
+            x: GAME.W / 2 - PLAYER_W / 2 + (this.duo ? (pIdx ? 20 : -20) : 0),
+            y: RAIL_Y - PLAYER_H,
+            w: PLAYER_W, h: PLAYER_H,
+            hp: this._playerMaxHp,
+            maxHp: this._playerMaxHp,
+            lives: 3,                  // R262: was effectively 1 — give 3 retries
+            iframes: 0,
+            shootCD: 0,
+            facing: 0,
+            runFrame: 0,
+            score: 0,
+            kills: 0,    // R489: kill counter for achievements
+            // R418: rage mode parity with platformer + beatem
+            rageFrames: 0,
+            rageMaxFrames: 300,
+            rageUsedThisStage: false,
+            // R709: duo down/revive state
+            _duoDownT: null,
+            _duoReviveBoost: false,
+            _moving: false,
+        };
+    }
+
+    // R709: input source for a player — P2 reads the duo split (input2).
+    _inputFor(p) {
+        return (this.duo && p.pIdx === 1) ? input2 : input;
+    }
+
+    // R709: nearest living (not downed, hp>0) player to a world point —
+    // enemy aim target. Falls back to P1 so callers always get an object.
+    _nearestPlayer(x, y) {
+        let best = null, bd = Infinity;
+        for (const p of this.players) {
+            if (p._duoDownT != null || p.hp <= 0) continue;
+            const d = Math.hypot((p.x + p.w / 2) - x, (p.y + p.h / 2) - y);
+            if (d < bd) { bd = d; best = p; }
+        }
+        return best || this.players[0];
+    }
 
     _refreshBg() {
         const key = this.bgKeys[Math.min(this.segment, this.bgKeys.length - 1)];
@@ -432,9 +473,12 @@ export class FpsArena {
                 transitionToNext();
                 return;
             }
+            // R709: either player can dismiss the clear screen in duo.
+            const pressAny = (src) =>
+                src.isPressed('shoot') || src.isPressed('jump') ||
+                src.isPressed('start') || src.isPressed('pause');
             if (this.clearT > 60 &&
-                (input.isPressed('shoot') || input.isPressed('jump') ||
-                 input.isPressed('start') || input.isPressed('pause'))) {
+                (pressAny(input) || (this.duo && pressAny(input2)))) {
                 if (autoNext) {
                     transitionToNext();
                     return;
@@ -447,7 +491,7 @@ export class FpsArena {
         }
         if (this.phase === 'advance') {
             this.advanceT++;
-            this._tickPlayer();          // player still strafes during dolly
+            this._tickPlayers();         // players still strafe during dolly
             this._tickBullets();
             this._tickEnemyBullets();    // residual shots
             this._tickParticles();
@@ -464,7 +508,7 @@ export class FpsArena {
             }
             return;
         }
-        this._tickPlayer();
+        this._tickPlayers();
         this._tickBullets();
         this._tickEnemyBullets();
         if (this.phase === 'fight') {
@@ -503,15 +547,46 @@ export class FpsArena {
         this._tickParticles();
     }
 
-    _tickPlayer() {
-        const ax = input.axis();
-        const p = this.player;
+    // R709: tick every living player against their own input device;
+    // downed duo players tick their revive countdown instead. Shared by
+    // the main flow and the 'advance' dolly (both ticked players before).
+    _tickPlayers() {
+        for (const p of this.players) {
+            if (p._duoDownT != null) continue;
+            this._tickPlayer(p, this._inputFor(p));
+        }
+        if (this.duo) {
+            this._tickDuoDowns();
+            // R568f SYNCED HEARTBEAT — judged on the ENGINE's pair (the
+            // game-side call only runs in the platformer _tickPlay).
+            this.game?._tickCoopSyncedHeartbeat?.(this.players[0], this.players[1]);
+        }
+        // R484: low-HP heartbeat — engine-level so two 1-HP duo players
+        // don't double-rate the ticker (moved out of _tickPlayer in R709).
+        const anyLow = this.players.some(pl =>
+            pl._duoDownT == null && pl.hp === 1);
+        if (anyLow) {
+            this._hbTick = (this._hbTick || 0) + 1;
+            if (this._hbTick >= 50) {
+                audio.sfx?.('heartbeat');
+                this._hbTick = 0;
+            }
+        } else {
+            this._hbTick = 0;
+        }
+    }
+
+    _tickPlayer(p = this.player, src = input) {
+        const ax = src.axis();
         // R418: rage tick + 1.5× movement
         if (p.rageFrames > 0) p.rageFrames--;
         const rageMul = p.rageFrames > 0 ? 1.5 : 1;
         p.x += ax.x * PLAYER_SPEED * rageMul;
         if (p.x < PLAYER_X_MIN) p.x = PLAYER_X_MIN;
         if (p.x > PLAYER_X_MAX) p.x = PLAYER_X_MAX;
+        // R709: draw-side animation flag — _drawPlayerOne can't poll a
+        // single global input device now that each player has their own.
+        p._moving = Math.abs(ax.x) > 0.1;
         if (Math.abs(ax.x) > 0.1) p.runFrame = (p.runFrame + 0.25) % 4;
         if (ax.x < -0.1)      p.facing = -1;
         else if (ax.x > 0.1)  p.facing = 1;
@@ -527,7 +602,7 @@ export class FpsArena {
             p.vy = 0;
             p.jumpsLeft = 2;
         }
-        if (input.isPressed && input.isPressed('jump') && p.jumpsLeft > 0) {
+        if (src.isPressed && src.isPressed('jump') && p.jumpsLeft > 0) {
             // First jump: full hop. Second: shorter (double-jump).
             p.vy = (p.jumpsLeft === 2) ? -5.5 : -4.0;
             p.jumpsLeft--;
@@ -542,25 +617,14 @@ export class FpsArena {
         }
         if (p.iframes > 0) p.iframes--;
         if (p.shootCD > 0) p.shootCD--;
-        // R484: low-HP heartbeat at HP ≤ 1
-        if (p.hp <= 1 && p.hp > 0) {
-            this._hbTick = (this._hbTick || 0) + 1;
-            if (this._hbTick >= 50) {
-                audio.sfx?.('heartbeat');
-                this._hbTick = 0;
-            }
-        } else {
-            this._hbTick = 0;
-        }
-        if (input.isHeld('shoot') && p.shootCD <= 0) {
-            this._fire();
+        if (src.isHeld('shoot') && p.shootCD <= 0) {
+            this._fire(p);
             // R418: rage halves fire cooldown
             p.shootCD = p.rageFrames > 0 ? Math.max(2, Math.floor(BULLET_FIRE_COOLDOWN / 2)) : BULLET_FIRE_COOLDOWN;
         }
     }
 
-    _fire() {
-        const p = this.player;
+    _fire(p = this.player) {
         // Bullet starts at the player's "muzzle" — head height, slightly
         // offset by facing so diag shots feel like they come from the side.
         const vx = p.facing * 1.4;
@@ -570,6 +634,7 @@ export class FpsArena {
             y: p.y + 4,
             vx, vy,
             life: 90,
+            _pIdx: p.pIdx || 0,   // R709: kill attribution
         });
         audio.sfx('mg');
     }
@@ -597,7 +662,7 @@ export class FpsArena {
                     consumed = true;
                     if (t.hp <= 0) {
                         t.alive = false;
-                        this._scoreKill(1000, tx + t.w / 2, ty);
+                        this._scoreKill(1000, tx + t.w / 2, ty, b._pIdx || 0);
                         audio.sfx('bossHit');
                         this._explosion(tx + t.w / 2, ty + t.h / 2, '#ff6020');
                     } else {
@@ -622,7 +687,7 @@ export class FpsArena {
                     consumed = true;
                     if (g.hp <= 0) {
                         g.alive = false;
-                        this._scoreKill(750, gx + gw / 2, gy);
+                        this._scoreKill(750, gx + gw / 2, gy, b._pIdx || 0);
                         audio.sfx('enemyDie');
                         this._explosion(gx + gw / 2, gy + gh / 2, '#a8c060');
                     } else {
@@ -646,7 +711,7 @@ export class FpsArena {
                         consumed = true;
                         if (s.hp <= 0) {
                             s.alive = false;
-                            this._scoreKill(1500, sx, sy);
+                            this._scoreKill(1500, sx, sy, b._pIdx || 0);
                             audio.sfx('bossHit');
                             this._explosion(sx + 5, sy + 5, '#a060ff');
                         } else {
@@ -675,7 +740,16 @@ export class FpsArena {
                                 audio.sfx('bossHit');
                             } else {
                                 c.alive = false;
-                                this.player.score += 9500;
+                                // R709: credit the killing bullet's owner
+                                // (kept off _scoreKill — the 9500 bounty has
+                                // never counted as a kill or fed the combo).
+                                const owner = this.players[b._pIdx || 0] || this.player;
+                                owner.score += 9500;
+                                // R709: duo boss-kill attribution for RIDE OR DIE
+                                if (this.duo && this.game?.coopStageStats) {
+                                    this.game.coopStageStats.bossKillCharacter =
+                                        (b._pIdx === 1) ? 'bonzi' : 'clippy';
+                                }
                                 audio.sfx('bossDie');
                                 this._explosion(c.x, c.y, '#ff60a0');
                                 // R314: chunky shake on boss death — three
@@ -704,7 +778,6 @@ export class FpsArena {
     }
 
     _tickEnemyBullets() {
-        const p = this.player;
         if (this._whizzCooldown > 0) this._whizzCooldown--;
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const b = this.enemyBullets[i];
@@ -724,10 +797,12 @@ export class FpsArena {
                 this.enemyBullets.splice(i, 1);
                 continue;
             }
-            // R486: near-miss whizz SFX
+            // R486: near-miss whizz SFX — R709: judged against the nearest
+            // living player (falls back to P1 in solo).
             if (!b._whizzPlayed && (this._whizzCooldown || 0) <= 0) {
-                const pdx = b.x - (p.x + p.w / 2);
-                const pdy = b.y - (p.y + p.h / 2);
+                const wp = this._nearestPlayer(b.x, b.y);
+                const pdx = b.x - (wp.x + wp.w / 2);
+                const pdy = b.y - (wp.y + wp.h / 2);
                 const d2 = pdx * pdx + pdy * pdy;
                 if (b._prevD2 != null && d2 > b._prevD2 && b._prevD2 < 16 * 16) {
                     audio.sfx?.('whizz');
@@ -739,21 +814,25 @@ export class FpsArena {
             // Chair hitbox is larger than a bullet — uses ~16×16 instead of 3×3
             const hitW = b.isChair ? 18 : 3;
             const hitH = b.isChair ? 18 : 3;
-            if (p.iframes <= 0 &&
-                b.x >= p.x - hitW/2 && b.x <= p.x + p.w + hitW/2 &&
-                b.y >= p.y - hitH/2 && b.y <= p.y + p.h + hitH/2) {
-                // R465: bullet velocity angle for damage indicator
-                this._lastHitAngle = Math.atan2(b.vy || 0, b.vx || 0) + Math.PI;
-                this._damagePlayer(b.isChair ? 2 : 1);
-                this.enemyBullets.splice(i, 1);
+            // R709: every living player is a valid target
+            for (const p of this.players) {
+                if (p._duoDownT != null || p.hp <= 0) continue;
+                if (p.iframes <= 0 &&
+                    b.x >= p.x - hitW/2 && b.x <= p.x + p.w + hitW/2 &&
+                    b.y >= p.y - hitH/2 && b.y <= p.y + p.h + hitH/2) {
+                    // R465: bullet velocity angle for damage indicator
+                    this._lastHitAngle = Math.atan2(b.vy || 0, b.vx || 0) + Math.PI;
+                    this._damagePlayer(b.isChair ? 2 : 1, p);
+                    this.enemyBullets.splice(i, 1);
+                    break;
+                }
             }
         }
     }
 
     // R418: shared damage path for FPS — gated by rage mode, auto-triggers
     // rage on the frame HP drops to 1.
-    _damagePlayer(dmg) {
-        const p = this.player;
+    _damagePlayer(dmg, p = this.player) {
         if (p.rageFrames > 0) {
             p.iframes = Math.max(p.iframes, 12);
             return;
@@ -765,12 +844,15 @@ export class FpsArena {
         audio.sfx('playerHit');
         // R465: arm directional damage indicator
         this._damageIndicatorT = 30;
-        if (p.hp <= 0) this._onPlayerDeath();
-        else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage();
+        // R709: duo deaths route to the shared-lives down/revive path
+        if (p.hp <= 0) {
+            if (this.duo) this._onDuoPlayerDown(p);
+            else this._onPlayerDeath();
+        }
+        else if (p.hp <= 1 && !p.rageUsedThisStage) this._triggerRage(p);
     }
 
-    _triggerRage() {
-        const p = this.player;
+    _triggerRage(p = this.player) {
         p.rageFrames = p.rageMaxFrames;
         p.rageUsedThisStage = true;
         audio.sfx?.('powerup');
@@ -788,7 +870,9 @@ export class FpsArena {
 
     // R465: combo-aware score gain. Chained kills within 4s bump multiplier.
     // Returns the effective gain (post-multiplier) for any callers that need it.
-    _scoreKill(base, x, y) {
+    // R709: pIdx credits the owning player. The combo chain stays ENGINE
+    // level on purpose — it's a TEAM combo (same call as turret R708).
+    _scoreKill(base, x, y, pIdx = 0) {
         const t = this.t || 0;
         if (this._lastKillT == null || (t - this._lastKillT) > 240) {
             this._comboCount = 1;
@@ -800,9 +884,10 @@ export class FpsArena {
                      (this._comboCount >= 4) ? 3 :
                      (this._comboCount >= 3) ? 2 : 1;
         const gain = base * mult;
-        this.player.score += gain;
+        const owner = this.players[pIdx] || this.player;
+        owner.score += gain;
         // R489: kill counter for achievements
-        this.player.kills = (this.player.kills || 0) + 1;
+        owner.kills = (owner.kills || 0) + 1;
         if (mult > 1 && x != null && y != null) {
             particles.floatingText?.(x, y - 6, `COMBO ×${mult}!`,
                 mult >= 4 ? '#ff80ff' : mult >= 3 ? '#ff8050' : '#ffe070',
@@ -831,6 +916,79 @@ export class FpsArena {
         this.player.x = GAME.W / 2 - this.player.w / 2;
     }
 
+    // R709: duo death — mirrors beat R707 / platformer R698 rules. A death
+    // spends a SHARED life (game.sharedLives) and starts a 2.5s down
+    // counter; the partner standing on the soul burns it 4x faster (R700
+    // touch-revive). Pool empty = down for good; both down for good = game
+    // over. Unlike solo _onPlayerDeath, duo downs do NOT clear
+    // enemyBullets — the living partner is still dodging that pattern.
+    _onDuoPlayerDown(p) {
+        const g = this.game;
+        achievements.countLifeDeath();   // R695: lifetime STATS counter
+        if (g) {
+            g.totalDeaths++;
+            // CARRY ON counts every partner death, matching _tickDuoDeaths
+            if (g.coopStageStats) g.coopStageStats.partnerDeathsThisStage++;
+        }
+        p.rageFrames = 0;
+        if (g && g.sharedLives > 0) {
+            g.sharedLives--;
+            p._duoDownT = 150;   // 2.5s until the partner-side respawn
+        } else {
+            p._duoDownT = -1;    // pool empty — down for good
+        }
+    }
+
+    _tickDuoDowns() {
+        const [a, b] = this.players;
+        for (const pl of this.players) {
+            if (!(pl._duoDownT > 0)) continue;
+            const other = pl === a ? b : a;
+            // R700 touch-revive: live partner standing over the soul burns
+            // the countdown 4x faster (same rect-overlap test, +6px slack).
+            const touching = other && other._duoDownT == null && other.hp > 0 &&
+                other.x < pl.x + pl.w + 6 && other.x + other.w > pl.x - 6 &&
+                other.y < pl.y + pl.h + 6 && other.y + other.h > pl.y - 6;
+            pl._duoReviveBoost = touching;
+            pl._duoDownT = Math.max(0, pl._duoDownT - (touching ? 4 : 1));
+            if (pl._duoDownT === 0) {
+                // R705: only credit the touch-revive achievements when the
+                // partner was on the body at the finishing frame.
+                if (touching) {
+                    achievements.stats.duoTouchRevives++;
+                    achievements.update({});
+                    achievements._save();
+                }
+                this._duoRespawn(pl);
+            }
+        }
+        // _fadeTo silently no-ops while a transition is mid-flight
+        // (transition !== 0), so a one-shot latch here could swallow the
+        // game over entirely. Re-fire every frame instead — the guard in
+        // _fadeTo makes repeats free, and the scene swap stops our update.
+        if (a._duoDownT === -1 && b._duoDownT === -1) {
+            this.game._fadeTo('gameOver');
+        }
+    }
+
+    // R709: respawn a downed duo player at their living partner's side on
+    // the ground rail (fall back to screen center when both went down).
+    _duoRespawn(pl) {
+        const other = pl === this.players[0] ? this.players[1] : this.players[0];
+        const otherLive = other && other._duoDownT == null && other.hp > 0;
+        pl.x = otherLive ? other.x : GAME.W / 2 - pl.w / 2;
+        pl.x = Math.min(Math.max(pl.x, PLAYER_X_MIN), PLAYER_X_MAX);
+        pl.y = RAIL_Y - pl.h;
+        pl.vy = 0;
+        pl.jumpsLeft = 2;
+        pl.hp = pl.maxHp;
+        pl.iframes = 90;   // generous re-entry — the fight kept going here
+        pl.rageFrames = 0;
+        pl._duoDownT = null;
+        pl._duoReviveBoost = false;
+        audio.sfx?.('respawn');
+    }
+
     _tickTurrets() {
         for (const t of this.turrets) {
             if (!t.alive) continue;
@@ -846,8 +1004,10 @@ export class FpsArena {
     _turretVolley(t) {
         const cx = depthX(t.originX, t.t);
         const cy = depthY(t.t) - t.h / 2;
-        // Aim partly toward the player so the 3-way isn't always neutral
-        const px = this.player.x + this.player.w / 2;
+        // Aim partly toward the nearest living player so the 3-way isn't
+        // always neutral (R709: was hardwired to P1).
+        const target = this._nearestPlayer(cx, cy);
+        const px = target.x + target.w / 2;
         const dx = (px - cx) * 0.25;
         for (const sp of [-0.5, 0, 0.5]) {
             this.enemyBullets.push({
@@ -873,10 +1033,14 @@ export class FpsArena {
                 g.alive = false;
                 const cx = depthX(g.originX, 1);
                 this._explosion(cx, RAIL_Y - 12, '#a8c060');
-                // Splash damage if grunt is close to player
-                const dx = cx - (this.player.x + this.player.w / 2);
-                if (Math.abs(dx) < 24 && this.player.iframes <= 0) {
-                    this._damagePlayer(1);
+                // Splash damage — R709: test EVERY living player, the
+                // blast doesn't care who it lands next to.
+                for (const p of this.players) {
+                    if (p._duoDownT != null || p.hp <= 0) continue;
+                    const dx = cx - (p.x + p.w / 2);
+                    if (Math.abs(dx) < 24 && p.iframes <= 0) {
+                        this._damagePlayer(1, p);
+                    }
                 }
                 continue;
             }
@@ -912,21 +1076,25 @@ export class FpsArena {
             // must JUMP (or double-jump) to clear the laser sweep.
             // The laser fires at ground-rail level — the player's standing
             // foot position. Their chest at jump-apex clears the danger.
-            const p = this.player;
-            const playerFeetY = p.y + p.h;     // bottom of player AABB
+            // R709: the sweep spans the whole rail — test EVERY living
+            // player, each must time their own jump.
             // Danger zone: 18 px above and below the rail line.
             // When grounded, feet are at RAIL_Y which is inside the zone.
             // When jumping, feet rise above RAIL_Y - 18 → safe.
             const dangerTop = RAIL_Y - 18;
             const dangerBot = RAIL_Y + 18;
-            if (p.iframes <= 0 && playerFeetY > dangerTop && playerFeetY < dangerBot) {
-                // R418: route through shared path so rage gates lightning too
-                const before = p.hp;
-                this._damagePlayer(1);
-                if (p.hp !== before) {
-                    audio.sfx?.('thunder');
-                    this._explosion?.(p.x + p.w / 2, p.y + p.h - 4, '#a0e0ff');
-                    if (this._shake) this._shake(4, 12);
+            for (const p of this.players) {
+                if (p._duoDownT != null || p.hp <= 0) continue;
+                const playerFeetY = p.y + p.h;     // bottom of player AABB
+                if (p.iframes <= 0 && playerFeetY > dangerTop && playerFeetY < dangerBot) {
+                    // R418: route through shared path so rage gates lightning too
+                    const before = p.hp;
+                    this._damagePlayer(1, p);
+                    if (p.hp !== before) {
+                        audio.sfx?.('thunder');
+                        this._explosion?.(p.x + p.w / 2, p.y + p.h - 4, '#a0e0ff');
+                        if (this._shake) this._shake(4, 12);
+                    }
                 }
             }
         }
@@ -986,7 +1154,9 @@ export class FpsArena {
     // chair sprite (4-frame spin) and are physics-projectiles — gravity-
     // affected. The chair frame index advances based on flight time.
     _fireChairs(c) {
-        const playerCx = this.player.x + this.player.w / 2;
+        // R709: lob at the nearest living player, not always P1
+        const target = this._nearestPlayer(c.x, c.y);
+        const playerCx = target.x + target.w / 2;
         // 1 chair when boss > 50% HP, 2 chairs when wounded — gets harder.
         const numChairs = (c.hp < c.maxHp * 0.5) ? 2 : 1;
         for (let i = 0; i < numChairs; i++) {
@@ -1310,6 +1480,8 @@ export class FpsArena {
         ctx.globalAlpha = 1;
         // Player (last — always on top)
         this._drawPlayer();
+        // R709: downed duo soul markers over the player layer
+        if (this.duo) this._drawDuoSouls(ctx);
         // Advance transition — dolly forward flash
         if (this.phase === 'advance') {
             const a = 0.35 * (1 - Math.abs(this.advanceT - 30) / 30);
@@ -2026,8 +2198,16 @@ export class FpsArena {
     }
 
     _drawPlayer() {
+        // R709: draw every living player; downed duo players render as a
+        // soul marker instead (see _drawDuoSouls, drawn from draw()).
+        for (const p of this.players) {
+            if (p._duoDownT != null) continue;
+            this._drawPlayerOne(p);
+        }
+    }
+
+    _drawPlayerOne(p) {
         const ctx = this.ctx;
-        const p = this.player;
         const flicker = p.iframes > 0 && (p.iframes % 4 < 2);
         if (flicker) return;
         // R263: back-facing Clippy sprites for the Contra-base "into the
@@ -2037,12 +2217,22 @@ export class FpsArena {
         // Add the keys to src/sprites.js once assets exist. Until then the
         // fallback chain renders the side-facing run frames so the player
         // sprite still appears (just not back-facing).
-        const isMoving = Math.abs(input.axis().x) > 0.1;
-        const backFrames = ['clippy_back_run_1', 'clippy_back_run_2',
-                            'clippy_back_run_3', 'clippy_back_run_4'];
-        const sourceKey = isMoving
-            ? backFrames[Math.floor(p.runFrame) % backFrames.length]
-            : 'clippy_back_idle';
+        // R709: reads the per-player _moving flag (set in _tickPlayer) —
+        // polling the global input device here would animate P1's sprite
+        // off P2's stick. Duo P2 uses the bonzi_back set (2 run frames).
+        const isMoving = !!p._moving;
+        let sourceKey;
+        if (p.pIdx === 1) {
+            sourceKey = isMoving
+                ? `bonzi_back_run_${(Math.floor(p.runFrame) % 2) + 1}`
+                : 'bonzi_back_idle';
+        } else {
+            const backFrames = ['clippy_back_run_1', 'clippy_back_run_2',
+                                'clippy_back_run_3', 'clippy_back_run_4'];
+            sourceKey = isMoving
+                ? backFrames[Math.floor(p.runFrame) % backFrames.length]
+                : 'clippy_back_idle';
+        }
         // Fallback chain: back-facing sprite → side-facing sprite → solid rect
         const img = sprites.images.get(sourceKey)
                  || sprites.images.get(isMoving ? 'run_1' : 'idle');
@@ -2075,12 +2265,37 @@ export class FpsArena {
             ctx.restore();
         }
         // Aim indicator — small chevron above the head matching facing.
+        // R709: P2's chevron goes purple (matches the turret P2 reticle)
+        // so the pair can tell their aim markers apart.
         const cx = p.x + p.w / 2 + p.facing * 4;
         const cy = p.y - 4;
-        ctx.fillStyle = '#ffe070';
+        ctx.fillStyle = p.pIdx === 1 ? '#c060ff' : '#ffe070';
         ctx.fillRect(cx - 1, cy, 2, 4);
         if (p.facing !== 0) {
             ctx.fillRect(cx + p.facing * 2, cy + 1, 1, 2);
+        }
+    }
+
+    // R709: downed duo players leave a pulsing soul marker (mirrors the
+    // beat R707 / platformer R700 marker) so the partner knows where to
+    // stand for the touch-revive. Green while the boost is active. FPS
+    // has no camera scroll — player coords ARE screen coords.
+    _drawDuoSouls(ctx) {
+        for (const pl of this.players) {
+            if (!(pl._duoDownT > 0)) continue;
+            const mx = Math.round(pl.x + pl.w / 2);
+            const my = Math.round(pl.y + pl.h / 2);
+            const pulse = (Math.sin(performance.now() * 0.008) + 1) * 0.5;
+            const col = pl._duoReviveBoost ? '#7cf49a' : '#a8d4ff';
+            ctx.globalAlpha = 0.35 + pulse * 0.45;
+            ctx.fillStyle = col;
+            ctx.fillRect(mx - 1, my - 4, 2, 2);
+            ctx.fillRect(mx - 1, my + 2, 2, 2);
+            ctx.fillRect(mx - 4, my - 1, 2, 2);
+            ctx.fillRect(mx + 2, my - 1, 2, 2);
+            ctx.globalAlpha = 1;
+            ctx.fillRect(mx - 1, my - 1, 2, 2);
+            drawText(ctx, `${Math.ceil(pl._duoDownT / 60)}`, mx, my - 14, col, 1, 'center');
         }
     }
 
@@ -2136,11 +2351,57 @@ export class FpsArena {
                 ctx.fillRect(6 + i * 8, 6, 6, 1);
             }
         }
-        // Lives counter with bezel
-        const lives = Math.max(0, this.player.lives);
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillRect(4, 18, 18, 8);
-        drawText(ctx, 'x' + lives, 6, 20, '#ffcc80', 1, 'left');
+        if (this.duo && this.players[1]) {
+            // R709: duo HUD — P2's HP cells stack under P1's (purple, the
+            // shared Bonzi accent), and the per-player lives bezel becomes
+            // the SHARED lives pool (game.sharedLives).
+            const p2 = this.players[1];
+            const lowHp2 = p2._duoDownT == null && p2.hp <= 2;
+            const pulse2 = lowHp2 && ((this.t >> 3) & 1) === 0;
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(4, 15, 8 + cells * 8, 10);
+            ctx.fillStyle = 'rgba(192, 96, 255, 0.55)';
+            ctx.fillRect(4, 15, 8 + cells * 8, 1);
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(4, 24, 8 + cells * 8, 1);
+            for (let i = 0; i < cells; i++) {
+                const hot = p2._duoDownT == null && i < p2.hp;
+                if (hot) {
+                    ctx.fillStyle = lowHp2 ? (pulse2 ? '#ffe070' : '#c060ff') : '#c060ff';
+                } else {
+                    ctx.fillStyle = '#241030';
+                }
+                ctx.fillRect(6 + i * 8, 17, 6, 6);
+                if (hot) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                    ctx.fillRect(6 + i * 8, 17, 6, 1);
+                }
+            }
+            // Shared lives pool bezel
+            const pool = Math.max(0, this.game?.sharedLives ?? 0);
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(4, 29, 18, 8);
+            drawText(ctx, 'x' + pool, 6, 31, '#ffcc80', 1, 'left');
+            // Down-status lines — P2 under the segment bezel (right), P1
+            // under the left bezels. Mirrors the beat R707 corner HUD.
+            if (p2._duoDownT != null) {
+                const txt = p2._duoDownT > 0 ? `P2 IN ${Math.ceil(p2._duoDownT / 60)}s` : 'P2 DOWN';
+                drawText(ctx, txt, GAME.W - 6, 18,
+                         p2._duoReviveBoost ? '#7cf49a' : '#ff6080', 1, 'right');
+            }
+            const p1 = this.players[0];
+            if (p1._duoDownT != null) {
+                const txt = p1._duoDownT > 0 ? `P1 IN ${Math.ceil(p1._duoDownT / 60)}s` : 'P1 DOWN';
+                drawText(ctx, txt, 6, 40,
+                         p1._duoReviveBoost ? '#7cf49a' : '#ff6080', 1, 'left');
+            }
+        } else {
+            // Lives counter with bezel
+            const lives = Math.max(0, this.player.lives);
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(4, 18, 18, 8);
+            drawText(ctx, 'x' + lives, 6, 20, '#ffcc80', 1, 'left');
+        }
         // Right side — bezeled segment count
         const segTxt = (this.segment + 1) + ' / 4';
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
