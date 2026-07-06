@@ -745,6 +745,8 @@ export class TurretArena {
             this._bsodWaveT--;
             if (this._bsodWaveT === 30 && this.player.iframes <= 0) {
                 this.player.hp--;
+                // R706: report damage so the noDamage medal isn't free
+                if (this.game) this.game.stageStats.damageTaken += 1;
                 this.player.iframes = 60;
                 this.screenShake = Math.max(this.screenShake, 10);
                 audio.sfx?.('playerHit');
@@ -766,6 +768,8 @@ export class TurretArena {
         const p = this.player;
         if (p.iframes > 0) return;
         p.hp -= b.damage || 1;
+        // R706: report damage so the noDamage medal isn't free
+        if (this.game) this.game.stageStats.damageTaken += (b.damage || 1);
         p.iframes = 60;
         this.screenShake = Math.max(this.screenShake, 5);
         audio.sfx?.('playerHit');
@@ -866,6 +870,8 @@ export class TurretArena {
         const p = this.player;
         if (p.iframes > 0) return;
         p.hp--;
+        // R706: report damage so the noDamage medal isn't free
+        if (this.game) this.game.stageStats.damageTaken += 1;
         p.iframes = 60;
         this.screenShake = Math.max(this.screenShake, 6);
         audio.sfx?.('playerHit');
@@ -1003,6 +1009,10 @@ export class TurretArena {
                     this.waveIdx++;
                     this.phase = 'clear';
                     this.clearT = 0;
+                    // R706: credit the clear (see beatem_up — engines never
+                    // route through _onStageClear, so stage 25 never entered
+                    // runStats.stagesCleared and CRTRON was unearnable).
+                    if (this.game) this.game._creditStageClear?.();
                     audio.sfx?.('secretFound');
                 }
             }

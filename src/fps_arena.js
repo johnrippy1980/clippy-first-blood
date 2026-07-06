@@ -488,6 +488,10 @@ export class FpsArena {
             if (this.doorT >= 180) {
                 this.phase = 'clear';
                 this.clearT = 0;
+                // R706: credit the clear (see beatem_up — engines never
+                // route through _onStageClear, so stage 6 never entered
+                // runStats.stagesCleared).
+                if (this.game) this.game._creditStageClear?.();
                 audio.stopTrack();
             }
         } else if (this.phase === 'mechaEject') {
@@ -684,6 +688,11 @@ export class FpsArena {
                                 this._slowMoFrames = Math.max(this._slowMoFrames || 0, 60);
                                 this.phase = 'clear';
                                 this.clearT = 0;
+                                // R706: credit the clear — stages 9/19
+                                // (boss-kill path) never entered
+                                // runStats.stagesCleared (CORE BREACH was
+                                // unearnable).
+                                if (this.game) this.game._creditStageClear?.();
                             }
                         } else {
                             audio.sfx('bossHit');
@@ -751,6 +760,8 @@ export class FpsArena {
         }
         p.hp -= dmg;
         p.iframes = 60;
+        // R706: report damage so the noDamage medal isn't free (see beatem_up)
+        if (this.game) this.game.stageStats.damageTaken += dmg;
         audio.sfx('playerHit');
         // R465: arm directional damage indicator
         this._damageIndicatorT = 30;

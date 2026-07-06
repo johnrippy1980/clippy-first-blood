@@ -894,6 +894,11 @@ export class BeatEmUp {
             if (this.waveIdx >= (this.data.waves?.length || 0)) {
                 this.phase = 'clear';
                 this.clearT = 0;
+                // R706: roll this clear into runStats/achievements. The
+                // engine routes straight to STAGE_CARD (never through
+                // _onStageClear), so stages 7/20/22 were never credited —
+                // MECHA TRILOGY / THE LAST CLIPPY could not unlock.
+                if (this.game) this.game._creditStageClear?.();
                 // R516: melee stage — spawn the gun pickup at clear so the
                 // player can re-arm before the stage transitions. Skipping
                 // the pickup is fine; visual reward for getting through
@@ -1462,6 +1467,11 @@ export class BeatEmUp {
         }
         p.hp -= dmg;
         p.iframes = 60;
+        // R706: report damage to the game's per-stage stats — the noDamage
+        // medal + co-op TWO GHOSTS read stageStats.damageTaken, which no
+        // engine wrote before (engine clears would have granted the medal
+        // for free once R706 started crediting them).
+        if (this.game) this.game.stageStats.damageTaken += dmg;
         audio.sfx('playerHit');
         // R456: arm directional damage indicator
         this._damageIndicatorT = 30;

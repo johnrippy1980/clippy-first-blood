@@ -869,6 +869,11 @@ export class DoomEngine {
         }
         p.hp -= dmg;
         p.iframes = 60;
+        // R706: report damage to game.stageStats — doom DOES route through
+        // _onStageClear (R470), so its noDamage medal has been granted for
+        // free on every clear since medals shipped. Same one-line fix as
+        // the other engines.
+        if (this.game) this.game.stageStats.damageTaken += dmg;
         audio.sfx?.('hurt');
         // R438: arm damage indicator timer (30f visible)
         this._damageIndicatorT = 30;

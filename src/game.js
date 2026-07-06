@@ -6845,6 +6845,7 @@ export class Game {
         // Defensive reset: stage-clear gate, in case the previous stage death-handled
         // the boss-clear path or the player was rescued in the middle of stage clear.
         this._clearScheduled = false;
+        this._stageCredited = false;   // R706: per-stage roll-up guard
         this._clearBursts = [];
         this.slowMoFrames = 0;
         this._newlyUnlocked = null;
@@ -7225,18 +7226,32 @@ export class Game {
             audio.sfx('stageClear');
             this._clearBursts = [];
         }
-        // R568m: post-Bonzi defeat -> route to the forced-alliance cinematic
-        // INSTEAD of the regular stage-clear screen. The cinematic ends by
-        // re-entering STAGE_CLEAR so the player still gets their summary.
-        // R568m-fix: do NOT early-return here — the achievement snapshot +
-        // medal roll-up below MUST run so NEW MANAGEMENT (and any RIDE OR
-        // DIE / coop-stat updates) fire on the same _onStageClear cycle.
-        // Just override the scene at the end.
-        const goToBonziDefeat = !!this._bonziJustDefeated;
         this.scene = SCENE.STAGE_CLEAR;
         this.storyTimer = 0;
         this._stageClearTallyDone = false;
         this._stageClearRank = null;
+        this._creditStageClear();
+        this._onStageClearTail();
+    }
+
+    // R706: campaign roll-up extracted from _onStageClear so the mini-game
+    // engines (beat/FPS/turret) can credit a clear WITHOUT the platformer
+    // presentation path. _onStageClear forces scene = STAGE_CLEAR (the
+    // platformer/doom results panel), so beat/FPS/turret — which run their
+    // own bespoke clear celebrations and route straight to STAGE_CARD —
+    // never called it. Result: their stages never entered
+    // runStats.stagesCleared, so MECHA TRILOGY / THE LAST CLIPPY /
+    // CORE BREACH / CRTRON achievements were unearnable, engine kills never
+    // rolled into achievement stats (the R564 altPlayer chain was dead
+    // code), any% submits under-reported stagesCleared (10 of 13 — campaign
+    // stages 6/7/9 are engine stages), and co-op stage credit skipped them.
+    // Engines call this at their clear-phase entry; the platformer + doom
+    // reach it through _onStageClear. Guarded so a doubled clear signal
+    // (e.g. FPS boss-kill + corridor paths) can't credit twice — the guard
+    // resets in _startStage.
+    _creditStageClear() {
+        if (this._stageCredited) return;
+        this._stageCredited = true;
         // Campaign roll-up — stages 1-9 only. Boss Rush + Time Trial are
         // post-game replay modes; their clears must NOT contaminate
         // per-stage best scores, medals, run-level stats, or campaign
@@ -7253,9 +7268,13 @@ export class Game {
             // R470: pull score from whichever engine is active
             // R564b: extended with _turretArena (was missing from R563b
             // sweep — same family bug, would silently miss stage 25 scores)
-            const _scorePlayer = this.player || this._doomEngine?.player
+            // R706: engine players FIRST — mid-campaign, this.player is the
+            // stale platformer player from the previous stage (engines never
+            // null it), while engine refs are non-null iff their stage is
+            // active. Preferring this.player dropped engine scores.
+            const _scorePlayer = this._doomEngine?.player
                               || this._beatEmUp?.player || this._fpsArena?.player
-                              || this._turretArena?.player || {};
+                              || this._turretArena?.player || this.player || {};
             const _curScore = _scorePlayer.score || 0;
             // Daily Challenge runs carry difficulty modifiers, so their score
             // must not write per-stage bests (or any persistent campaign stat
@@ -7295,16 +7314,6 @@ export class Game {
             if (this.runCheckpoints && !this._runWarped) {
                 this.runCheckpoints.push({ key: 'stage' + this.currentStage, frame: this.totalTime });
             }
-            this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player?.maxCombo || 0);
-            for (const [k, v] of Object.entries(this.player?.dmgDealt || {})) {
-                this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
-            }
-            if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
-            // Roll the per-stage "target lost" bubble count into the run total
-            // before snapshotting for achievements (GHILLIE SUIT).
-            this.runStats.enemiesLost = (this.runStats.enemiesLost || 0)
-                + (this.enemies?.lostBubbleTotal || 0);
-
             // R470: null-safe for non-platformer engines (Doom/beat/FPS) —
             // their player objects don't have all the platformer fields.
             // Pull from the active engine's player when the platformer's
@@ -7315,7 +7324,28 @@ export class Game {
             // fallback chain.
             const altPlayer = this._doomEngine?.player || this._beatEmUp?.player
                            || this._fpsArena?.player || this._turretArena?.player;
-            const ap = this.player || altPlayer || {};
+            // R706: platformer-source rolls (combo, per-weapon damage, lost
+            // bubbles) only when the platformer actually ran this stage.
+            // During engine stages this.player / this.enemies are STALE
+            // leftovers from the previous platformer stage (engine starts
+            // never null them), so re-rolling them here would re-add the
+            // prior stage's dmgDealt / lostBubbleTotal on every engine
+            // clear. Engine players don't track these fields at all.
+            if (!altPlayer) {
+                this.runStats.maxCombo = Math.max(this.runStats.maxCombo, this.player?.maxCombo || 0);
+                for (const [k, v] of Object.entries(this.player?.dmgDealt || {})) {
+                    this.runStats.weaponDamage[k] = (this.runStats.weaponDamage[k] || 0) + v;
+                }
+                // Roll the per-stage "target lost" bubble count into the run
+                // total before snapshotting for achievements (GHILLIE SUIT).
+                this.runStats.enemiesLost = (this.runStats.enemiesLost || 0)
+                    + (this.enemies?.lostBubbleTotal || 0);
+            }
+            if (this.stageStats.damageTaken === 0) this.runStats.noDamageStages++;
+            // R706: prefer the engine player — this.player is the STALE
+            // previous platformer player mid-campaign (engine stage starts
+            // never null it), so engine kills were silently dropped.
+            const ap = altPlayer || this.player || {};
             // R568f (slice 6): if this is a co-op run, derive per-character
             // kills + the various end-of-stage triggers and merge them into
             // the persistent achievement stats. Single-player runs skip
@@ -7461,7 +7491,21 @@ export class Game {
             this._stageNewBest = false;
             this._newlyUnlocked = null;
         }
+    }
 
+    // R706: tail of the original _onStageClear — mode best-times + the
+    // R568m Bonzi-defeat scene override. Platformer/doom presentation only;
+    // engine stages never route here (their clear phases handle their own
+    // exits and none of them are boss-rush/time-trial stages).
+    _onStageClearTail() {
+        // R568m: post-Bonzi defeat -> route to the forced-alliance cinematic
+        // INSTEAD of the regular stage-clear screen. The cinematic ends by
+        // re-entering STAGE_CLEAR so the player still gets their summary.
+        // R568m-fix: the achievement snapshot + medal roll-up in
+        // _creditStageClear already ran, so NEW MANAGEMENT (and any RIDE OR
+        // DIE / coop-stat updates) fired on this same clear cycle. Just
+        // override the scene at the end.
+        const goToBonziDefeat = !!this._bonziJustDefeated;
         // Mode best-time persistence — boss rush + time trial both save
         // their stageTime (frames) to achievements stats. 0 means no time
         // set yet, so any clear is automatically a new best the first time.
@@ -8833,6 +8877,7 @@ export class Game {
         this._bossEntrance = null;
         this._bossIntro = null;
         this._clearScheduled = false;
+        this._stageCredited = false;   // R706: per-stage roll-up guard
         this._clearBursts = [];
         this.slowMoFrames = 0;
         this._bossKillBeatFired = false;
