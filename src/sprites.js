@@ -462,6 +462,8 @@ export const CLIPPY_MANIFEST = {
     'clippy_back_run_2': 'clippy_back_run_2.png',
     'clippy_back_run_3': 'clippy_back_run_3.png',
     'clippy_back_run_4': 'clippy_back_run_4.png',
+    // R711: Clippy victory pose — game-complete cameo (see _drawGameComplete).
+    'clippy_victory':    'clippy_victory.png',
     // R264: FPS-arena enemy sprites — Dr. Spindler's lab theme.
     'lab_turret':        'lab_turret.png',
     'lab_grunt':         'lab_grunt.png',
@@ -938,13 +940,38 @@ export const ENEMY_MANIFEST = {
     // r99: painted bosses re-integrated through process-v2-sprites.py
     // (white-bg corners auto-detected and knocked out, crop tight, downscale
     // to 96h). Original 60x60 boss_*.png files kept on disk as rollback.
+    // R711: each boss now ships a full idle/fire/hurt/death set. idle -> the
+    // _painted base key below; fire/hurt/death land on the variant keys the
+    // boss draw auto-appends (enemies.js: _fireFlash -> _fire, hitFlash ->
+    // _hurt, dyingShortly -> _death). Previously only Spindler had the set.
     'boss_COPIER_3000': 'boss_copier_painted.png',
+    'boss_COPIER_3000_fire':  'boss_copier_fire.png',
+    'boss_COPIER_3000_hurt':  'boss_copier_hurt.png',
+    'boss_COPIER_3000_death': 'boss_copier_death.png',
     'boss_SHREDDER':    'boss_shredder_painted.png',
+    'boss_SHREDDER_fire':  'boss_shredder_fire.png',
+    'boss_SHREDDER_hurt':  'boss_shredder_hurt.png',
+    'boss_SHREDDER_death': 'boss_shredder_death.png',
     'boss_CTRL_ALT_DEL':'boss_bsod_painted.png',
+    'boss_CTRL_ALT_DEL_fire':  'boss_bsod_fire.png',
+    'boss_CTRL_ALT_DEL_hurt':  'boss_bsod_hurt.png',
+    'boss_CTRL_ALT_DEL_death': 'boss_bsod_death.png',
     'boss_BALLMER':     'boss_ballmer_painted.png',
+    'boss_BALLMER_fire':  'boss_ballmer_fire.png',
+    'boss_BALLMER_hurt':  'boss_ballmer_hurt.png',
+    'boss_BALLMER_death': 'boss_ballmer_death.png',
     'boss_GATES':       'boss_founder_painted.png',
+    'boss_GATES_fire':  'boss_founder_fire.png',
+    'boss_GATES_hurt':  'boss_founder_hurt.png',
+    'boss_GATES_death': 'boss_founder_death.png',
     'boss_CLIPPY_2':    'boss_clippy2_painted.png',
+    'boss_CLIPPY_2_fire':  'boss_clippy2_fire.png',
+    'boss_CLIPPY_2_hurt':  'boss_clippy2_hurt.png',
+    'boss_CLIPPY_2_death': 'boss_clippy2_death.png',
     'boss_ALGORITHM':   'boss_algorithm_painted.png',
+    'boss_ALGORITHM_fire':  'boss_algorithm_fire.png',
+    'boss_ALGORITHM_hurt':  'boss_algorithm_hurt.png',
+    'boss_ALGORITHM_death': 'boss_algorithm_death.png',
     // R199: real painted Jobs sprites. Two distinct assets:
     //   - `enemy_jobs.png` (27×44) — in-game side-view character, used
     //     by the boss draw at the gameplay hitbox scale.

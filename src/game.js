@@ -8885,6 +8885,28 @@ export class Game {
                 }
             }
         }
+        // R711: Clippy victory pose — the hero's own bow. Slides up from the
+        // bottom-right (mirrors the Bonzi cameo on the left, never collides),
+        // bobs, and flashes a one-liner. Shown on every clear; gated only on
+        // the sprite so it degrades cleanly if the asset is missing.
+        const victoryImg = sprites.images.get('clippy_victory');
+        if (victoryImg && this.storyTimer > 60) {
+            const slideT = Math.min(1, (this.storyTimer - 60) / 45);
+            const bob = slideT >= 1 ? Math.sin(this.storyTimer * 0.1) * 1.5 : 0;
+            const vh = 48, vw = vh * (victoryImg.width / victoryImg.height);
+            const vx = GAME.W - vw - 6;
+            const restY = GAME.H - vh - 6;
+            const vy = restY + (1 - slideT) * (vh + 8) + bob;
+            ctx.save();
+            ctx.globalAlpha = slideT;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(victoryImg, 0, 0, victoryImg.width, victoryImg.height, vx, vy, vw, vh);
+            ctx.restore();
+            if (slideT >= 1 && this.storyTimer % 50 < 34) {
+                drawTextOutlined(ctx, 'LOOKS LIKE YOU WON!', vx - 4, restY + 6,
+                    ep.accent, '#1a0a14', 1, 'right');
+            }
+        }
         if (this.storyTimer % 60 < 40) {
             drawText(ctx, 'X CONTINUE', GAME.W / 2, GAME.H - 18, '#fff', 1, 'center');
         }

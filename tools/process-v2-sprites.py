@@ -28,6 +28,46 @@ JOBS = [
     ('enemy_folder_v2.png',    'v2_folder.png',       24),
     ('enemy_cabinet_v2.png',   'v2_cabinet.png',      36),
     ('enemy_holepunch_v2.png', 'v2_holepunch.png',    20),
+    # R711: painted idle/fire/hurt/death sets for the seven bosses that
+    # previously shipped a single _painted base. idle -> the base *_painted.png
+    # the boss draw already maps; fire/hurt/death land on the variant keys the
+    # renderer auto-appends (enemies.js hitFlash/_fireFlash + dyingShortly).
+    # 96px height matches the existing painted bosses.
+    ('boss_shredder_idle.png',  'boss_shredder_painted.png', 96),
+    ('boss_shredder_fire.png',  'boss_shredder_fire.png',    96),
+    ('boss_shredder_hurt.png',  'boss_shredder_hurt.png',    96),
+    ('boss_shredder_death.png', 'boss_shredder_death.png',   96),
+    ('boss_algorithm_idle.png',  'boss_algorithm_painted.png', 96),
+    ('boss_algorithm_fire.png',  'boss_algorithm_fire.png',    96),
+    ('boss_algorithm_hurt.png',  'boss_algorithm_hurt.png',    96),
+    ('boss_algorithm_death.png', 'boss_algorithm_death.png',   96),
+    ('boss_bsod_idle.png',  'boss_bsod_painted.png', 96),
+    ('boss_bsod_fire.png',  'boss_bsod_fire.png',    96),
+    ('boss_bsod_hurt.png',  'boss_bsod_hurt.png',    96),
+    ('boss_bsod_death.png', 'boss_bsod_death.png',   96),
+    ('boss_ballmer_idle.png',  'boss_ballmer_painted.png', 96),
+    ('boss_ballmer_fire.png',  'boss_ballmer_fire.png',    96),
+    ('boss_ballmer_hurt.png',  'boss_ballmer_hurt.png',    96),
+    ('boss_ballmer_death.png', 'boss_ballmer_death.png',   96),
+    ('boss_copier_idle.png',  'boss_copier_painted.png', 96),
+    ('boss_copier_fire.png',  'boss_copier_fire.png',    96),
+    ('boss_copier_hurt.png',  'boss_copier_hurt.png',    96),
+    ('boss_copier_death.png', 'boss_copier_death.png',   96),
+    ('boss_clippy2_idle.png',  'boss_clippy2_painted.png', 96),
+    ('boss_clippy2_fire.png',  'boss_clippy2_fire.png',    96),
+    ('boss_clippy2_hurt.png',  'boss_clippy2_hurt.png',    96),
+    ('boss_clippy2_death.png', 'boss_clippy2_death.png',   96),
+    ('boss_founder_idle.png',  'boss_founder_painted.png', 96),
+    ('boss_founder_fire.png',  'boss_founder_fire.png',    96),
+    ('boss_founder_hurt.png',  'boss_founder_hurt.png',    96),
+    ('boss_founder_death.png', 'boss_founder_death.png',   96),
+    # R711: FPS-arena grunt reskins (frame 1, static — the FPS renderer bobs
+    # them in code rather than cycling frames). 40px matches the prior sprites.
+    ('lab_grunt_src.png',     'lab_grunt.png',     40),
+    ('office_grunt_src.png',  'office_grunt.png',  40),
+    ('keynote_grunt_src.png', 'keynote_grunt.png', 40),
+    # R711: Clippy victory pose — game-complete cameo (see _drawGameComplete).
+    ('clippy_victory_src.png', 'clippy_victory.png', 96),
 ]
 
 
